@@ -1,0 +1,45 @@
+import { createReadStream, existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import path from 'node:path'
+import tailwindcss from '@tailwindcss/vite'
+import react from '@vitejs/plugin-react'
+import { defineConfig, type Plugin } from 'vite'
+
+const projectRoot = fileURLToPath(new URL('.', import.meta.url))
+
+function serveMockWorkerInDevelopment(): Plugin {
+  return {
+    name: 'serve-msw-worker-in-development',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        if (request.url !== '/mockServiceWorker.js') {
+          next()
+          return
+        }
+        const workerPath = path.resolve(projectRoot, '.msw/mockServiceWorker.js')
+        if (!existsSync(workerPath)) {
+          response.statusCode = 404
+          response.end('MSW worker is not initialized. Run npm run mock:init.')
+          return
+        }
+        response.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+        response.setHeader('Cache-Control', 'no-store')
+        createReadStream(workerPath).pipe(response)
+      })
+    },
+  }
+}
+
+export default defineConfig({
+  plugins: [react(), tailwindcss(), serveMockWorkerInDevelopment()],
+  server: {
+    host: '127.0.0.1',
+    port: 5173,
+    proxy: {
+      '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+      '/health': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+    },
+  },
+  preview: { host: '127.0.0.1', port: 4173 },
+})
