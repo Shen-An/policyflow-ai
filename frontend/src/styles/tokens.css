@@ -1,0 +1,30 @@
+:root {
+  color-scheme: light;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --color-background: #f8fafc;
+  --color-surface: #ffffff;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-border: #e2e8f0;
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-success: #15803d;
+  --color-warning: #b45309;
+  --color-danger: #b91c1c;
+  --font-page-title-size: 24px;
+  --font-page-title-line-height: 32px;
+  --font-section-title-size: 18px;
+  --font-section-title-line-height: 28px;
+  --font-card-title-size: 16px;
+  --font-card-title-line-height: 24px;
+  --font-body-size: 14px;
+  --font-body-line-height: 22px;
+  --font-caption-size: 12px;
+  --font-caption-line-height: 18px;
+}
