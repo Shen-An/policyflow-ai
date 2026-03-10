@@ -1,0 +1,12 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+sqlmodel>=0.0.22
+pydantic>=2.8.0
+pydantic-settings>=2.4.0
+python-jose[cryptography]>=3.3.0
+cryptography>=42.0.0
+aiosqlite>=0.20.0
+python-multipart>=0.0.9
+python-docx>=1.1.2
+pypdf>=5.0.0
+lightrag-hku==1.5.4
