@@ -1,0 +1,62 @@
+"""SQLModel metadata registration."""
+
+from sqlmodel import SQLModel
+
+from backend.app.db.models import (
+    AIQueryLog,
+    AuditLog,
+    Conversation,
+    Department,
+    Draft,
+    EvalCase,
+    EvalResult,
+    EvalRun,
+    FAQDraft,
+    KnowledgeBase,
+    KnowledgeBasePermission,
+    KnowledgeDocument,
+    MCPServer,
+    MemoryItem,
+    Message,
+    ModelProvider,
+    QueryFeedback,
+    RagIndexJob,
+    RetrievalEvalItem,
+    Role,
+    Skill,
+    Tool,
+    ToolCallLog,
+    User,
+    UserRole,
+)
+
+Base = SQLModel
+
+__all__ = [
+    "AIQueryLog",
+    "AuditLog",
+    "Base",
+    "Conversation",
+    "Draft",
+    "EvalCase",
+    "EvalResult",
+    "EvalRun",
+    "FAQDraft",
+    "Department",
+    "KnowledgeBase",
+    "KnowledgeBasePermission",
+    "KnowledgeDocument",
+    "MCPServer",
+    "MemoryItem",
+    "Message",
+    "ModelProvider",
+    "QueryFeedback",
+    "RagIndexJob",
+    "RetrievalEvalItem",
+    "Skill",
+    "Role",
+    "Tool",
+    "ToolCallLog",
+    "User",
+    "UserRole",
+]
