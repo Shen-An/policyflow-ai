@@ -1,4 +1,4 @@
-import { createReadStream, existsSync } from 'node:fs'
+﻿import { createReadStream, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
@@ -6,6 +6,10 @@ import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
 
 const projectRoot = fileURLToPath(new URL('.', import.meta.url))
+const backendProxy = {
+  '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+  '/health': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+}
 
 function serveMockWorkerInDevelopment(): Plugin {
   return {
@@ -36,10 +40,17 @@ export default defineConfig({
   server: {
     host: '127.0.0.1',
     port: 5173,
-    proxy: {
-      '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
-      '/health': { target: 'http://127.0.0.1:8000', changeOrigin: true },
-    },
+    strictPort: true,
+    proxy: backendProxy,
   },
-  preview: { host: '127.0.0.1', port: 4173 },
+  preview: {
+    host: '127.0.0.1',
+    port: 4173,
+    strictPort: true,
+    proxy: backendProxy,
+  },
+  build: {
+    manifest: true,
+    sourcemap: false,
+  },
 })
