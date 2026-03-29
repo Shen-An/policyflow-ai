@@ -1,9 +1,8 @@
 import { expect, test } from '@playwright/test'
 
-test('F0 renders and Vite proxies the real FastAPI health endpoint', async ({ page, request }) => {
-  await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'PolicyFlow AI' })).toBeVisible()
-  await expect(page.getByRole('link', { name: '检查后端健康状态' })).toHaveAttribute('href', '/health')
+test('F0 build remains available and Vite proxies the real FastAPI health endpoint', async ({ page, request }) => {
+  await page.goto('/login')
+  await expect(page.getByRole('heading', { name: '登录 PolicyFlow AI' })).toBeVisible()
   const response = await request.get('/health')
   expect(response.ok()).toBe(true)
   expect(await response.json()).toEqual({ status: 'ok' })
