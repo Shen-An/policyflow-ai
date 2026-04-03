@@ -1,13 +1,14 @@
 export type ApiReadiness = 'implemented' | 'contract-only' | 'mock-only' | 'blocked' | 'production-off'
 export type ApiCapability =
   | 'health' | 'auth' | 'users' | 'knowledgeBases' | 'documents' | 'chat'
-  | 'drafts' | 'faq' | 'skills' | 'tools' | 'mcp' | 'audit' | 'eval'
+  | 'feedback' | 'drafts' | 'faq' | 'skills' | 'tools' | 'mcp' | 'audit' | 'eval' | 'modelSettings'
 
 export const apiReadiness = {
   health: 'implemented', auth: 'implemented', users: 'implemented',
-  knowledgeBases: 'contract-only', documents: 'contract-only', chat: 'contract-only',
-  drafts: 'contract-only', faq: 'contract-only', skills: 'contract-only',
-  tools: 'contract-only', mcp: 'contract-only', audit: 'contract-only', eval: 'contract-only',
+  knowledgeBases: 'implemented', documents: 'implemented', chat: 'implemented',
+  feedback: 'implemented', drafts: 'implemented', faq: 'implemented', skills: 'implemented',
+  tools: 'implemented', mcp: 'implemented', audit: 'implemented', eval: 'implemented',
+  modelSettings: 'implemented',
 } as const satisfies Record<ApiCapability, ApiReadiness>
 
 export function canCallApi(capability: ApiCapability, production = import.meta.env.PROD): boolean {
