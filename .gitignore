@@ -37,3 +37,6 @@ rag_workspaces/
 # Test artifacts
 playwright-report/
 test-results/
+
+# Claude
+.claude/
