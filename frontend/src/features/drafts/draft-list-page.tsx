@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import type { DraftType } from '../../api/drafts'
 import { Button } from '../../components/ui/button'
+import { Alert } from '../../components/feedback/alert'
+import { EmptyState, LoadingState } from '../../components/feedback/state-views'
 import { useCreateDraftMutation, useDraftsQuery } from './queries'
 
 const draftTypes: Array<{ value: DraftType; label: string }> = [
@@ -89,26 +91,22 @@ export function DraftListPage() {
       </div>
 
       {query.isPending ? (
-        <div role="status" className="mt-[var(--space-6)] min-h-48 p-[var(--space-6)]">
-          正在加载草稿…
+        <div className="mt-[var(--space-6)]">
+          <LoadingState message="正在加载草稿…" minH="min-h-48" />
         </div>
       ) : query.isError ? (
-        <div role="alert" className="mt-[var(--space-6)] rounded-xl border border-red-200 bg-red-50 p-[var(--space-5)]">
-          <h3 className="font-semibold">草稿列表加载失败</h3>
-          <p className="mt-[var(--space-1)] text-sm">{query.error.message}</p>
-          <Button className="mt-[var(--space-3)]" onClick={() => void query.refetch()}>
-            重新加载
-          </Button>
+        <div className="mt-[var(--space-6)]">
+          <Alert tone="danger" title="草稿列表加载失败" action={<Button onClick={() => void query.refetch()}>重新加载</Button>}>
+            <p>{query.error.message}</p>
+          </Alert>
         </div>
       ) : query.data.items.length === 0 ? (
-        <div className="mt-[var(--space-6)] grid min-h-64 place-items-center rounded-xl border border-dashed border-[var(--color-border)] bg-white text-center">
-          <div>
-            <FileEdit aria-hidden="true" className="mx-auto size-8 text-[var(--color-text-secondary)]" />
-            <h3 className="mt-[var(--space-3)] font-semibold">还没有符合条件的草稿</h3>
-            <p className="mt-[var(--space-1)] text-sm text-[var(--color-text-secondary)]">
-              可以创建一份草稿，或调整筛选条件。
-            </p>
-          </div>
+        <div className="mt-[var(--space-6)]">
+          <EmptyState
+            icon={<FileEdit aria-hidden="true" className="size-8" />}
+            title="还没有符合条件的草稿"
+            hint="可以创建一份草稿，或调整筛选条件。"
+          />
         </div>
       ) : (
         <>
@@ -141,14 +139,14 @@ export function DraftListPage() {
             </p>
             <div className="flex gap-[var(--space-2)]">
               <Button
-                className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50"
+                variant="secondary"
                 disabled={page <= 1}
                 onClick={() => goToPage(page - 1)}
               >
                 上一页
               </Button>
               <Button
-                className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50"
+                variant="secondary"
                 disabled={page >= totalPages}
                 onClick={() => goToPage(page + 1)}
               >
@@ -214,9 +212,7 @@ function CreateDraftDialog({
             <X aria-hidden="true" className="size-5" />
           </Dialog.Close>
           {mutation.isError ? (
-            <p role="alert" className="mt-[var(--space-4)] rounded-md bg-red-50 p-[var(--space-3)] text-sm text-[var(--color-danger)]">
-              {mutation.error.message}
-            </p>
+            <Alert tone="danger" className="mt-[var(--space-4)]">{mutation.error.message}</Alert>
           ) : null}
           <form className="mt-[var(--space-5)] space-y-[var(--space-4)]" onSubmit={submit}>
             <label className="block text-sm font-semibold">
@@ -238,7 +234,7 @@ function CreateDraftDialog({
               <input value={sourceQuestion} onChange={(event) => setSourceQuestion(event.target.value)} className="mt-2 min-h-10 w-full rounded-md border border-[var(--color-border)] px-3 font-normal" />
             </label>
             <div className="flex justify-end gap-[var(--space-3)]">
-              <Button className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50" onClick={() => changeOpen(false)} disabled={mutation.isPending}>
+              <Button variant="secondary" onClick={() => changeOpen(false)} disabled={mutation.isPending}>
                 取消
               </Button>
               <Button type="submit" disabled={mutation.isPending || !title.trim() || !content.trim()}>
