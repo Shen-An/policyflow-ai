@@ -16,6 +16,8 @@ import type {
 } from '../../api/chat'
 import type { QueryMode } from '../../api/knowledge-bases'
 import { Button } from '../../components/ui/button'
+import { Alert } from '../../components/feedback/alert'
+import { LoadingState } from '../../components/feedback/state-views'
 import { useKnowledgeBasesQuery } from '../knowledge-bases/queries'
 import {
   useConversationQuery,
@@ -113,7 +115,7 @@ export function ChatPage() {
         </div>
         {conversationId ? (
           <Button
-            className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50"
+            variant="secondary"
             onClick={() => navigate('/chat')}
           >
             新建问答
@@ -128,15 +130,11 @@ export function ChatPage() {
             className="min-h-[420px] space-y-[var(--space-4)] p-[var(--space-4)] sm:p-[var(--space-6)]"
           >
             {conversation.isPending && conversationId && visibleMessages.length === 0 ? (
-              <div role="status">正在加载会话…</div>
+              <LoadingState message="正在加载会话…" minH="min-h-0" />
             ) : conversation.isError ? (
-              <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-[var(--space-4)]">
-                <h3 className="font-semibold">会话加载失败</h3>
-                <p className="mt-[var(--space-1)] text-sm">{conversation.error.message}</p>
-                <Button className="mt-[var(--space-3)]" onClick={() => void conversation.refetch()}>
-                  重新加载
-                </Button>
-              </div>
+              <Alert tone="danger" title="会话加载失败" action={<Button onClick={() => void conversation.refetch()}>重新加载</Button>}>
+                <p>{conversation.error.message}</p>
+              </Alert>
             ) : visibleMessages.length === 0 ? (
               <div className="grid min-h-[360px] place-items-center text-center">
                 <div>
@@ -157,20 +155,14 @@ export function ChatPage() {
             )}
 
             {sendMutation.isPending ? (
-              <div role="status" className="rounded-lg bg-slate-50 p-[var(--space-4)] text-sm">
-                正在检索授权知识库并生成回答…
+              <div className="rounded-lg bg-slate-50 p-[var(--space-4)]">
+                <LoadingState message="正在检索授权知识库并生成回答…" minH="min-h-0" />
               </div>
             ) : null}
             {sendMutation.isError && failedQuestion ? (
-              <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-[var(--space-4)]">
-                <p className="text-sm">{sendMutation.error.message}</p>
-                <Button
-                  className="mt-[var(--space-3)]"
-                  onClick={() => void submit(failedQuestion, false)}
-                >
-                  重试发送
-                </Button>
-              </div>
+              <Alert tone="danger" action={<Button onClick={() => void submit(failedQuestion, false)}>重试发送</Button>}>
+                <p>{sendMutation.error.message}</p>
+              </Alert>
             ) : null}
           </div>
 

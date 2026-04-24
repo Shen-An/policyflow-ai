@@ -7,6 +7,8 @@ import type {
   ResourcePermission,
 } from '../../api/knowledge-bases'
 import { Button } from '../../components/ui/button'
+import { Alert } from '../../components/feedback/alert'
+import { EmptyState, LoadingState } from '../../components/feedback/state-views'
 import { UploadDocumentDialog } from './components/upload-document-dialog'
 import {
   useDocumentsQuery,
@@ -60,26 +62,23 @@ export function DocumentListPage() {
       </div>
 
       {query.isPending ? (
-        <div className="mt-[var(--space-4)] min-h-48 p-[var(--space-6)]" role="status">
-          正在加载文档…
+        <div className="mt-[var(--space-4)]">
+          <LoadingState message="正在加载文档…" minH="min-h-48" />
         </div>
       ) : query.isError ? (
-        <div role="alert" className="mt-[var(--space-4)] rounded-lg border border-red-200 bg-red-50 p-[var(--space-4)]">
-          <h4 className="font-semibold">文档列表加载失败</h4>
-          <p className="mt-[var(--space-1)] text-sm">{query.error.message}</p>
-          <div className="mt-[var(--space-3)]">
-            <Button onClick={() => void query.refetch()}>重新加载</Button>
-          </div>
+        <div className="mt-[var(--space-4)]">
+          <Alert tone="danger" title="文档列表加载失败" action={<Button onClick={() => void query.refetch()}>重新加载</Button>}>
+            <p>{query.error.message}</p>
+          </Alert>
         </div>
       ) : query.data.items.length === 0 ? (
-        <div className="mt-[var(--space-4)] grid min-h-48 place-items-center rounded-lg border border-dashed border-[var(--color-border)] p-[var(--space-6)] text-center">
-          <div>
-            <FileText aria-hidden="true" className="mx-auto size-8 text-[var(--color-text-secondary)]" />
-            <h4 className="mt-[var(--space-3)] font-semibold">还没有文档</h4>
-            <p className="mt-[var(--space-1)] text-sm text-[var(--color-text-secondary)]">
-              {writable ? '上传第一份制度文档开始索引。' : '请联系有写权限的管理员上传文档。'}
-            </p>
-          </div>
+        <div className="mt-[var(--space-4)]">
+          <EmptyState
+            icon={<FileText aria-hidden="true" className="size-8" />}
+            title="还没有文档"
+            hint={writable ? '上传第一份制度文档开始索引。' : '请联系有写权限的管理员上传文档。'}
+            minH="min-h-48"
+          />
         </div>
       ) : (
         <>
@@ -110,14 +109,14 @@ export function DocumentListPage() {
             </p>
             <div className="flex gap-[var(--space-2)]">
               <Button
-                className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50"
+                variant="secondary"
                 disabled={page <= 1}
                 onClick={() => goToPage(page - 1)}
               >
                 上一页
               </Button>
               <Button
-                className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50"
+                variant="secondary"
                 disabled={page >= totalPages}
                 onClick={() => goToPage(page + 1)}
               >
@@ -172,7 +171,7 @@ function DocumentRow({
       <td className="px-[var(--space-3)] py-[var(--space-3)]">
         {writable && status === 'failed' ? (
           <Button
-            className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50"
+            variant="secondary"
             disabled={reindex.isPending}
             onClick={() => reindex.mutate(document.id)}
           >
