@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { login } from '../../api/auth'
 import { AppError } from '../../api/errors'
 import { authStore } from '../../auth/auth-store'
+import { Alert } from '/c/Users/Administrator/.claude/skills/ui-ux-pro-max/scripts/search.py'
 import { Button } from '../../components/ui/button'
 import { loginSchema, type LoginFormValues } from './login-schema'
 
@@ -50,12 +51,12 @@ export function LoginPage() {
         <form className="mt-[var(--space-6)] space-y-[var(--space-4)]" onSubmit={onSubmit} noValidate>
           <div>
             <label className="text-sm font-semibold" htmlFor="username">用户名</label>
-            <input id="username" autoComplete="username" aria-invalid={Boolean(errors.username)} aria-describedby={errors.username ? 'username-error' : undefined} className="mt-[var(--space-2)] min-h-10 w-full rounded-md border border-[var(--color-border)] px-[var(--space-3)] focus:border-[var(--color-primary)]" {...register('username')} />
+            <input id="username" autoComplete="username" aria-invalid={Boolean(errors.username)} aria-describedby={errors.username ? 'username-error' : undefined} className="mt-[var(--space-2)] min-h-11 w-full rounded-md border border-[var(--color-border)] px-[var(--space-3)] text-base focus:border-[var(--color-primary)] sm:text-sm" {...register('username')} />
             {errors.username ? <p id="username-error" className="mt-[var(--space-1)] text-xs text-[var(--color-danger)]">{errors.username.message}</p> : null}
           </div>
           <div>
             <label className="text-sm font-semibold" htmlFor="password">密码</label>
-            <input id="password" type="password" autoComplete="current-password" aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? 'password-error' : undefined} className="mt-[var(--space-2)] min-h-10 w-full rounded-md border border-[var(--color-border)] px-[var(--space-3)] focus:border-[var(--color-primary)]" {...register('password')} />
+            <input id="password" type="password" autoComplete="current-password" aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? 'password-error' : undefined} className="mt-[var(--space-2)] min-h-11 w-full rounded-md border border-[var(--color-border)] px-[var(--space-3)] text-base focus:border-[var(--color-primary)] sm:text-sm" {...register('password')} />
             {errors.password ? <p id="password-error" className="mt-[var(--space-1)] text-xs text-[var(--color-danger)]">{errors.password.message}</p> : null}
           </div>
           <Button className="w-full" type="submit" disabled={isSubmitting}>{isSubmitting ? '正在登录…' : '登录'}</Button>
