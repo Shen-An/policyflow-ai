@@ -1,8 +1,10 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { Activity, Cable, Pencil, Plus, RefreshCw, ShieldAlert, X } from 'lucide-react'
+import { Activity, Cable, Pencil, Plus, ShieldAlert, X } from 'lucide-react'
 import { useState } from 'react'
 import type { MCPServer, MCPServerInput, MCPServerUpdate } from '../../api/mcp'
 import { Button } from '../../components/ui/button'
+import { Alert } from '../../components/feedback/alert'
+import { EmptyState, LoadingState } from '../../components/feedback/state-views'
 import {
   useCreateMCPServerMutation,
   useMCPHealthMutation,
@@ -51,22 +53,23 @@ export function IntegrationsPage() {
       </div>
 
       {query.isPending ? (
-        <div role="status" className="mt-6 flex min-h-56 items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-white">
-          <RefreshCw className="size-4 animate-spin motion-reduce:animate-none" />正在加载 MCP 集成…
+        <div className="mt-6 rounded-xl border border-[var(--color-border)] bg-white">
+          <LoadingState message="正在加载 MCP 集成…" minH="min-h-56" />
         </div>
       ) : query.isError ? (
-        <div role="alert" className="mt-6 rounded-xl bg-red-50 p-5">
-          <p className="font-semibold">MCP 集成加载失败</p>
-          <p className="mt-1 text-sm">{query.error.message}</p>
-          <Button className="mt-3" onClick={() => void query.refetch()}>重新加载</Button>
+        <div className="mt-6">
+          <Alert tone="danger" title="MCP 集成加载失败" action={<Button onClick={() => void query.refetch()}>重新加载</Button>}>
+            <p>{query.error.message}</p>
+          </Alert>
         </div>
       ) : query.data.length === 0 ? (
-        <div className="mt-6 grid min-h-56 place-items-center rounded-xl border border-dashed border-[var(--color-border)] bg-white p-8 text-center">
-          <div>
-            <Cable className="mx-auto size-8 text-[var(--color-text-secondary)]" />
-            <h3 className="mt-3 font-semibold">尚未配置 MCP 集成</h3>
-            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">可先创建一个 Mock 集成进行安全联调。</p>
-          </div>
+        <div className="mt-6 rounded-xl border border-dashed border-[var(--color-border)] bg-white">
+          <EmptyState
+            icon={<Cable aria-hidden="true" className="size-8" />}
+            title="尚未配置 MCP 集成"
+            hint="可先创建一个 Mock 集成进行安全联调。"
+            minH="min-h-56"
+          />
         </div>
       ) : (
         <div className="mt-6 grid gap-4 xl:grid-cols-2">
@@ -91,7 +94,8 @@ export function IntegrationsPage() {
                 </div>
                 <div className="flex gap-2">
                   <Button
-                    className="min-h-9 bg-white px-3 py-1 text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50"
+                    variant="secondary"
+                    className="min-h-9 px-3 py-1 text-xs"
                     onClick={() => setEditing(server)}
                   >
                     <Pencil className="size-3" />编辑
@@ -112,9 +116,9 @@ export function IntegrationsPage() {
                 <div><dt className="font-semibold">工具数量</dt><dd className="mt-1">{server.tools.length}</dd></div>
               </dl>
               {server.lastErrorMessage ? (
-                <p role="alert" className="mt-4 rounded-md bg-red-50 p-3 text-sm text-[var(--color-danger)]">
+                <Alert tone="danger" className="mt-4">
                   {server.lastErrorCode ? `${server.lastErrorCode}：` : ''}{server.lastErrorMessage}
-                </p>
+                </Alert>
               ) : null}
               <details className="mt-4 rounded-lg border border-[var(--color-border)]">
                 <summary className="cursor-pointer p-3 font-semibold">工具列表与脱敏配置摘要</summary>
@@ -136,9 +140,7 @@ export function IntegrationsPage() {
       )}
 
       {health.isError ? (
-        <p role="alert" className="mt-4 rounded-md bg-red-50 p-3 text-sm text-[var(--color-danger)]">
-          健康检查失败：{health.error.message}
-        </p>
+        <Alert tone="danger" className="mt-4">健康检查失败：{health.error.message}</Alert>
       ) : null}
       {health.data ? (
         <p role="status" className="mt-4 rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">
@@ -310,11 +312,11 @@ function MCPServerDialog({
               <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
               启用集成
             </label>
-            {formError ? <p role="alert" className="text-sm text-[var(--color-danger)]">{formError}</p> : null}
-            {mutationError ? <p role="alert" className="text-sm text-[var(--color-danger)]">{mutationError.message}</p> : null}
+            {formError ? <Alert tone="danger">{formError}</Alert> : null}
+            {mutationError ? <Alert tone="danger">{mutationError.message}</Alert> : null}
             <div className="flex justify-end gap-3">
               <Dialog.Close asChild>
-                <Button className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50">取消</Button>
+                <Button variant="secondary">取消</Button>
               </Dialog.Close>
               <Button type="submit" disabled={pending}>{pending ? '正在保存…' : '保存'}</Button>
             </div>
