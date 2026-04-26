@@ -2,10 +2,15 @@
 @import "./tokens.css";
 
 * { box-sizing: border-box; }
+
 html {
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
   background: var(--color-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
+
 body {
   margin: 0;
   min-width: 320px;
@@ -14,9 +19,46 @@ body {
   line-height: var(--font-body-line-height);
   color: var(--color-text-primary);
   background: var(--color-background);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
+
 button, a, input, select, textarea { font: inherit; }
-:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* 统一表单控件外观 */
+input, select, textarea {
+  border-radius: var(--radius-md);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-primary) !important;
+  box-shadow: var(--shadow-focus);
+}
+
+/* 表格行 hover 提升可读性与可点击感 */
+tbody tr {
+  transition: background-color 120ms ease;
+}
+tbody tr:hover {
+  background-color: var(--color-primary-50);
+}
+
+/* 滚动条收敛到品牌色系 */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 999px;
+  border: 2px solid var(--color-background);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-border-hover); }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;
