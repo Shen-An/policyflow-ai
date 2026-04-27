@@ -108,10 +108,9 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
         </div>
 
         {!editable ? (
-          <div className="mt-[var(--space-4)] flex items-center gap-[var(--space-2)] rounded-lg bg-blue-50 p-[var(--space-3)] text-sm text-blue-800">
-            <ShieldCheck aria-hidden="true" className="size-4" />
+          <Alert className="mt-[var(--space-4)]" tone="info" title={<span className="flex items-center gap-[var(--space-2)]"><ShieldCheck aria-hidden="true" className="size-4" />状态提示</span>}>
             当前状态为 {draft.status}，正文已只读。
-          </div>
+          </Alert>
         ) : null}
 
         {actionError ? (
