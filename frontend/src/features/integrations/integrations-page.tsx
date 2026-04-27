@@ -21,9 +21,9 @@ function formatDate(value: string | null): string {
 }
 
 function healthClass(status: string): string {
-  if (status === 'healthy') return 'bg-emerald-50 text-emerald-700'
-  if (status === 'unhealthy') return 'bg-red-50 text-red-700'
-  return 'bg-slate-100 text-slate-700'
+  if (status === 'healthy') return 'bg-[var(--color-success-50)] text-[var(--color-success-700)]'
+  if (status === 'unhealthy') return 'bg-[var(--color-danger-50)] text-[var(--color-danger)]'
+  return 'bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)]'
 }
 
 export function IntegrationsPage() {
@@ -44,13 +44,10 @@ export function IntegrationsPage() {
         <Button onClick={() => setCreateOpen(true)}><Plus className="size-4" />创建 MCP</Button>
       </div>
 
-      <div className="mt-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-        <ShieldAlert className="mt-0.5 size-5 shrink-0" />
-        <p>
+        <Alert className="mt-4" tone="warning" title={<span className="flex items-center gap-2"><ShieldAlert className="size-4" />MCP 集成说明</span>}>
           外部 HTTP/stdio 配置仅用于契约与健康状态展示，后端会返回“尚未配置”，不会连接或写入外部系统。
           Secret 不会由 API 明文回显。
-        </p>
-      </div>
+        </Alert>
 
       {query.isPending ? (
         <div className="mt-6 rounded-xl border border-[var(--color-border)] bg-white">
@@ -80,7 +77,7 @@ export function IntegrationsPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-lg font-semibold">{server.name}</h3>
                     <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                      server.type === 'mock' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'
+                      server.type === 'mock' ? 'bg-[var(--color-primary-50)] text-[var(--color-primary-700)]' : 'bg-[var(--color-info-50)] text-[var(--color-info)]'
                     }`}>
                       {server.type === 'mock' ? 'MOCK' : 'EXTERNAL'}
                     </span>
@@ -143,9 +140,9 @@ export function IntegrationsPage() {
         <Alert tone="danger" className="mt-4">健康检查失败：{health.error.message}</Alert>
       ) : null}
       {health.data ? (
-        <p role="status" className="mt-4 rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">
-          健康检查完成：{health.data.healthStatus}，发现 {health.data.tools.length} 个工具。
-        </p>
+        <Alert className="mt-4" tone="success" title="健康检查完成">
+          状态：{health.data.healthStatus}，发现 {health.data.tools.length} 个工具。
+        </Alert>
       ) : null}
       <MCPServerDialog open={createOpen} onOpenChange={setCreateOpen} />
       {editing ? (
@@ -272,7 +269,7 @@ function MCPServerDialog({
               <select
                 value={integrationMode}
                 onChange={(event) => setIntegrationMode(event.target.value as 'mock' | 'stdio' | 'http')}
-                className="mt-2 min-h-10 w-full rounded-md border border-[var(--color-border)] px-3 font-normal"
+                className="mt-2 min-h-11 w-full rounded-md border border-[var(--color-border)] px-3 font-normal"
               >
                 <option value="mock">mock（MVP 可执行）</option>
                 <option value="http">http（仅配置，不连接）</option>
@@ -354,7 +351,7 @@ function Field({
         required={required}
         placeholder={placeholder}
         autoComplete={autoComplete}
-        className="mt-2 min-h-10 w-full rounded-md border border-[var(--color-border)] px-3 font-normal"
+        className="mt-2 min-h-11 w-full rounded-md border border-[var(--color-border)] px-3 font-normal"
       />
     </label>
   )

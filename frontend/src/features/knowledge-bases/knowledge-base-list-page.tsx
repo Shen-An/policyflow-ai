@@ -148,7 +148,7 @@ function KnowledgeBaseCard({ knowledgeBase }: { knowledgeBase: KnowledgeBase }) 
             {knowledgeBase.code}
           </p>
         </div>
-        <span className="rounded-full bg-blue-50 px-[var(--space-2)] py-[var(--space-1)] text-xs text-blue-700">
+        <span className="rounded-full bg-[var(--color-primary-50)] px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--color-primary-700)]">
           {knowledgeBase.permission}
         </span>
       </div>
