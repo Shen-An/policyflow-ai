@@ -28,9 +28,9 @@ function formatDate(value: string): string {
 }
 
 function statusClass(value: string): string {
-  if (value === 'success' || value === 'enabled') return 'bg-emerald-50 text-emerald-700'
-  if (value === 'failed' || value === 'disabled') return 'bg-red-50 text-red-700'
-  return 'bg-slate-100 text-slate-700'
+  if (value === 'success' || value === 'enabled') return 'bg-[var(--color-success-50)] text-[var(--color-success-700)]'
+  if (value === 'failed' || value === 'disabled') return 'bg-[var(--color-danger-50)] text-[var(--color-danger)]'
+  return 'bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)]'
 }
 
 export function SkillsPage() {
@@ -126,7 +126,8 @@ function SkillRegistry() {
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">
                       <Button
-                        className="min-h-8 bg-white py-1 text-xs text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50"
+                        variant="secondary"
+                        className="min-h-8 py-1 text-xs"
                         disabled={toggle.isPending}
                         onClick={() => void changeStatus(skill)}
                       >
@@ -239,14 +240,13 @@ function SkillRunDialog({
                 </pre>
               </details>
               {mutation.data ? (
-                <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                  <h3 className="font-semibold text-emerald-800">运行完成</h3>
+                <Alert tone="success" title="运行完成">
                   <p className="mt-2 break-all text-xs">Audit ID：{mutation.data.auditId}</p>
                   <p className="mt-1 break-all text-xs">Request ID：{mutation.data.requestId ?? '无'}</p>
                   <pre className="mt-3 max-h-64 overflow-auto rounded bg-white p-3 text-xs">
                     {JSON.stringify(mutation.data.output, null, 2)}
                   </pre>
-                </div>
+                </Alert>
               ) : null}
             </div>
           </form>
@@ -297,7 +297,7 @@ function ToolLogSection() {
             <select
               value={toolName}
               onChange={(event) => setFilter('tool_name', event.target.value)}
-              className="mt-2 min-h-10 w-full rounded-md border border-[var(--color-border)] px-3 font-normal"
+              className="mt-2 min-h-11 w-full rounded-md border border-[var(--color-border)] px-3 font-normal"
             >
               <option value="">全部 Tool</option>
               {tools.data?.map((tool) => <option key={tool.name} value={tool.name}>{tool.name}</option>)}
@@ -308,7 +308,7 @@ function ToolLogSection() {
             <select
               value={status}
               onChange={(event) => setFilter('tool_status', event.target.value)}
-              className="mt-2 min-h-10 w-full rounded-md border border-[var(--color-border)] px-3 font-normal"
+              className="mt-2 min-h-11 w-full rounded-md border border-[var(--color-border)] px-3 font-normal"
             >
               <option value="">全部状态</option>
               <option value="success">success</option>
@@ -356,7 +356,7 @@ function ToolLogSection() {
                       <p className="mt-1 break-all">Conversation：{log.conversationId ?? '无'}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <Button className="min-h-8 py-1 text-xs" onClick={() => setSelectedId(log.id)}>
+                      <Button variant="secondary" className="min-h-8 py-1 text-xs" onClick={() => setSelectedId(log.id)}>
                         <Search className="size-3" />查看
                       </Button>
                     </td>
@@ -410,6 +410,7 @@ function ToolLogDialog({ id, onOpenChange }: { id: string; onOpenChange: (open: 
                   <h3 className="font-semibold">Request ID</h3>
                   {query.data.requestId ? (
                     <Button
+                      variant="secondary"
                       className="min-h-8 py-1 text-xs"
                       onClick={() => void navigator.clipboard?.writeText(query.data.requestId ?? '')}
                     >
