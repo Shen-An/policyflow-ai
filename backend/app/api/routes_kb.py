@@ -20,6 +20,7 @@ from backend.app.core.permissions import require_roles
 from backend.app.db.models import User
 from backend.app.schemas.knowledge import (
     DepartmentListResponse,
+    DocumentDetail,
     DocumentListResponse,
     DocumentStatusResponse,
     DocumentUploadResponse,
@@ -31,6 +32,7 @@ from backend.app.schemas.knowledge import (
 )
 from backend.app.services.document_service import (
     create_index_job,
+    get_document_detail,
     get_document_status,
     list_documents,
     upload_document,
@@ -156,6 +158,15 @@ def post_document_index(
         document_id,
     )
     return response
+
+
+@documents_router.get("/{document_id}", response_model=DocumentDetail)
+def get_document(
+    document_id: str,
+    user: CurrentUser,
+    session: SessionDep,
+) -> DocumentDetail:
+    return get_document_detail(session, user, document_id)
 
 
 @documents_router.get("/{document_id}/status", response_model=DocumentStatusResponse)
