@@ -1,11 +1,24 @@
 import {
-  AlertTriangle,
-  BookOpen,
-  CheckCircle2,
-  MessageSquareText,
-  Send,
-  Sparkles,
-} from 'lucide-react'
+  AlertOutlined,
+  BookOutlined,
+  CheckCircleOutlined,
+  PlusOutlined,
+  SendOutlined,
+  ThunderboltOutlined,
+} from '@ant-design/icons'
+import {
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  Empty,
+  Form,
+  Input,
+  Select,
+  Space,
+  Tag,
+  Typography,
+} from 'antd'
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import type {
@@ -15,8 +28,6 @@ import type {
   FeedbackRating,
 } from '../../api/chat'
 import type { QueryMode } from '../../api/knowledge-bases'
-import { Button } from '../../components/ui/button'
-import { Alert } from '../../components/feedback/alert'
 import { LoadingState } from '../../components/feedback/state-views'
 import { useKnowledgeBasesQuery } from '../knowledge-bases/queries'
 import {
@@ -53,12 +64,20 @@ function resultMessage(result: ChatResult): ConversationMessage {
   }
 }
 
-const queryModeLabels: Record<string, { label: string; hint: string }> = {
-  hybrid: { label: '混合模式', hint: '根据问题智能选择' },
-  mix: { label: '全局+局部混合', hint: '同时搜索索引与全文' },
-  local: { label: '局部搜索', hint: '在相关索引片段中搜索' },
-  global: { label: '全局搜索', hint: '在所有文档中全文搜索' },
-  naive: { label: '朴素搜索', hint: '直接检索，不做语义优化' },
+const queryModeOptions = [
+  { value: 'hybrid', label: '混合模式 — 根据问题智能选择' },
+  { value: 'mix', label: '全局+局部混合 — 同时搜索索引与全文' },
+  { value: 'local', label: '局部搜索 — 在相关索引片段中搜索' },
+  { value: 'global', label: '全局搜索 — 在所有文档中全文搜索' },
+  { value: 'naive', label: '朴素搜索 — 直接检索，不做语义优化' },
+]
+
+const queryModeLabels: Record<string, string> = {
+  hybrid: '混合模式',
+  mix: '全局+局部混合',
+  local: '局部搜索',
+  global: '全局搜索',
+  naive: '朴素搜索',
 }
 
 export function ChatPage() {
@@ -113,49 +132,59 @@ export function ChatPage() {
   const title = conversation.data?.title ?? '新制度问答'
 
   return (
-    <section className="mx-auto max-w-6xl">
-      <div className="flex flex-col gap-[var(--space-3)] sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <div className="page-header">
         <div>
-          <h2 className="text-2xl font-semibold">{title}</h2>
-          <p className="mt-[var(--space-1)] text-sm text-[var(--color-text-secondary)]">
-            回答以授权知识库为依据；没有可靠证据时会明确说明。
-          </p>
+          <h2>{title}</h2>
+          <p>回答以授权知识库为依据；没有可靠证据时会明确说明。</p>
         </div>
         {conversationId ? (
-          <Button
-            variant="secondary"
-            onClick={() => navigate('/chat')}
-          >
+          <Button icon={<PlusOutlined />} onClick={() => navigate('/chat')}>
             新建问答
           </Button>
         ) : null}
       </div>
 
-      <div className="mt-[var(--space-6)] grid gap-[var(--space-6)] xl:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="rounded-xl border border-[var(--color-border)] bg-white shadow-sm">
+      <div
+        style={{
+          display: 'grid',
+          gap: 16,
+          gridTemplateColumns: 'minmax(0, 1fr) 300px',
+        }}
+        className="chat-layout"
+      >
+        <Card styles={{ body: { padding: 0 } }}>
           <div
             aria-live="polite"
-            className="min-h-[420px] space-y-[var(--space-4)] p-[var(--space-4)] sm:p-[var(--space-6)]"
+            style={{ minHeight: 460, padding: 20, display: 'grid', gap: 16 }}
           >
             {conversation.isPending && conversationId && visibleMessages.length === 0 ? (
               <LoadingState message="正在加载会话…" minH="min-h-0" />
             ) : conversation.isError ? (
-              <Alert tone="danger" title="会话加载失败" action={<Button onClick={() => void conversation.refetch()}>重新加载</Button>}>
-                <p>{conversation.error.message}</p>
-              </Alert>
+              <Alert
+                type="error"
+                showIcon
+                message="会话加载失败"
+                description={conversation.error.message}
+                action={
+                  <Button size="small" onClick={() => void conversation.refetch()}>
+                    重新加载
+                  </Button>
+                }
+              />
             ) : visibleMessages.length === 0 ? (
-              <div className="grid min-h-[360px] place-items-center text-center">
-                <div>
-                  <MessageSquareText
-                    aria-hidden="true"
-                    className="mx-auto size-9 text-[var(--color-primary)]"
-                  />
-                  <h3 className="mt-[var(--space-3)] font-semibold">从一个制度问题开始</h3>
-                  <p className="mt-[var(--space-1)] text-sm text-[var(--color-text-secondary)]">
-                    例如：差旅住宿标准是多少？
-                  </p>
-                </div>
-              </div>
+              <Empty
+                image={<ThunderboltOutlined style={{ fontSize: 40, color: '#4f46e5' }} />}
+                description={
+                  <div>
+                    <Typography.Title level={5}>从一个制度问题开始</Typography.Title>
+                    <Typography.Text type="secondary">
+                      例如：差旅住宿标准是多少？
+                    </Typography.Text>
+                  </div>
+                }
+                style={{ margin: '80px 0' }}
+              />
             ) : (
               visibleMessages.map((message) => (
                 <MessageCard key={message.id} message={message} />
@@ -163,177 +192,215 @@ export function ChatPage() {
             )}
 
             {sendMutation.isPending ? (
-              <div className="rounded-lg bg-slate-50 p-[var(--space-4)]">
+              <Card size="small">
                 <LoadingState message="正在检索授权知识库并生成回答…" minH="min-h-0" />
-              </div>
+              </Card>
             ) : null}
+
             {sendMutation.isError && failedQuestion ? (
-              <Alert tone="danger" action={<Button onClick={() => void submit(failedQuestion, false)}>重试发送</Button>}>
-                <p>{sendMutation.error.message}</p>
-              </Alert>
+              <Alert
+                type="error"
+                showIcon
+                message={sendMutation.error.message}
+                action={
+                  <Button size="small" onClick={() => void submit(failedQuestion, false)}>
+                    重试发送
+                  </Button>
+                }
+              />
             ) : null}
           </div>
 
-          <form
-            className="border-t border-[var(--color-border)] p-[var(--space-4)]"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void submit(question)
-            }}
-          >
-            <label className="text-sm font-semibold" htmlFor="chat-question">
-              问题
-            </label>
-            <textarea
-              id="chat-question"
-              rows={3}
-              maxLength={4000}
-              value={question}
-              onChange={(event) => setQuestion(event.target.value)}
-              placeholder="输入你的制度问题"
-              className="mt-[var(--space-2)] w-full resize-y rounded-md border border-[var(--color-border)] p-[var(--space-3)]"
-            />
-            <div className="mt-[var(--space-3)] flex items-center justify-between gap-[var(--space-3)]">
-              <span className="text-xs text-[var(--color-text-secondary)]">
-                {question.length} / 4000
-              </span>
-              <Button
-                type="submit"
-                disabled={!question.trim() || sendMutation.isPending || noKnowledgeBases}
-              >
-                <Send aria-hidden="true" className="size-4" />
-                发送问题
-              </Button>
-            </div>
-          </form>
-        </div>
-
-        <aside className="space-y-[var(--space-4)]">
-          <div className="rounded-xl border border-[var(--color-border)] bg-white p-[var(--space-4)] shadow-sm">
-            <h3 className="font-semibold">检索范围</h3>
-            <p className="mt-[var(--space-1)] text-xs text-[var(--color-text-secondary)]">
-              不选择时检索全部可访问知识库。
-            </p>
-            {knowledgeBases.isPending ? (
-              <p role="status" className="mt-[var(--space-3)] text-sm">正在加载知识库…</p>
-            ) : knowledgeBases.isError ? (
-              <Alert className="mt-[var(--space-3)]" tone="danger" action={<Button variant="ghost" className="min-h-11" onClick={() => void knowledgeBases.refetch()}>重试</Button>}>
-                知识库加载失败
-              </Alert>
-            ) : noKnowledgeBases ? (
-              <p className="mt-[var(--space-3)] text-sm">
-                还没有可访问的知识库，请联系知识库管理员授权。
-              </p>
-            ) : (
-              <div className="mt-[var(--space-3)] space-y-[var(--space-2)]">
-                {knowledgeBases.data.map((knowledgeBase) => (
-                  <label key={knowledgeBase.id} className="flex items-start gap-[var(--space-2)] text-sm">
-                    <input
-                      type="checkbox"
-                      checked={selectedKnowledgeBases.includes(knowledgeBase.id)}
-                      onChange={(event) => {
-                        setSelectedKnowledgeBases((current) =>
-                          event.target.checked
-                            ? [...current, knowledgeBase.id]
-                            : current.filter((id) => id !== knowledgeBase.id),
-                        )
-                      }}
-                    />
-                    <span>{knowledgeBase.name}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <label className="block rounded-xl border border-[var(--color-border)] bg-white p-[var(--space-4)] text-sm font-semibold shadow-sm">
-            检索模式
-            <select
-              value={queryMode}
-              onChange={(event) => setQueryMode(event.target.value as QueryMode)}
-              className="mt-[var(--space-2)] min-h-11 w-full rounded-md border border-[var(--color-border)] px-[var(--space-3)] font-normal"
+          <div style={{ borderTop: '1px solid #f0f0f0', padding: 16 }}>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                void submit(question)
+              }}
             >
-              {['hybrid', 'mix', 'local', 'global', 'naive'].map((mode) => (
-                <option key={mode} value={mode}>{queryModeLabels[mode].label} — {queryModeLabels[mode].hint}</option>
-              ))}
-            </select>
-          </label>
-        </aside>
+              <label
+                htmlFor="chat-question"
+                style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}
+              >
+                问题
+              </label>
+              <Input.TextArea
+                id="chat-question"
+                rows={3}
+                maxLength={4000}
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+                placeholder="输入你的制度问题，尽量描述完整场景"
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={sendMutation.isPending}
+                  disabled={!question.trim() || noKnowledgeBases}
+                >
+                  <SendOutlined aria-hidden />
+                  发送问题
+                </Button>
+              </div>
+            </form>
+          </div>
+        </Card>
+
+        <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+          <Card title="检索范围" size="small">
+            <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+              不选择时检索全部可访问知识库。
+            </Typography.Paragraph>
+            {knowledgeBases.isPending ? (
+              <Typography.Text type="secondary">正在加载知识库…</Typography.Text>
+            ) : knowledgeBases.isError ? (
+              <Alert
+                type="error"
+                showIcon
+                message="知识库加载失败"
+                action={
+                  <Button size="small" onClick={() => void knowledgeBases.refetch()}>
+                    重试
+                  </Button>
+                }
+              />
+            ) : noKnowledgeBases ? (
+              <Typography.Text type="secondary">
+                还没有可访问的知识库，请联系知识库管理员授权。
+              </Typography.Text>
+            ) : (
+              <Checkbox.Group
+                style={{ display: 'grid', gap: 10 }}
+                value={selectedKnowledgeBases}
+                onChange={(values) => setSelectedKnowledgeBases(values as string[])}
+                options={knowledgeBases.data.map((kb) => ({
+                  label: (
+                    <span>
+                      <div style={{ fontWeight: 500 }}>{kb.name}</div>
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        {kb.code}
+                      </Typography.Text>
+                    </span>
+                  ),
+                  value: kb.id,
+                }))}
+              />
+            )}
+          </Card>
+
+          <Card title="检索模式" size="small">
+            <Select
+              style={{ width: '100%' }}
+              value={queryMode}
+              onChange={(value) => setQueryMode(value as QueryMode)}
+              options={queryModeOptions}
+            />
+          </Card>
+        </div>
       </div>
-    </section>
+
+      <style>{`
+        @media (max-width: 1200px) {
+          .chat-layout {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+    </div>
   )
 }
 
 function MessageCard({ message }: { message: ConversationMessage }) {
   if (message.role === 'user') {
     return (
-      <article className="ml-auto max-w-2xl rounded-xl bg-[var(--color-primary-50)] p-[var(--space-4)]">
-        <p className="text-xs font-semibold text-[var(--color-primary-700)]">你的问题</p>
-        <p className="mt-[var(--space-2)] whitespace-pre-wrap text-sm">{message.content}</p>
-      </article>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Card
+          size="small"
+          style={{
+            maxWidth: 640,
+            background: '#4f46e5',
+            color: '#fff',
+            border: 'none',
+          }}
+          styles={{ body: { color: '#fff' } }}
+        >
+          <Typography.Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
+            你的问题
+          </Typography.Text>
+          <div style={{ whiteSpace: 'pre-wrap', marginTop: 6 }}>{message.content}</div>
+        </Card>
+      </div>
     )
   }
 
   const noEvidence =
-    message.metadata.citations.length === 0 &&
-    message.metadata.confidenceScore === 0
+    message.metadata.citations.length === 0 && message.metadata.confidenceScore === 0
 
   return (
-    <article
-      aria-label="PolicyFlow 回答"
-      className="max-w-3xl rounded-xl border border-[var(--color-border)] p-[var(--space-4)]"
+    <article aria-label="PolicyFlow 回答">
+    <Card
+      size="small"
+      style={{ maxWidth: 760 }}
+      title={
+        <Space>
+          <ThunderboltOutlined style={{ color: '#4f46e5' }} aria-hidden />
+          PolicyFlow 回答
+        </Space>
+      }
     >
-      <div className="flex items-center gap-[var(--space-2)]">
-        <Sparkles aria-hidden="true" className="size-4 text-[var(--color-primary)]" />
-        <h3 className="text-sm font-semibold">PolicyFlow 回答</h3>
-      </div>
-      <p className="mt-[var(--space-3)] whitespace-pre-wrap text-sm leading-6">
+      <Typography.Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 12 }}>
         {message.content}
-      </p>
+      </Typography.Paragraph>
 
       {noEvidence ? (
-        <Alert tone="warning" title={
-          <span className="flex items-center gap-[var(--space-2)]">
-            <AlertTriangle aria-hidden="true" className="size-4" />
-            未找到可靠依据
-          </span>
-        }>
-          当前授权知识库没有足够证据，请联系相关部门确认。
-        </Alert>
+        <Alert
+          type="warning"
+          showIcon
+          icon={<AlertOutlined />}
+          message="未找到可靠依据"
+          description="当前授权知识库没有足够证据，请联系相关部门确认。"
+        />
       ) : (
         <CitationList citations={message.metadata.citations} />
       )}
 
-      <div className="mt-[var(--space-4)] flex flex-wrap gap-[var(--space-2)] text-xs text-[var(--color-text-secondary)]">
+      <Space wrap style={{ marginTop: 12 }}>
         {message.metadata.confidenceScore !== null ? (
-          <span>可信度 {Math.round(message.metadata.confidenceScore * 100)}%</span>
+          <Tag>
+            可信度 {Math.round(message.metadata.confidenceScore * 100)}%
+          </Tag>
         ) : null}
-        {message.metadata.queryMode ? <span>· {queryModeLabels[message.metadata.queryMode]?.label ?? message.metadata.queryMode}</span> : null}
+        {message.metadata.queryMode ? (
+          <Tag color="blue">
+            {queryModeLabels[message.metadata.queryMode] ?? message.metadata.queryMode}
+          </Tag>
+        ) : null}
         {message.metadata.compliance?.passed ? (
-          <span className="inline-flex items-center gap-1 text-[var(--color-success-700)]">
-            <CheckCircle2 aria-hidden="true" className="size-3" />合规检查通过
-          </span>
+          <Tag icon={<CheckCircleOutlined />} color="success">
+            合规通过
+          </Tag>
         ) : null}
-      </div>
+      </Space>
 
       {message.metadata.suggestedSkills.length > 0 ? (
-        <div className="mt-[var(--space-4)] rounded-lg bg-slate-50 p-[var(--space-3)]">
-          <p className="text-xs font-semibold">建议能力</p>
+        <Card size="small" type="inner" title="建议能力" style={{ marginTop: 12 }}>
           {message.metadata.suggestedSkills.map((skill) => (
-            <p key={skill.name} className="mt-[var(--space-1)] text-xs">
+            <div key={skill.name} style={{ fontSize: 12, marginBottom: 4 }}>
               {skill.name}：{skill.description}
-            </p>
+            </div>
           ))}
-        </div>
+        </Card>
       ) : null}
 
       {message.metadata.queryLogId ? (
         <FeedbackActions queryLogId={message.metadata.queryLogId} />
       ) : (
-        <p className="mt-[var(--space-4)] text-xs text-[var(--color-text-secondary)]">
+        <Typography.Text type="secondary" style={{ display: 'block', marginTop: 12, fontSize: 12 }}>
           当前回答缺少反馈标识，暂不能评价。
-        </p>
+        </Typography.Text>
       )}
+    </Card>
     </article>
   )
 }
@@ -341,28 +408,38 @@ function MessageCard({ message }: { message: ConversationMessage }) {
 function CitationList({ citations }: { citations: AssistantMetadata['citations'] }) {
   if (citations.length === 0) return null
   return (
-    <details className="mt-[var(--space-4)] rounded-lg border border-[var(--color-border)]">
-      <summary className="cursor-pointer px-[var(--space-3)] py-[var(--space-2)] text-sm font-semibold">
+    <details
+      style={{
+        marginTop: 4,
+        border: '1px solid #f0f0f0',
+        borderRadius: 8,
+        padding: '8px 12px',
+        background: '#fafafa',
+      }}
+    >
+      <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
         查看引用（{citations.length}）
       </summary>
-      <div className="space-y-[var(--space-3)] border-t border-[var(--color-border)] p-[var(--space-3)]">
+      <Space direction="vertical" style={{ width: '100%', marginTop: 12 }}>
         {citations.map((citation, index) => (
-          <div key={`${citation.documentId ?? citation.knowledgeBaseId}-${index}`}>
-            <p className="flex items-center gap-[var(--space-2)] text-xs font-semibold">
-              <BookOpen aria-hidden="true" className="size-3" />
-              {citation.knowledgeBaseName} · {citation.documentTitle ?? '未命名文档'}
-            </p>
-            <p className="mt-[var(--space-1)] text-xs leading-5 text-[var(--color-text-secondary)]">
+          <Card key={`${citation.documentId ?? citation.knowledgeBaseId}-${index}`} size="small">
+            <Space>
+              <BookOutlined />
+              <strong>
+                {citation.knowledgeBaseName} · {citation.documentTitle ?? '未命名文档'}
+              </strong>
+            </Space>
+            <div style={{ marginTop: 6, color: '#5b6577', fontSize: 12 }}>
               {citation.snippet}
-            </p>
+            </div>
             {citation.chunkId ? (
-              <p className="mt-[var(--space-1)] text-[11px] text-[var(--color-text-secondary)]">
+              <div style={{ marginTop: 4, color: '#8a93a6', fontSize: 11 }}>
                 Chunk：{citation.chunkId}
-              </p>
+              </div>
             ) : null}
-          </div>
+          </Card>
         ))}
-      </div>
+      </Space>
     </details>
   )
 }
@@ -384,49 +461,44 @@ function FeedbackActions({ queryLogId }: { queryLogId: string }) {
   )
 
   return (
-    <form
-      className="mt-[var(--space-4)] border-t border-[var(--color-border)] pt-[var(--space-3)]"
-      onSubmit={(event) => {
-        event.preventDefault()
-        mutation.mutate({ rating, comment })
-      }}
+    <Form
+      layout="inline"
+      style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #f0f0f0', rowGap: 8 }}
+      onFinish={() => mutation.mutate({ rating, comment })}
     >
-      <div className="flex flex-col gap-[var(--space-2)] sm:flex-row">
-        <label className="text-xs font-semibold">
-          评价
-          <select
-            aria-label="回答评价"
-            value={rating}
-            onChange={(event) => setRating(event.target.value as FeedbackRating)}
-            className="ml-[var(--space-2)] min-h-11 rounded-md border border-[var(--color-border)] px-[var(--space-2)] font-normal"
-          >
-            {feedbackOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </label>
-        <input
+      <Form.Item label="评价">
+        <Select
+          aria-label="回答评价"
+          style={{ width: 140 }}
+          value={rating}
+          onChange={(value) => setRating(value as FeedbackRating)}
+          options={feedbackOptions}
+        />
+      </Form.Item>
+      <Form.Item style={{ flex: 1, minWidth: 180 }}>
+        <Input
           aria-label="反馈备注"
           value={comment}
           maxLength={1000}
           onChange={(event) => setComment(event.target.value)}
           placeholder="补充说明（可选）"
-          className="min-h-11 flex-1 rounded-md border border-[var(--color-border)] px-[var(--space-2)] text-xs"
         />
-        <Button type="submit" className="min-h-11 py-1 text-xs" disabled={mutation.isPending}>
-          {mutation.isPending ? '提交中…' : '提交反馈'}
+      </Form.Item>
+      <Form.Item>
+        <Button type="primary" htmlType="submit" loading={mutation.isPending}>
+          提交反馈
         </Button>
-      </div>
+      </Form.Item>
       {mutation.isSuccess ? (
-        <p role="status" className="mt-[var(--space-2)] text-xs text-[var(--color-success-700)]">
+        <Typography.Text type="success" role="status" style={{ width: '100%', fontSize: 12 }}>
           已记录“{selectedLabel}”，再次提交会覆盖你的上一条反馈。
-        </p>
+        </Typography.Text>
       ) : null}
       {mutation.isError ? (
-        <p role="alert" className="mt-[var(--space-2)] text-xs text-[var(--color-danger)]">
+        <Typography.Text type="danger" role="alert" style={{ width: '100%', fontSize: 12 }}>
           {mutation.error.message}
-        </p>
+        </Typography.Text>
       ) : null}
-    </form>
+    </Form>
   )
 }
