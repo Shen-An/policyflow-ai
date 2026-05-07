@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  getDocumentDetail,
   getDocumentStatus,
   listDocuments,
   reindexDocument,
@@ -13,6 +14,7 @@ export const documentKeys = {
   list: (knowledgeBaseId: string, page: number, pageSize: number) =>
     [...documentKeys.all(knowledgeBaseId), 'list', { page, pageSize }] as const,
   status: (documentId: string) => ['document-status', documentId] as const,
+  detail: (documentId: string) => ['document-detail', documentId] as const,
 }
 
 export function documentStatusPollingInterval(
@@ -47,6 +49,14 @@ export function useDocumentStatusQuery(documentId: string, initialStatus: string
   })
 }
 
+export function useDocumentDetailQuery(documentId: string, enabled = true) {
+  return useQuery({
+    queryKey: documentKeys.detail(documentId),
+    queryFn: ({ signal }) => getDocumentDetail(documentId, signal),
+    enabled: Boolean(documentId) && enabled,
+  })
+}
+
 export function useUploadDocumentMutation(knowledgeBaseId: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -70,6 +80,7 @@ export function useReindexDocumentMutation(knowledgeBaseId: string) {
     mutationFn: (documentId: string) => reindexDocument(documentId),
     onSuccess: async (_, documentId) => {
       await queryClient.invalidateQueries({ queryKey: documentKeys.status(documentId) })
+      await queryClient.invalidateQueries({ queryKey: documentKeys.detail(documentId) })
       await queryClient.invalidateQueries({
         queryKey: documentKeys.all(knowledgeBaseId),
       })

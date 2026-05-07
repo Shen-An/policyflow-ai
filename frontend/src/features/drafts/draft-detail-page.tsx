@@ -1,4 +1,22 @@
-import { ArrowLeft, Download, Save, ShieldCheck, Trash2 } from 'lucide-react'
+import {
+  ArrowLeftOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  SaveOutlined,
+  SafetyCertificateOutlined,
+} from '@ant-design/icons'
+import {
+  Alert,
+  Button,
+  Card,
+  Collapse,
+  ConfigProvider,
+  Form,
+  Input,
+  Space,
+  Tag,
+  Typography,
+} from 'antd'
 import { useEffect, useState } from 'react'
 import {
   Link,
@@ -7,8 +25,6 @@ import {
   useNavigate,
   useParams,
 } from 'react-router-dom'
-import { Button } from '../../components/ui/button'
-import { Alert } from '../../components/feedback/alert'
 import { ErrorState, LoadingState } from '../../components/feedback/state-views'
 import { downloadMarkdown } from './download'
 import {
@@ -18,6 +34,13 @@ import {
   useExportDraftMutation,
   useUpdateDraftMutation,
 } from './queries'
+
+const statusMap: Record<string, { label: string; color: string }> = {
+  draft: { label: '草稿', color: 'default' },
+  confirmed: { label: '已确认', color: 'success' },
+  discarded: { label: '已丢弃', color: 'error' },
+  exported: { label: '已导出', color: 'processing' },
+}
 
 export function DraftDetailPage() {
   const { draftId = '' } = useParams()
@@ -37,8 +60,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
   const content = contentOverride ?? query.data?.content ?? ''
 
   const dirty = Boolean(
-    query.data &&
-    (title !== query.data.title || content !== query.data.content),
+    query.data && (title !== query.data.title || content !== query.data.content),
   )
   const editable = query.data?.status === 'draft'
   const blocker = useBlocker(dirty)
@@ -54,16 +76,22 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
     event.preventDefault()
   })
 
-  if (query.isPending) {
-    return <LoadingState message="正在加载草稿…" />
-  }
+  if (query.isPending) return <LoadingState message="正在加载草稿…" />
   if (query.isError) {
     return (
-      <ErrorState error={query.error} onRetry={() => void query.refetch()} title="草稿加载失败" />
+      <ErrorState
+        error={query.error}
+        onRetry={() => void query.refetch()}
+        title="草稿加载失败"
+      />
     )
   }
 
   const draft = query.data
+  const statusMeta = statusMap[draft.status] ?? {
+    label: draft.status,
+    color: 'default',
+  }
 
   async function save() {
     await update.mutateAsync({ title: title.trim(), content: content.trim() })
@@ -88,118 +116,137 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
     update.error ?? confirm.error ?? discard.error ?? exportMutation.error
 
   return (
-    <section className="mx-auto max-w-5xl">
-      <Button
-        asChild
-        variant="secondary"
+    <ConfigProvider autoInsertSpaceInButton={false}>
+    <div style={{ maxWidth: 960, margin: '0 auto' }}>
+      <Space style={{ marginBottom: 16 }}>
+        <Button>
+          <Link to="/drafts"><ArrowLeftOutlined aria-hidden /> 返回草稿</Link>
+        </Button>
+        {dirty ? <Tag color="warning">有未保存修改</Tag> : null}
+      </Space>
+
+      <Card
+        title={
+          <Space direction="vertical" size={2}>
+            <Typography.Text type="secondary">{draft.draftType}</Typography.Text>
+            <Typography.Title level={4} style={{ margin: 0 }}>
+              {draft.title}
+            </Typography.Title>
+          </Space>
+        }
+        extra={<Tag color={statusMeta.color}>{statusMeta.label}</Tag>}
       >
-        <Link to="/drafts"><ArrowLeft aria-hidden="true" className="size-4" />返回草稿</Link>
-      </Button>
-
-      <div className="mt-[var(--space-6)] rounded-xl border border-[var(--color-border)] bg-white p-[var(--space-5)] shadow-sm sm:p-[var(--space-6)]">
-        <div className="flex flex-col gap-[var(--space-3)] sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-xs text-[var(--color-text-secondary)]">{draft.draftType}</p>
-            <h2 className="mt-[var(--space-1)] text-2xl font-semibold">{draft.title}</h2>
-          </div>
-          <span className="w-fit rounded-full bg-slate-100 px-[var(--space-3)] py-[var(--space-1)] text-sm">
-            {draft.status}
-          </span>
-        </div>
-
         {!editable ? (
-          <Alert className="mt-[var(--space-4)]" tone="info" title={<span className="flex items-center gap-[var(--space-2)]"><ShieldCheck aria-hidden="true" className="size-4" />状态提示</span>}>
-            当前状态为 {draft.status}，正文已只读。
-          </Alert>
+          <Alert
+            type="info"
+            showIcon
+            icon={<SafetyCertificateOutlined />}
+            style={{ marginBottom: 16 }}
+            message={`当前状态为 ${draft.status}，正文已只读。`}
+          />
         ) : null}
 
         {actionError ? (
-          <Alert tone="danger" className="mt-[var(--space-4)]">{actionError.message}</Alert>
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={actionError.message}
+          />
         ) : null}
 
-        <div className="mt-[var(--space-6)] space-y-[var(--space-4)]">
-          <label className="block text-sm font-semibold">
-            标题
-            <input
+        <Form layout="vertical" requiredMark={false}>
+          <Form.Item label="标题">
+            <Input
               value={title}
               maxLength={255}
               disabled={!editable}
               onChange={(event) => setTitleOverride(event.target.value)}
-              className="mt-[var(--space-2)] min-h-10 w-full rounded-md border border-[var(--color-border)] px-[var(--space-3)] font-normal disabled:bg-slate-50"
+              aria-label="标题"
             />
-          </label>
-          <label className="block text-sm font-semibold">
-            正文
-            <textarea
+          </Form.Item>
+          <Form.Item label="正文">
+            <Input.TextArea
               value={content}
               rows={16}
               disabled={!editable}
               onChange={(event) => setContentOverride(event.target.value)}
-              className="mt-[var(--space-2)] w-full rounded-md border border-[var(--color-border)] p-[var(--space-3)] font-normal leading-6 disabled:bg-slate-50"
+              aria-label="正文"
+              style={{ lineHeight: 1.7 }}
             />
-          </label>
-          <div className="rounded-lg bg-slate-50 p-[var(--space-4)]">
-            <h3 className="text-sm font-semibold">来源问题</h3>
-            <p className="mt-[var(--space-1)] whitespace-pre-wrap text-sm text-[var(--color-text-secondary)]">
-              {draft.sourceQuestion || '无'}
-            </p>
-          </div>
-          {draft.relatedSources.length > 0 ? (
-            <details className="rounded-lg border border-[var(--color-border)]">
-              <summary className="cursor-pointer p-[var(--space-3)] text-sm font-semibold">
-                查看关联来源（{draft.relatedSources.length}）
-              </summary>
-              <pre className="overflow-x-auto border-t border-[var(--color-border)] p-[var(--space-3)] text-xs">
-                {JSON.stringify(draft.relatedSources, null, 2)}
-              </pre>
-            </details>
-          ) : null}
-        </div>
+          </Form.Item>
+        </Form>
 
-        <div className="mt-[var(--space-6)] flex flex-wrap justify-end gap-[var(--space-3)]">
+        <Card size="small" type="inner" title="来源问题" style={{ marginBottom: 16 }}>
+          <Typography.Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>
+            {draft.sourceQuestion || '无'}
+          </Typography.Paragraph>
+        </Card>
+
+        {draft.relatedSources.length > 0 ? (
+          <Collapse
+            style={{ marginBottom: 16 }}
+            items={[
+              {
+                key: 'sources',
+                label: `查看关联来源（${draft.relatedSources.length}）`,
+                children: (
+                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                    {JSON.stringify(draft.relatedSources, null, 2)}
+                  </pre>
+                ),
+              },
+            ]}
+          />
+        ) : null}
+
+        <Space wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
           {editable ? (
             <>
               <Button
-                variant="secondary"
                 disabled={!dirty || update.isPending || !title.trim() || !content.trim()}
+                loading={update.isPending}
                 onClick={() => void save()}
               >
-                <Save aria-hidden="true" className="size-4" />
-                {update.isPending ? '正在保存…' : '保存草稿'}
+                <SaveOutlined aria-hidden />
+                保存草稿
               </Button>
               <Button
+                type="primary"
                 disabled={dirty || confirm.isPending}
+                loading={confirm.isPending}
                 onClick={() => void confirmDraft()}
               >
-                <ShieldCheck aria-hidden="true" className="size-4" />
-                {confirm.isPending ? '正在确认…' : '确认草稿'}
+                <SafetyCertificateOutlined aria-hidden />
+                确认草稿
               </Button>
               <Button
-                variant="danger"
-                disabled={discard.isPending}
+                danger
+                loading={discard.isPending}
                 onClick={() => void discardDraft()}
               >
-                <Trash2 aria-hidden="true" className="size-4" />
+                <DeleteOutlined aria-hidden />
                 丢弃草稿
               </Button>
             </>
           ) : null}
           {draft.status !== 'discarded' ? (
             <Button
-              variant="secondary"
               disabled={dirty || exportMutation.isPending}
+              loading={exportMutation.isPending}
               onClick={() => void exportDraft()}
             >
-              <Download aria-hidden="true" className="size-4" />
-              {exportMutation.isPending ? '正在导出…' : '导出 Markdown'}
+              <DownloadOutlined aria-hidden />
+              导出 Markdown
             </Button>
           ) : null}
-        </div>
-      </div>
+        </Space>
+      </Card>
 
       <button type="button" className="sr-only" onClick={() => navigate('/drafts')}>
         返回草稿列表
       </button>
-    </section>
+    </div>
+    </ConfigProvider>
   )
 }
