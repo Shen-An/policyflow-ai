@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ConfigProvider } from 'antd'
 import { HttpResponse, http } from 'msw'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
@@ -31,7 +32,15 @@ describe('EvaluationPage', () => {
       })),
     )
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/evaluation?run_id=run-1']}><EvaluationPage /></MemoryRouter></QueryClientProvider>)
+    render(
+      <ConfigProvider theme={{ token: { motion: false } }} autoInsertSpaceInButton={false}>
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={['/evaluation?run_id=run-1']}>
+            <EvaluationPage />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </ConfigProvider>,
+    )
     expect(await screen.findByText('retrieval:skipped')).toBeVisible()
     expect(screen.getByText('skipped（empty_ground_truth）')).toBeVisible()
     expect(screen.getByText('skipped（disabled）')).toBeVisible()
