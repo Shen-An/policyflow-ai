@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ConfigProvider } from 'antd'
 import { HttpResponse, http } from 'msw'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -25,9 +26,11 @@ const mcp = {
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <QueryClientProvider client={client}>
-      <IntegrationsPage />
-    </QueryClientProvider>,
+    <ConfigProvider theme={{ token: { motion: false } }} autoInsertSpaceInButton={false}>
+      <QueryClientProvider client={client}>
+        <IntegrationsPage />
+      </QueryClientProvider>
+    </ConfigProvider>,
   )
 }
 
