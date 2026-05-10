@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ConfigProvider } from 'antd'
 import { HttpResponse, http } from 'msw'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -40,9 +41,11 @@ const log = {
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter><SkillsPage /></MemoryRouter>
-    </QueryClientProvider>,
+    <ConfigProvider theme={{ token: { motion: false } }} autoInsertSpaceInButton={false}>
+      <QueryClientProvider client={client}>
+        <MemoryRouter><SkillsPage /></MemoryRouter>
+      </QueryClientProvider>
+    </ConfigProvider>,
   )
 }
 
@@ -97,16 +100,18 @@ describe('SkillsPage', () => {
 
     const summaryRow = rows.find((row) => within(row).queryByText('summary'))
     await user.click(within(summaryRow as HTMLElement).getByRole('button', { name: '手动运行' }))
-    const runDialog = screen.getByRole('dialog', { name: '运行 summary' })
+    const runDialog = await screen.findByRole('dialog')
+    expect(runDialog).toHaveTextContent('运行 summary')
     const input = within(runDialog).getByLabelText('运行参数')
     fireEvent.change(input, { target: { value: JSON.stringify({ text: 'Annual leave policy' }) } })
     await user.click(within(runDialog).getByRole('button', { name: '确认运行' }))
     expect(await within(runDialog).findByText('Audit ID：audit-1')).toBeVisible()
     expect(within(runDialog).getByText('Request ID：skill-request-1')).toBeVisible()
-    await user.click(within(runDialog).getByRole('button', { name: '关闭运行对话框' }))
+    await user.click(within(runDialog).getByLabelText('关闭运行对话框'))
 
     await user.click(screen.getByRole('button', { name: '查看' }))
-    const logDialog = screen.getByRole('dialog', { name: 'Tool 日志详情' })
+    const logDialog = await screen.findByRole('dialog')
+    expect(logDialog).toHaveTextContent('Tool 日志详情')
     await user.click(within(logDialog).getByText('脱敏输入参数'))
     expect(await within(logDialog).findByText(/\[REDACTED\]/u)).toBeVisible()
     expect(within(logDialog).getByText(/visible/u)).toBeVisible()
