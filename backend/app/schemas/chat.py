@@ -77,6 +77,30 @@ class ConversationRead(BaseModel):
     status: str
     summary: dict[str, Any]
     messages: list[MessageRead]
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class ConversationSummary(BaseModel):
+    id: str
+    title: str
+    status: str
+    message_count: int
+    last_message_preview: str | None = None
+    last_message_role: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ConversationListResponse(BaseModel):
+    items: list[ConversationSummary]
+    total: int
+    page: int
+    page_size: int
+
+
+class ConversationUpdate(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
 
 
 FeedbackRating = Literal["useful", "not_useful", "wrong_citation", "incomplete"]
