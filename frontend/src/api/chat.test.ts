@@ -1,7 +1,14 @@
 import { HttpResponse, http } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { server } from '../mocks/server'
-import { getConversation, sendChat, submitFeedback } from './chat'
+import {
+  deleteConversation,
+  getConversation,
+  listConversations,
+  renameConversation,
+  sendChat,
+  submitFeedback,
+} from './chat'
 
 const citation = {
   knowledge_base_id: 'kb-1',
@@ -65,6 +72,80 @@ describe('chat API adapters', () => {
       query_mode: 'hybrid',
       top_k: 5,
     })
+  })
+
+  it('maps conversation list with owner-scoped history fields', async () => {
+    let listUrl = ''
+    let renameBody: unknown
+    let deletedId: string | null = null
+    server.use(
+      http.get('*/api/conversations', ({ request }) => {
+        listUrl = request.url
+        return HttpResponse.json({
+          items: [
+            {
+              id: 'conversation-1',
+              title: '差旅流程',
+              status: 'active',
+              message_count: 2,
+              last_message_preview: '需要经理审批。',
+              last_message_role: 'assistant',
+              created_at: '2026-07-10T08:00:00Z',
+              updated_at: '2026-07-10T08:01:00Z',
+            },
+          ],
+          total: 1,
+          page: 1,
+          page_size: 20,
+        })
+      }),
+      http.patch('*/api/conversations/:conversationId', async ({ request, params }) => {
+        renameBody = await request.json()
+        return HttpResponse.json({
+          id: params.conversationId,
+          title: '我的差旅咨询',
+          status: 'active',
+          message_count: 2,
+          last_message_preview: '需要经理审批。',
+          last_message_role: 'assistant',
+          created_at: '2026-07-10T08:00:00Z',
+          updated_at: '2026-07-10T08:02:00Z',
+        })
+      }),
+      http.delete('*/api/conversations/:conversationId', ({ params }) => {
+        deletedId = String(params.conversationId)
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+
+    await expect(listConversations(1, 20, '差旅')).resolves.toEqual({
+      items: [
+        {
+          id: 'conversation-1',
+          title: '差旅流程',
+          status: 'active',
+          messageCount: 2,
+          lastMessagePreview: '需要经理审批。',
+          lastMessageRole: 'assistant',
+          createdAt: '2026-07-10T08:00:00Z',
+          updatedAt: '2026-07-10T08:01:00Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    })
+    const parsedListUrl = new URL(listUrl)
+    expect(parsedListUrl.searchParams.get('page')).toBe('1')
+    expect(parsedListUrl.searchParams.get('page_size')).toBe('20')
+    expect(parsedListUrl.searchParams.get('keyword')).toBe('差旅')
+    await expect(renameConversation('conversation-1', ' 我的差旅咨询 ')).resolves.toMatchObject({
+      id: 'conversation-1',
+      title: '我的差旅咨询',
+    })
+    expect(renameBody).toEqual({ title: '我的差旅咨询' })
+    await expect(deleteConversation('conversation-1')).resolves.toBeUndefined()
+    expect(deletedId).toBe('conversation-1')
   })
 
   it('maps historical assistant metadata and feedback upserts', async () => {
