@@ -8,6 +8,7 @@ import {
 } from '@ant-design/icons'
 import { Card, Col, List, Row, Space, Statistic, Tag, Typography } from 'antd'
 import { Link } from 'react-router-dom'
+import { palette } from '../styles/palette'
 
 const { Title, Paragraph, Text } = Typography
 
@@ -71,21 +72,21 @@ export function WorkspacePage() {
             title: '制度问答',
             desc: '向授权知识库提问，获取制度依据与引用溯源。',
             href: '/chat',
-            color: '#4f46e5',
+            color: palette.primary,
             icon: <MessageOutlined />,
           },
           {
             title: '我的草稿',
             desc: '查看正在编辑的政策草案，继续写作或确认发布。',
             href: '/drafts',
-            color: '#0f766e',
+            color: palette.accentTeal,
             icon: <FileTextOutlined />,
           },
           {
             title: '知识库管理',
             desc: '浏览和维护授权知识库，管理文档与标签。',
             href: '/knowledge-bases',
-            color: '#1d4ed8',
+            color: palette.accentBlue,
             icon: <BookOutlined />,
           },
         ].map((item) => (
