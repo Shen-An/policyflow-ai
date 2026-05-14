@@ -13,15 +13,16 @@ import {
   ToolOutlined,
   WifiOutlined,
 } from '@ant-design/icons'
-import { Avatar, Button, Layout, Menu, Space, Typography, theme } from 'antd'
+import { Avatar, Button, Layout, Menu, Space, Typography } from 'antd'
 import type { MenuProps } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { PageTransition } from '../feedback/page-transition'
 import { canCallApi } from '../../api/readiness'
 import { hasAnyRole } from '../../auth/permissions'
 import { clearReturnTo } from '../../auth/auth-storage'
 import { useAuth } from '../../auth/use-auth'
+import { gradients, palette } from '../../styles/palette'
+import { PageTransition } from '../feedback/page-transition'
 
 const { Header, Sider, Content } = Layout
 
@@ -61,9 +62,6 @@ export function AppShell() {
   const navigate = useNavigate()
   const online = useOnlineStatus()
   const [collapsed, setCollapsed] = useState(false)
-  const {
-    token: { colorBgContainer },
-  } = theme.useToken()
 
   const canManageUsers = Boolean(user && hasAnyRole(user.roles, ['sys_admin']) && canCallApi('users'))
   const canBrowseKnowledgeBases = canCallApi('knowledgeBases')
@@ -211,7 +209,7 @@ export function AppShell() {
   ]
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100vh', background: 'transparent' }}>
       <Sider
         collapsible
         collapsed={collapsed}
@@ -221,6 +219,9 @@ export function AppShell() {
         breakpoint="lg"
         onBreakpoint={(broken) => {
           if (broken) setCollapsed(true)
+        }}
+        style={{
+          background: gradients.sider,
         }}
       >
         <Link
@@ -232,20 +233,22 @@ export function AppShell() {
             height: 64,
             padding: collapsed ? '0 16px' : '0 20px',
             borderBottom: '1px solid rgba(255,255,255,0.08)',
-            color: '#fff',
+            color: palette.textOnPrimary,
             textDecoration: 'none',
+            background: 'linear-gradient(90deg, rgba(79,70,229,0.18), transparent 70%)',
           }}
         >
           <div
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: 8,
-              background: '#4f46e5',
+              width: 34,
+              height: 34,
+              borderRadius: 10,
+              background: gradients.brandMark,
               display: 'grid',
               placeItems: 'center',
               fontWeight: 700,
               flexShrink: 0,
+              boxShadow: '0 8px 18px -8px rgba(99,102,241,0.8)',
             }}
           >
             P
@@ -265,7 +268,7 @@ export function AppShell() {
           defaultOpenKeys={openKeys}
           items={items}
           onClick={({ key }) => navigate(key)}
-          style={{ borderInlineEnd: 0, marginTop: 8 }}
+          style={{ borderInlineEnd: 0, marginTop: 8, background: 'transparent' }}
         />
       </Sider>
 
@@ -273,8 +276,8 @@ export function AppShell() {
         {!online ? (
           <div
             style={{
-              background: '#fffbeb',
-              color: '#b45309',
+              background: palette.warningSoft,
+              color: palette.warning,
               padding: '8px 16px',
               textAlign: 'center',
               fontSize: 13,
@@ -284,18 +287,19 @@ export function AppShell() {
           </div>
         ) : null}
 
-        <Header style={{ background: colorBgContainer, justifyContent: 'space-between' }}>
+        <Header style={{ justifyContent: 'space-between' }}>
           <Space size={16}>
             <Button
               type="text"
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
               onClick={() => setCollapsed((value) => !value)}
+              style={{ color: palette.primaryHover }}
             />
             <div>
               <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
                 PolicyFlow AI
               </Typography.Text>
-              <Typography.Title level={5} style={{ margin: 0 }}>
+              <Typography.Title level={5} style={{ margin: 0, color: palette.text }}>
                 {titleFor(location.pathname)}
               </Typography.Title>
             </div>
@@ -303,12 +307,17 @@ export function AppShell() {
 
           <Space size={12}>
             <div style={{ textAlign: 'right', lineHeight: 1.3 }}>
-              <div style={{ fontWeight: 600 }}>{user?.displayName}</div>
+              <div style={{ fontWeight: 600, color: palette.text }}>{user?.displayName}</div>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 {user?.roles.join(' · ')}
               </Typography.Text>
             </div>
-            <Avatar style={{ backgroundColor: '#4f46e5' }}>
+            <Avatar
+              style={{
+                background: gradients.brandMark,
+                boxShadow: '0 6px 14px -6px rgba(79,70,229,0.7)',
+              }}
+            >
               {(user?.displayName ?? 'U').slice(0, 1)}
             </Avatar>
             <Button icon={<LogoutOutlined />} onClick={logout}>
