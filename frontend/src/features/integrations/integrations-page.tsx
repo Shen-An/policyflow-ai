@@ -90,7 +90,7 @@ export function IntegrationsPage() {
       ) : query.data.length === 0 ? (
         <Card>
           <Empty
-            image={<ApiOutlined style={{ fontSize: 40, color: '#94a3b8' }} />}
+            image={<ApiOutlined className="pf-muted-icon" style={{ fontSize: 40 }} />}
             description={
               <span>
                 尚未配置 MCP 集成
@@ -158,11 +158,11 @@ export function IntegrationsPage() {
                     }
                   />
                 ) : null}
-                <details style={{ marginTop: 12, border: '1px solid #e3e8f0', borderRadius: 8 }}>
+                <details className="pf-surface-muted" style={{ marginTop: 12 }}>
                   <summary style={{ cursor: 'pointer', padding: 12, fontWeight: 600 }}>
                     工具列表与脱敏配置摘要
                   </summary>
-                  <div style={{ borderTop: '1px solid #e3e8f0', padding: 12 }}>
+                  <div className="pf-divider-top" style={{ padding: 12 }}>
                     <Typography.Text strong>Tools</Typography.Text>
                     {server.tools.length ? (
                       <ul style={{ marginTop: 8, paddingLeft: 20 }}>
@@ -180,7 +180,7 @@ export function IntegrationsPage() {
                         marginTop: 12,
                         maxHeight: 208,
                         overflow: 'auto',
-                        background: '#f8fafc',
+                        background: 'var(--color-surface-muted)',
                         padding: 12,
                         borderRadius: 8,
                         fontSize: 12,
@@ -389,7 +389,7 @@ function MCPServerDialog({
               width: '100%',
               minHeight: 36,
               borderRadius: 8,
-              border: '1px solid #e3e8f0',
+              border: '1px solid var(--color-border-secondary)',
               padding: '4px 11px',
             }}
           >
@@ -435,7 +435,7 @@ function MCPServerDialog({
           />
         </Form.Item>
         {server ? (
-          <details style={{ marginBottom: 16, border: '1px solid #e3e8f0', borderRadius: 8 }}>
+          <details style={{ marginBottom: 16, border: '1px solid var(--color-border-secondary)', borderRadius: 8 }}>
             <summary style={{ cursor: 'pointer', padding: 12, fontWeight: 600 }}>
               当前脱敏配置摘要
             </summary>
@@ -443,7 +443,7 @@ function MCPServerDialog({
               style={{
                 margin: 0,
                 overflow: 'auto',
-                borderTop: '1px solid #e3e8f0',
+                borderTop: '1px solid var(--color-border-secondary)',
                 padding: 12,
                 fontSize: 12,
               }}
