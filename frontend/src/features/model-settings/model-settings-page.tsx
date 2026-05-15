@@ -276,7 +276,7 @@ function ProviderForm({
           <Checkbox>启用此配置</Checkbox>
         </Form.Item>
 
-        <Space wrap style={{ borderTop: '1px solid #e3e8f0', paddingTop: 16, width: '100%' }}>
+        <Space wrap className="pf-divider-top" style={{ paddingTop: 16, width: '100%' }}>
           <Button type="primary" htmlType="submit" autoInsertSpace={false} loading={save.isPending}>
             保存 {title}
           </Button>
@@ -348,8 +348,8 @@ export function ModelSettingsPage() {
               width: 44,
               height: 44,
               borderRadius: 12,
-              background: 'rgba(79, 70, 229, 0.08)',
-              color: '#4f46e5',
+              background: 'var(--color-primary-50)',
+              color: 'var(--color-primary)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
