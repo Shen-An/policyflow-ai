@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  deleteConversation,
   getConversation,
+  listConversations,
+  renameConversation,
   sendChat,
   submitFeedback,
   type FeedbackRating,
@@ -9,7 +12,16 @@ import {
 
 export const conversationKeys = {
   all: ['conversations'] as const,
+  list: (page: number, pageSize: number, keyword = '') =>
+    [...conversationKeys.all, 'list', { page, pageSize, keyword }] as const,
   detail: (id: string) => [...conversationKeys.all, 'detail', id] as const,
+}
+
+export function useConversationsQuery(page = 1, pageSize = 30, keyword = '') {
+  return useQuery({
+    queryKey: conversationKeys.list(page, pageSize, keyword),
+    queryFn: ({ signal }) => listConversations(page, pageSize, keyword, signal),
+  })
 }
 
 export function useConversationQuery(id: string) {
@@ -25,8 +37,46 @@ export function useSendChatMutation() {
   return useMutation({
     mutationFn: (input: SendChatInput) => sendChat(input),
     onSuccess: async (result) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: conversationKeys.detail(result.conversationId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: conversationKeys.all,
+        }),
+      ])
+    },
+  })
+}
+
+export function useRenameConversationMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ conversationId, title }: { conversationId: string; title: string }) =>
+      renameConversation(conversationId, title),
+    onSuccess: async (result) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: conversationKeys.detail(result.id),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: conversationKeys.all,
+        }),
+      ])
+    },
+  })
+}
+
+export function useDeleteConversationMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (conversationId: string) => deleteConversation(conversationId),
+    onSuccess: async (_result, conversationId) => {
+      queryClient.removeQueries({
+        queryKey: conversationKeys.detail(conversationId),
+      })
       await queryClient.invalidateQueries({
-        queryKey: conversationKeys.detail(result.conversationId),
+        queryKey: conversationKeys.all,
       })
     },
   })
