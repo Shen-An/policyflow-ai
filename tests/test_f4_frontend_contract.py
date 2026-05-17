@@ -186,6 +186,53 @@ def test_chat_conversation_and_feedback_frontend_contract(tmp_path: Path) -> Non
             f"/api/conversations/{uuid4()}",
             headers=owner_headers,
         )
+        owner_history = client.get("/api/conversations", headers=owner_headers)
+        other_history = client.get("/api/conversations", headers=other_headers)
+        admin_history = client.get("/api/conversations", headers=admin_headers)
+        unauthenticated_history = client.get("/api/conversations")
+
+        # Ensure another user's conversation never appears in the current user's list.
+        other_chat = client.post(
+            "/api/chat",
+            headers=other_headers,
+            json={"question": "Other user private conversation"},
+        )
+        other_conversation_id = other_chat.json()["conversation_id"]
+        owner_history_after_other = client.get("/api/conversations", headers=owner_headers)
+        other_history_after_other = client.get("/api/conversations", headers=other_headers)
+        owner_search = client.get(
+            "/api/conversations",
+            headers=owner_headers,
+            params={"keyword": "travel"},
+        )
+        rename_response = client.patch(
+            f"/api/conversations/{conversation_id}",
+            headers=owner_headers,
+            json={"title": "我的差旅咨询"},
+        )
+        rename_forbidden = client.patch(
+            f"/api/conversations/{conversation_id}",
+            headers=other_headers,
+            json={"title": "hijack"},
+        )
+        empty_rename = client.patch(
+            f"/api/conversations/{conversation_id}",
+            headers=owner_headers,
+            json={"title": "   "},
+        )
+        delete_forbidden = client.delete(
+            f"/api/conversations/{conversation_id}",
+            headers=other_headers,
+        )
+        delete_response = client.delete(
+            f"/api/conversations/{conversation_id}",
+            headers=owner_headers,
+        )
+        owner_history_after_delete = client.get("/api/conversations", headers=owner_headers)
+        deleted_detail = client.get(
+            f"/api/conversations/{conversation_id}",
+            headers=owner_headers,
+        )
 
         feedback_response = client.post(
             f"/api/query-logs/{query_log_id}/feedback",
@@ -244,11 +291,51 @@ def test_chat_conversation_and_feedback_frontend_contract(tmp_path: Path) -> Non
     assert no_evidence_response.status_code == 200
     assert no_evidence_response.json()["citations"] == []
     assert no_evidence_response.json()["confidence_score"] == 0.0
+    no_evidence_answer = no_evidence_response.json()["answer"]
+    assert "未检索到" in no_evidence_answer or "不可信" in no_evidence_answer
 
     assert owner_conversation.status_code == 200
     assert admin_conversation.status_code == 200
     assert forbidden_conversation.status_code == 403
     assert missing_conversation.status_code == 404
+    assert unauthenticated_history.status_code == 401
+    assert owner_history.status_code == 200
+    assert other_history.status_code == 200
+    assert admin_history.status_code == 200
+    assert other_chat.status_code == 200
+    assert owner_history_after_other.status_code == 200
+    assert other_history_after_other.status_code == 200
+
+    owner_history_ids = {item["id"] for item in owner_history_after_other.json()["items"]}
+    other_history_ids = {item["id"] for item in other_history_after_other.json()["items"]}
+    assert conversation_id in owner_history_ids
+    assert other_conversation_id not in owner_history_ids
+    assert other_conversation_id in other_history_ids
+    assert conversation_id not in other_history_ids
+    # List endpoint is strictly owner-scoped, even for sys_admin.
+    assert all(
+        item["id"] != conversation_id and item["id"] != other_conversation_id
+        for item in admin_history.json()["items"]
+    )
+    owner_item = next(
+        item for item in owner_history_after_other.json()["items"] if item["id"] == conversation_id
+    )
+    assert owner_item["message_count"] >= 2
+    assert "last_message_preview" in owner_item
+    assert "updated_at" in owner_item
+    assert owner_search.status_code == 200
+    assert conversation_id in {item["id"] for item in owner_search.json()["items"]}
+    assert rename_response.status_code == 200
+    assert rename_response.json()["title"] == "我的差旅咨询"
+    assert rename_forbidden.status_code == 403
+    assert empty_rename.status_code == 422
+    assert delete_forbidden.status_code == 403
+    assert delete_response.status_code == 204
+    assert conversation_id not in {
+        item["id"] for item in owner_history_after_delete.json()["items"]
+    }
+    assert deleted_detail.status_code == 404
+
     assistant_message = owner_conversation.json()["messages"][1]
     metadata = assistant_message["meta_json"]
     assert metadata["query_log_id"] == query_log_id
