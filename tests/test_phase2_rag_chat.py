@@ -321,6 +321,8 @@ def test_chat_returns_citations_refuses_without_evidence_and_logs_trace(tmp_path
     assert refusal_response.json()["citations"] == []
     assert refusal_response.json()["confidence_score"] == 0.0
     assert refusal_response.json()["compliance"]["warnings"] == ["NO_RELIABLE_EVIDENCE"]
+    refusal_answer = refusal_response.json()["answer"]
+    assert "未检索到" in refusal_answer or "不可信" in refusal_answer
     assert conversation_response.status_code == 200
     assert len(conversation_response.json()["messages"]) == 2
 
