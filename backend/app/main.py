@@ -49,6 +49,8 @@ from backend.app.db.init_db import initialize_database
 from backend.app.db.session import build_engine, get_engine
 from backend.app.frontend import mount_frontend
 from backend.app.mcp.manager import MCPManager
+from backend.app.rag.bm25_retriever import BM25Retriever
+from backend.app.rag.hybrid_retriever import HybridRetriever
 from backend.app.rag.inprocess_lightrag import InProcessLightRAGAdapter
 from backend.app.rag.protocols import LightRAGBackend, LLMService
 from backend.app.services.embedding_service import OpenAICompatibleEmbeddingService
@@ -88,7 +90,9 @@ def create_app(
     adapter = lightrag_adapter or InProcessLightRAGAdapter(
         engine, app_settings, language_model, embedding_service
     )
-    rag_service = RAGService(adapter)
+    bm25_retriever = BM25Retriever(engine)
+    hybrid_retriever = HybridRetriever(adapter, bm25_retriever)
+    rag_service = RAGService(adapter, bm25=bm25_retriever, hybrid=hybrid_retriever)
     skill_registry = SkillRegistry()
     mcp_manager = MCPManager(app_settings)
     tool_registry = ToolRegistry()
