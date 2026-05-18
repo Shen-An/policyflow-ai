@@ -94,7 +94,12 @@ export class ApiClient {
     } catch (error) {
       if (error instanceof AppError) throw error
       if (controller.signal.aborted && controller.signal.reason === 'timeout') {
-        throw new AppError({ kind: 'timeout', code: 'REQUEST_TIMEOUT', message: '请求超时，请稍后重试。', retryable: true })
+        throw new AppError({
+          kind: 'timeout',
+          code: 'REQUEST_TIMEOUT',
+          message: `请求超时（${timeoutMs / 1000} 秒内未完成）。制度问答可能因检索/模型生成较慢，请稍后重试；若频繁超时，请检查模型服务与网络。`,
+          retryable: true,
+        })
       }
       if (controller.signal.aborted) {
         throw new AppError({ kind: 'network', code: 'REQUEST_ABORTED', message: '请求已取消。', retryable: false })
