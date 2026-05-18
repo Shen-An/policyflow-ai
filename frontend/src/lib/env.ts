@@ -7,7 +7,8 @@ const envSchema = z.object({
     'VITE_API_BASE_URL must be empty or an absolute HTTP(S) URL.',
   ),
   VITE_ENABLE_MSW: booleanString,
-  VITE_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().max(120_000).default(10_000),
+  // Default 60s covers RAG/chat; individual APIs (e.g. chat) may override higher.
+  VITE_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().max(300_000).default(60_000),
 })
 
 export type AppEnv = { apiBaseUrl: string; enableMsw: boolean; requestTimeoutMs: number }
