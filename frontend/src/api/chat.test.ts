@@ -68,7 +68,7 @@ describe('chat API adapters', () => {
       question: '差旅流程？',
       knowledge_base_ids: ['kb-1'],
       enable_skill: true,
-      retrieval_strategy: 'lightrag_only',
+      retrieval_strategy: 'hybrid_lightrag_bm25',
       query_mode: 'hybrid',
       top_k: 5,
     })
