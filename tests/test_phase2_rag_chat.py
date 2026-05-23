@@ -156,7 +156,12 @@ async def test_rag_service_deduplicates_and_rejects_unavailable_modes() -> None:
     ]
     service = RAGService(backend)
     result = await service.retrieve(
-        RetrievalRequest(query="hotel", knowledge_base_ids=["kb-1"], top_k=5)
+        RetrievalRequest(
+            query="hotel",
+            knowledge_base_ids=["kb-1"],
+            top_k=5,
+            strategy=RetrievalStrategy.LIGHTRAG_ONLY,
+        )
     )
 
     assert len(result.evidence) == 1
@@ -173,11 +178,22 @@ async def test_rag_service_deduplicates_and_rejects_unavailable_modes() -> None:
         )
     assert bm25_error.value.code == "RETRIEVAL_STRATEGY_UNAVAILABLE"
 
+    with pytest.raises(ApplicationError) as hybrid_error:
+        await service.retrieve(
+            RetrievalRequest(
+                query="hotel",
+                knowledge_base_ids=["kb-1"],
+                strategy=RetrievalStrategy.HYBRID_LIGHTRAG_BM25,
+            )
+        )
+    assert hybrid_error.value.code == "RETRIEVAL_STRATEGY_UNAVAILABLE"
+
     with pytest.raises(ApplicationError) as rerank_error:
         await service.retrieve(
             RetrievalRequest(
                 query="hotel",
                 knowledge_base_ids=["kb-1"],
+                strategy=RetrievalStrategy.LIGHTRAG_ONLY,
                 rerank_enabled=True,
             )
         )
@@ -304,7 +320,10 @@ def test_chat_returns_citations_refuses_without_evidence_and_logs_trace(tmp_path
         refusal_response = client.post(
             "/api/chat",
             headers=employee_headers,
-            json={"question": "unknown policy question"},
+            json={
+                "question": "unknown zzzz unmatched question",
+                "retrieval_strategy": "lightrag_only",
+            },
         )
         conversation_response = client.get(
             f"/api/conversations/{chat_response.json()['conversation_id']}",
@@ -331,7 +350,7 @@ def test_chat_returns_citations_refuses_without_evidence_and_logs_trace(tmp_path
         indexed_document = session.exec(select(KnowledgeDocument)).one()
 
     assert len(query_logs) == 2
-    assert query_logs[0].retrieved_sources[0]["retrieval_strategy"] == "lightrag_only"
+    assert query_logs[0].retrieved_sources[0]["retrieval_strategy"] == "hybrid_lightrag_bm25"
     assert query_logs[0].retrieved_sources[0]["lightrag_query_mode"] == "hybrid"
     assert indexed_document.index_status == "indexed"
 

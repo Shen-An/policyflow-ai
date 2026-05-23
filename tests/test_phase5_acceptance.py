@@ -23,7 +23,7 @@ from backend.app.db.models import AuditLog, KnowledgeBase
 from backend.app.db.session import build_engine
 from backend.app.main import create_app
 from backend.app.rag.lightrag_adapter import LightRAGAdapter
-from backend.app.schemas.retrieval import Evidence, RetrievalRequest
+from backend.app.schemas.retrieval import Evidence, RetrievalRequest, RetrievalStrategy
 from backend.app.services.rag_service import RAGService
 
 
@@ -259,6 +259,7 @@ async def test_rag_service_deduplicates_reranks_and_reassigns_final_ranks() -> N
             query="policy",
             knowledge_base_ids=["kb"],
             top_k=2,
+            strategy=RetrievalStrategy.LIGHTRAG_ONLY,
             rerank_enabled=True,
         )
     )
@@ -289,7 +290,11 @@ async def test_agent_pipeline_marks_no_evidence_answers_as_untrusted() -> None:
     result = await pipeline.run(
         "Unknown policy?",
         [knowledge_base],
-        RetrievalRequest(query="Unknown policy?", knowledge_base_ids=["kb"]),
+        RetrievalRequest(
+            query="Unknown policy?",
+            knowledge_base_ids=["kb"],
+            strategy=RetrievalStrategy.LIGHTRAG_ONLY,
+        ),
     )
 
     assert result.retrieval_result.evidence == []
