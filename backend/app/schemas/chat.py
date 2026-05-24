@@ -40,6 +40,45 @@ class ComplianceResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class UsedMemoryItem(BaseModel):
+    """One memory fragment used (or considered) for this turn."""
+
+    id: str | None = None
+    memory_type: str = "unknown"
+    content: str
+    source_slot: Literal["fixed", "recalled", "rolling_summary", "history"] = "recalled"
+    confidence: float | None = None
+
+
+class ToolCallTrace(BaseModel):
+    """Tool invocation recorded for this turn."""
+
+    tool_name: str
+    status: str = "success"
+    agent_name: str | None = None
+    input_summary: dict[str, Any] = Field(default_factory=dict)
+    output_summary: dict[str, Any] = Field(default_factory=dict)
+    error_message: str | None = None
+    latency_ms: int = 0
+
+
+class CommandTrace(BaseModel):
+    """Pipeline / agent step executed for this turn."""
+
+    name: str
+    status: str = "success"
+    summary: str = ""
+    output: dict[str, Any] = Field(default_factory=dict)
+
+
+class TurnDiagnostics(BaseModel):
+    """Request-scoped diagnostics shown in the chat UI."""
+
+    memories: list[UsedMemoryItem] = Field(default_factory=list)
+    tools: list[ToolCallTrace] = Field(default_factory=list)
+    commands: list[CommandTrace] = Field(default_factory=list)
+
+
 class ChatResponse(BaseModel):
     conversation_id: str
     message_id: str
@@ -52,6 +91,7 @@ class ChatResponse(BaseModel):
     suggested_skills: list[dict[str, str]] = Field(default_factory=list)
     draft: None = None
     compliance: ComplianceResult
+    diagnostics: TurnDiagnostics = Field(default_factory=TurnDiagnostics)
 
 
 class AssistantMessageMetadata(BaseModel):
@@ -62,6 +102,7 @@ class AssistantMessageMetadata(BaseModel):
     router_result: RouterResult | None = None
     suggested_skills: list[dict[str, str]] = Field(default_factory=list)
     compliance: ComplianceResult | None = None
+    diagnostics: TurnDiagnostics = Field(default_factory=TurnDiagnostics)
 
 
 class MessageRead(BaseModel):

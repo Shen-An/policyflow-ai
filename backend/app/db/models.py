@@ -321,6 +321,8 @@ class MemoryItem(SQLModel, table=True):
     content: str
     source: str = Field(max_length=20)
     confidence: float = 0.5
+    embedding: list[float] | None = Field(default=None, sa_column=Column(JSON, nullable=True))
+    meta_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
     expires_at: datetime | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
