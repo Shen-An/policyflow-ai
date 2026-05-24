@@ -56,6 +56,10 @@ SQLITE_COLUMN_MIGRATIONS = {
         "last_error_code": "last_error_code VARCHAR(100)",
         "last_error_message": "last_error_message TEXT",
     },
+    "memory_items": {
+        "embedding": "embedding JSON",
+        "meta_json": "meta_json JSON NOT NULL DEFAULT '{}'",
+    },
 }
 
 ROLE_SEEDS = (
