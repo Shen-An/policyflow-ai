@@ -33,15 +33,35 @@ async def draft_update_tool(
     return update_draft(session, user, draft_id, data).model_dump(mode="json")
 
 
+def _resolve_memory_owner(user: User, payload: dict[str, Any]) -> tuple[str, str]:
+    """Memory tools may only access the current user's memory namespace."""
+    owner_type = str(payload.get("owner_type") or "user")
+    owner_id = str(payload.get("owner_id") or user.id)
+    if owner_type != "user":
+        raise ApplicationError(
+            "PERMISSION_DENIED",
+            "Memory tools only support owner_type=user for the current user",
+            403,
+        )
+    if owner_id != user.id:
+        raise ApplicationError(
+            "PERMISSION_DENIED",
+            "Cannot access another user's memory",
+            403,
+        )
+    return owner_type, owner_id
+
+
 async def memory_write_tool(
     session: Session,
     user: User,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
+    owner_type, owner_id = _resolve_memory_owner(user, payload)
     item = write_memory(
         session,
-        owner_type=str(payload.get("owner_type") or "user"),
-        owner_id=str(payload.get("owner_id") or user.id),
+        owner_type=owner_type,
+        owner_id=owner_id,
         memory_type=str(payload.get("memory_type") or "user_preference"),
         content=str(payload.get("content") or ""),
         source="tool",
@@ -55,11 +75,8 @@ async def memory_read_tool(
     user: User,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    items = read_memory(
-        session,
-        str(payload.get("owner_type") or "user"),
-        str(payload.get("owner_id") or user.id),
-    )
+    owner_type, owner_id = _resolve_memory_owner(user, payload)
+    items = read_memory(session, owner_type, owner_id)
     return {"items": [item.model_dump(mode="json") for item in items]}
 
 
