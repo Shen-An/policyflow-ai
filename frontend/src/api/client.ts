@@ -49,6 +49,14 @@ export class ApiClient {
     this.unauthorizedHandler = handler
   }
 
+  getAccessToken(): string | null {
+    return this.accessTokenProvider()
+  }
+
+  resolveRequestUrl(path: string): string {
+    return this.resolveUrl(path)
+  }
+
   private resolveUrl(path: string): string {
     if (this.baseUrl) return `${this.baseUrl}${path}`
     if (typeof window !== 'undefined') return new URL(path, window.location.origin).toString()
