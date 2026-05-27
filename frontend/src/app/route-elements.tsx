@@ -126,6 +126,9 @@ const ModelSettingsPage = lazyWithRetry(() =>
     default: module.ModelSettingsPage,
   })),
 )
+const MemoryPage = lazyWithRetry(() =>
+  import('../features/memory/memory-page').then((module) => ({ default: module.MemoryPage })),
+)
 const AppShell = lazyWithRetry(() =>
   import('../components/layout/app-shell').then((module) => ({ default: module.AppShell })),
 )
@@ -220,6 +223,14 @@ export function DraftDetailRouteElement() {
   return (
     <Suspended>
       <DraftDetailPage />
+    </Suspended>
+  )
+}
+
+export function MemoryRouteElement() {
+  return (
+    <Suspended>
+      <MemoryPage />
     </Suspended>
   )
 }
