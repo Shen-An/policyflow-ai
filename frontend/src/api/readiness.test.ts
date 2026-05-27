@@ -14,6 +14,7 @@ describe('API readiness', () => {
     expect(apiReadiness.documents).toBe('implemented')
     expect(apiReadiness.feedback).toBe('implemented')
     expect(apiReadiness.drafts).toBe('implemented')
+    expect(apiReadiness.memory).toBe('implemented')
     expect(apiReadiness.faq).toBe('implemented')
     expect(apiReadiness.audit).toBe('implemented')
     expect(apiReadiness.eval).toBe('implemented')
