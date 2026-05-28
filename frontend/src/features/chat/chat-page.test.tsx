@@ -41,6 +41,42 @@ const answer = {
   suggested_skills: [{ name: 'process_checklist', description: '生成流程清单' }],
   compliance: { passed: true, warnings: [] as string[] },
   draft: null,
+  diagnostics: {
+    memories: [
+      {
+        id: 'mem-1',
+        memory_type: 'user_preference',
+        content: '偏好分点回答',
+        source_slot: 'fixed',
+        confidence: 0.8,
+      },
+    ],
+    tools: [
+      {
+        tool_name: 'skill.suggest:process_checklist',
+        status: 'suggested',
+        agent_name: 'SkillAgent',
+        input_summary: {},
+        output_summary: { name: 'process_checklist', description: '生成流程清单' },
+        error_message: null,
+        latency_ms: 0,
+      },
+    ],
+    commands: [
+      {
+        name: 'RetrievalAgent',
+        status: 'success',
+        summary: '检索 1 个知识库，命中 1 条证据',
+        output: { evidence_count: 1 },
+      },
+      {
+        name: 'AnswerAgent',
+        status: 'success',
+        summary: '差旅申请需要经理审批。',
+        output: { confidence_score: 0.9 },
+      },
+    ],
+  },
 }
 
 const historyItem = {
@@ -52,6 +88,60 @@ const historyItem = {
   last_message_role: 'assistant',
   created_at: '2026-07-10T08:00:00Z',
   updated_at: '2026-07-10T08:00:01Z',
+}
+
+function toSse(events: Array<{ event: string; data: unknown }>): string {
+  return events
+    .map((item) => `event: ${item.event}\ndata: ${JSON.stringify(item.data)}\n\n`)
+    .join('')
+}
+
+function streamAnswer(response = answer) {
+  return new HttpResponse(
+    toSse([
+      {
+        event: 'stage',
+        data: { stage: 'MemoryLoad', status: 'running', message: '正在加载记忆…' },
+      },
+      {
+        event: 'diagnostics_partial',
+        data: {
+          memories: response.diagnostics.memories,
+          tools: [],
+          commands: [
+            {
+              name: 'MemoryLoad',
+              status: 'success',
+              summary: '已加载记忆',
+              output: {},
+            },
+          ],
+        },
+      },
+      {
+        event: 'stage',
+        data: {
+          stage: 'RetrievalAgent',
+          status: 'success',
+          message: '检索 1 个知识库，命中 1 条证据',
+        },
+      },
+      {
+        event: 'diagnostics',
+        data: response.diagnostics,
+      },
+      {
+        event: 'final',
+        data: response,
+      },
+    ]),
+    {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+      },
+    },
+  )
 }
 
 function conversationResponse(response = answer) {
@@ -73,6 +163,7 @@ function conversationResponse(response = answer) {
           router_result: null,
           suggested_skills: [],
           compliance: null,
+          diagnostics: { memories: [], tools: [], commands: [] },
         },
         created_at: '2026-07-10T08:00:00Z',
       },
@@ -88,6 +179,7 @@ function conversationResponse(response = answer) {
           router_result: response.router_result,
           suggested_skills: response.suggested_skills,
           compliance: response.compliance,
+          diagnostics: response.diagnostics,
         },
         created_at: '2026-07-10T08:00:01Z',
       },
@@ -151,7 +243,7 @@ describe('ChatPage', () => {
         if (!isConversationList(request)) return passthrough()
         return emptyHistory()
       }),
-      http.post('*/api/chat', () => HttpResponse.json(answer)),
+      http.post('*/api/chat/stream', () => streamAnswer()),
       http.get('*/api/conversations/conversation-1', () =>
         HttpResponse.json(conversationResponse()),
       ),
@@ -167,10 +259,69 @@ describe('ChatPage', () => {
     )
     expect(screen.getByText('查看引用（1）')).toBeVisible()
     expect(screen.getByText('申请人应先获得直属经理审批。')).toBeVisible()
+    expect(screen.getByText('本轮使用')).toBeVisible()
+    expect(screen.getByText('记忆 1')).toBeVisible()
+    expect(screen.getByText('工具 1')).toBeVisible()
+    expect(screen.getByText('命令 2')).toBeVisible()
+    const memorySection = screen.getByText((_, element) =>
+      element?.tagName.toLowerCase() === 'summary' &&
+      (element.textContent ?? '').includes('记忆 · 1'),
+    ).closest('details')
+    expect(memorySection).not.toBeNull()
+    memorySection?.setAttribute('open', '')
+    expect(within(memorySection as HTMLElement).getByText('偏好分点回答')).toBeVisible()
+    const commandSection = screen.getByText((_, element) =>
+      element?.tagName.toLowerCase() === 'summary' &&
+      (element.textContent ?? '').includes('命令 · 2'),
+    ).closest('details')
+    commandSection?.setAttribute('open', '')
+    expect(
+      within(commandSection as HTMLElement).getByText('检索 1 个知识库，命中 1 条证据'),
+    ).toBeVisible()
     expect(screen.getByText('可信度 90%')).toBeVisible()
     expect(screen.getByLabelText('回答评价')).toBeVisible()
     expect(screen.getByLabelText('反馈备注')).toBeVisible()
     expect(screen.getByRole('button', { name: '提交反馈' })).toBeVisible()
+  })
+
+  it('supports copying answers and editing previous questions', async () => {
+    server.use(
+      http.get('*/api/knowledge-bases', () =>
+        HttpResponse.json({ items: [rawKnowledgeBase], total: 1 }),
+      ),
+      http.get('*/api/conversations', ({ request }) => {
+        if (!isConversationList(request)) return passthrough()
+        return historyList()
+      }),
+      http.get('*/api/conversations/conversation-1', () =>
+        HttpResponse.json(conversationResponse()),
+      ),
+    )
+    const user = userEvent.setup()
+    let copied = ''
+    const writeText = vi.fn(async (value: string) => {
+      copied = value
+    })
+    // userEvent.setup() may install its own clipboard; override after setup.
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      writable: true,
+      value: { writeText },
+    })
+    renderPage('/chat/conversation-1')
+    expect(await screen.findByText('差旅申请流程是什么？')).toBeVisible()
+    const answer = await screen.findByRole('article', { name: /PolicyFlow 回答/u })
+    expect(answer).toBeVisible()
+
+    await user.click(within(answer).getByRole('button', { name: '复制回答' }))
+    await vi.waitFor(() => {
+      expect(copied).toContain('差旅申请需要经理审批。')
+    })
+
+    await user.click(screen.getByRole('button', { name: '编辑问题' }))
+    await vi.waitFor(() => {
+      expect(screen.getByLabelText('问题')).toHaveValue('差旅申请流程是什么？')
+    })
   })
 
   it('renders a distinct no-evidence state without fake citations', async () => {
@@ -193,7 +344,7 @@ describe('ChatPage', () => {
         if (!isConversationList(request)) return passthrough()
         return emptyHistory()
       }),
-      http.post('*/api/chat', () => HttpResponse.json(noEvidence)),
+      http.post('*/api/chat/stream', () => streamAnswer(noEvidence)),
       http.get('*/api/conversations/conversation-1', () =>
         HttpResponse.json(conversationResponse(noEvidence)),
       ),
@@ -326,14 +477,15 @@ describe('ChatPage', () => {
         if (!isConversationList(request)) return passthrough()
         return emptyHistory()
       }),
-      http.post('*/api/chat', () => {
+      http.post('*/api/chat/stream', () => {
         calls += 1
-        return calls === 1
-          ? HttpResponse.json(
-              { error: { code: 'INTERNAL_ERROR', message: '服务暂不可用', details: null } },
-              { status: 500 },
-            )
-          : HttpResponse.json(answer)
+        if (calls === 1) {
+          return HttpResponse.json(
+            { error: { code: 'INTERNAL_ERROR', message: '服务暂不可用', details: null } },
+            { status: 500 },
+          )
+        }
+        return streamAnswer(answer)
       }),
       http.get('*/api/conversations/conversation-1', () =>
         HttpResponse.json(conversationResponse()),
