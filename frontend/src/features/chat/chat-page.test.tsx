@@ -252,8 +252,8 @@ describe('ChatPage', () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('人力资源制度库')
-    await user.type(screen.getByLabelText('问题'), '差旅申请流程是什么？')
-    await user.click(screen.getByRole('button', { name: '发送问题' }))
+    await user.type(screen.getByLabelText('输入问题'), '差旅申请流程是什么？')
+    await user.click(screen.getByRole('button', { name: '发送' }))
     expect(await screen.findByRole('article', { name: /PolicyFlow 回答/u })).toHaveTextContent(
       '差旅申请需要经理审批。',
     )
@@ -320,7 +320,7 @@ describe('ChatPage', () => {
 
     await user.click(screen.getByRole('button', { name: '编辑问题' }))
     await vi.waitFor(() => {
-      expect(screen.getByLabelText('问题')).toHaveValue('差旅申请流程是什么？')
+      expect(screen.getByLabelText('输入问题')).toHaveValue('差旅申请流程是什么？')
     })
   })
 
@@ -352,8 +352,8 @@ describe('ChatPage', () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('人力资源制度库')
-    await user.type(screen.getByLabelText('问题'), 'unknown policy')
-    await user.click(screen.getByRole('button', { name: '发送问题' }))
+    await user.type(screen.getByLabelText('输入问题'), 'unknown policy')
+    await user.click(screen.getByRole('button', { name: '发送' }))
     expect(await screen.findByText('未找到可靠依据')).toBeVisible()
     expect(screen.getByText(/模型参考回答/u)).toBeVisible()
     expect(screen.getByText(/可信度 0%/u)).toBeVisible()
@@ -456,7 +456,13 @@ describe('ChatPage', () => {
       expect(listKeyword).toBe('差旅')
     })
 
-    await user.click(screen.getByRole('button', { name: '删除会话：我的差旅咨询' }))
+    const deleteButton = await screen.findByRole('button', {
+      name: '删除会话：我的差旅咨询',
+    })
+    // Ensure hover/focus actions are interactable in jsdom.
+    deleteButton.style.opacity = '1'
+    deleteButton.style.pointerEvents = 'auto'
+    await user.click(deleteButton)
     const confirm = await screen.findByRole('dialog')
     await user.click(within(confirm).getByRole('button', { name: '删除' }))
     await vi.waitFor(() => {
@@ -494,8 +500,8 @@ describe('ChatPage', () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('人力资源制度库')
-    await user.type(screen.getByLabelText('问题'), '差旅申请流程是什么？')
-    await user.click(screen.getByRole('button', { name: '发送问题' }))
+    await user.type(screen.getByLabelText('输入问题'), '差旅申请流程是什么？')
+    await user.click(screen.getByRole('button', { name: '发送' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('服务暂不可用')
     await user.click(screen.getByRole('button', { name: '重试发送' }))
     expect(await screen.findByRole('article', { name: /PolicyFlow 回答/u })).toHaveTextContent(
