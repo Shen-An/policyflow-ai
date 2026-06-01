@@ -95,7 +95,7 @@ def create_app(
     bm25_retriever = BM25Retriever(engine)
     hybrid_retriever = HybridRetriever(adapter, bm25_retriever)
     rag_service = RAGService(adapter, bm25=bm25_retriever, hybrid=hybrid_retriever)
-    skill_registry = SkillRegistry()
+    skill_registry = SkillRegistry(language_model)
     mcp_manager = MCPManager(app_settings)
     tool_registry = ToolRegistry()
     tool_registry.register("draft.create", draft_create_tool)
@@ -104,11 +104,11 @@ def create_app(
     tool_registry.register("memory.write", memory_write_tool)
     tool_registry.register("mcp.call", mcp_call_tool(mcp_manager))
     pipeline = AgentPipeline(
-        RouterAgent(),
+        RouterAgent(language_model),
         RetrievalAgent(rag_service),
-        AnswerAgent(language_model),
-        SkillAgent(),
-        ComplianceAgent(),
+        AnswerAgent(language_model, app_settings),
+        SkillAgent(skill_registry),
+        ComplianceAgent(app_settings),
     )
     memory_agent = MemoryAgent(
         app_settings,
