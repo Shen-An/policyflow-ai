@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     MEMORY_COMPRESS_TURN_THRESHOLD: int = 8
     MEMORY_LTM_SALIENCE_THRESHOLD: float = 0.55
     MEMORY_WRITEBACK_ENABLED: bool = True
+    # Chat grounding: refuse when retrieval returns no evidence (no soft LLM fallback).
+    CHAT_HARD_REFUSE_WITHOUT_EVIDENCE: bool = True
+    # Answer agent tool-use loop bounds.
+    CHAT_TOOL_MAX_ROUNDS: int = 3
+    CHAT_TOOLS_ENABLED: bool = True
 
     @property
     def log_file(self) -> Path:
