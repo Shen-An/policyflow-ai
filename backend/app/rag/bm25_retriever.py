@@ -111,6 +111,7 @@ class BM25Retriever:
                 select(KnowledgeDocument).where(
                     KnowledgeDocument.knowledge_base_id == knowledge_base_id,
                     col(KnowledgeDocument.content_text).is_not(None),
+                    KnowledgeDocument.index_status != "deleted",
                 )
             ).all()
             documents: list[KnowledgeDocument] = []
