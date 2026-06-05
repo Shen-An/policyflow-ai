@@ -305,12 +305,15 @@ class InProcessLightRAGAdapter:
                         chunk_id=chunk_id or None,
                         source_id=str(item.get("reference_id") or file_path) or None,
                         snippet=content,
+                        # In-process LightRAG often lacks model scores; use rank decay and mark synthetic.
                         score=max(0.0, 1.0 - len(evidence) * 0.05),
                         retriever_type=self.name,
                         rank=len(evidence) + 1,
                         metadata={
                             "query_mode": request.lightrag_query_mode.value,
                             "reference_id": item.get("reference_id"),
+                            "score_is_synthetic": True,
+                            "score_method": "rank_decay",
                         },
                     )
                 )
