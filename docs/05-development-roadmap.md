@@ -18,6 +18,12 @@ Phase 4 — FAQ 与评估体系   （Day 15-17）
 Phase 5 — 验收、优化与扩展  （Day 18-20）
 ```
 
+> **后续改造（2026-07 起，面试向去玩具化）** 不覆盖上表历史里程碑，而是叠加新切片。  
+> 完整策略（多智能体诚实落点、Skill/Tool/MCP 真实现、CRUD 导入 + Hit@K/MRR Eval 页、分阶段清单与验收标准）见：  
+> **[`docs/08-de-toy-multiagent-skill-eval-strategy.md`](08-de-toy-multiagent-skill-eval-strategy.md)**  
+>
+> 摘要优先级：统一 Orchestrator → Tool loop + Skill 真执行 → CRUD Eval 看板 → MCP 真 client / Router 结构化 → 可选 RAGAS / Verifier 加强。
+
 ---
 
 ## 2. Phase 0：项目骨架
