@@ -22,6 +22,8 @@ def get_knowledge_base(session: Session, knowledge_base_id: str) -> KnowledgeBas
     knowledge_base = session.get(KnowledgeBase, knowledge_base_id)
     if knowledge_base is None:
         raise ApplicationError("KB_NOT_FOUND", "Knowledge base not found", 404)
+    # Keep deleted rows addressable for revive/import paths; callers that need only
+    # active KBs should check status themselves (list APIs already filter active).
     return knowledge_base
 
 
