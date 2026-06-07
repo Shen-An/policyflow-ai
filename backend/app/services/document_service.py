@@ -11,10 +11,12 @@ from backend.app.core.exceptions import ApplicationError, ConflictError
 from backend.app.db.models import KnowledgeDocument, RagIndexJob, User, new_id, utc_now
 from backend.app.rag.document_loader import SUPPORTED_FILE_TYPES, load_document_text
 from backend.app.schemas.knowledge import (
+    DocumentDeleteResponse,
     DocumentDetail,
     DocumentListResponse,
     DocumentRead,
     DocumentStatusResponse,
+    DocumentUpdate,
     DocumentUploadResponse,
     IndexJobResponse,
     LatestIndexJob,
@@ -261,4 +263,115 @@ def get_document_detail(
         content_length=len(content_text),
         created_at=document.created_at,
         updated_at=document.updated_at,
+    )
+
+
+def update_document(
+    session: Session,
+    user: User,
+    document_id: str,
+    data: DocumentUpdate,
+    ip_address: str | None = None,
+) -> DocumentDetail:
+    document = get_document(session, document_id)
+    if document.index_status == "deleted":
+        raise ApplicationError("DOCUMENT_NOT_FOUND", "Document not found", 404)
+    knowledge_base = get_knowledge_base(session, document.knowledge_base_id)
+    require_knowledge_base_permission(session, user, knowledge_base, "write")
+
+    changes = data.model_dump(exclude_unset=True)
+    if not changes:
+        raise ApplicationError("VALIDATION_ERROR", "No fields to update", 422)
+    if "title" in changes and changes["title"] is not None:
+        title = str(changes["title"]).strip()
+        if not title:
+            raise ApplicationError("VALIDATION_ERROR", "Document title is invalid", 422)
+        document.title = title[:255]
+    document.updated_at = utc_now()
+    session.add(document)
+    record_audit(
+        session,
+        action="document.update",
+        target_type="knowledge_document",
+        actor_id=user.id,
+        target_id=document.id,
+        detail={"changed_fields": sorted(changes.keys())},
+        ip_address=ip_address,
+    )
+    session.commit()
+    return get_document_detail(session, user, document.id)
+
+
+def _purge_document_row(
+    session: Session,
+    document: KnowledgeDocument,
+) -> None:
+    """Physically remove one document row and its dependent rows/files."""
+    from backend.app.db.models import FAQDraft, RagIndexJob, RetrievalEvalItem
+
+    document_id = document.id
+    file_path = document.file_path
+
+    jobs = session.exec(
+        select(RagIndexJob).where(RagIndexJob.knowledge_document_id == document_id)
+    ).all()
+    for job in jobs:
+        session.delete(job)
+
+    faq_links = session.exec(
+        select(FAQDraft).where(FAQDraft.source_document_id == document_id)
+    ).all()
+    for faq in faq_links:
+        faq.source_document_id = None
+        faq.updated_at = utc_now()
+        session.add(faq)
+
+    # JSON references in retrieval eval items — scrub document ids.
+    eval_items = session.exec(select(RetrievalEvalItem)).all()
+    for item in eval_items:
+        relevant = list(item.relevant_document_ids or [])
+        if document_id not in relevant:
+            continue
+        item.relevant_document_ids = [value for value in relevant if value != document_id]
+        session.add(item)
+
+    session.delete(document)
+    try:
+        Path(file_path).unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def delete_document(
+    session: Session,
+    user: User,
+    document_id: str,
+    ip_address: str | None = None,
+) -> DocumentDeleteResponse:
+    """Physically delete a document, index jobs, local file, and scrub eval refs."""
+    document = get_document(session, document_id)
+    knowledge_base = get_knowledge_base(session, document.knowledge_base_id)
+    require_knowledge_base_permission(session, user, knowledge_base, "write")
+
+    title = document.title
+    knowledge_base_id = document.knowledge_base_id
+    record_audit(
+        session,
+        action="document.delete",
+        target_type="knowledge_document",
+        actor_id=user.id,
+        target_id=document_id,
+        detail={
+            "knowledge_base_id": knowledge_base_id,
+            "title": title,
+            "mode": "physical",
+        },
+        ip_address=ip_address,
+    )
+    _purge_document_row(session, document)
+    session.commit()
+    return DocumentDeleteResponse(
+        document_id=document_id,
+        index_status="deleted",
+        deleted=True,
     )
