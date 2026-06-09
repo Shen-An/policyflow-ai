@@ -1,15 +1,18 @@
-import { EyeOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EyeOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
 import {
   Alert,
   Button,
   Descriptions,
   Drawer,
   Empty,
+  Input,
+  Modal,
   Space,
   Spin,
   Table,
   Tag,
   Typography,
+  message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useState } from 'react'
@@ -23,10 +26,12 @@ import { LoadingState } from '../../components/feedback/state-views'
 import { gradients, palette } from '../../styles/palette'
 import { UploadDocumentDialog } from './components/upload-document-dialog'
 import {
+  useDeleteDocumentMutation,
   useDocumentDetailQuery,
   useDocumentsQuery,
   useDocumentStatusQuery,
   useReindexDocumentMutation,
+  useUpdateDocumentMutation,
 } from './queries'
 
 function positiveInt(value: string | null, fallback: number): number {
@@ -98,7 +103,7 @@ export function DocumentListPage() {
     {
       title: '操作',
       key: 'actions',
-      width: 200,
+      width: 260,
       render: (_, document) => (
         <Space size={4} onClick={(event) => event.stopPropagation()}>
           <Button
@@ -110,7 +115,14 @@ export function DocumentListPage() {
             查看
           </Button>
           {writable ? (
-            <ReindexButton knowledgeBaseId={knowledgeBase.id} documentId={document.id} />
+            <>
+              <ReindexButton knowledgeBaseId={knowledgeBase.id} documentId={document.id} />
+              <DeleteDocumentButton
+                knowledgeBaseId={knowledgeBase.id}
+                documentId={document.id}
+                title={document.title}
+              />
+            </>
           ) : null}
         </Space>
       ),
@@ -251,6 +263,43 @@ function ReindexButton({
   )
 }
 
+function DeleteDocumentButton({
+  knowledgeBaseId,
+  documentId,
+  title,
+}: {
+  knowledgeBaseId: string
+  documentId: string
+  title: string
+}) {
+  const mutation = useDeleteDocumentMutation(knowledgeBaseId)
+  return (
+    <Button
+      size="small"
+      type="link"
+      danger
+      loading={mutation.isPending}
+      onClick={(event) => {
+        event.stopPropagation()
+        Modal.confirm({
+          title: `物理删除文档「${title}」？`,
+          content: '将永久删除文档记录、索引任务与本地文件，不可恢复。',
+          okText: '永久删除',
+          okButtonProps: { danger: true },
+          cancelText: '取消',
+          onOk: async () => {
+            await mutation.mutateAsync(documentId)
+            message.success('文档已物理删除')
+          },
+        })
+      }}
+    >
+      <DeleteOutlined aria-hidden />
+      删除
+    </Button>
+  )
+}
+
 function DocumentDetailDrawer({
   documentId,
   knowledgeBaseName,
@@ -267,6 +316,10 @@ function DocumentDetailDrawer({
   const open = Boolean(documentId)
   const query = useDocumentDetailQuery(documentId, open)
   const reindex = useReindexDocumentMutation(knowledgeBaseId)
+  const updateMutation = useUpdateDocumentMutation(knowledgeBaseId)
+  const deleteMutation = useDeleteDocumentMutation(knowledgeBaseId)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState('')
 
   return (
     <Drawer
@@ -277,14 +330,38 @@ function DocumentDetailDrawer({
       destroyOnHidden
       extra={
         writable && query.data ? (
-          <Button
-            size="small"
-            loading={reindex.isPending}
-            onClick={() => void reindex.mutateAsync(documentId)}
-          >
-            <ReloadOutlined aria-hidden />
-            重新索引
-          </Button>
+          <Space>
+            <Button
+              size="small"
+              loading={reindex.isPending}
+              onClick={() => void reindex.mutateAsync(documentId)}
+            >
+              <ReloadOutlined aria-hidden />
+              重新索引
+            </Button>
+            <Button
+              size="small"
+              danger
+              loading={deleteMutation.isPending}
+              onClick={() => {
+                Modal.confirm({
+                  title: `物理删除文档「${query.data?.title}」？`,
+                  content: '将永久删除文档记录、索引任务与本地文件，不可恢复。',
+                  okText: '永久删除',
+                  okButtonProps: { danger: true },
+                  cancelText: '取消',
+                  onOk: async () => {
+                    await deleteMutation.mutateAsync(documentId)
+                    message.success('文档已物理删除')
+                    onClose()
+                  },
+                })
+              }}
+            >
+              <DeleteOutlined aria-hidden />
+              删除
+            </Button>
+          </Space>
         ) : null
       }
     >
@@ -305,6 +382,53 @@ function DocumentDetailDrawer({
           <Descriptions bordered size="small" column={2}>
             <Descriptions.Item label="知识库" span={2}>
               {knowledgeBaseName}
+            </Descriptions.Item>
+            <Descriptions.Item label="标题" span={2}>
+              {writable && editingTitle ? (
+                <Space.Compact style={{ width: '100%' }}>
+                  <Input
+                    value={titleDraft}
+                    onChange={(event) => setTitleDraft(event.target.value)}
+                    maxLength={255}
+                  />
+                  <Button
+                    type="primary"
+                    loading={updateMutation.isPending}
+                    onClick={async () => {
+                      const next = titleDraft.trim()
+                      if (!next) {
+                        message.error('标题不能为空')
+                        return
+                      }
+                      await updateMutation.mutateAsync({
+                        documentId,
+                        input: { title: next },
+                      })
+                      message.success('标题已更新')
+                      setEditingTitle(false)
+                    }}
+                  >
+                    保存
+                  </Button>
+                  <Button onClick={() => setEditingTitle(false)}>取消</Button>
+                </Space.Compact>
+              ) : (
+                <Space>
+                  <span>{query.data.title}</span>
+                  {writable ? (
+                    <Button
+                      size="small"
+                      type="link"
+                      onClick={() => {
+                        setTitleDraft(query.data?.title ?? '')
+                        setEditingTitle(true)
+                      }}
+                    >
+                      改标题
+                    </Button>
+                  ) : null}
+                </Space>
+              )}
             </Descriptions.Item>
             <Descriptions.Item label="文件类型">{query.data.fileType}</Descriptions.Item>
             <Descriptions.Item label="版本">v{query.data.sourceVersion}</Descriptions.Item>
