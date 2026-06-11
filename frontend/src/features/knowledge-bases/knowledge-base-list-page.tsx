@@ -1,15 +1,17 @@
-import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
+import { DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import {
   Button,
   Card,
   Col,
   Empty,
   Input,
+  Modal,
   Row,
   Space,
   Statistic,
   Tag,
   Typography,
+  message,
 } from 'antd'
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -19,7 +21,7 @@ import { useAuthState } from '../../auth/auth-store'
 import { Alert } from '../../components/feedback/alert'
 import { LoadingState } from '../../components/feedback/state-views'
 import { CreateKnowledgeBaseDialog } from './components/create-knowledge-base-dialog'
-import { useKnowledgeBasesQuery } from './queries'
+import { useDeleteKnowledgeBaseMutation, useKnowledgeBasesQuery } from './queries'
 
 function positiveInt(value: string | null, fallback: number): number {
   const parsed = Number(value)
@@ -147,6 +149,26 @@ export function KnowledgeBaseListPage() {
 }
 
 function KnowledgeBaseCard({ knowledgeBase }: { knowledgeBase: KnowledgeBase }) {
+  const deleteMutation = useDeleteKnowledgeBaseMutation()
+  const canManage = knowledgeBase.permission === 'admin'
+
+  function handleDelete() {
+    Modal.confirm({
+      title: `物理删除知识库「${knowledgeBase.name}」？`,
+      content:
+        knowledgeBase.code === 'eval_test'
+          ? '将永久删除评估测试库、文档与本地工作区，不可恢复。'
+          : '将永久删除该知识库、其下全部文档与本地工作区，不可恢复。',
+      okText: '永久删除',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: async () => {
+        await deleteMutation.mutateAsync(knowledgeBase.id)
+        message.success('知识库已物理删除')
+      },
+    })
+  }
+
   return (
     <Card
       hoverable
@@ -156,6 +178,20 @@ function KnowledgeBaseCard({ knowledgeBase }: { knowledgeBase: KnowledgeBase }) 
         <Link key="open" to={`/knowledge-bases/${knowledgeBase.id}`}>
           查看详情
         </Link>,
+        canManage ? (
+          <Button
+            key="delete"
+            type="link"
+            danger
+            loading={deleteMutation.isPending}
+            onClick={handleDelete}
+          >
+            <DeleteOutlined aria-hidden />
+            删除
+          </Button>
+        ) : (
+          <span key="readonly">只读</span>
+        ),
       ]}
     >
       <Typography.Text type="secondary" code>

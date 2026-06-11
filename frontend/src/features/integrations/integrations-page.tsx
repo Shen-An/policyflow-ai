@@ -54,7 +54,8 @@ export function IntegrationsPage() {
         <div>
           <h2>MCP 集成</h2>
           <p>
-            配置 Mock 或外部连接元数据。当前 MVP 仅执行安全的内置 Mock 工具，不进行真实第三方写入。
+            支持 mock / stdio / http。stdio 与 http 走真实 MCP JSON-RPC（tools/list、tools/call）；
+            企业 SaaS 可继续用 mock，响应需带 status=mock。
           </p>
         </div>
         <Button type="primary" autoInsertSpace={false} onClick={() => setCreateOpen(true)}>
@@ -68,7 +69,7 @@ export function IntegrationsPage() {
         icon={<WarningOutlined />}
         style={{ marginBottom: 16 }}
         title="MCP 集成说明"
-        description="外部 HTTP/stdio 配置仅用于契约与健康状态展示，后端会返回“尚未配置”，不会连接或写入外部系统。Secret 不会由 API 明文回显。"
+        description="stdio/http 会真实 initialize + tools/list/call；mock 仅走内置安全适配器且响应带 status=mock。Secret 不会由 API 明文回显。"
       />
 
       {query.isPending ? (
@@ -393,7 +394,7 @@ function MCPServerDialog({
               padding: '4px 11px',
             }}
           >
-            <option value="mock">mock（MVP 可执行）</option>
+            <option value="mock">mock（安全适配器，响应带 status=mock）</option>
             <option value="http">http（仅配置，不连接）</option>
             <option value="stdio">stdio（仅配置，不执行）</option>
           </select>
