@@ -40,6 +40,19 @@ function splitCsv(value: string) {
   return value.split(',').map((item) => item.trim()).filter(Boolean)
 }
 
+function pickRandomIds(ids: string[], count: number): string[] {
+  if (count <= 0 || ids.length === 0) return []
+  if (count >= ids.length) return [...ids]
+  const copy = [...ids]
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const tmp = copy[i]
+    copy[i] = copy[j]
+    copy[j] = tmp
+  }
+  return copy.slice(0, count)
+}
+
 function statusColor(value: string): string {
   if (value === 'success' || value === 'passed') return 'success'
   if (value === 'failed') return 'error'
@@ -511,6 +524,9 @@ function RunSection({
   const runs = useEvalRunsQuery(1, 20, '')
   const create = useCreateEvalRunMutation()
   const [form] = Form.useForm()
+  const [customSampleSize, setCustomSampleSize] = useState('50')
+  const selectedItemCount =
+    ((Form.useWatch('itemIds', form) as string[] | undefined) ?? []).length
 
   const columns: ColumnsType<EvalRunSummary> = useMemo(
     () => [
@@ -717,7 +733,7 @@ function RunSection({
             <Form.Item
               label={`检索用例（${retrievalItems.data?.length ?? 0}）`}
               name="itemIds"
-              extra="Hit@K/MRR 必选；可点下方按钮全选"
+              extra="Hit@K/MRR 必选。建议随机 50/100，不要全选几百条。"
               rules={[
                 {
                   validator: async (_, value) => {
@@ -744,7 +760,52 @@ function RunSection({
                 }))}
               />
             </Form.Item>
-            <Space style={{ marginBottom: 12 }}>
+            <Space wrap style={{ marginBottom: 12 }}>
+              <Button
+                size="small"
+                type="primary"
+                disabled={!retrievalItems.data?.length}
+                onClick={() => {
+                  const ids = (retrievalItems.data ?? []).map((item) => item.id)
+                  form.setFieldValue('itemIds', pickRandomIds(ids, 50))
+                }}
+              >
+                随机 50
+              </Button>
+              <Button
+                size="small"
+                type="primary"
+                disabled={!retrievalItems.data?.length}
+                onClick={() => {
+                  const ids = (retrievalItems.data ?? []).map((item) => item.id)
+                  form.setFieldValue('itemIds', pickRandomIds(ids, 100))
+                }}
+              >
+                随机 100
+              </Button>
+              <Space.Compact>
+                <Input
+                  size="small"
+                  type="number"
+                  min={1}
+                  placeholder="自定义 N"
+                  style={{ width: 96 }}
+                  value={customSampleSize}
+                  onChange={(event) => setCustomSampleSize(event.target.value)}
+                />
+                <Button
+                  size="small"
+                  disabled={!retrievalItems.data?.length}
+                  onClick={() => {
+                    const n = Math.max(1, Number(customSampleSize) || 0)
+                    if (!n) return
+                    const ids = (retrievalItems.data ?? []).map((item) => item.id)
+                    form.setFieldValue('itemIds', pickRandomIds(ids, n))
+                  }}
+                >
+                  随机 N
+                </Button>
+              </Space.Compact>
               <Button
                 size="small"
                 disabled={!retrievalItems.data?.length}
@@ -755,11 +816,14 @@ function RunSection({
                   )
                 }
               >
-                全选检索用例
+                全选
               </Button>
               <Button size="small" onClick={() => form.setFieldValue('itemIds', [])}>
                 清空
               </Button>
+              <Typography.Text type="secondary">
+                已选 {selectedItemCount} 条
+              </Typography.Text>
             </Space>
           </Col>
         </Row>
