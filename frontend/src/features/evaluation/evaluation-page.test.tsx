@@ -102,7 +102,8 @@ describe('EvaluationPage', () => {
     expect(screen.getByText(/Hit@1=70\.0%/)).toBeVisible()
     expect(screen.getByText(/Hit@5=90\.0%/)).toBeVisible()
     expect(screen.getByText(/MRR=0\.8200/)).toBeVisible()
-    expect(screen.getByText('差旅住宿标准？')).toBeVisible()
-    expect(screen.getByText('命中')).toBeVisible()
+    // Per-case details are collapsed by default to keep the page scannable.
+    expect(screen.getByText(/展开逐条检索结果/)).toBeVisible()
+    expect(screen.queryByText('差旅住宿标准？')).not.toBeInTheDocument()
   })
 })
