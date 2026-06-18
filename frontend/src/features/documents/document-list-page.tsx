@@ -132,12 +132,11 @@ export function DocumentListPage() {
   return (
     <div>
       <div
+        className="page-toolbar"
         style={{
-          display: 'flex',
           justifyContent: 'space-between',
-          gap: 12,
+          alignItems: 'flex-start',
           marginBottom: 16,
-          flexWrap: 'wrap',
         }}
       >
         <div>
@@ -182,6 +181,7 @@ export function DocumentListPage() {
           locale={{
             emptyText: (
               <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
                 description={
                   <div>
                     <div>还没有文档</div>
