@@ -30,6 +30,7 @@ describe('EvaluationPage', () => {
                 hit_at_1: 0.7,
                 hit_at_3: 0.85,
                 hit_at_5: 0.9,
+                hit_at_10: 0.95,
                 completed_cases: 20,
               },
               error_summary: null,
@@ -52,13 +53,14 @@ describe('EvaluationPage', () => {
             hit_at_1: 0.7,
             hit_at_3: 0.85,
             hit_at_5: 0.9,
+            hit_at_10: 0.95,
             completed_cases: 20,
           },
           config_snapshot: {
             eval_types: ['retrieval'],
             retrieval_config: {
               strategy: 'hybrid_lightrag_bm25',
-              top_k_values: [1, 3, 5],
+              top_k_values: [1, 3, 5, 10],
               rerank_enabled: false,
               query_mode: 'hybrid',
             },
@@ -82,6 +84,7 @@ describe('EvaluationPage', () => {
                 hit_at_1: 1,
                 hit_at_3: 1,
                 hit_at_5: 1,
+                hit_at_10: 1,
                 first_relevant_rank: 1,
               },
               answer_metrics: null,
@@ -111,6 +114,7 @@ describe('EvaluationPage', () => {
     expect(screen.getAllByText(/Hybrid\(LightRAG\+BM25\)/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/Hit@1=70\.0%/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/Hit@5=90\.0%/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Hit@10=95\.0%/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/MRR=0\.8200/).length).toBeGreaterThan(0)
     expect(screen.getByText(/示例写法/)).toBeVisible()
     // Per-case details are collapsed by default to keep the page scannable.
