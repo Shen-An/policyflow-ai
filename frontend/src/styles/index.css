@@ -310,6 +310,35 @@ textarea {
   margin-bottom: 16px;
 }
 
+/* Knowledge base cards */
+.kb-card .ant-card-body {
+  height: 100%;
+}
+
+.kb-card__stat {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border-secondary);
+  background: linear-gradient(180deg, #ffffff 0%, #f7f9ff 100%);
+}
+
+.kb-card__stat-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
+}
+
+.kb-card__stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-text-primary);
+  letter-spacing: -0.02em;
+}
+
 .ant-statistic-title {
   color: var(--color-text-secondary) !important;
 }
