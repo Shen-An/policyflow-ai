@@ -32,35 +32,69 @@ export function WorkspacePage() {
       </div>
 
       <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="知识库" value={3} prefix={<BookOutlined />} suffix="授权" />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="历史对话"
-              value={12}
-              prefix={<MessageOutlined />}
-              suffix={
-                <Text type="success" style={{ fontSize: 12 }}>
-                  <RiseOutlined /> +3 本周
-                </Text>
-              }
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="草稿箱" value={2} prefix={<FileTextOutlined />} suffix="待确认" />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="评估报告" value={5} prefix={<BarChartOutlined />} suffix="份" />
-          </Card>
-        </Col>
+        {[
+          {
+            title: '知识库',
+            value: 3,
+            suffix: '授权',
+            icon: <BookOutlined />,
+            chip: '#e8f8f0',
+            ink: palette.primary,
+          },
+          {
+            title: '历史对话',
+            value: 12,
+            suffix: (
+              <Text type="success" style={{ fontSize: 12 }}>
+                <RiseOutlined /> +3 本周
+              </Text>
+            ),
+            icon: <MessageOutlined />,
+            chip: '#e0f2fe',
+            ink: palette.accentBlue,
+          },
+          {
+            title: '草稿箱',
+            value: 2,
+            suffix: '待确认',
+            icon: <FileTextOutlined />,
+            chip: '#fef3c7',
+            ink: palette.accentAmber,
+          },
+          {
+            title: '评估报告',
+            value: 5,
+            suffix: '份',
+            icon: <BarChartOutlined />,
+            chip: '#ede9fe',
+            ink: palette.accentPurple,
+          },
+        ].map((item) => (
+          <Col xs={24} sm={12} lg={6} key={item.title}>
+            <Card styles={{ body: { padding: 18 } }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 14,
+                    background: item.chip,
+                    color: item.ink,
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: 18,
+                    flexShrink: 0,
+                  }}
+                >
+                  {item.icon}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <Statistic title={item.title} value={item.value} suffix={item.suffix} />
+                </div>
+              </div>
+            </Card>
+          </Col>
+        ))}
       </Row>
 
       <Title level={4} style={{ marginTop: 28, marginBottom: 16 }}>

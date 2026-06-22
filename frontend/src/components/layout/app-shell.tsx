@@ -223,13 +223,14 @@ export function AppShell() {
         collapsed={collapsed}
         trigger={null}
         width={232}
-        theme="dark"
+        theme="light"
         breakpoint="lg"
         onBreakpoint={(broken) => {
           if (broken) setCollapsed(true)
         }}
         style={{
           background: gradients.sider,
+          borderRight: `1px solid ${palette.sidebarBorder}`,
         }}
       >
         <Link
@@ -240,37 +241,39 @@ export function AppShell() {
             gap: 12,
             height: 64,
             padding: collapsed ? '0 16px' : '0 20px',
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
-            color: palette.textOnPrimary,
+            borderBottom: `1px solid ${palette.sidebarBorder}`,
+            color: palette.text,
             textDecoration: 'none',
-            background: 'linear-gradient(90deg, rgba(79,70,229,0.18), transparent 70%)',
           }}
         >
           <div
             style={{
               width: 34,
               height: 34,
-              borderRadius: 10,
+              borderRadius: 12,
               background: gradients.brandMark,
+              color: palette.textOnPrimary,
               display: 'grid',
               placeItems: 'center',
               fontWeight: 700,
               flexShrink: 0,
-              boxShadow: '0 8px 18px -8px rgba(99,102,241,0.8)',
+              boxShadow: '0 8px 18px -10px rgba(13,143,106,0.28)',
             }}
           >
             P
           </div>
           {!collapsed ? (
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 600, lineHeight: 1.2 }}>PolicyFlow AI</div>
-              <div style={{ fontSize: 12, opacity: 0.55 }}>企业制度助手</div>
+              <div style={{ fontWeight: 650, lineHeight: 1.2, color: palette.text }}>
+                PolicyFlow AI
+              </div>
+              <div style={{ fontSize: 12, color: palette.sidebarTextMuted }}>企业制度助手</div>
             </div>
           ) : null}
         </Link>
 
         <Menu
-          theme="dark"
+          theme="light"
           mode="inline"
           selectedKeys={selectedKeys}
           defaultOpenKeys={openKeys}
@@ -280,7 +283,7 @@ export function AppShell() {
         />
       </Sider>
 
-      <Layout>
+      <Layout style={{ background: 'transparent' }}>
         {!online ? (
           <div
             style={{
@@ -323,7 +326,7 @@ export function AppShell() {
             <Avatar
               style={{
                 background: gradients.brandMark,
-                boxShadow: '0 6px 14px -6px rgba(79,70,229,0.7)',
+                boxShadow: '0 6px 14px -8px rgba(13,143,106,0.28)',
               }}
             >
               {(user?.displayName ?? 'U').slice(0, 1)}
