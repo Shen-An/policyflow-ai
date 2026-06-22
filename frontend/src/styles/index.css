@@ -22,8 +22,8 @@ body {
   line-height: var(--font-body-line-height);
   color: var(--color-text-primary);
   background:
-    radial-gradient(1200px 500px at 12% -10%, rgba(99, 102, 241, 0.16), transparent 55%),
-    radial-gradient(900px 420px at 100% 0%, rgba(59, 130, 246, 0.10), transparent 45%),
+    radial-gradient(1000px 420px at 10% -6%, rgba(13, 143, 106, 0.06), transparent 58%),
+    radial-gradient(820px 380px at 100% 0%, rgba(2, 132, 199, 0.04), transparent 50%),
     var(--color-background);
 }
 
@@ -50,7 +50,7 @@ textarea {
   top: 0;
   height: 100vh;
   overflow: auto;
-  box-shadow: 8px 0 24px rgba(17, 24, 39, 0.18);
+  box-shadow: 1px 0 0 rgba(31, 41, 51, 0.04), 4px 0 20px rgba(31, 41, 51, 0.03);
 }
 
 .ant-layout-header {
@@ -63,7 +63,7 @@ textarea {
   border-bottom: 1px solid color-mix(in srgb, var(--color-border) 90%, transparent);
   background: color-mix(in srgb, var(--color-surface) 82%, transparent) !important;
   backdrop-filter: blur(14px);
-  box-shadow: 0 8px 24px -18px rgba(79, 70, 229, 0.35);
+  box-shadow: 0 8px 24px -18px rgba(31, 41, 51, 0.08);
 }
 
 .ant-layout-content {
@@ -79,19 +79,16 @@ textarea {
 
 /* Cards */
 .ant-card {
-  border: 1px solid color-mix(in srgb, var(--color-border-secondary) 95%, transparent) !important;
-  background: linear-gradient(180deg, var(--color-surface) 0%, var(--color-surface-elevated) 100%) !important;
-  box-shadow:
-    0 1px 2px rgba(26, 35, 64, 0.04),
-    0 10px 28px -16px rgba(79, 70, 229, 0.18) !important;
+  border: 1px solid color-mix(in srgb, var(--color-border-secondary) 90%, transparent) !important;
+  background: var(--color-surface) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--shadow-card) !important;
   transition: box-shadow 180ms ease, transform 180ms ease, border-color 180ms ease;
 }
 
 .ant-card-hoverable:hover {
   border-color: var(--color-primary-200) !important;
-  box-shadow:
-    0 12px 30px -14px rgba(79, 70, 229, 0.28),
-    0 6px 14px -8px rgba(26, 35, 64, 0.12) !important;
+  box-shadow: var(--shadow-card-hover) !important;
   transform: translateY(-2px);
 }
 
@@ -114,7 +111,7 @@ textarea {
 }
 
 .ant-table-thead > tr > th {
-  background: linear-gradient(180deg, var(--color-primary-50) 0%, #e8edff 100%) !important;
+  background: linear-gradient(180deg, var(--color-primary-50) 0%, #edf5f1 100%) !important;
   color: var(--color-primary-deep) !important;
   font-weight: 600 !important;
 }
@@ -124,7 +121,7 @@ textarea {
 }
 
 .ant-table-tbody > tr.ant-table-row:hover > td {
-  background: #f5f7ff !important;
+  background: var(--color-surface-muted) !important;
 }
 
 .ant-btn,
@@ -142,20 +139,42 @@ textarea {
 }
 
 .ant-btn-primary {
-  box-shadow: 0 8px 18px -10px rgba(79, 70, 229, 0.55) !important;
+  box-shadow: 0 6px 14px -8px rgba(13, 143, 106, 0.32) !important;
 }
 
 .ant-btn-primary:hover {
-  box-shadow: 0 10px 22px -10px rgba(79, 70, 229, 0.65) !important;
+  box-shadow: 0 8px 18px -8px rgba(13, 143, 106, 0.38) !important;
 }
 
 .ant-btn:active:not(:disabled) {
   transform: translateY(1px);
 }
 
-.ant-menu-dark .ant-menu-item-selected {
+.ant-menu-light .ant-menu-item {
+  color: var(--color-sidebar-text);
+}
+
+.ant-menu-light .ant-menu-item-selected {
   font-weight: 600;
-  box-shadow: 0 8px 18px -10px rgba(79, 70, 229, 0.7);
+  color: var(--color-sidebar-active-text) !important;
+  background: var(--color-sidebar-active) !important;
+}
+
+.ant-menu-light .ant-menu-item:hover {
+  color: var(--color-sidebar-active-text) !important;
+  background: var(--color-sidebar-hover) !important;
+}
+
+.ant-menu-light .ant-menu-item-selected .anticon,
+.ant-menu-light .ant-menu-item:hover .anticon {
+  color: var(--color-sidebar-active-text);
+}
+
+.ant-menu-light .ant-menu-item-group-title {
+  color: var(--color-sidebar-text-muted) !important;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  padding-inline: 22px !important;
 }
 
 .ant-tag {
@@ -176,7 +195,7 @@ textarea {
 .ant-input-affix-wrapper:hover,
 .ant-select-selector:hover,
 .ant-picker:hover {
-  border-color: #a5b4fc !important;
+  border-color: #5ec49a !important;
   background: var(--color-surface) !important;
 }
 
@@ -239,7 +258,7 @@ textarea {
 
 .document-content-panel {
   animation: fade-rise 240ms ease both;
-  background: linear-gradient(180deg, var(--color-surface) 0%, #f7f9ff 100%) !important;
+  background: linear-gradient(180deg, var(--color-surface) 0%, #f5f8f6 100%) !important;
   border-color: var(--color-border-secondary) !important;
   color: var(--color-text-primary) !important;
 }
@@ -262,7 +281,7 @@ textarea {
 .ant-modal-mask,
 .ant-drawer-mask {
   animation: fade-in 180ms ease;
-  background: rgba(17, 24, 39, 0.45) !important;
+  background: rgba(31, 41, 51, 0.36) !important;
 }
 
 @keyframes fade-in {
@@ -278,14 +297,14 @@ textarea {
   gap: 16px;
   margin-bottom: 20px;
   padding: 16px 18px;
-  border: 1px solid color-mix(in srgb, var(--color-border-secondary) 95%, transparent);
-  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--color-border-secondary) 90%, transparent);
+  border-radius: 18px;
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--color-surface) 92%, transparent),
-    color-mix(in srgb, var(--color-primary-50) 78%, transparent)
+    color-mix(in srgb, var(--color-surface) 96%, transparent),
+    color-mix(in srgb, var(--color-primary-50) 72%, transparent)
   );
-  box-shadow: 0 10px 28px -20px rgba(79, 70, 229, 0.35);
+  box-shadow: var(--shadow-card);
 }
 
 .page-header h2 {
@@ -319,7 +338,7 @@ textarea {
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid var(--color-border-secondary);
-  background: linear-gradient(180deg, #ffffff 0%, #f7f9ff 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #f5f8f6 100%);
 }
 
 .kb-card__stat-label {
@@ -452,7 +471,7 @@ textarea {
 .chat-history__item--new {
   padding: 10px 12px;
   cursor: pointer;
-  background: linear-gradient(180deg, rgba(238, 242, 255, 0.55), rgba(255, 255, 255, 0.9));
+  background: linear-gradient(180deg, rgba(238, 248, 243, 0.45), rgba(255, 255, 255, 0.95));
   border-color: var(--color-primary-100);
 }
 
@@ -462,9 +481,9 @@ textarea {
 }
 
 .chat-history__item.is-active {
-  background: linear-gradient(180deg, #eef2ff 0%, #f8faff 100%);
+  background: linear-gradient(180deg, #eef8f3 0%, #f7faf8 100%);
   border-color: var(--color-primary-200);
-  box-shadow: 0 8px 18px -14px rgba(79, 70, 229, 0.55);
+  box-shadow: 0 8px 18px -14px rgba(31, 41, 51, 0.10);
 }
 
 .chat-history__open {
@@ -595,9 +614,9 @@ textarea {
   gap: 16px;
   scroll-behavior: smooth;
   background:
-    radial-gradient(700px 220px at 10% 0%, rgba(99, 102, 241, 0.08), transparent 60%),
-    radial-gradient(520px 180px at 90% 8%, rgba(59, 130, 246, 0.06), transparent 55%),
-    linear-gradient(180deg, #f7f8ff 0%, #ffffff 28%);
+    radial-gradient(700px 220px at 10% 0%, rgba(13, 143, 106, 0.04), transparent 60%),
+    radial-gradient(520px 180px at 90% 8%, rgba(2, 132, 199, 0.03), transparent 55%),
+    linear-gradient(180deg, #f5f8f6 0%, #ffffff 28%);
 }
 
 .chat-page__empty {
@@ -616,9 +635,9 @@ textarea {
   display: grid;
   place-items: center;
   font-size: 28px;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.14), rgba(79, 70, 229, 0.08));
-  border: 1px solid rgba(99, 102, 241, 0.16);
-  box-shadow: 0 10px 24px -16px rgba(79, 70, 229, 0.55);
+  background: linear-gradient(135deg, rgba(13, 143, 106, 0.10), rgba(11, 122, 90, 0.05));
+  border: 1px solid rgba(13, 143, 106, 0.12);
+  box-shadow: 0 10px 24px -16px rgba(31, 41, 51, 0.12);
 }
 
 .chat-page__empty-copy {
@@ -652,14 +671,14 @@ textarea {
 .chat-page__suggestion:hover {
   background: var(--color-primary-50);
   border-color: var(--color-primary-200);
-  box-shadow: 0 8px 16px -12px rgba(79, 70, 229, 0.5);
+  box-shadow: 0 8px 16px -12px rgba(31, 41, 51, 0.12);
   transform: translateY(-1px);
 }
 
 .chat-page__composer {
   border-top: 1px solid var(--color-border-secondary);
   padding: 14px 16px 16px;
-  background: linear-gradient(180deg, rgba(251, 252, 255, 0.96) 0%, #ffffff 100%);
+  background: linear-gradient(180deg, rgba(247, 250, 248, 0.96) 0%, #ffffff 100%);
 }
 
 .chat-page__composer-shell {
@@ -668,16 +687,16 @@ textarea {
   background: #ffffff;
   padding: 12px 12px 10px;
   box-shadow:
-    0 1px 2px rgba(26, 35, 64, 0.03),
-    0 12px 28px -20px rgba(79, 70, 229, 0.28);
+    0 1px 2px rgba(31, 41, 51, 0.03),
+    0 12px 28px -20px rgba(31, 41, 51, 0.10);
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .chat-page__composer-shell:focus-within {
-  border-color: #a5b4fc;
+  border-color: #5ec49a;
   box-shadow:
-    0 0 0 3px rgba(79, 70, 229, 0.10),
-    0 12px 28px -18px rgba(79, 70, 229, 0.3);
+    0 0 0 3px rgba(13, 143, 106, 0.10),
+    0 12px 28px -18px rgba(31, 41, 51, 0.10);
 }
 
 .chat-page__composer-label {
@@ -734,18 +753,18 @@ textarea {
   padding: 10px 12px;
   border: 1px solid var(--color-border-secondary);
   border-radius: 12px;
-  background: linear-gradient(180deg, #ffffff, #fbfcff);
+  background: linear-gradient(180deg, #ffffff, #f7faf8);
   transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
 }
 
 .chat-page__kb-list .ant-checkbox-wrapper:hover {
   border-color: var(--color-primary-200);
-  box-shadow: 0 8px 18px -16px rgba(79, 70, 229, 0.45);
+  box-shadow: 0 8px 18px -16px rgba(31, 41, 51, 0.10);
 }
 
 .chat-page__kb-list .ant-checkbox-wrapper-checked {
   border-color: var(--color-primary-200);
-  background: linear-gradient(180deg, #eef2ff, #ffffff);
+  background: linear-gradient(180deg, #eef8f3, #ffffff);
 }
 
 .chat-row {
@@ -777,16 +796,16 @@ textarea {
   max-width: min(760px, 100%);
   border-radius: 18px;
   padding: 14px 16px;
-  box-shadow: 0 10px 24px -18px rgba(26, 35, 64, 0.35);
+  box-shadow: 0 10px 24px -18px rgba(31, 41, 51, 0.18);
 }
 
 .chat-bubble--user {
   max-width: min(640px, 92%);
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 55%, #4338ca 100%) !important;
+  background: linear-gradient(135deg, #2bb88a 0%, #0d8f6a 55%, #0b7a5a 100%) !important;
   color: #ffffff !important;
   border: none !important;
   border-bottom-right-radius: 6px;
-  box-shadow: 0 12px 28px -16px rgba(79, 70, 229, 0.55);
+  box-shadow: 0 12px 28px -16px rgba(13, 143, 106, 0.28);
 }
 
 .chat-bubble--user .chat-bubble__meta {
@@ -824,7 +843,7 @@ textarea {
 
 .chat-bubble__actions .ant-btn:hover {
   color: var(--color-primary-deep) !important;
-  background: rgba(99, 102, 241, 0.08) !important;
+  background: rgba(13, 143, 106, 0.07) !important;
 }
 
 /* User question actions: hidden until hover/focus, shown below content */
@@ -881,13 +900,11 @@ textarea {
 
 .chat-bubble--assistant {
   width: min(760px, 100%);
-  background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+  background: #ffffff;
   border: 1px solid var(--color-border-secondary);
   border-bottom-left-radius: 6px;
   color: var(--color-text-primary);
-  box-shadow:
-    0 1px 2px rgba(26, 35, 64, 0.03),
-    0 14px 28px -20px rgba(26, 35, 64, 0.22);
+  box-shadow: var(--shadow-card);
 }
 
 .chat-bubble--warning {
@@ -1169,7 +1186,7 @@ textarea {
 
 .chat-bubble--thinking {
   border: 1px dashed var(--color-primary-100);
-  background: linear-gradient(180deg, rgba(99, 102, 241, 0.05), transparent 60%);
+  background: linear-gradient(180deg, rgba(13, 143, 106, 0.04), transparent 60%);
 }
 
 .chat-thinking {
