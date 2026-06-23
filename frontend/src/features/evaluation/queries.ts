@@ -3,6 +3,7 @@ import {
   createEvalCase,
   createEvalRun,
   createRetrievalItem,
+  deleteEvalRun,
   getEvalRun,
   importCrudDataset,
   listEvalCases,
@@ -87,6 +88,17 @@ export function useCreateEvalRunMutation() {
     mutationFn: createEvalRun,
     onSuccess: async (run) => {
       queryClient.setQueryData(evalKeys.run(run.id), run)
+      await queryClient.invalidateQueries({ queryKey: evalKeys.runs() })
+    },
+  })
+}
+
+export function useDeleteEvalRunMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: deleteEvalRun,
+    onSuccess: async (_void, runId) => {
+      queryClient.removeQueries({ queryKey: evalKeys.run(runId) })
       await queryClient.invalidateQueries({ queryKey: evalKeys.runs() })
     },
   })
