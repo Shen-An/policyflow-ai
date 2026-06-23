@@ -339,6 +339,18 @@ class EvalRunner:
         }
         aggregate.update(_average_numeric_metrics(retrieval_metric_sets))
         aggregate.update(_average_numeric_metrics(answer_metric_sets))
+        # Rank histogram explains collapsed Hit@1==Hit@5==Hit@10 (all rank-1 or miss).
+        if retrieval_metric_sets:
+            rank_hist: dict[str, int] = {}
+            mid_rank_hits = 0
+            for metrics in retrieval_metric_sets:
+                first_rank = metrics.get("first_relevant_rank")
+                key = "miss" if first_rank in (None, 0) else str(int(first_rank))
+                rank_hist[key] = rank_hist.get(key, 0) + 1
+                if isinstance(first_rank, int | float) and 1 < int(first_rank) <= 10:
+                    mid_rank_hits += 1
+            aggregate["first_rank_histogram"] = rank_hist
+            aggregate["mid_rank_hits"] = mid_rank_hits
         if "retrieval" in request.eval_types:
             strategies = list(request.compare_strategies) or [request.retrieval_config.strategy]
             if len(strategies) > 1 or request.compare_strategies:
