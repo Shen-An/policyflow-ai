@@ -268,6 +268,10 @@ def test_faq_approval_indexes_document_and_eval_run_is_reproducible(tmp_path: Pa
     )
     assert retrieval_result["retrieval_metrics"]["hit_at_1"] == 1.0
     assert retrieval_result["retrieval_metrics"]["mrr"] == 1.0
+    assert run["metrics"]["first_rank_histogram"] == {"1": 1}
+    assert run["metrics"]["mid_rank_hits"] == 0
+    assert run["scope"] is not None
+    assert run["scope"]["item_count"] == 1
     assert answer_result["ragas_metrics"]["status"] == "skipped"
     assert answer_result["ragas_metrics"]["reason"] == "disabled"
     assert answer_result["ragas_metrics"]["metrics"] == {}
@@ -285,6 +289,11 @@ def test_faq_approval_indexes_document_and_eval_run_is_reproducible(tmp_path: Pa
         rerank_response.json()["items"][0].get("metadata", {}).get("rerank_method")
         == "local_lexical_fusion"
     )
+
+    delete_response = client.delete(f"/api/eval/runs/{run_id}", headers=admin_headers)
+    assert delete_response.status_code == 204
+    missing_response = client.get(f"/api/eval/runs/{run_id}", headers=admin_headers)
+    assert missing_response.status_code == 404
 
     with Session(app.state.engine) as session:
         approved_faq = session.get(FAQDraft, first_faq["id"])
