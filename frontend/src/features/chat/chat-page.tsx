@@ -889,7 +889,7 @@ function CitationList({ citations }: { citations: AssistantMetadata['citations']
   return (
     <details className="chat-citations" open>
       <summary>查看引用（{citations.length}）</summary>
-      <Space direction="vertical" style={{ width: '100%', marginTop: 12 }}>
+      <Space orientation="vertical" style={{ width: '100%', marginTop: 12 }}>
         {citations.map((citation, index) => (
           <div
             key={`${citation.documentId ?? citation.knowledgeBaseId}-${index}`}
