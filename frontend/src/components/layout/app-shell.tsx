@@ -14,7 +14,7 @@ import {
   ToolOutlined,
   WifiOutlined,
 } from '@ant-design/icons'
-import { Avatar, Button, Layout, Menu, Space, Typography } from 'antd'
+import { Avatar, Button, Layout, Menu, Space, Tooltip, Typography } from 'antd'
 import type { MenuProps } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -22,10 +22,13 @@ import { canCallApi } from '../../api/readiness'
 import { hasAnyRole } from '../../auth/permissions'
 import { clearReturnTo } from '../../auth/auth-storage'
 import { useAuth } from '../../auth/use-auth'
+import { formatRoles } from '../../lib/labels'
 import { gradients, palette } from '../../styles/palette'
 import { PageTransition } from '../feedback/page-transition'
 
 const { Header, Sider, Content } = Layout
+
+const COLLAPSE_STORAGE_KEY = 'policyflow.shell.sider-collapsed'
 
 function titleFor(pathname: string): string {
   if (pathname.startsWith('/knowledge-bases')) return '知识库'
@@ -41,6 +44,17 @@ function titleFor(pathname: string): string {
   if (pathname === '/admin/users') return '用户管理'
   if (pathname === '/') return '工作台'
   return 'PolicyFlow AI'
+}
+
+function readCollapsedPreference(): boolean {
+  try {
+    const raw = window.localStorage.getItem(COLLAPSE_STORAGE_KEY)
+    if (raw === '1') return true
+    if (raw === '0') return false
+  } catch {
+    // ignore storage errors
+  }
+  return false
 }
 
 function useOnlineStatus(): boolean {
@@ -63,7 +77,8 @@ export function AppShell() {
   const location = useLocation()
   const navigate = useNavigate()
   const online = useOnlineStatus()
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => readCollapsedPreference())
+  const [isMobile, setIsMobile] = useState(false)
 
   const canManageUsers = Boolean(user && hasAnyRole(user.roles, ['sys_admin']) && canCallApi('users'))
   const canBrowseKnowledgeBases = canCallApi('knowledgeBases')
@@ -86,6 +101,14 @@ export function AppShell() {
   useEffect(() => {
     clearReturnTo(window.sessionStorage)
   }, [])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(COLLAPSE_STORAGE_KEY, collapsed ? '1' : '0')
+    } catch {
+      // ignore storage errors
+    }
+  }, [collapsed])
 
   const selectedKeys = useMemo(() => {
     const path = location.pathname
@@ -216,16 +239,24 @@ export function AppShell() {
       : []),
   ]
 
+  const roleText = formatRoles(user?.roles)
+
   return (
-    <Layout style={{ minHeight: '100vh', background: 'transparent' }}>
+    <Layout
+      className={collapsed ? 'pf-shell pf-shell--collapsed' : 'pf-shell'}
+      style={{ minHeight: '100vh', background: 'transparent' }}
+    >
       <Sider
         collapsible
         collapsed={collapsed}
         trigger={null}
         width={232}
+        collapsedWidth={isMobile ? 0 : 72}
         theme="light"
-        breakpoint="lg"
+        breakpoint="md"
         onBreakpoint={(broken) => {
+          setIsMobile(broken)
+          // Only auto-collapse on true mobile; desktop keeps user preference.
           if (broken) setCollapsed(true)
         }}
         style={{
@@ -305,6 +336,7 @@ export function AppShell() {
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
               onClick={() => setCollapsed((value) => !value)}
               style={{ color: palette.primaryHover }}
+              aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
             />
             <div>
               <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
@@ -317,11 +349,13 @@ export function AppShell() {
           </Space>
 
           <Space size={12}>
-            <div style={{ textAlign: 'right', lineHeight: 1.3 }}>
+            <div style={{ textAlign: 'right', lineHeight: 1.3, maxWidth: 180 }}>
               <div style={{ fontWeight: 600, color: palette.text }}>{user?.displayName}</div>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {user?.roles.join(' · ')}
-              </Typography.Text>
+              <Tooltip title={roleText}>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>
+                  {roleText}
+                </Typography.Text>
+              </Tooltip>
             </div>
             <Avatar
               style={{

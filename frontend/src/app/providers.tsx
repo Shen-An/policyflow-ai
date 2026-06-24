@@ -12,7 +12,11 @@ bindAuthSession()
 export function AppProviders({ children }: PropsWithChildren) {
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfigProvider locale={zhCN} theme={antdTheme}>
+      <ConfigProvider
+        locale={zhCN}
+        theme={antdTheme}
+        button={{ autoInsertSpace: false }}
+      >
         <AntdApp>
           <AuthBootstrap>{children}</AuthBootstrap>
         </AntdApp>
