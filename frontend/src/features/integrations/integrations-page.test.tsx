@@ -26,7 +26,7 @@ const mcp = {
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <ConfigProvider theme={{ token: { motion: false } }} autoInsertSpaceInButton={false}>
+    <ConfigProvider theme={{ token: { motion: false } }} button={{ autoInsertSpace: false }}>
       <QueryClientProvider client={client}>
         <IntegrationsPage />
       </QueryClientProvider>

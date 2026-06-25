@@ -21,6 +21,7 @@ import {
 import { useEffect, useState } from 'react'
 import type { MCPServer, MCPServerInput, MCPServerUpdate } from '../../api/mcp'
 import { LoadingState } from '../../components/feedback/state-views'
+import { confirmAction } from '../../lib/confirm'
 import {
   useCreateMCPServerMutation,
   useMCPHealthMutation,
@@ -312,42 +313,52 @@ function MCPServerDialog({
       }
     }
 
-    if (server && server.enabled !== enabled) {
-      const confirmed = window.confirm(
-        `确认将“${server.name}”${enabled ? '启用' : '禁用'}吗？该操作会清空旧健康状态并写入审计日志。`,
-      )
-      if (!confirmed) return
+    const type = integrationMode === 'mock' ? 'mock' : 'external'
+
+    const runSave = async () => {
+      try {
+        if (server) {
+          const input: MCPServerUpdate = {
+            name: name.trim(),
+            type,
+            integrationMode,
+            endpoint: integrationMode === 'http' ? endpoint.trim() : '',
+            enabled,
+            ...(command.trim() ? { command: command.trim() } : {}),
+            ...(config ? { config } : {}),
+          }
+          await update.mutateAsync({ id: server.id, input })
+        } else {
+          const input: MCPServerInput = {
+            name: name.trim(),
+            type,
+            integrationMode,
+            endpoint: integrationMode === 'http' ? endpoint.trim() : undefined,
+            command: integrationMode === 'stdio' || command.trim() ? command.trim() : undefined,
+            config: config ?? {},
+            enabled,
+          }
+          await create.mutateAsync(input)
+        }
+        onOpenChange(false)
+      } catch {
+        // mutation error is shown below
+      }
     }
 
-    const type = integrationMode === 'mock' ? 'mock' : 'external'
-    try {
-      if (server) {
-        const input: MCPServerUpdate = {
-          name: name.trim(),
-          type,
-          integrationMode,
-          endpoint: integrationMode === 'http' ? endpoint.trim() : '',
-          enabled,
-          ...(command.trim() ? { command: command.trim() } : {}),
-          ...(config ? { config } : {}),
-        }
-        await update.mutateAsync({ id: server.id, input })
-      } else {
-        const input: MCPServerInput = {
-          name: name.trim(),
-          type,
-          integrationMode,
-          endpoint: integrationMode === 'http' ? endpoint.trim() : undefined,
-          command: integrationMode === 'stdio' || command.trim() ? command.trim() : undefined,
-          config: config ?? {},
-          enabled,
-        }
-        await create.mutateAsync(input)
-      }
-      onOpenChange(false)
-    } catch {
-      // mutation error is shown below
+    if (server && server.enabled !== enabled) {
+      confirmAction({
+        title: `${enabled ? '启用' : '禁用'} MCP 集成`,
+        content: `确认将“${server.name}”${enabled ? '启用' : '禁用'}吗？该操作会清空旧健康状态并写入审计日志。`,
+        okText: enabled ? '启用' : '禁用',
+        okButtonProps: enabled ? undefined : { danger: true },
+        cancelText: '取消',
+        onOk: () => runSave(),
+      })
+      return
     }
+
+    await runSave()
   }
 
   return (
