@@ -20,8 +20,10 @@ import { useSearchParams } from 'react-router-dom'
 import type { FAQDraft } from '../../api/faq'
 import { Alert } from '../../components/feedback/alert'
 import { LoadingState } from '../../components/feedback/state-views'
+import { documentIndexStatusLabel } from '../../lib/labels'
 import { useDocumentStatusQuery } from '../documents/queries'
 import { useKnowledgeBasesQuery } from '../knowledge-bases/queries'
+import { confirmAction } from '../../lib/confirm'
 import {
   useApproveFAQMutation,
   useFAQDraftsQuery,
@@ -52,11 +54,17 @@ export function FAQReviewPage() {
     setSearchParams(next, { replace: true })
   }
 
-  async function approveItem(item: FAQDraft) {
-    // Keep window.confirm so existing tests that spy on it continue to pass.
-    if (!window.confirm('审核通过后会创建知识文档并触发增量索引，是否继续？')) return
-    const result = await approve.mutateAsync(item.id)
-    setApprovedDocumentId(result.documentId)
+  function approveItem(item: FAQDraft) {
+    confirmAction({
+      title: '审核通过 FAQ？',
+      content: '审核通过后会创建知识文档并触发增量索引，是否继续？',
+      okText: '审核通过',
+      cancelText: '取消',
+      onOk: async () => {
+        const result = await approve.mutateAsync(item.id)
+        setApprovedDocumentId(result.documentId)
+      },
+    })
   }
 
   return (
@@ -197,8 +205,13 @@ export function FAQReviewPage() {
 function IndexStatus({ documentId }: { documentId: string }) {
   const query = useDocumentStatusQuery(documentId, 'pending')
   const status = query.data?.indexStatus ?? 'pending'
+  const label = documentIndexStatusLabel[status] ?? status
   // Keep custom Alert so role="status" is preserved for tests.
-  return <Alert tone="info" className="mt-4">FAQ 文档索引状态：{status}</Alert>
+  return (
+    <div style={{ marginTop: 16 }}>
+      <Alert tone="info">FAQ 文档索引状态：{label}</Alert>
+    </div>
+  )
 }
 
 function RejectDialog({
