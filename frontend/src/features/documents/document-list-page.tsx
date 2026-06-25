@@ -6,7 +6,6 @@ import {
   Drawer,
   Empty,
   Input,
-  Modal,
   Space,
   Spin,
   Table,
@@ -23,8 +22,10 @@ import type {
   ResourcePermission,
 } from '../../api/knowledge-bases'
 import { LoadingState } from '../../components/feedback/state-views'
+import { documentIndexStatusLabel } from '../../lib/labels'
 import { gradients, palette } from '../../styles/palette'
 import { UploadDocumentDialog } from './components/upload-document-dialog'
+import { confirmAction } from '../../lib/confirm'
 import {
   useDeleteDocumentMutation,
   useDocumentDetailQuery,
@@ -236,7 +237,11 @@ function DocumentStatus({
 }) {
   const live = useDocumentStatusQuery(documentId, status)
   const current = live.data?.indexStatus ?? status
-  return <Tag color={statusColor(current)}>{current}</Tag>
+  return (
+    <Tag color={statusColor(current)}>
+      {documentIndexStatusLabel[current] ?? current}
+    </Tag>
+  )
 }
 
 function ReindexButton({
@@ -281,7 +286,7 @@ function DeleteDocumentButton({
       loading={mutation.isPending}
       onClick={(event) => {
         event.stopPropagation()
-        Modal.confirm({
+        confirmAction({
           title: `物理删除文档「${title}」？`,
           content: '将永久删除文档记录、索引任务与本地文件，不可恢复。',
           okText: '永久删除',
@@ -324,7 +329,7 @@ function DocumentDetailDrawer({
   return (
     <Drawer
       title={query.data?.title ?? '文档详情'}
-      width={Math.min(820, typeof window !== 'undefined' ? window.innerWidth - 48 : 820)}
+      size={Math.min(820, typeof window !== 'undefined' ? window.innerWidth - 48 : 820)}
       open={open}
       onClose={onClose}
       destroyOnHidden
@@ -344,7 +349,7 @@ function DocumentDetailDrawer({
               danger
               loading={deleteMutation.isPending}
               onClick={() => {
-                Modal.confirm({
+                confirmAction({
                   title: `物理删除文档「${query.data?.title}」？`,
                   content: '将永久删除文档记录、索引任务与本地文件，不可恢复。',
                   okText: '永久删除',
@@ -378,7 +383,7 @@ function DocumentDetailDrawer({
           action={<Button onClick={() => void query.refetch()}>重试</Button>}
         />
       ) : query.data ? (
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <Space orientation="vertical" size={16} style={{ width: '100%' }}>
           <Descriptions bordered size="small" column={2}>
             <Descriptions.Item label="知识库" span={2}>
               {knowledgeBaseName}
