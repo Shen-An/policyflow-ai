@@ -11,7 +11,6 @@ import {
   Col,
   Empty,
   Input,
-  Modal,
   Row,
   Space,
   Tag,
@@ -35,6 +34,7 @@ import {
   statusLabel,
 } from './labels'
 import { useDeleteKnowledgeBaseMutation, useKnowledgeBasesQuery } from './queries'
+import { confirmAction } from '../../lib/confirm'
 
 function positiveInt(value: string | null, fallback: number): number {
   const parsed = Number(value)
@@ -204,7 +204,7 @@ function KnowledgeBaseCard({ knowledgeBase }: { knowledgeBase: KnowledgeBase }) 
   const statusText = statusLabel[knowledgeBase.status] ?? knowledgeBase.status
 
   function handleDelete() {
-    Modal.confirm({
+    confirmAction({
       title: `物理删除知识库「${knowledgeBase.name}」？`,
       content: isEvalTest
         ? '将永久删除评估测试库、文档与本地工作区，不可恢复。'
