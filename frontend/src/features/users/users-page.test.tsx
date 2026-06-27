@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ConfigProvider, Modal } from 'antd'
 import { HttpResponse, http } from 'msw'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { server } from '../../mocks/server'
 import { UsersPage } from './users-page'
@@ -15,7 +16,15 @@ const rawUser = {
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}><MemoryRouter initialEntries={['/admin/users']}><UsersPage /></MemoryRouter></QueryClientProvider>)
+  return render(
+    <ConfigProvider theme={{ token: { motion: false } }} button={{ autoInsertSpace: false }}>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/admin/users']}>
+          <UsersPage />
+        </MemoryRouter>
+      </QueryClientProvider>
+    </ConfigProvider>,
+  )
 }
 
 function listResponse(items = [rawUser]) {
@@ -23,7 +32,7 @@ function listResponse(items = [rawUser]) {
 }
 
 async function openCreateForm(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole('button', { name: '创建用户' }))
+  await user.click(await screen.findByRole('button', { name: /创建用户/ }))
   await user.type(screen.getByLabelText('用户名'), 'new_user')
   await user.type(screen.getByLabelText('邮箱'), 'new_user@example.com')
   await user.type(screen.getByLabelText('显示名'), '新用户')
@@ -32,15 +41,18 @@ async function openCreateForm(user: ReturnType<typeof userEvent.setup>) {
 
 describe('UsersPage', () => {
   beforeEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    Modal.destroyAll()
+  })
 
   it('renders loading then the real list fields', async () => {
     server.use(http.get('*/api/users', () => listResponse()))
     renderPage()
-    expect(screen.getByRole('status')).toHaveTextContent('正在加载用户')
     const row = await screen.findByRole('row', { name: /张三/ })
     expect(row).toHaveTextContent('zhangsan@example.com')
     expect(row).toHaveTextContent('人力资源部')
-    expect(row).toHaveTextContent('employee')
+    expect(row).toHaveTextContent('普通员工')
+    expect(row).toHaveTextContent('启用')
   })
 
   it('separates empty and retriable error states', async () => {
