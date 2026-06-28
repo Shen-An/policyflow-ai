@@ -177,6 +177,12 @@ textarea {
   padding-inline: 22px !important;
 }
 
+/* Hide truncated group labels when the sider is collapsed */
+.pf-shell--collapsed .ant-menu-item-group-title,
+.ant-layout-sider-collapsed .ant-menu-item-group-title {
+  display: none !important;
+}
+
 .ant-tag {
   border: 1px solid color-mix(in srgb, var(--color-primary-100) 80%, white) !important;
 }
