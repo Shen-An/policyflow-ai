@@ -7,7 +7,6 @@ import {
   Input,
   Modal,
   Select,
-  Space,
   Table,
   Tag,
   Typography,
@@ -125,35 +124,33 @@ export function DraftListPage() {
           </Button>
         </div>
 
-        <Card styles={{ body: { paddingBottom: 8 } }}>
-          <div className="page-toolbar">
-            <Space wrap>
-              <Select
-                aria-label="状态"
-                allowClear
-                placeholder="全部状态"
-                style={{ width: 140 }}
-                value={status || undefined}
-                onChange={(value) => updateParams({ status: value || null, page: '1' })}
-                options={[
-                  { value: 'draft', label: '草稿' },
-                  { value: 'confirmed', label: '已确认' },
-                  { value: 'discarded', label: '已丢弃' },
-                  { value: 'exported', label: '已导出' },
-                ]}
-              />
-              <Select
-                aria-label="类型"
-                allowClear
-                placeholder="全部类型"
-                style={{ width: 140 }}
-                value={draftType || undefined}
-                onChange={(value) => updateParams({ draft_type: value || null, page: '1' })}
-                options={draftTypes}
-              />
-            </Space>
-          </div>
+        <div className="pf-filter-bar" style={{ marginBottom: 16 }}>
+          <Select
+            aria-label="状态"
+            allowClear
+            placeholder="全部状态"
+            style={{ width: 140 }}
+            value={status || undefined}
+            onChange={(value) => updateParams({ status: value || null, page: '1' })}
+            options={[
+              { value: 'draft', label: '草稿' },
+              { value: 'confirmed', label: '已确认' },
+              { value: 'discarded', label: '已丢弃' },
+              { value: 'exported', label: '已导出' },
+            ]}
+          />
+          <Select
+            aria-label="类型"
+            allowClear
+            placeholder="全部类型"
+            style={{ width: 140 }}
+            value={draftType || undefined}
+            onChange={(value) => updateParams({ draft_type: value || null, page: '1' })}
+            options={draftTypes}
+          />
+        </div>
 
+        <Card styles={{ body: { paddingTop: 8 } }}>
           {query.isPending ? (
             <LoadingState message="正在加载草稿…" minH="min-h-48" />
           ) : (
