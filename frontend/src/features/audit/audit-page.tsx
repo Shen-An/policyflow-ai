@@ -201,14 +201,11 @@ export function AuditPage() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h2>审计日志</h2>
-          <p>系统关键操作记录；敏感字段由后端递归脱敏，仅管理员可查看。</p>
-        </div>
-      </div>
+      <p className="page-lede" style={{ marginBottom: 12 }}>
+        系统关键操作记录；敏感字段由后端递归脱敏，仅管理员可查看。
+      </p>
 
-      <div className="pf-filter-bar" style={{ marginBottom: 16, justifyContent: 'space-between' }}>
+      <div className="pf-filter-bar" style={{ marginBottom: 12, justifyContent: 'space-between' }}>
         <Space wrap size={10}>
           <Select
             allowClear
@@ -259,7 +256,7 @@ export function AuditPage() {
         ) : null}
       </div>
 
-      <Card styles={{ body: { paddingTop: 8 } }}>
+      <Card className="pf-table-card" styles={{ body: { padding: '4px 8px 8px' } }}>
         {query.isError ? (
           <Alert
             tone="danger"
@@ -270,6 +267,7 @@ export function AuditPage() {
           </Alert>
         ) : (
           <Table
+            size="middle"
             rowKey="id"
             loading={query.isPending}
             columns={columns}
