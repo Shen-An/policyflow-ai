@@ -113,18 +113,15 @@ export function DraftListPage() {
 
   return (
       <div>
-        <div className="page-header">
-          <div>
-            <h2>我的草稿</h2>
-            <p>草稿仅在确认后变为只读，不会自动提交到外部系统。</p>
-          </div>
+        <div className="page-toolbar page-toolbar--split">
+          <p className="page-lede">草稿仅在确认后变为只读，不会自动提交到外部系统。</p>
           <Button type="primary" onClick={() => setCreateOpen(true)}>
             <PlusOutlined aria-hidden />
             创建草稿
           </Button>
         </div>
 
-        <div className="pf-filter-bar" style={{ marginBottom: 16 }}>
+        <div className="pf-filter-bar" style={{ marginBottom: 12 }}>
           <Select
             aria-label="状态"
             allowClear
@@ -150,11 +147,12 @@ export function DraftListPage() {
           />
         </div>
 
-        <Card styles={{ body: { paddingTop: 8 } }}>
+        <Card className="pf-table-card" styles={{ body: { padding: '4px 8px 8px' } }}>
           {query.isPending ? (
             <LoadingState message="正在加载草稿…" minH="min-h-48" />
           ) : (
             <Table
+              size="middle"
               rowKey="id"
               columns={columns}
               dataSource={query.data?.items ?? []}

@@ -185,16 +185,11 @@ export function EvaluationPage() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h2>评估中心</h2>
-          <p>
-            两步完成检索量化：导入测试语料 → 随机抽样跑 Run，主看
-            <strong> Hit@1 / Hit@5 / Hit@10 / MRR</strong>
-            。
-          </p>
-        </div>
-      </div>
+      <p className="page-lede" style={{ marginBottom: 14 }}>
+        两步完成检索量化：导入测试语料 → 随机抽样跑 Run，主看
+        <strong> Hit@1 / Hit@5 / Hit@10 / MRR</strong>
+        。
+      </p>
       <Space orientation="vertical" size={16} style={{ width: '100%' }}>
         <CrudImportSection />
         <RunSection

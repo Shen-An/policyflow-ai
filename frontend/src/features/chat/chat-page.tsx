@@ -337,24 +337,10 @@ export function ChatPage() {
   }
 
   const noKnowledgeBases = knowledgeBases.isSuccess && knowledgeBases.data.length === 0
-  const title = conversation.data?.title ?? '新制度问答'
   const historyItems = history.data?.items ?? []
 
   return (
     <div className="chat-page">
-      <div className="page-header chat-page__header">
-        <div>
-          <Typography.Text type="secondary" className="chat-page__eyebrow">
-            企业制度问答
-          </Typography.Text>
-          <h2>{title}</h2>
-          <p>基于授权知识库回答，带引用依据；历史会话仅你本人可见。</p>
-        </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={startNewConversation}>
-          新建问答
-        </Button>
-      </div>
-
       <div className="chat-page__body">
         <aside className="chat-page__history" aria-label="历史会话">
           <Card
@@ -367,9 +353,14 @@ export function ChatPage() {
               </Space>
             }
             extra={
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                仅本人可见
-              </Typography.Text>
+              <Button
+                type="primary"
+                size="small"
+                icon={<PlusOutlined />}
+                onClick={startNewConversation}
+              >
+                新建
+              </Button>
             }
             styles={{ body: { padding: 0 } }}
           >
