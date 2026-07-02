@@ -69,42 +69,35 @@ export function FAQReviewPage() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h2>FAQ 审核</h2>
-          <p>审核通过会写入知识库并触发索引；驳回必须填写原因。</p>
-        </div>
-      </div>
+      <p className="page-lede" style={{ marginBottom: 12 }}>
+        审核通过会写入知识库并触发索引；驳回必须填写原因。
+      </p>
 
-      <Card styles={{ body: { paddingBottom: 8 } }} style={{ marginBottom: 16 }}>
-        <div className="page-toolbar">
-          <Space wrap>
-            <Select
-              allowClear
-              placeholder="全部知识库"
-              style={{ width: 180 }}
-              value={knowledgeBaseId || undefined}
-              onChange={(value) => setFilter('knowledge_base_id', value ?? '')}
-              options={(knowledgeBases.data ?? []).map((kb) => ({
-                value: kb.id,
-                label: kb.name,
-              }))}
-            />
-            <Select
-              allowClear
-              placeholder="全部状态"
-              style={{ width: 140 }}
-              value={status || undefined}
-              onChange={(value) => setFilter('status', value ?? '')}
-              options={[
-                { value: 'draft', label: '待审核' },
-                { value: 'approved', label: '已通过' },
-                { value: 'rejected', label: '已驳回' },
-              ]}
-            />
-          </Space>
-        </div>
-      </Card>
+      <div className="pf-filter-bar" style={{ marginBottom: 12 }}>
+        <Select
+          allowClear
+          placeholder="全部知识库"
+          style={{ width: 180 }}
+          value={knowledgeBaseId || undefined}
+          onChange={(value) => setFilter('knowledge_base_id', value ?? '')}
+          options={(knowledgeBases.data ?? []).map((kb) => ({
+            value: kb.id,
+            label: kb.name,
+          }))}
+        />
+        <Select
+          allowClear
+          placeholder="全部状态"
+          style={{ width: 140 }}
+          value={status || undefined}
+          onChange={(value) => setFilter('status', value ?? '')}
+          options={[
+            { value: 'draft', label: '待审核' },
+            { value: 'approved', label: '已通过' },
+            { value: 'rejected', label: '已驳回' },
+          ]}
+        />
+      </div>
 
       {approvedDocumentId ? <IndexStatus documentId={approvedDocumentId} /> : null}
       {approve.isError ? (

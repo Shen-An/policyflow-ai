@@ -38,12 +38,12 @@ export function KnowledgeBaseDetailPage() {
 
   return (
     <div>
-      <div className="page-header" style={{ marginBottom: 16 }}>
+      <div className="page-header" style={{ marginBottom: 14 }}>
         <div style={{ minWidth: 0 }}>
           <Button
             type="link"
             icon={<ArrowLeftOutlined />}
-            style={{ paddingInline: 0, height: 'auto', marginBottom: 8 }}
+            style={{ paddingInline: 0, height: 'auto', marginBottom: 6 }}
             onClick={() => navigate('/knowledge-bases')}
           >
             返回知识库

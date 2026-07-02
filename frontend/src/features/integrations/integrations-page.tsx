@@ -51,14 +51,11 @@ export function IntegrationsPage() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h2>MCP 集成</h2>
-          <p>
-            支持 mock / stdio / http。stdio 与 http 走真实 MCP JSON-RPC（tools/list、tools/call）；
-            企业 SaaS 可继续用 mock，响应需带 status=mock。
-          </p>
-        </div>
+      <div className="page-toolbar page-toolbar--split">
+        <p className="page-lede">
+          支持 mock / stdio / http。stdio 与 http 走真实 MCP JSON-RPC；企业 SaaS 可 mock（响应带
+          status=mock）。
+        </p>
         <Button type="primary" autoInsertSpace={false} onClick={() => setCreateOpen(true)}>
           创建 MCP
         </Button>
