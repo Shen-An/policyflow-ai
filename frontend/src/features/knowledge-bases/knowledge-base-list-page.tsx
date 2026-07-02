@@ -79,11 +79,8 @@ export function KnowledgeBaseListPage() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h2>知识库</h2>
-          <p>浏览授权范围内的制度库，管理文档与检索配置。仅展示后端授权给当前用户的资源。</p>
-        </div>
+      <div className="page-toolbar page-toolbar--split">
+        <p className="page-lede">浏览授权范围内的制度库，管理文档与检索配置。</p>
         {canCreate ? (
           <Button type="primary" onClick={() => setCreateOpen(true)}>
             <PlusOutlined aria-hidden />
@@ -92,7 +89,7 @@ export function KnowledgeBaseListPage() {
         ) : null}
       </div>
 
-      <div className="pf-filter-bar" style={{ marginBottom: 16, justifyContent: 'space-between' }}>
+      <div className="pf-filter-bar" style={{ marginBottom: 12, justifyContent: 'space-between' }}>
         <Input
           allowClear
           prefix={<SearchOutlined />}
