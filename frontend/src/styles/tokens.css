@@ -13,85 +13,87 @@
   --space-12: 48px;
   --space-16: 64px;
 
-  /* surfaces — soft mint canvas, pure white cards */
-  --color-background: #eef3f1;
-  --color-background-soft: #e6eeea;
+  /* surfaces — cool gray canvas, white cards (less mint wash) */
+  --color-background: #f3f5f4;
+  --color-background-soft: #e9eeec;
   --color-surface: #ffffff;
-  --color-surface-muted: #f5f8f6;
+  --color-surface-muted: #f6f8f7;
   --color-surface-elevated: #ffffff;
-  --color-input: #f7faf8;
+  --color-input: #f7f9f8;
 
-  /* text — near-neutral */
-  --color-text-primary: #1f2933;
-  --color-text-secondary: #5b6770;
-  --color-text-tertiary: #8b959e;
+  /* text — cooler near-neutral */
+  --color-text-primary: #18212b;
+  --color-text-secondary: #5a6570;
+  --color-text-tertiary: #8a949e;
 
-  /* borders — almost gray */
-  --color-border: #dce4df;
-  --color-border-secondary: #e8eeeb;
-  --color-border-strong: #c5d0ca;
-  --color-border-hover: #a8b5ae;
+  /* borders */
+  --color-border: #dde3df;
+  --color-border-secondary: #e8edeb;
+  --color-border-strong: #c4cdc8;
+  --color-border-hover: #a6b2ab;
 
-  /* brand — soft teal-green accent */
-  --color-primary: #12a37a;
-  --color-primary-hover: #0d8f6a;
-  --color-primary-active: #0b7a5a;
+  /* brand — restrained teal, lower saturation */
+  --color-primary: #0f9a74;
+  --color-primary-hover: #0d8665;
+  --color-primary-active: #0a7054;
   --color-primary-50: #eef8f3;
-  --color-primary-100: #d9f0e5;
-  --color-primary-200: #b7dfcc;
-  --color-primary-700: #0d8f6a;
-  --color-primary-deep: #0a5c44;
+  --color-primary-100: #d8f0e4;
+  --color-primary-200: #b4dfcb;
+  --color-primary-700: #0d8665;
+  --color-primary-deep: #0a523d;
   --color-primary-foreground: #ffffff;
 
   /* semantic */
-  --color-success: #16a34a;
+  --color-success: #15803d;
   --color-success-50: #f0fdf4;
   --color-success-100: #dcfce7;
   --color-success-200: #bbf7d0;
-  --color-success-700: #15803d;
-  --color-warning: #d97706;
-  --color-warning-50: #fffbeb;
-  --color-warning-100: #fef3c7;
-  --color-warning-200: #fde68a;
+  --color-success-700: #166534;
+  --color-warning: #c2410c;
+  --color-warning-50: #fff7ed;
+  --color-warning-100: #ffedd5;
+  --color-warning-200: #fed7aa;
   --color-danger: #dc2626;
   --color-danger-50: #fef2f2;
   --color-danger-100: #fee2e2;
   --color-danger-200: #fecaca;
   --color-danger-hover: #b91c1c;
-  --color-info: #0284c7;
+  --color-info: #0369a1;
   --color-info-50: #f0f9ff;
   --color-info-100: #e0f2fe;
 
-  /* sidebar — pure white + mint selection */
+  /* sidebar — white rail, quiet selection */
   --color-sidebar-bg: #ffffff;
-  --color-sidebar-bg-soft: #f7faf8;
-  --color-sidebar-border: #eef2f0;
-  --color-sidebar-active: #e8f7f0;
-  --color-sidebar-active-text: #0a5c44;
-  --color-sidebar-text: #334155;
-  --color-sidebar-text-muted: #94a3b8;
-  --color-sidebar-hover: #f0f7f3;
+  --color-sidebar-bg-soft: #f7f9f8;
+  --color-sidebar-border: #eef1ef;
+  --color-sidebar-active: #e8f5ef;
+  --color-sidebar-active-text: #0a523d;
+  --color-sidebar-text: #3d4854;
+  --color-sidebar-text-muted: #8b959e;
+  --color-sidebar-hover: #f3f7f5;
 
-  /* shadows — soft neutral float */
-  --shadow-xs: 0 1px 2px 0 rgb(31 41 51 / 0.03);
-  --shadow-sm: 0 1px 3px 0 rgb(31 41 51 / 0.04), 0 1px 2px -1px rgb(31 41 51 / 0.03);
-  --shadow-md: 0 8px 24px -12px rgb(31 41 51 / 0.08), 0 4px 12px -6px rgb(31 41 51 / 0.04);
-  --shadow-lg: 0 18px 40px -18px rgb(31 41 51 / 0.10), 0 8px 18px -10px rgb(31 41 51 / 0.05);
-  --shadow-focus: 0 0 0 3px rgb(18 163 122 / 0.14);
-  --shadow-card: 0 1px 2px rgb(31 41 51 / 0.02), 0 8px 24px -12px rgb(31 41 51 / 0.08);
-  --shadow-card-hover: 0 12px 28px -14px rgb(31 41 51 / 0.12), 0 4px 12px -6px rgb(31 41 51 / 0.05);
+  /* shadows — soft, cool-gray tinted */
+  --shadow-xs: 0 1px 2px 0 rgb(24 33 43 / 0.03);
+  --shadow-sm: 0 1px 2px 0 rgb(24 33 43 / 0.04), 0 1px 1px -1px rgb(24 33 43 / 0.03);
+  --shadow-md: 0 8px 20px -12px rgb(24 33 43 / 0.10), 0 2px 8px -4px rgb(24 33 43 / 0.04);
+  --shadow-lg: 0 16px 36px -18px rgb(24 33 43 / 0.12), 0 6px 14px -8px rgb(24 33 43 / 0.05);
+  --shadow-focus: 0 0 0 3px rgb(15 154 116 / 0.14);
+  --shadow-card: 0 1px 2px rgb(24 33 43 / 0.03), 0 6px 18px -10px rgb(24 33 43 / 0.08);
+  --shadow-card-hover: 0 10px 24px -12px rgb(24 33 43 / 0.12), 0 4px 10px -6px rgb(24 33 43 / 0.05);
 
-  /* radius — airy, reference-like */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
+  /* radius — tighter outer, softer only on large surfaces */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
 
-  /* fonts */
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", "Fira Code", Menlo, monospace;
-  --font-page-title-size: 20px;
-  --font-page-title-line-height: 28px;
+  /* fonts — Geist variable is loaded; CJK fallbacks after */
+  --font-sans: "Geist Variable", "Geist", "Inter", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", "JetBrains Mono", "Fira Code", Menlo,
+    monospace;
+  --font-page-title-size: 22px;
+  --font-page-title-line-height: 30px;
   --font-section-title-size: 16px;
   --font-section-title-line-height: 24px;
   --font-card-title-size: 15px;
@@ -100,4 +102,9 @@
   --font-body-line-height: 22px;
   --font-caption-size: 12px;
   --font-caption-line-height: 18px;
+
+  /* shell metrics */
+  --shell-header-height: 56px;
+  --shell-sider-width: 236px;
+  --shell-content-max: 1440px;
 }
