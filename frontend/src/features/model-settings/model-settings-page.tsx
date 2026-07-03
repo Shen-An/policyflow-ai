@@ -341,27 +341,27 @@ export function ModelSettingsPage() {
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-toolbar" style={{ marginBottom: 14 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
           <div
             style={{
-              width: 44,
-              height: 44,
-              borderRadius: 12,
+              width: 40,
+              height: 40,
+              borderRadius: 10,
               background: 'var(--color-primary-50)',
               color: 'var(--color-primary)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 22,
+              fontSize: 20,
+              flexShrink: 0,
             }}
           >
             <CloudServerOutlined />
           </div>
-          <div>
-            <h2>模型设置</h2>
-            <p>Chat 与 Embedding 使用完全独立的服务配置，可以分别接入不同公司。</p>
-          </div>
+          <p className="page-lede" style={{ margin: 0 }}>
+            Chat 与 Embedding 使用完全独立的服务配置，可以分别接入不同公司。
+          </p>
         </div>
       </div>
 
