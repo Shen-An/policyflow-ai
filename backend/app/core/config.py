@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     MEMORY_COMPRESS_TURN_THRESHOLD: int = 8
     MEMORY_LTM_SALIENCE_THRESHOLD: float = 0.55
     MEMORY_WRITEBACK_ENABLED: bool = True
+    # LTM recall: relevance × importance × recency (+ access boost). Local formula, not cross-encoder.
+    MEMORY_RANK_DECAY_LAMBDA: float = 0.08
+    MEMORY_RANK_ACCESS_BOOST_CAP: float = 0.15
+    MEMORY_CONVERSATION_FACT_TTL_DAYS: int = 30
+    MEMORY_STM_UNLOAD_TTL_DAYS: int = 14
     # Chat grounding: refuse when retrieval returns no evidence (no soft LLM fallback).
     CHAT_HARD_REFUSE_WITHOUT_EVIDENCE: bool = True
     # Answer agent tool-use loop bounds.

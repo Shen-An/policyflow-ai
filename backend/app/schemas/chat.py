@@ -51,6 +51,7 @@ class UsedMemoryItem(BaseModel):
     content: str
     source_slot: Literal["fixed", "recalled", "rolling_summary", "history"] = "recalled"
     confidence: float | None = None
+    rank_score: float | None = None
 
 
 class ToolCallTrace(BaseModel):

@@ -107,6 +107,8 @@ def _memory_items_from_working_set(working_set: MemoryWorkingSet | None) -> list
             )
         )
     for raw in working_set.recalled_memories:
+        rank_raw = raw.get("rank_score")
+        rank_score = float(rank_raw) if rank_raw is not None else None
         items.append(
             UsedMemoryItem(
                 id=str(raw.get("id") or "") or None,
@@ -114,6 +116,7 @@ def _memory_items_from_working_set(working_set: MemoryWorkingSet | None) -> list
                 content=_clip(str(raw.get("content") or "")),
                 source_slot="recalled",
                 confidence=float(raw["confidence"]) if raw.get("confidence") is not None else None,
+                rank_score=rank_score,
             )
         )
     if working_set.rolling_summary:
