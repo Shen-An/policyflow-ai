@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
 from sqlmodel import Session
@@ -19,7 +20,7 @@ from backend.app.services.memory_service import (
     MEMORY_TYPE_PREFERENCE,
     find_similar_preference,
     list_fixed_memories,
-    search_memories,
+    search_memories_scored,
     touch_access,
     upsert_entity,
     write_memory,
@@ -84,16 +85,19 @@ class MemoryAgent:
         summary = parse_conversation_summary(conversation.summary)
         query_embedding = await self._safe_embed(question)
         owner_specs = [("user", user.id), ("conversation", conversation.id)]
-        recalled_items = search_memories(
+        scored_hits = search_memories_scored(
             session,
             owner_specs=owner_specs,
             query=question,
             query_embedding=query_embedding,
             top_k=self.settings.MEMORY_LTM_TOP_K,
+            decay_lambda=self.settings.MEMORY_RANK_DECAY_LAMBDA,
+            access_boost_cap=self.settings.MEMORY_RANK_ACCESS_BOOST_CAP,
         )
         # Avoid duplicating fixed prefs/entities in the recalled slot.
         fixed_ids = {item.id for item in fixed_items}
-        recalled_items = [item for item in recalled_items if item.id not in fixed_ids]
+        scored_hits = [(score, item) for score, item in scored_hits if item.id not in fixed_ids]
+        recalled_items = [item for _, item in scored_hits]
 
         if fixed_items or recalled_items:
             touch_access(session, [*fixed_items[:3], *recalled_items])
@@ -101,7 +105,9 @@ class MemoryAgent:
         return MemoryWorkingSet(
             history=history,
             fixed_memories=[self._item_payload(item) for item in fixed_items],
-            recalled_memories=[self._item_payload(item) for item in recalled_items],
+            recalled_memories=[
+                self._item_payload(item, rank_score=score) for score, item in scored_hits
+            ],
             rolling_summary=str(summary.get("rolling_summary") or ""),
             memory_ids=[item.id for item in [*fixed_items, *recalled_items]],
         )
@@ -198,6 +204,11 @@ class MemoryAgent:
                     continue
 
             embedding = await self._safe_embed(event.summary)
+            expires_at = None
+            if event.event_type == "conversation_fact" and event.salience < 0.7:
+                expires_at = self._ttl_expiry(
+                    self.settings.MEMORY_CONVERSATION_FACT_TTL_DAYS
+                )
             written.append(
                 write_memory(
                     session,
@@ -208,6 +219,7 @@ class MemoryAgent:
                     source="summary",
                     confidence=max(0.5, event.salience),
                     embedding=embedding,
+                    expires_at=expires_at,
                     meta_json={
                         "event_type": event.event_type,
                         "entities": event.entities,
@@ -296,7 +308,7 @@ class MemoryAgent:
             prev,
             llm_service=self.llm_service,
         )
-        # Unload salient compressed content into LTM as a single rolling event.
+        # Unload compressed content into LTM as a short-TTL rolling event (not physical cold storage).
         rolling = str(new_summary.get("rolling_summary") or "").strip()
         if rolling and rolling != str(prev.get("rolling_summary") or "").strip():
             embedding = await self._safe_embed(rolling)
@@ -309,6 +321,7 @@ class MemoryAgent:
                 source="summary",
                 confidence=0.55,
                 embedding=embedding,
+                expires_at=self._ttl_expiry(self.settings.MEMORY_STM_UNLOAD_TTL_DAYS),
                 meta_json={
                     "event_type": "conversation_fact",
                     "salience": 0.55,
@@ -317,6 +330,12 @@ class MemoryAgent:
                 },
             )
         update_conversation_summary(session, conversation, new_summary)
+
+    @staticmethod
+    def _ttl_expiry(days: int) -> datetime | None:
+        if days <= 0:
+            return None
+        return datetime.now(UTC) + timedelta(days=days)
 
     async def _safe_embed(self, text: str) -> list[float] | None:
         service = self.embedding_service
@@ -334,8 +353,12 @@ class MemoryAgent:
         return None
 
     @staticmethod
-    def _item_payload(item: MemoryItem) -> dict[str, Any]:
-        return {
+    def _item_payload(
+        item: MemoryItem,
+        *,
+        rank_score: float | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
             "id": item.id,
             "type": item.memory_type,
             "content": item.content,
@@ -343,6 +366,9 @@ class MemoryAgent:
             "source": item.source,
             "meta": dict(item.meta_json or {}),
         }
+        if rank_score is not None:
+            payload["rank_score"] = float(rank_score)
+        return payload
 
     # Backward-compatible sync entry used by older tests/call sites.
     def run(
