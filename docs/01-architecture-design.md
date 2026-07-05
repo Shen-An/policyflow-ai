@@ -486,6 +486,26 @@ persist user message
 
 AnswerAgent 消费的 `MemoryWorkingSet` 仅作非权威上下文（指代、风格、任务状态）；制度事实仍只绑定本轮 Evidence。
 
+**冷热是 prompt 装配策略，不是独立冷热存储：**
+
+| Zone | 内容 | 来源 |
+|---|---|---|
+| hot | 最近 K 轮 messages | STM 滑动窗口 |
+| warm | rolling summary + 固定偏好/实体 | `conversations.summary` + always-on |
+| cold→selected | top-k LTM 召回 | `memory_items` 全表候选后排序截断 |
+
+LTM 召回为本地融合分（非 cross-encoder）：
+
+```text
+relevance = max(vector_sim, keyword * 0.85)
+importance = 0.5 * confidence + 0.5 * meta.salience   # salience 缺省回退 confidence
+recency = exp(-λ * age_days)                           # λ 默认 0.08
+access_boost = min(cap, log1p(access_count) * 0.03)
+final = relevance * (0.55 + 0.35 * importance + 0.10 * recency) + access_boost
+```
+
+写入侧：`salience` 阈值过滤 LTM；低 salience 的 `conversation_fact` 带 TTL；preference/entity 不设强制过期。窗外 raw messages 仍保留在 L0，压缩只更新摘要与可检索卸载事件。
+
 ---
 
 ## 9. 非功能目标
