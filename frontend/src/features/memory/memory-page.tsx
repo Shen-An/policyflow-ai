@@ -1,9 +1,8 @@
-import { DeleteOutlined, ReloadOutlined } from '@ant-design/icons'
+import { DatabaseOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons'
 import {
   App,
   Button,
   Card,
-  Empty,
   Input,
   Popover,
   Select,
@@ -15,7 +14,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { MemoryItem } from '../../api/memory'
-import { LoadingState } from '../../components/feedback/state-views'
+import { EmptyState, ErrorState, LoadingState } from '../../components/feedback/state-views'
 import { MarkdownContent } from '../../components/markdown/markdown-content'
 import { confirmAction } from '../../lib/confirm'
 import { useDeleteMemoryMutation, useMemoriesQuery } from './queries'
@@ -197,20 +196,32 @@ export function MemoryPage() {
         />
       </div>
 
-      {query.isLoading ? (
-        <LoadingState message="正在加载记忆…" />
-      ) : query.isError ? (
-        <Card>
-          <Empty description={query.error instanceof Error ? query.error.message : '加载失败'} />
-        </Card>
-      ) : (
-        <Card className="pf-table-card" styles={{ body: { padding: 0 } }}>
+      <Card className="pf-table-card" styles={{ body: { padding: query.isLoading || query.isError ? 16 : 0 } }}>
+        {query.isLoading ? (
+          <LoadingState message="正在加载记忆…" minH="min-h-48" />
+        ) : query.isError ? (
+          <ErrorState
+            error={query.error instanceof Error ? query.error : new Error('加载失败')}
+            onRetry={() => void query.refetch()}
+            title="记忆列表加载失败"
+            minH="min-h-48"
+          />
+        ) : (
           <Table<MemoryItem>
             size="middle"
             rowKey="id"
             columns={columns}
             dataSource={query.data?.items ?? []}
-            locale={{ emptyText: <Empty description="暂无记忆" /> }}
+            locale={{
+              emptyText: (
+                <EmptyState
+                  icon={<DatabaseOutlined style={{ fontSize: 18 }} />}
+                  title={keyword || memoryType ? '没有符合条件的记忆' : '暂无记忆'}
+                  hint="助手会在对话中逐步沉淀偏好与实体；制度事实仍以知识库为准。"
+                  minH="min-h-48"
+                />
+              ),
+            }}
             pagination={{
               current: page,
               pageSize,
@@ -224,8 +235,8 @@ export function MemoryPage() {
                 }),
             }}
           />
-        </Card>
-      )}
+        )}
+      </Card>
     </div>
   )
 }
