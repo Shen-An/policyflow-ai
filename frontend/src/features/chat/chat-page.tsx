@@ -338,6 +338,22 @@ export function ChatPage() {
 
   const noKnowledgeBases = knowledgeBases.isSuccess && knowledgeBases.data.length === 0
   const historyItems = history.data?.items ?? []
+  const conversationTitle =
+    conversation.data?.title ||
+    historyItems.find((item) => item.id === conversationId)?.title ||
+    (conversationId ? '会话' : '新会话')
+  const selectedKbNames = (knowledgeBases.data ?? [])
+    .filter((kb) => selectedKnowledgeBases.includes(kb.id))
+    .map((kb) => kb.name)
+  const scopeLabel =
+    selectedKnowledgeBases.length === 0
+      ? '全部授权知识库'
+      : selectedKbNames.length > 0
+        ? selectedKbNames.length <= 2
+          ? selectedKbNames.join('、')
+          : `${selectedKbNames.slice(0, 2).join('、')} 等 ${selectedKbNames.length} 个`
+        : `${selectedKnowledgeBases.length} 个知识库`
+  const modeLabel = queryModeLabels[queryMode] ?? queryMode
 
   return (
     <div className="chat-page">
@@ -434,6 +450,57 @@ export function ChatPage() {
 
         <Card className="chat-page__main" styles={{ body: { padding: 0, height: '100%' } }}>
           <div className="chat-page__main-inner">
+            <div className="chat-page__session-bar" aria-label="当前会话">
+              <div className="chat-page__session-copy">
+                <div className="chat-page__session-title" title={conversationTitle}>
+                  <MessageOutlined aria-hidden />
+                  <span>{conversationTitle}</span>
+                </div>
+                <div className="chat-page__session-meta">
+                  <span className="chat-page__session-chip">
+                    <BookOutlined aria-hidden />
+                    {scopeLabel}
+                  </span>
+                  <span className="chat-page__session-dot" aria-hidden />
+                  <span className="chat-page__session-chip">{modeLabel}</span>
+                  {visibleMessages.length > 0 ? (
+                    <>
+                      <span className="chat-page__session-dot" aria-hidden />
+                      <span className="chat-page__session-chip">
+                        {visibleMessages.length} 条消息
+                      </span>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+              {conversationId ? (
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => {
+                    const current = historyItems.find((item) => item.id === conversationId)
+                    if (current) {
+                      openRename(current)
+                      return
+                    }
+                    openRename({
+                      id: conversationId,
+                      title: conversationTitle,
+                      status: 'active',
+                      messageCount: visibleMessages.length,
+                      lastMessagePreview: null,
+                      lastMessageRole: null,
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
+                    })
+                  }}
+                  aria-label="重命名会话"
+                >
+                  重命名
+                </Button>
+              ) : null}
+            </div>
             <div
               aria-live="polite"
               className="chat-page__messages"

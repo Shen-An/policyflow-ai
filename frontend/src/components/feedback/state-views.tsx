@@ -35,19 +35,28 @@ export function EmptyState({
   icon,
   title,
   hint,
+  action,
   minH = 'min-h-64',
 }: {
   icon?: ReactNode
   title: string
   hint?: ReactNode
+  action?: ReactNode
   minH?: string
 }) {
   return (
     <div className={cn('grid place-items-center p-[var(--space-8)] text-center', minH)}>
       <div>
-        {icon ? <div className="flex justify-center text-[var(--color-text-secondary)]">{icon}</div> : null}
-        <h3 className={cn('font-semibold', icon ? 'mt-[var(--space-3)]' : undefined)}>{title}</h3>
-        {hint ? <p className="mt-[var(--space-1)] text-sm text-[var(--color-text-secondary)]">{hint}</p> : null}
+        {icon ? (
+          <div className="mx-auto mb-[var(--space-3)] grid size-11 place-items-center rounded-[12px] border border-[var(--color-border-secondary)] bg-[var(--color-surface-muted)] text-[var(--color-text-tertiary)]">
+            {icon}
+          </div>
+        ) : null}
+        <h3 className="m-0 text-[14px] font-semibold text-[var(--color-text-primary)]">{title}</h3>
+        {hint ? (
+          <p className="mt-[var(--space-1)] mb-0 text-sm text-[var(--color-text-secondary)]">{hint}</p>
+        ) : null}
+        {action ? <div className="mt-[var(--space-4)] flex justify-center">{action}</div> : null}
       </div>
     </div>
   )
