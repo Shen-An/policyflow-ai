@@ -1,4 +1,4 @@
-import { ShieldX } from 'lucide-react'
+import { ShieldSlash } from '@phosphor-icons/react'
 import { cn } from '../../lib/cn'
 
 export function PermissionDeniedNotice({ compact = false }: { compact?: boolean }) {
@@ -10,7 +10,7 @@ export function PermissionDeniedNotice({ compact = false }: { compact?: boolean 
       )}
       role="alert"
     >
-      <ShieldX aria-hidden="true" className={cn('text-[var(--color-danger)]', compact ? 'size-5' : 'mx-auto size-8')} />
+      <ShieldSlash size={16} weight="duotone" aria-hidden="true" />
       <h1 className={cn('font-semibold', compact ? 'mt-[var(--space-2)] text-base' : 'mt-[var(--space-4)] text-2xl')}>无访问权限</h1>
       <p className="mt-[var(--space-2)] text-sm leading-[22px] text-[var(--color-text-secondary)]">
         你没有访问此功能的权限。若认为这是错误，请联系系统管理员。
