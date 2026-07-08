@@ -1,11 +1,11 @@
-import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
+import { PlusOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons'
 import { Button, Card, Input, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { UserRecord } from '../../api/users'
 import { AppError } from '../../api/errors'
-import { ErrorState } from '../../components/feedback/state-views'
+import { EmptyState, ErrorState } from '../../components/feedback/state-views'
 import { roleLabel, userStatusLabel } from '../../lib/labels'
 import { CreateUserDialog } from './components/create-user-dialog'
 import { EditRolesDialog } from './components/edit-roles-dialog'
@@ -149,7 +149,20 @@ export function UsersPage() {
             columns={columns}
             dataSource={query.data?.items ?? []}
             locale={{
-              emptyText: keyword ? '没有匹配的用户' : '还没有用户',
+              emptyText: (
+                <EmptyState
+                  icon={<TeamOutlined style={{ fontSize: 18 }} />}
+                  title={keyword ? '没有匹配的用户' : '还没有用户'}
+                  hint={keyword ? '试试更换关键词，或清空搜索。' : '创建账户后可分配角色。'}
+                  action={
+                    <Button type="primary" size="small" onClick={() => setCreateOpen(true)}>
+                      <PlusOutlined aria-hidden />
+                      创建用户
+                    </Button>
+                  }
+                  minH="min-h-48"
+                />
+              ),
             }}
             pagination={{
               current: page,
