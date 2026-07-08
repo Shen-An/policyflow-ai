@@ -1,13 +1,4 @@
-import {
-  ArrowRightOutlined,
-  BarChartOutlined,
-  BookOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  FileTextOutlined,
-  LoadingOutlined,
-  MessageOutlined,
-} from '@ant-design/icons'
+import { ArrowRight, BookOpen, ChartBar, ChatCircle, CheckCircle, CircleNotch, FileText, XCircle } from '@phosphor-icons/react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, Col, Row, Space, Statistic, Tag, Typography } from 'antd'
 import type { ReactNode } from 'react'
@@ -164,7 +155,7 @@ export function WorkspacePage() {
           desc: '向授权知识库提问，获取制度依据与引用溯源。',
           href: '/chat',
           color: palette.primary,
-          icon: <MessageOutlined />,
+          icon: <ChatCircle size={16} weight="duotone" />,
         }
       : null,
     canUseDrafts
@@ -173,7 +164,7 @@ export function WorkspacePage() {
           desc: '查看正在编辑的政策草案，继续写作或确认发布。',
           href: '/drafts',
           color: palette.primaryDeep,
-          icon: <FileTextOutlined />,
+          icon: <FileText size={16} weight="duotone" />,
         }
       : null,
     canBrowseKnowledgeBases
@@ -182,7 +173,7 @@ export function WorkspacePage() {
           desc: '浏览和维护授权知识库，管理文档与标签。',
           href: '/knowledge-bases',
           color: palette.accentTeal,
-          icon: <BookOutlined />,
+          icon: <BookOpen size={16} weight="duotone" />,
         }
       : null,
     canEvaluate
@@ -191,7 +182,7 @@ export function WorkspacePage() {
           desc: '导入测试语料，查看 Hit@K / MRR 检索指标。',
           href: '/evaluation',
           color: palette.textSecondary,
-          icon: <BarChartOutlined />,
+          icon: <ChartBar size={16} weight="duotone" />,
         }
       : null,
   ].filter(Boolean) as Array<{
@@ -208,7 +199,7 @@ export function WorkspacePage() {
           title: '知识库',
           value: kbCount ?? 0,
           suffix: '授权',
-          icon: <BookOutlined />,
+          icon: <BookOpen size={16} weight="duotone" />,
           chip: palette.primarySoft,
           ink: palette.primary,
           loading: knowledgeBases.isPending,
@@ -219,7 +210,7 @@ export function WorkspacePage() {
           title: '历史对话',
           value: conversationTotal ?? 0,
           suffix: '会话',
-          icon: <MessageOutlined />,
+          icon: <ChatCircle size={16} weight="duotone" />,
           chip: '#eef2f1',
           ink: palette.textSecondary,
           loading: conversations.isPending,
@@ -233,7 +224,7 @@ export function WorkspacePage() {
             draftPending !== null && draftPending > 0
               ? `${draftPending} 待确认`
               : '份',
-          icon: <FileTextOutlined />,
+          icon: <FileText size={16} weight="duotone" />,
           chip: palette.warningSoft,
           ink: palette.warning,
           loading: drafts.isPending,
@@ -244,7 +235,7 @@ export function WorkspacePage() {
           title: '评估报告',
           value: evalTotal ?? 0,
           suffix: '份',
-          icon: <BarChartOutlined />,
+          icon: <ChartBar size={16} weight="duotone" />,
           chip: '#eef2f1',
           ink: palette.primaryDeep,
           loading: evalRuns.isPending,
@@ -269,15 +260,15 @@ export function WorkspacePage() {
           ，这里是你的工作总览。
         </p>
         {healthStatus === 'checking' ? (
-          <Tag icon={<LoadingOutlined />} color="processing">
+          <Tag icon={<CircleNotch size={16} weight="duotone" className="animate-spin" />} color="processing">
             检查服务中
           </Tag>
         ) : healthStatus === 'ok' ? (
-          <Tag icon={<CheckCircleOutlined />} color="success">
+          <Tag icon={<CheckCircle size={16} weight="duotone" />} color="success">
             服务运行正常
           </Tag>
         ) : (
-          <Tag icon={<CloseCircleOutlined />} color="error">
+          <Tag icon={<XCircle size={16} weight="duotone" />} color="error">
             服务异常
           </Tag>
         )}
@@ -352,7 +343,7 @@ export function WorkspacePage() {
                         </Paragraph>
                       </div>
                       <Text type="secondary">
-                        进入 <ArrowRightOutlined />
+                        进入 <ArrowRight size={16} weight="regular" />
                       </Text>
                     </Space>
                   </Card>
