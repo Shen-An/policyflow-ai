@@ -1,4 +1,4 @@
-import { Activity, CheckCircle2 } from 'lucide-react'
+import { CheckCircle, Pulse } from '@phosphor-icons/react'
 import { Button } from '../components/ui/button'
 
 export function FoundationPage() {
@@ -6,7 +6,7 @@ export function FoundationPage() {
     <main className="min-h-screen bg-[var(--color-background)] px-[var(--space-4)] py-[var(--space-12)] text-[var(--color-text-primary)]">
       <section className="mx-auto max-w-3xl rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-[var(--space-8)] shadow-sm">
         <div className="flex items-center gap-[var(--space-3)] text-[var(--color-success)]">
-          <CheckCircle2 aria-hidden="true" className="size-6" />
+          <CheckCircle size={16} weight="duotone" className="size-6" aria-hidden="true" />
           <span className="text-sm font-semibold">F0 工程基础设施已加载</span>
         </div>
         <h1 className="mt-[var(--space-4)] text-2xl font-semibold leading-8">PolicyFlow AI</h1>
@@ -16,7 +16,7 @@ export function FoundationPage() {
         <div className="mt-[var(--space-6)]">
           <Button asChild>
             <a href="/health">
-              <Activity aria-hidden="true" className="size-4" />
+              <Pulse size={16} weight="duotone" className="size-4" aria-hidden="true" />
               检查后端健康状态
             </a>
           </Button>
