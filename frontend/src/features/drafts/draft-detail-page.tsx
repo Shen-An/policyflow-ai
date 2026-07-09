@@ -1,10 +1,4 @@
-import {
-  ArrowLeftOutlined,
-  DeleteOutlined,
-  DownloadOutlined,
-  SaveOutlined,
-  SafetyCertificateOutlined,
-} from '@ant-design/icons'
+import { ArrowLeft, Download, FloppyDisk, ShieldCheck, Trash } from '@phosphor-icons/react'
 import {
   Alert,
   Button,
@@ -78,8 +72,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
       <ErrorState
         error={query.error}
         onRetry={() => void query.refetch()}
-        title="草稿加载失败"
-      />
+        title="草稿加载失败" />
     )
   }
 
@@ -134,7 +127,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
       </Modal>
       <Space style={{ marginBottom: 16 }}>
         <Button>
-          <Link to="/drafts"><ArrowLeftOutlined aria-hidden /> 返回草稿</Link>
+          <Link to="/drafts"><ArrowLeft size={16} weight="regular" aria-hidden /> 返回草稿</Link>
         </Button>
         {dirty ? <Tag color="warning">有未保存修改</Tag> : null}
       </Space>
@@ -154,10 +147,9 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
           <Alert
             type="info"
             showIcon
-            icon={<SafetyCertificateOutlined />}
+            icon={<ShieldCheck size={16} weight="duotone" />}
             style={{ marginBottom: 16 }}
-            message={`当前状态为 ${draft.status}，正文已只读。`}
-          />
+            message={`当前状态为 ${draft.status}，正文已只读。`} />
         ) : null}
 
         {actionError ? (
@@ -165,8 +157,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
             type="error"
             showIcon
             style={{ marginBottom: 16 }}
-            message={actionError.message}
-          />
+            message={actionError.message} />
         ) : null}
 
         <Form layout="vertical" requiredMark={false}>
@@ -176,8 +167,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
               maxLength={255}
               disabled={!editable}
               onChange={(event) => setTitleOverride(event.target.value)}
-              aria-label="标题"
-            />
+              aria-label="标题" />
           </Form.Item>
           <Form.Item label="正文">
             <Input.TextArea
@@ -186,8 +176,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
               disabled={!editable}
               onChange={(event) => setContentOverride(event.target.value)}
               aria-label="正文"
-              style={{ lineHeight: 1.7 }}
-            />
+              style={{ lineHeight: 1.7 }} />
           </Form.Item>
         </Form>
 
@@ -210,8 +199,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
                   </pre>
                 ),
               },
-            ]}
-          />
+            ]} />
         ) : null}
 
         <Space wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
@@ -222,7 +210,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
                 loading={update.isPending}
                 onClick={() => void save()}
               >
-                <SaveOutlined aria-hidden />
+                <FloppyDisk size={16} weight="duotone" aria-hidden />
                 保存草稿
               </Button>
               <Button
@@ -231,7 +219,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
                 loading={confirm.isPending}
                 onClick={() => void confirmDraft()}
               >
-                <SafetyCertificateOutlined aria-hidden />
+                <ShieldCheck size={16} weight="duotone" aria-hidden />
                 确认草稿
               </Button>
               <Button
@@ -239,7 +227,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
                 loading={discard.isPending}
                 onClick={() => void discardDraft()}
               >
-                <DeleteOutlined aria-hidden />
+                <Trash size={16} weight="duotone" aria-hidden />
                 丢弃草稿
               </Button>
             </>
@@ -250,7 +238,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
               loading={exportMutation.isPending}
               onClick={() => void exportDraft()}
             >
-              <DownloadOutlined aria-hidden />
+              <Download size={16} weight="duotone" aria-hidden />
               导出 Markdown
             </Button>
           ) : null}
