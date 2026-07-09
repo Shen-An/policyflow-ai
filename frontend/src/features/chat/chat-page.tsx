@@ -1,17 +1,4 @@
-import {
-  AlertOutlined,
-  BookOutlined,
-  CheckCircleOutlined,
-  CopyOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  HistoryOutlined,
-  MessageOutlined,
-  PlusOutlined,
-  SearchOutlined,
-  SendOutlined,
-  ThunderboltOutlined,
-} from '@ant-design/icons'
+import { BookOpen, ChatCircle, CheckCircle, ClockCounterClockwise, Copy, Lightning, MagnifyingGlass, PaperPlaneTilt, PencilSimple, Plus, Trash, Warning } from '@phosphor-icons/react'
 import {
   Alert,
   App,
@@ -364,7 +351,7 @@ export function ChatPage() {
             className="chat-page__history-card"
             title={
               <Space>
-                <HistoryOutlined />
+                <ClockCounterClockwise size={16} weight="duotone" />
                 历史会话
               </Space>
             }
@@ -372,7 +359,7 @@ export function ChatPage() {
               <Button
                 type="primary"
                 size="small"
-                icon={<PlusOutlined />}
+                icon={<Plus size={16} weight="regular" />}
                 onClick={startNewConversation}
               >
                 新建
@@ -387,9 +374,8 @@ export function ChatPage() {
                   value={historyKeyword}
                   onChange={(event) => setHistoryKeyword(event.target.value)}
                   placeholder="搜索标题或最近消息"
-                  prefix={<SearchOutlined />}
-                  aria-label="搜索历史会话"
-                />
+                  prefix={<MagnifyingGlass size={16} weight="regular" />}
+                  aria-label="搜索历史会话" />
               </div>
 
               <button
@@ -400,7 +386,7 @@ export function ChatPage() {
                 aria-current={conversationId ? undefined : 'page'}
               >
                 <div className="chat-history__title">
-                  <MessageOutlined />
+                  <ChatCircle size={16} weight="duotone" />
                   新会话
                 </div>
                 <div className="chat-history__preview">从空白对话开始提问</div>
@@ -420,8 +406,7 @@ export function ChatPage() {
                       <Button size="small" onClick={() => void history.refetch()}>
                         重试
                       </Button>
-                    }
-                  />
+                    } />
                 </div>
               ) : historyItems.length === 0 ? (
                 <div className="chat-history__state">
@@ -429,8 +414,7 @@ export function ChatPage() {
                     image={Empty.PRESENTED_IMAGE_SIMPLE}
                     description={
                       debouncedHistoryKeyword ? '没有匹配的历史会话' : '还没有历史会话'
-                    }
-                  />
+                    } />
                 </div>
               ) : (
                 historyItems.map((item) => (
@@ -440,8 +424,7 @@ export function ChatPage() {
                     active={item.id === conversationId}
                     onOpen={() => openConversation(item.id)}
                     onRename={() => openRename(item)}
-                    onDelete={() => confirmDelete(item)}
-                  />
+                    onDelete={() => confirmDelete(item)} />
                 ))
               )}
             </div>
@@ -453,12 +436,12 @@ export function ChatPage() {
             <div className="chat-page__session-bar" aria-label="当前会话">
               <div className="chat-page__session-copy">
                 <div className="chat-page__session-title" title={conversationTitle}>
-                  <MessageOutlined aria-hidden />
+                  <ChatCircle size={16} weight="duotone" aria-hidden />
                   <span>{conversationTitle}</span>
                 </div>
                 <div className="chat-page__session-meta">
                   <span className="chat-page__session-chip">
-                    <BookOutlined aria-hidden />
+                    <BookOpen size={16} weight="duotone" aria-hidden />
                     {scopeLabel}
                   </span>
                   <span className="chat-page__session-dot" aria-hidden />
@@ -477,7 +460,7 @@ export function ChatPage() {
                 <Button
                   type="text"
                   size="small"
-                  icon={<EditOutlined />}
+                  icon={<PencilSimple size={16} weight="duotone" />}
                   onClick={() => {
                     const current = historyItems.find((item) => item.id === conversationId)
                     if (current) {
@@ -518,14 +501,13 @@ export function ChatPage() {
                     <Button size="small" onClick={() => void conversation.refetch()}>
                       重新加载
                     </Button>
-                  }
-                />
+                  } />
               ) : visibleMessages.length === 0 ? (
                 <div className="chat-page__empty">
                   <Empty
                     image={
                       <div className="chat-page__empty-icon">
-                        <ThunderboltOutlined className="pf-brand-icon" />
+                        <Lightning size={16} weight="duotone" className="pf-brand-icon" />
                       </div>
                     }
                     description={
@@ -553,8 +535,7 @@ export function ChatPage() {
                           ))}
                         </div>
                       </div>
-                    }
-                  />
+                    } />
                 </div>
               ) : (
                 visibleMessages.map((item) => (
@@ -566,8 +547,7 @@ export function ChatPage() {
                       item.role === 'user'
                         ? () => handleEditQuestion(item.content)
                         : undefined
-                    }
-                  />
+                    } />
                 ))
               )}
 
@@ -579,19 +559,14 @@ export function ChatPage() {
                   >
                     <div className="chat-bubble__title">
                       <Space size={8} wrap>
-                        <ThunderboltOutlined
-                          style={{ color: palette.primary }}
-                          aria-hidden
-                          className="chat-thinking__pulse"
-                        />
+                        <Lightning size={16} weight="duotone" className="chat-thinking__pulse" style={{color: palette.primary}} aria-hidden />
                         <span>思考中</span>
                         <Tag color="processing">流式执行</Tag>
                       </Space>
                     </div>
                     <ThinkingStreamPanel
                       stages={thinkingStages}
-                      diagnostics={thinkingDiagnostics}
-                    />
+                      diagnostics={thinkingDiagnostics} />
                   </article>
                 </div>
               ) : null}
@@ -605,8 +580,7 @@ export function ChatPage() {
                     <Button size="small" onClick={() => void submit(failedQuestion, false)}>
                       重试发送
                     </Button>
-                  }
-                />
+                  } />
               ) : null}
               <div ref={messagesEndRef} aria-hidden className="chat-page__messages-end" />
             </div>
@@ -635,8 +609,7 @@ export function ChatPage() {
                         event.preventDefault()
                         void submit(question)
                       }
-                    }}
-                  />
+                    }} />
                   <div className="chat-page__composer-actions">
                     <Typography.Text type="secondary" className="chat-page__composer-hint">
                       Enter 发送 · Shift + Enter 换行
@@ -650,7 +623,7 @@ export function ChatPage() {
                       disabled={!question.trim() || noKnowledgeBases}
                       className="chat-page__send"
                     >
-                      <SendOutlined aria-hidden />
+                      <PaperPlaneTilt size={16} weight="duotone" aria-hidden />
                       发送
                     </Button>
                   </div>
@@ -676,8 +649,7 @@ export function ChatPage() {
                   <Button size="small" onClick={() => void knowledgeBases.refetch()}>
                     重试
                   </Button>
-                }
-              />
+                } />
             ) : noKnowledgeBases ? (
               <Typography.Text type="secondary">
                 还没有可访问的知识库，请联系知识库管理员授权。
@@ -697,8 +669,7 @@ export function ChatPage() {
                     </span>
                   ),
                   value: kb.id,
-                }))}
-              />
+                }))} />
             )}
           </Card>
 
@@ -707,8 +678,7 @@ export function ChatPage() {
               style={{ width: '100%' }}
               value={queryMode}
               onChange={(value) => setQueryMode(value as QueryMode)}
-              options={queryModeOptions}
-            />
+              options={queryModeOptions} />
             <Typography.Paragraph type="secondary" className="chat-page__side-help" style={{ marginTop: 10, marginBottom: 0 }}>
               默认混合模式更稳；需要更宽覆盖时可切换全局或混合增强。
             </Typography.Paragraph>
@@ -735,8 +705,7 @@ export function ChatPage() {
           onChange={(event) => setRenameTitle(event.target.value)}
           placeholder="输入新的会话标题"
           aria-label="会话标题"
-          onPressEnter={() => void confirmRename()}
-        />
+          onPressEnter={() => void confirmRename()} />
       </Modal>
     </div>
   )
@@ -785,7 +754,7 @@ function HistoryItem({
             onRename()
           }}
         >
-          <EditOutlined />
+          <PencilSimple size={16} weight="duotone" />
         </button>
         <button
           type="button"
@@ -796,7 +765,7 @@ function HistoryItem({
             onDelete()
           }}
         >
-          <DeleteOutlined />
+          <Trash size={16} weight="duotone" />
         </button>
       </div>
     </div>
@@ -821,7 +790,7 @@ function MessageCard({
             <Button
               type="text"
               size="small"
-              icon={<CopyOutlined />}
+              icon={<Copy size={16} weight="duotone" />}
               aria-label="复制问题"
               onClick={onCopy}
             >
@@ -831,7 +800,7 @@ function MessageCard({
               <Button
                 type="text"
                 size="small"
-                icon={<EditOutlined />}
+                icon={<PencilSimple size={16} weight="duotone" />}
                 aria-label="编辑问题"
                 onClick={onEditQuestion}
               >
@@ -857,10 +826,7 @@ function MessageCard({
       >
         <div className="chat-bubble__title">
           <Space size={8} wrap>
-            <ThunderboltOutlined
-              style={{ color: noEvidence ? palette.warning : palette.primary }}
-              aria-hidden
-            />
+            <Lightning size={16} weight="duotone" style={{color: noEvidence ? palette.warning : palette.primary}} aria-hidden />
             <span>PolicyFlow 回答</span>
             {noEvidence ? <Tag color="warning">模型参考 · 不可信</Tag> : null}
           </Space>
@@ -870,17 +836,15 @@ function MessageCard({
           <Alert
             type="warning"
             showIcon
-            icon={<AlertOutlined />}
+            icon={<Warning size={16} weight="duotone" />}
             style={{ marginBottom: 12 }}
             message="未找到可靠依据"
-            description="当前授权知识库没有检索到制度证据。下面是模型基于通用知识给出的参考回答，不能作为正式制度依据，请你自行判断，并与相关部门确认后再执行。"
-          />
+            description="当前授权知识库没有检索到制度证据。下面是模型基于通用知识给出的参考回答，不能作为正式制度依据，请你自行判断，并与相关部门确认后再执行。" />
         ) : null}
 
         <MarkdownContent
           className="chat-bubble__content chat-bubble__content--assistant"
-          content={message.content}
-        />
+          content={message.content} />
 
         {noEvidence ? null : <CitationList citations={message.metadata.citations} />}
 
@@ -898,7 +862,7 @@ function MessageCard({
             </Tag>
           ) : null}
           {message.metadata.compliance?.passed ? (
-            <Tag icon={<CheckCircleOutlined />} color="success">
+            <Tag icon={<CheckCircle size={16} weight="duotone" />} color="success">
               合规通过
             </Tag>
           ) : null}
@@ -930,7 +894,7 @@ function MessageCard({
           <Button
             type="text"
             size="small"
-            icon={<CopyOutlined />}
+            icon={<Copy size={16} weight="duotone" />}
             aria-label="复制回答"
             onClick={onCopy}
           >
@@ -954,7 +918,7 @@ function CitationList({ citations }: { citations: AssistantMetadata['citations']
             className="chat-citations__item"
           >
             <Space>
-              <BookOutlined className="pf-brand-icon" />
+              <BookOpen size={16} weight="duotone" className="pf-brand-icon" />
               <strong>
                 {citation.knowledgeBaseName} · {citation.documentTitle ?? '未命名文档'}
               </strong>
@@ -1279,8 +1243,7 @@ function FeedbackActions({ queryLogId }: { queryLogId: string }) {
           maxLength={1000}
           onChange={(event) => setComment(event.target.value)}
           placeholder="补充说明（可选）"
-          className="chat-feedback__comment"
-        />
+          className="chat-feedback__comment" />
         <button
           type="button"
           className="chat-feedback__submit"

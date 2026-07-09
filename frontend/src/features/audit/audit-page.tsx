@@ -1,4 +1,4 @@
-import { AuditOutlined, CopyOutlined, SearchOutlined } from '@ant-design/icons'
+import { ClipboardText, Copy, MagnifyingGlass } from '@phosphor-icons/react'
 import {
   Button,
   Card,
@@ -187,7 +187,7 @@ export function AuditPage() {
       key: 'actions',
       width: 90,
       render: (_, item) => (
-        <Button type="link" size="small" icon={<SearchOutlined />} onClick={() => setSelectedId(item.id)}>
+        <Button type="link" size="small" icon={<MagnifyingGlass size={16} weight="regular" />} onClick={() => setSelectedId(item.id)}>
           详情
         </Button>
       ),
@@ -214,8 +214,7 @@ export function AuditPage() {
             style={{ width: 220 }}
             value={filters.action}
             options={actionOptions}
-            onChange={(value) => setFilter('action', value ?? '')}
-          />
+            onChange={(value) => setFilter('action', value ?? '')} />
           <Select
             allowClear
             showSearch
@@ -224,15 +223,13 @@ export function AuditPage() {
             style={{ width: 200 }}
             value={filters.targetType}
             options={targetOptions}
-            onChange={(value) => setFilter('target_type', value ?? '')}
-          />
+            onChange={(value) => setFilter('target_type', value ?? '')} />
           <Input
             allowClear
             placeholder="操作者 ID（可选）"
             value={filters.actorId ?? ''}
             onChange={(event) => setFilter('actor_id', event.target.value)}
-            style={{ width: 180 }}
-          />
+            style={{ width: 180 }} />
           <RangePicker
             showTime
             style={{ width: 360 }}
@@ -245,8 +242,7 @@ export function AuditPage() {
               else next.delete('created_to')
               next.set('page', '1')
               setSearchParams(next, { replace: true })
-            }}
-          />
+            }} />
         </Space>
         {hasFilters ? (
           <Button type="link" onClick={clearFilters}>
@@ -261,8 +257,7 @@ export function AuditPage() {
             error={query.error}
             onRetry={() => void query.refetch()}
             title="审计日志加载失败"
-            minH="min-h-48"
-          />
+            minH="min-h-48" />
         ) : (
           <Table
             size="middle"
@@ -273,11 +268,10 @@ export function AuditPage() {
             locale={{
               emptyText: (
                 <EmptyState
-                  icon={<AuditOutlined style={{ fontSize: 18 }} />}
+                  icon={<ClipboardText size={16} weight="duotone" style={{fontSize: 18}} />}
                   title="没有符合条件的审计记录"
                   hint="调整动作、目标类型或时间范围后再试。"
-                  minH="min-h-48"
-                />
+                  minH="min-h-48" />
               ),
             }}
             pagination={{
@@ -291,8 +285,7 @@ export function AuditPage() {
                 next.set('page', String(nextPage))
                 setSearchParams(next)
               },
-            }}
-          />
+            }} />
         )}
       </Card>
 
@@ -342,7 +335,7 @@ function AuditDetailModal({ id, onClose }: { id: string; onClose: () => void }) 
                 {query.data.requestId ? (
                   <Button
                     size="small"
-                    icon={<CopyOutlined />}
+                    icon={<Copy size={16} weight="duotone" />}
                     onClick={() => {
                       void navigator.clipboard?.writeText(query.data.requestId ?? '')
                       void message.success('已复制')
@@ -376,8 +369,7 @@ function AuditDetailModal({ id, onClose }: { id: string; onClose: () => void }) 
                   </pre>
                 ),
               },
-            ]}
-          />
+            ]} />
         </Space>
       ) : null}
     </Modal>
