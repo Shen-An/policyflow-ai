@@ -1,4 +1,4 @@
-import { FileSearchOutlined } from '@ant-design/icons'
+import { FileMagnifyingGlass } from '@phosphor-icons/react'
 import {
   Alert as AntdAlert,
   Button,
@@ -83,8 +83,7 @@ export function FAQReviewPage() {
           options={(knowledgeBases.data ?? []).map((kb) => ({
             value: kb.id,
             label: kb.name,
-          }))}
-        />
+          }))} />
         <Select
           allowClear
           placeholder="全部状态"
@@ -95,8 +94,7 @@ export function FAQReviewPage() {
             { value: 'draft', label: '待审核' },
             { value: 'approved', label: '已通过' },
             { value: 'rejected', label: '已驳回' },
-          ]}
-        />
+          ]} />
       </div>
 
       {approvedDocumentId ? <IndexStatus documentId={approvedDocumentId} /> : null}
@@ -105,8 +103,7 @@ export function FAQReviewPage() {
           type="error"
           showIcon
           style={{ marginBottom: 16 }}
-          title={approve.error.message}
-        />
+          title={approve.error.message} />
       ) : null}
 
       {query.isPending ? (
@@ -123,14 +120,12 @@ export function FAQReviewPage() {
             <Button size="small" onClick={() => void query.refetch()}>
               重新加载
             </Button>
-          }
-        />
+          } />
       ) : query.data.length === 0 ? (
         <Card>
           <Empty
-            image={<FileSearchOutlined className="pf-muted-icon" style={{ fontSize: 40 }} />}
-            description="没有符合条件的 FAQ"
-          />
+            image={<FileMagnifyingGlass size={16} weight="duotone" className="pf-muted-icon" style={{fontSize: 40}} />}
+            description="没有符合条件的 FAQ" />
         </Card>
       ) : (
         <Row gutter={[16, 16]}>
@@ -189,8 +184,7 @@ export function FAQReviewPage() {
         item={rejecting}
         onOpenChange={(open) => {
           if (!open) setRejecting(null)
-        }}
-      />
+        }} />
     </div>
   )
 }
@@ -272,8 +266,7 @@ function RejectDialog({
           type="error"
           showIcon
           style={{ marginBottom: 16 }}
-          title={mutation.error.message}
-        />
+          title={mutation.error.message} />
       ) : null}
       <Form layout="vertical" requiredMark={false}>
         <Form.Item label="驳回原因" required>
@@ -283,8 +276,7 @@ function RejectDialog({
             showCount
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            aria-label="驳回原因"
-          />
+            aria-label="驳回原因" />
         </Form.Item>
       </Form>
     </Modal>
