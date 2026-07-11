@@ -172,8 +172,7 @@ export function KnowledgeBaseOverviewPage() {
               options={[
                 { value: 'active', label: '启用' },
                 { value: 'disabled', label: '停用' },
-              ]}
-            />
+              ]} />
           </Form.Item>
         </Form>
       </Modal>

@@ -1,4 +1,4 @@
-import { LockOutlined, UserOutlined } from '@ant-design/icons'
+import { Lock, User } from '@phosphor-icons/react'
 import { Alert, Button, Card, ConfigProvider, Form, Input, Typography } from 'antd'
 import { useEffect, useRef, useState } from 'react'
 import { login } from '../../api/auth'
@@ -132,10 +132,9 @@ export function LoginPage() {
               >
                 <Input
                   size="large"
-                  prefix={<UserOutlined />}
+                  prefix={<User size={16} weight="duotone" />}
                   autoComplete="username"
-                  placeholder="请输入用户名"
-                />
+                  placeholder="请输入用户名" />
               </Form.Item>
 
               <Form.Item
@@ -148,10 +147,9 @@ export function LoginPage() {
               >
                 <Input.Password
                   size="large"
-                  prefix={<LockOutlined />}
+                  prefix={<Lock size={16} weight="duotone" />}
                   autoComplete="current-password"
-                  placeholder="请输入密码"
-                />
+                  placeholder="请输入密码" />
               </Form.Item>
 
               <Button type="primary" htmlType="submit" size="large" block loading={submitting}>

@@ -1,6 +1,6 @@
+import { X } from '@phosphor-icons/react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as Dialog from '@radix-ui/react-dialog'
-import { X } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -96,7 +96,7 @@ export function CreateKnowledgeBaseDialog({
             aria-label="关闭对话框"
             className="absolute right-[var(--space-4)] top-[var(--space-4)] inline-flex size-9 items-center justify-center rounded-md hover:bg-slate-100"
           >
-            <X aria-hidden="true" className="size-5" />
+            <X size={16} weight="regular" className="size-5" aria-hidden="true" />
           </Dialog.Close>
 
           {summary ? (
@@ -139,8 +139,7 @@ export function CreateKnowledgeBaseDialog({
               <textarea
                 rows={4}
                 className="mt-[var(--space-2)] w-full rounded-md border border-[var(--color-border)] p-[var(--space-3)] font-normal"
-                {...register('description')}
-              />
+                {...register('description')} />
               {errors.description ? (
                 <span className="mt-[var(--space-1)] block text-xs font-normal text-[var(--color-danger)]">
                   {errors.description.message}
