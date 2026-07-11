@@ -1,4 +1,4 @@
-import { CloseOutlined, CopyOutlined } from '@ant-design/icons'
+import { Copy, X } from '@phosphor-icons/react'
 import {
   Alert,
   Button,
@@ -188,8 +188,7 @@ function SkillRegistry() {
             <Button size="small" onClick={() => void query.refetch()}>
               重新加载
             </Button>
-          }
-        />
+          } />
       ) : (
         <Table
           rowKey="name"
@@ -197,8 +196,7 @@ function SkillRegistry() {
           columns={columns}
           dataSource={query.data ?? []}
           pagination={false}
-          locale={{ emptyText: <Empty description="尚未登记 Skill。" /> }}
-        />
+          locale={{ emptyText: <Empty description="尚未登记 Skill。" /> }} />
       )}
       {toggle.isError ? (
         <Alert type="error" showIcon style={{ marginTop: 12 }} title={toggle.error.message} />
@@ -210,8 +208,7 @@ function SkillRegistry() {
           open
           onOpenChange={(open) => {
             if (!open) setRunningSkill(null)
-          }}
-        />
+          }} />
       ) : null}
     </Card>
   )
@@ -261,7 +258,7 @@ function SkillRunDialog({
       footer={null}
       width={960}
       destroyOnHidden
-      closeIcon={<span aria-label="关闭运行对话框"><CloseOutlined /></span>}
+      closeIcon={<span aria-label="关闭运行对话框"><X size={16} weight="regular" /></span>}
     >
       <Typography.Paragraph type="secondary">
         仅提交符合后端输入 Schema 的 JSON，不执行任何前端代码。
@@ -279,8 +276,7 @@ function SkillRunDialog({
               aria-label="运行参数"
               rows={14}
               spellCheck={false}
-              style={{ fontFamily: 'monospace', fontSize: 12 }}
-            />
+              style={{ fontFamily: 'monospace', fontSize: 12 }} />
           </Form.Item>
           {parseError ? <Alert type="error" showIcon style={{ marginBottom: 12 }} title={parseError} /> : null}
           {mutation.isError ? (
@@ -334,8 +330,7 @@ function SkillRunDialog({
                     {JSON.stringify(mutation.data.output, null, 2)}
                   </pre>
                 </div>
-              }
-            />
+              } />
           ) : null}
         </div>
       </div>
@@ -447,8 +442,7 @@ function ToolLogSection() {
           options={(tools.data ?? []).map((tool) => ({
             value: tool.name,
             label: tool.name,
-          }))}
-        />
+          }))} />
         <Select
           allowClear
           placeholder="全部状态"
@@ -458,8 +452,7 @@ function ToolLogSection() {
           options={[
             { value: 'success', label: 'success' },
             { value: 'failed', label: 'failed' },
-          ]}
-        />
+          ]} />
       </Space>
 
       {logs.isError ? (
@@ -472,8 +465,7 @@ function ToolLogSection() {
             <Button size="small" onClick={() => void logs.refetch()}>
               重新加载
             </Button>
-          }
-        />
+          } />
       ) : (
         <Table
           rowKey="id"
@@ -492,15 +484,13 @@ function ToolLogSection() {
               next.set('tool_page', String(nextPage))
               setSearchParams(next)
             },
-          }}
-        />
+          }} />
       )}
       <ToolLogDialog
         id={selectedId}
         onOpenChange={(open) => {
           if (!open) setSelectedId('')
-        }}
-      />
+        }} />
     </Card>
   )
 }
@@ -544,7 +534,7 @@ function ToolLogDialog({
               {query.data.requestId ? (
                 <Button
                   size="small"
-                  icon={<CopyOutlined />}
+                  icon={<Copy size={16} weight="duotone" />}
                   onClick={() => {
                     void navigator.clipboard?.writeText(query.data.requestId ?? '')
                     staticMessage.success('已复制')
