@@ -1,4 +1,4 @@
-import { DatabaseOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons'
+import { ArrowClockwise, Database, Trash } from '@phosphor-icons/react'
 import {
   App,
   Button,
@@ -135,7 +135,7 @@ export function MemoryPage() {
             type="link"
             danger
             size="small"
-            icon={<DeleteOutlined />}
+            icon={<Trash size={16} weight="duotone" />}
             loading={deleteMutation.isPending && deleteMutation.variables === record.id}
             onClick={() => {
               confirmAction({
@@ -169,7 +169,7 @@ export function MemoryPage() {
       <div className="page-toolbar page-toolbar--split">
         <p className="page-lede">查看助手为你保留的偏好、实体与长期事件。制度事实仍以知识库检索为准。</p>
         <Space>
-          <Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>
+          <Button icon={<ArrowClockwise size={16} weight="duotone" />} onClick={() => void query.refetch()}>
             刷新
           </Button>
         </Space>
@@ -181,8 +181,7 @@ export function MemoryPage() {
           style={{ width: 160 }}
           value={memoryType}
           options={typeOptions}
-          onChange={(value) => updateParams({ memory_type: value || null, page: '1' })}
-        />
+          onChange={(value) => updateParams({ memory_type: value || null, page: '1' })} />
         <Input.Search
           allowClear
           placeholder="按内容搜索"
@@ -192,8 +191,7 @@ export function MemoryPage() {
           onSearch={(value) => {
             setKeywordDraft(value)
             updateParams({ keyword: value.trim() || null, page: '1' })
-          }}
-        />
+          }} />
       </div>
 
       <Card className="pf-table-card" styles={{ body: { padding: query.isLoading || query.isError ? 16 : 0 } }}>
@@ -204,8 +202,7 @@ export function MemoryPage() {
             error={query.error instanceof Error ? query.error : new Error('加载失败')}
             onRetry={() => void query.refetch()}
             title="记忆列表加载失败"
-            minH="min-h-48"
-          />
+            minH="min-h-48" />
         ) : (
           <Table<MemoryItem>
             size="middle"
@@ -215,11 +212,10 @@ export function MemoryPage() {
             locale={{
               emptyText: (
                 <EmptyState
-                  icon={<DatabaseOutlined style={{ fontSize: 18 }} />}
+                  icon={<Database size={16} weight="duotone" style={{fontSize: 18}} />}
                   title={keyword || memoryType ? '没有符合条件的记忆' : '暂无记忆'}
                   hint="助手会在对话中逐步沉淀偏好与实体；制度事实仍以知识库为准。"
-                  minH="min-h-48"
-                />
+                  minH="min-h-48" />
               ),
             }}
             pagination={{
@@ -233,8 +229,7 @@ export function MemoryPage() {
                   page: String(nextPage),
                   page_size: String(nextPageSize),
                 }),
-            }}
-          />
+            }} />
         )}
       </Card>
     </div>
