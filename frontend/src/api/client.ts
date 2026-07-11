@@ -2,7 +2,11 @@ import { env } from '../lib/env'
 import { AppError } from './errors'
 import { normalizeError, normalizeSuccess } from './response-normalizer'
 
-type RequestOptions = RequestInit & { timeoutMs?: number }
+export type RequestOptions = RequestInit & {
+  timeoutMs?: number
+  skipUnauthorizedHandler?: boolean
+}
+
 type ApiClientOptions = {
   baseUrl?: string
   timeoutMs?: number
@@ -25,16 +29,30 @@ async function readPayload(response: Response): Promise<unknown> {
 export class ApiClient {
   private readonly baseUrl: string
   private readonly timeoutMs: number
-  private readonly getAccessToken: () => string | null
-  private readonly onUnauthorized?: () => void
-  private readonly fetcher: typeof fetch
+  private accessTokenProvider: () => string | null
+  private unauthorizedHandler?: () => void
+  private readonly fetcher?: typeof fetch
 
   constructor(options: ApiClientOptions = {}) {
     this.baseUrl = (options.baseUrl ?? env.apiBaseUrl).replace(/\/$/u, '')
     this.timeoutMs = options.timeoutMs ?? env.requestTimeoutMs
-    this.getAccessToken = options.getAccessToken ?? (() => null)
-    this.onUnauthorized = options.onUnauthorized
-    this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis)
+    this.accessTokenProvider = options.getAccessToken ?? (() => null)
+    this.unauthorizedHandler = options.onUnauthorized
+    this.fetcher = options.fetcher
+  }
+
+  setAccessTokenProvider(provider: () => string | null): void {
+    this.accessTokenProvider = provider
+  }
+
+  setUnauthorizedHandler(handler?: () => void): void {
+    this.unauthorizedHandler = handler
+  }
+
+  private resolveUrl(path: string): string {
+    if (this.baseUrl) return `${this.baseUrl}${path}`
+    if (typeof window !== 'undefined') return new URL(path, window.location.origin).toString()
+    return path
   }
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -46,19 +64,30 @@ export class ApiClient {
     externalSignal?.addEventListener('abort', abortFromExternalSignal, { once: true })
 
     const headers = new Headers(options.headers)
-    const token = this.getAccessToken()
+    const token = this.accessTokenProvider()
     if (token) headers.set('Authorization', `Bearer ${token}`)
     if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
       headers.set('Content-Type', 'application/json')
     }
     if (!headers.has('Accept')) headers.set('Accept', 'application/json')
 
+    const { skipUnauthorizedHandler: _skip, timeoutMs: _timeout, ...requestInit } = options
+    void _skip
+    void _timeout
+
     try {
-      const response = await this.fetcher(`${this.baseUrl}${path}`, { ...options, headers, signal: controller.signal })
+      const fetcher = this.fetcher ?? globalThis.fetch
+      const response = await fetcher(this.resolveUrl(path), {
+        ...requestInit,
+        headers,
+        signal: controller.signal,
+      })
       const payload = await readPayload(response)
       const requestId = response.headers.get('x-request-id') ?? undefined
       if (!response.ok) {
-        if (response.status === 401) this.onUnauthorized?.()
+        if (response.status === 401 && !options.skipUnauthorizedHandler) {
+          this.unauthorizedHandler?.()
+        }
         throw normalizeError(response.status, payload, requestId)
       }
       return normalizeSuccess(payload as T)

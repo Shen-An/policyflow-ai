@@ -1,0 +1,184 @@
+"""Chat persistence and Agent Pipeline orchestration."""
+
+import json
+from time import perf_counter
+
+from sqlmodel import Session, col, select
+
+from backend.app.agents.memory_agent import MemoryAgent
+from backend.app.agents.pipeline import AgentPipeline
+from backend.app.core.exceptions import ApplicationError
+from backend.app.db.models import AIQueryLog, Conversation, KnowledgeBase, Message, User, utc_now
+from backend.app.schemas.chat import (
+    AssistantMessageMetadata,
+    ChatRequest,
+    ChatResponse,
+    Citation,
+    ConversationRead,
+    MessageRead,
+)
+from backend.app.schemas.retrieval import RetrievalRequest
+from backend.app.services.knowledge_base_router import select_candidate_knowledge_bases
+from backend.app.services.permission_service import get_knowledge_base_permission
+from backend.app.services.user_service import get_user_role_codes
+
+
+def _authorized_knowledge_bases(
+    session: Session,
+    user: User,
+    requested_ids: list[str],
+) -> list[KnowledgeBase]:
+    knowledge_bases = session.exec(
+        select(KnowledgeBase).where(KnowledgeBase.status == "active")
+    ).all()
+    requested = set(requested_ids)
+    return [
+        knowledge_base
+        for knowledge_base in knowledge_bases
+        if (not requested or knowledge_base.id in requested)
+        and get_knowledge_base_permission(session, user, knowledge_base) is not None
+    ]
+
+
+def _conversation(
+    session: Session, user: User, conversation_id: str | None, question: str
+) -> Conversation:
+    if conversation_id is None:
+        conversation = Conversation(user_id=user.id, title=question.strip()[:100])
+        session.add(conversation)
+        session.flush()
+        return conversation
+    existing_conversation = session.get(Conversation, conversation_id)
+    if existing_conversation is None:
+        raise ApplicationError("CONVERSATION_NOT_FOUND", "Conversation not found", 404)
+    role_codes = get_user_role_codes(session, user.id)
+    if existing_conversation.user_id != user.id and "sys_admin" not in role_codes:
+        raise ApplicationError("PERMISSION_DENIED", "Conversation access denied", 403)
+    return existing_conversation
+
+
+async def send_chat_message(
+    session: Session,
+    user: User,
+    data: ChatRequest,
+    pipeline: AgentPipeline,
+) -> ChatResponse:
+    started_at = perf_counter()
+    conversation = _conversation(session, user, data.conversation_id, data.question)
+    session.add(
+        Message(
+            conversation_id=conversation.id,
+            role="user",
+            content=data.question,
+        )
+    )
+    authorized_knowledge_bases = _authorized_knowledge_bases(session, user, data.knowledge_base_ids)
+    knowledge_bases = select_candidate_knowledge_bases(data.question, authorized_knowledge_bases)
+    retrieval_request = (
+        RetrievalRequest(
+            query=data.question,
+            knowledge_base_ids=[knowledge_base.id for knowledge_base in knowledge_bases],
+            strategy=data.retrieval_strategy,
+            top_k=data.top_k,
+            lightrag_query_mode=data.query_mode,
+        )
+        if knowledge_bases
+        else None
+    )
+    pipeline_result = await pipeline.run(
+        data.question, knowledge_bases, retrieval_request, data.enable_skill
+    )
+    citations = [
+        Citation(
+            knowledge_base_id=evidence.knowledge_base_id,
+            knowledge_base_name=evidence.knowledge_base_name,
+            document_id=evidence.document_id,
+            document_title=evidence.document_title,
+            chunk_id=evidence.chunk_id,
+            snippet=evidence.snippet,
+            score=evidence.score,
+        )
+        for evidence in pipeline_result.retrieval_result.evidence
+    ]
+    latency_ms = int((perf_counter() - started_at) * 1000)
+    query_log = AIQueryLog(
+        conversation_id=conversation.id,
+        user_id=user.id,
+        question=data.question,
+        answer=pipeline_result.answer_result.answer,
+        knowledge_base_ids=[knowledge_base.id for knowledge_base in knowledge_bases],
+        retrieved_sources=[
+            trace.model_dump(mode="json") for trace in pipeline_result.retrieval_result.trace
+        ],
+        confidence_score=pipeline_result.answer_result.confidence_score,
+        query_mode=data.query_mode.value,
+        latency_ms=latency_ms,
+    )
+    assistant_message = Message(
+        conversation_id=conversation.id,
+        role="assistant",
+        content=pipeline_result.answer_result.answer,
+        meta_json=AssistantMessageMetadata(
+            citations=citations,
+            query_log_id=query_log.id,
+            confidence_score=pipeline_result.answer_result.confidence_score,
+            query_mode=data.query_mode.value,
+            router_result=pipeline_result.router_result,
+            suggested_skills=pipeline_result.suggested_skills,
+            compliance=pipeline_result.compliance,
+        ).model_dump(mode="json"),
+    )
+    session.add(assistant_message)
+    conversation.updated_at = utc_now()
+    session.add(query_log)
+    session.add(conversation)
+    session.commit()
+    session.refresh(assistant_message)
+    session.refresh(query_log)
+    MemoryAgent().run(
+        session,
+        conversation.id,
+        data.question,
+        pipeline_result.answer_result.answer,
+    )
+    return ChatResponse(
+        conversation_id=conversation.id,
+        message_id=assistant_message.id,
+        query_log_id=query_log.id,
+        answer=pipeline_result.answer_result.answer,
+        citations=citations,
+        confidence_score=pipeline_result.answer_result.confidence_score,
+        query_mode=data.query_mode.value,
+        router_result=pipeline_result.router_result,
+        compliance=pipeline_result.compliance,
+        suggested_skills=pipeline_result.suggested_skills,
+    )
+
+
+def get_conversation(session: Session, user: User, conversation_id: str) -> ConversationRead:
+    conversation = _conversation(session, user, conversation_id, "")
+    messages = session.exec(
+        select(Message)
+        .where(Message.conversation_id == conversation.id)
+        .order_by(col(Message.created_at))
+    ).all()
+    try:
+        summary = json.loads(conversation.summary) if conversation.summary else {}
+    except json.JSONDecodeError:
+        summary = {}
+    return ConversationRead(
+        id=conversation.id,
+        title=conversation.title,
+        status=conversation.status,
+        summary=summary,
+        messages=[
+            MessageRead(
+                id=message.id,
+                role=message.role,
+                content=message.content,
+                meta_json=AssistantMessageMetadata.model_validate(message.meta_json),
+                created_at=message.created_at,
+            )
+            for message in messages
+        ],
+    )

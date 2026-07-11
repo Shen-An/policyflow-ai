@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Database
+*.db
+*.sqlite3
+*.backup-*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Environment
+.env
+.env.local
+
+# Log
+*.log
+logs/
+
+# Runtime data
+uploads/
+rag_workspaces/
+
+# Test artifacts
+playwright-report/
+test-results/
