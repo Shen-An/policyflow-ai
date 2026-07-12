@@ -62,7 +62,8 @@ describe('IntegrationsPage', () => {
     expect(screen.getByText(/\[REDACTED\]/u)).toBeVisible()
     expect(screen.queryByText('plain-secret')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '健康检查' }))
-    expect(await screen.findByText(/健康检查完成：healthy/u)).toBeVisible()
+    expect(await screen.findByText(/健康检查完成/u)).toBeVisible()
+    expect(await screen.findByText(/状态：/u)).toBeVisible()
     expect(await screen.findByText('mcp.email.create_draft')).toBeVisible()
   })
 

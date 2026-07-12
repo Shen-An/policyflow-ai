@@ -28,6 +28,7 @@ export function Alert({
   action,
   className,
   role,
+  tabIndex,
 }: {
   tone?: AlertTone
   title?: ReactNode
@@ -36,10 +37,12 @@ export function Alert({
   className?: string
   /** Defaults to "alert" for danger, "status" otherwise. */
   role?: 'alert' | 'status'
+  tabIndex?: number
 }) {
   return (
     <div
       role={role ?? (tone === 'danger' ? 'alert' : 'status')}
+      tabIndex={tabIndex}
       className={cn('rounded-md border p-[var(--space-4)]', toneContainer[tone], className)}
     >
       {title ? <p className={cn('text-sm font-semibold', toneTitle[tone])}>{title}</p> : null}

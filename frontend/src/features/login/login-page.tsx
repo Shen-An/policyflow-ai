@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { login } from '../../api/auth'
 import { AppError } from '../../api/errors'
 import { authStore } from '../../auth/auth-store'
-import { Alert } from '/c/Users/Administrator/.claude/skills/ui-ux-pro-max/scripts/search.py'
+import { Alert } from '../../components/feedback/alert'
 import { Button } from '../../components/ui/button'
 import { loginSchema, type LoginFormValues } from './login-schema'
 
@@ -44,10 +44,10 @@ export function LoginPage() {
   return (
     <main className="grid min-h-screen place-items-center bg-[var(--color-background)] p-[var(--space-4)]">
       <section className="w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-[var(--space-8)] shadow-sm">
-        <div className="flex size-10 items-center justify-center rounded-lg bg-blue-50 text-[var(--color-primary)]"><LogIn aria-hidden="true" className="size-5" /></div>
+        <div className="flex size-10 items-center justify-center rounded-lg bg-[var(--color-primary-50)] text-[var(--color-primary)]"><LogIn aria-hidden="true" className="size-5" /></div>
         <h1 className="mt-[var(--space-4)] text-2xl font-semibold leading-8">登录 PolicyFlow AI</h1>
         <p className="mt-[var(--space-2)] text-sm leading-[22px] text-[var(--color-text-secondary)]">使用组织账户继续访问企业政策助手。</p>
-        {summary ? <div ref={summaryRef} tabIndex={-1} role="alert" className="mt-[var(--space-4)] rounded-md border border-red-200 bg-red-50 p-[var(--space-3)] text-sm text-[var(--color-danger)]">{summary}</div> : null}
+        {summary ? <div ref={summaryRef} role="alert" tabIndex={-1}><Alert role="status" tone="danger">{summary}</Alert></div> : null}
         <form className="mt-[var(--space-6)] space-y-[var(--space-4)]" onSubmit={onSubmit} noValidate>
           <div>
             <label className="text-sm font-semibold" htmlFor="username">用户名</label>

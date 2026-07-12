@@ -35,7 +35,7 @@ export function KnowledgeBaseDetailPage() {
               {knowledgeBase.code} · {knowledgeBase.defaultQueryMode}
             </p>
           </div>
-          <span className="w-fit rounded-full bg-blue-50 px-[var(--space-3)] py-[var(--space-1)] text-sm text-blue-700">
+          <span className="w-fit rounded-full bg-[var(--color-primary-50)] px-[var(--space-3)] py-[var(--space-1)] text-sm text-[var(--color-primary-700)]">
             {knowledgeBase.permission}
           </span>
         </div>

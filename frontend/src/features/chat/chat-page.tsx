@@ -53,6 +53,14 @@ function resultMessage(result: ChatResult): ConversationMessage {
   }
 }
 
+const queryModeLabels: Record<string, { label: string; hint: string }> = {
+  hybrid: { label: '混合模式', hint: '根据问题智能选择' },
+  mix: { label: '全局+局部混合', hint: '同时搜索索引与全文' },
+  local: { label: '局部搜索', hint: '在相关索引片段中搜索' },
+  global: { label: '全局搜索', hint: '在所有文档中全文搜索' },
+  naive: { label: '朴素搜索', hint: '直接检索，不做语义优化' },
+}
+
 export function ChatPage() {
   const { conversationId = '' } = useParams()
   const navigate = useNavigate()
@@ -209,9 +217,9 @@ export function ChatPage() {
             {knowledgeBases.isPending ? (
               <p role="status" className="mt-[var(--space-3)] text-sm">正在加载知识库…</p>
             ) : knowledgeBases.isError ? (
-              <p role="alert" className="mt-[var(--space-3)] text-sm text-[var(--color-danger)]">
+              <Alert className="mt-[var(--space-3)]" tone="danger" action={<Button variant="ghost" className="min-h-11" onClick={() => void knowledgeBases.refetch()}>重试</Button>}>
                 知识库加载失败
-              </p>
+              </Alert>
             ) : noKnowledgeBases ? (
               <p className="mt-[var(--space-3)] text-sm">
                 还没有可访问的知识库，请联系知识库管理员授权。
@@ -243,10 +251,10 @@ export function ChatPage() {
             <select
               value={queryMode}
               onChange={(event) => setQueryMode(event.target.value as QueryMode)}
-              className="mt-[var(--space-2)] min-h-10 w-full rounded-md border border-[var(--color-border)] px-[var(--space-3)] font-normal"
+              className="mt-[var(--space-2)] min-h-11 w-full rounded-md border border-[var(--color-border)] px-[var(--space-3)] font-normal"
             >
               {['hybrid', 'mix', 'local', 'global', 'naive'].map((mode) => (
-                <option key={mode} value={mode}>{mode}</option>
+                <option key={mode} value={mode}>{queryModeLabels[mode].label} — {queryModeLabels[mode].hint}</option>
               ))}
             </select>
           </label>
@@ -259,8 +267,8 @@ export function ChatPage() {
 function MessageCard({ message }: { message: ConversationMessage }) {
   if (message.role === 'user') {
     return (
-      <article className="ml-auto max-w-2xl rounded-xl bg-blue-50 p-[var(--space-4)]">
-        <p className="text-xs font-semibold text-blue-700">你的问题</p>
+      <article className="ml-auto max-w-2xl rounded-xl bg-[var(--color-primary-50)] p-[var(--space-4)]">
+        <p className="text-xs font-semibold text-[var(--color-primary-700)]">你的问题</p>
         <p className="mt-[var(--space-2)] whitespace-pre-wrap text-sm">{message.content}</p>
       </article>
     )
@@ -284,15 +292,14 @@ function MessageCard({ message }: { message: ConversationMessage }) {
       </p>
 
       {noEvidence ? (
-        <div className="mt-[var(--space-4)] rounded-lg border border-amber-200 bg-amber-50 p-[var(--space-3)]">
-          <p className="flex items-center gap-[var(--space-2)] text-sm font-semibold">
+        <Alert tone="warning" title={
+          <span className="flex items-center gap-[var(--space-2)]">
             <AlertTriangle aria-hidden="true" className="size-4" />
             未找到可靠依据
-          </p>
-          <p className="mt-[var(--space-1)] text-xs">
-            当前授权知识库没有足够证据，请联系相关部门确认。
-          </p>
-        </div>
+          </span>
+        }>
+          当前授权知识库没有足够证据，请联系相关部门确认。
+        </Alert>
       ) : (
         <CitationList citations={message.metadata.citations} />
       )}
@@ -301,9 +308,9 @@ function MessageCard({ message }: { message: ConversationMessage }) {
         {message.metadata.confidenceScore !== null ? (
           <span>可信度 {Math.round(message.metadata.confidenceScore * 100)}%</span>
         ) : null}
-        {message.metadata.queryMode ? <span>· {message.metadata.queryMode}</span> : null}
+        {message.metadata.queryMode ? <span>· {queryModeLabels[message.metadata.queryMode]?.label ?? message.metadata.queryMode}</span> : null}
         {message.metadata.compliance?.passed ? (
-          <span className="inline-flex items-center gap-1 text-emerald-700">
+          <span className="inline-flex items-center gap-1 text-[var(--color-success-700)]">
             <CheckCircle2 aria-hidden="true" className="size-3" />合规检查通过
           </span>
         ) : null}
@@ -391,7 +398,7 @@ function FeedbackActions({ queryLogId }: { queryLogId: string }) {
             aria-label="回答评价"
             value={rating}
             onChange={(event) => setRating(event.target.value as FeedbackRating)}
-            className="ml-[var(--space-2)] min-h-9 rounded-md border border-[var(--color-border)] px-[var(--space-2)] font-normal"
+            className="ml-[var(--space-2)] min-h-11 rounded-md border border-[var(--color-border)] px-[var(--space-2)] font-normal"
           >
             {feedbackOptions.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
@@ -404,14 +411,14 @@ function FeedbackActions({ queryLogId }: { queryLogId: string }) {
           maxLength={1000}
           onChange={(event) => setComment(event.target.value)}
           placeholder="补充说明（可选）"
-          className="min-h-9 flex-1 rounded-md border border-[var(--color-border)] px-[var(--space-2)] text-xs"
+          className="min-h-11 flex-1 rounded-md border border-[var(--color-border)] px-[var(--space-2)] text-xs"
         />
-        <Button type="submit" className="min-h-9 py-1 text-xs" disabled={mutation.isPending}>
+        <Button type="submit" className="min-h-11 py-1 text-xs" disabled={mutation.isPending}>
           {mutation.isPending ? '提交中…' : '提交反馈'}
         </Button>
       </div>
       {mutation.isSuccess ? (
-        <p role="status" className="mt-[var(--space-2)] text-xs text-emerald-700">
+        <p role="status" className="mt-[var(--space-2)] text-xs text-[var(--color-success-700)]">
           已记录“{selectedLabel}”，再次提交会覆盖你的上一条反馈。
         </p>
       ) : null}
