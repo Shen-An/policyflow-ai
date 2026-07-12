@@ -5,6 +5,7 @@ import { z } from 'zod'
 import type { RoleCode } from '../../../api/auth'
 import { AppError } from '../../../api/errors'
 import { Button } from '../../../components/ui/button'
+import { Alert } from '../../../components/feedback/alert'
 import { applyValidationErrors } from '../form-errors'
 import { useCreateUserMutation } from '../queries'
 import { roleOptions } from '../role-options'
@@ -66,8 +67,8 @@ export function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpen
   }
 
   return (
-    <UserDialog open={open} onOpenChange={close} title="创建用户" description="字段严格对应当前后端 UserCreate 契约。" footer={<><Button className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50" onClick={() => close(false)} disabled={mutation.isPending}>取消</Button><Button type="submit" form="create-user-form" disabled={mutation.isPending}>{mutation.isPending ? '正在创建…' : '创建用户'}</Button></>}>
-      {summary ? <div role="alert" className="mb-[var(--space-4)] rounded-md border border-red-200 bg-red-50 p-[var(--space-3)] text-sm text-[var(--color-danger)]">{summary}</div> : null}
+    <UserDialog open={open} onOpenChange={close} title="创建用户" description="字段严格对应当前后端 UserCreate 契约。" footer={<><Button variant="secondary" onClick={() => close(false)} disabled={mutation.isPending}>取消</Button><Button type="submit" form="create-user-form" disabled={mutation.isPending}>{mutation.isPending ? '正在创建…' : '创建用户'}</Button></>}>
+      {summary ? <Alert tone="danger" className="mb-[var(--space-4)]">{summary}</Alert> : null}
       <form id="create-user-form" className="grid gap-[var(--space-4)] sm:grid-cols-2" onSubmit={handleSubmit(submit)} noValidate>
         <Field name="username" label="用户名" error={errors.username?.message}><input className="mt-[var(--space-2)] min-h-10 w-full rounded-md border border-[var(--color-border)] px-[var(--space-3)] font-normal" autoComplete="off" {...register('username')} /></Field>
         <Field name="email" label="邮箱" error={errors.email?.message}><input className="mt-[var(--space-2)] min-h-10 w-full rounded-md border border-[var(--color-border)] px-[var(--space-3)] font-normal" type="email" autoComplete="off" {...register('email')} /></Field>

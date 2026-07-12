@@ -5,6 +5,8 @@ import type { KnowledgeBase } from '../../api/knowledge-bases'
 import { hasAnyRole } from '../../auth/permissions'
 import { useAuthState } from '../../auth/auth-store'
 import { Button } from '../../components/ui/button'
+import { Alert } from '../../components/feedback/alert'
+import { EmptyState, LoadingState } from '../../components/feedback/state-views'
 import { CreateKnowledgeBaseDialog } from './components/create-knowledge-base-dialog'
 import { useKnowledgeBasesQuery } from './queries'
 
@@ -83,30 +85,22 @@ export function KnowledgeBaseListPage() {
       </label>
 
       {query.isPending ? (
-        <div className="mt-[var(--space-6)] min-h-64 rounded-xl border border-[var(--color-border)] bg-white p-[var(--space-8)]" role="status">
-          正在加载知识库…
+        <div className="mt-[var(--space-6)]">
+          <LoadingState message="正在加载知识库…" />
         </div>
       ) : query.isError ? (
-        <div className="mt-[var(--space-6)] rounded-xl border border-red-200 bg-red-50 p-[var(--space-6)]" role="alert">
-          <h3 className="font-semibold">知识库加载失败</h3>
-          <p className="mt-[var(--space-1)] text-sm">{query.error.message}</p>
-          <div className="mt-[var(--space-4)]">
-            <Button onClick={() => void query.refetch()}>重新加载</Button>
-          </div>
+        <div className="mt-[var(--space-6)]">
+          <Alert tone="danger" title="知识库加载失败" action={<Button onClick={() => void query.refetch()}>重新加载</Button>}>
+            <p>{query.error.message}</p>
+          </Alert>
         </div>
       ) : visible.length === 0 ? (
-        <div className="mt-[var(--space-6)] grid min-h-64 place-items-center rounded-xl border border-[var(--color-border)] bg-white p-[var(--space-8)] text-center">
-          <div>
-            <BookOpen className="mx-auto size-8 text-[var(--color-text-secondary)]" aria-hidden="true" />
-            <h3 className="mt-[var(--space-3)] font-semibold">
-              {keyword ? '没有匹配的知识库' : '没有可访问的知识库'}
-            </h3>
-            <p className="mt-[var(--space-1)] text-sm text-[var(--color-text-secondary)]">
-              {keyword
-                ? '请调整筛选条件。'
-                : '请联系知识库管理员授予读取权限。'}
-            </p>
-          </div>
+        <div className="mt-[var(--space-6)]">
+          <EmptyState
+            icon={<BookOpen aria-hidden="true" className="size-8" />}
+            title={keyword ? '没有匹配的知识库' : '没有可访问的知识库'}
+            hint={keyword ? '请调整筛选条件。' : '请联系知识库管理员授予读取权限。'}
+          />
         </div>
       ) : (
         <>
@@ -121,14 +115,14 @@ export function KnowledgeBaseListPage() {
             </p>
             <div className="flex gap-[var(--space-2)]">
               <Button
-                className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50"
+                variant="secondary"
                 disabled={page <= 1}
                 onClick={() => goToPage(page - 1)}
               >
                 上一页
               </Button>
               <Button
-                className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50"
+                variant="secondary"
                 disabled={page >= totalPages}
                 onClick={() => goToPage(page + 1)}
               >

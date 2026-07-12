@@ -3,6 +3,7 @@ import { Upload, X } from 'lucide-react'
 import { useState } from 'react'
 import { AppError } from '../../../api/errors'
 import { Button } from '../../../components/ui/button'
+import { Alert } from '../../../components/feedback/alert'
 import { validateDocumentFile } from '../file-validation'
 import { useUploadDocumentMutation } from '../queries'
 
@@ -77,12 +78,7 @@ export function UploadDocumentDialog({
           </Dialog.Close>
 
           {error ? (
-            <div
-              role="alert"
-              className="mt-[var(--space-4)] rounded-md border border-red-200 bg-red-50 p-[var(--space-3)] text-sm text-[var(--color-danger)]"
-            >
-              {error}
-            </div>
+            <Alert tone="danger" className="mt-[var(--space-4)]">{error}</Alert>
           ) : null}
 
           <div className="mt-[var(--space-6)] space-y-[var(--space-4)]">
@@ -112,7 +108,7 @@ export function UploadDocumentDialog({
 
           <div className="mt-[var(--space-6)] flex justify-end gap-[var(--space-3)]">
             <Button
-              className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50"
+              variant="secondary"
               onClick={() => changeOpen(false)}
               disabled={mutation.isPending}
             >

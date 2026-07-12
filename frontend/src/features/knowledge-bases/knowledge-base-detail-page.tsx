@@ -1,6 +1,7 @@
 import { ArrowLeft, FileText, Info } from 'lucide-react'
 import { Link, Outlet, useLocation, useParams } from 'react-router-dom'
 import { Button } from '../../components/ui/button'
+import { ErrorState, LoadingState } from '../../components/feedback/state-views'
 import { useKnowledgeBaseQuery } from './queries'
 
 export function KnowledgeBaseDetailPage() {
@@ -9,16 +10,10 @@ export function KnowledgeBaseDetailPage() {
   const query = useKnowledgeBaseQuery(kbId)
 
   if (query.isPending) {
-    return <div className="min-h-64 rounded-xl border border-[var(--color-border)] bg-white p-[var(--space-8)]" role="status">正在加载知识库详情…</div>
+    return <LoadingState message="正在加载知识库详情…" />
   }
   if (query.isError) {
-    return (
-      <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-[var(--space-6)]">
-        <h2 className="font-semibold">知识库详情加载失败</h2>
-        <p className="mt-[var(--space-1)] text-sm">{query.error.message}</p>
-        <div className="mt-[var(--space-4)]"><Button onClick={() => void query.refetch()}>重新加载</Button></div>
-      </div>
-    )
+    return <ErrorState error={query.error} onRetry={() => void query.refetch()} title="知识库详情加载失败" />
   }
 
   const knowledgeBase = query.data
@@ -28,7 +23,7 @@ export function KnowledgeBaseDetailPage() {
     <section>
       <Button
         asChild
-        className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50"
+        variant="secondary"
       >
         <Link to="/knowledge-bases"><ArrowLeft aria-hidden="true" className="size-4" />返回知识库</Link>
       </Button>

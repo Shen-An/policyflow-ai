@@ -8,6 +8,8 @@ import {
   useParams,
 } from 'react-router-dom'
 import { Button } from '../../components/ui/button'
+import { Alert } from '../../components/feedback/alert'
+import { ErrorState, LoadingState } from '../../components/feedback/state-views'
 import { downloadMarkdown } from './download'
 import {
   useConfirmDraftMutation,
@@ -53,17 +55,11 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
   })
 
   if (query.isPending) {
-    return <div role="status" className="min-h-64 p-[var(--space-6)]">正在加载草稿…</div>
+    return <LoadingState message="正在加载草稿…" />
   }
   if (query.isError) {
     return (
-      <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-[var(--space-5)]">
-        <h2 className="font-semibold">草稿加载失败</h2>
-        <p className="mt-[var(--space-1)] text-sm">{query.error.message}</p>
-        <Button className="mt-[var(--space-3)]" onClick={() => void query.refetch()}>
-          重新加载
-        </Button>
-      </div>
+      <ErrorState error={query.error} onRetry={() => void query.refetch()} title="草稿加载失败" />
     )
   }
 
@@ -95,7 +91,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
     <section className="mx-auto max-w-5xl">
       <Button
         asChild
-        className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50"
+        variant="secondary"
       >
         <Link to="/drafts"><ArrowLeft aria-hidden="true" className="size-4" />返回草稿</Link>
       </Button>
@@ -119,9 +115,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
         ) : null}
 
         {actionError ? (
-          <p role="alert" className="mt-[var(--space-4)] rounded-md bg-red-50 p-[var(--space-3)] text-sm text-[var(--color-danger)]">
-            {actionError.message}
-          </p>
+          <Alert tone="danger" className="mt-[var(--space-4)]">{actionError.message}</Alert>
         ) : null}
 
         <div className="mt-[var(--space-6)] space-y-[var(--space-4)]">
@@ -167,7 +161,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
           {editable ? (
             <>
               <Button
-                className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50"
+                variant="secondary"
                 disabled={!dirty || update.isPending || !title.trim() || !content.trim()}
                 onClick={() => void save()}
               >
@@ -182,7 +176,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
                 {confirm.isPending ? '正在确认…' : '确认草稿'}
               </Button>
               <Button
-                className="bg-red-600 hover:bg-red-700"
+                variant="danger"
                 disabled={discard.isPending}
                 onClick={() => void discardDraft()}
               >
@@ -193,7 +187,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
           ) : null}
           {draft.status !== 'discarded' ? (
             <Button
-              className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50"
+              variant="secondary"
               disabled={dirty || exportMutation.isPending}
               onClick={() => void exportDraft()}
             >

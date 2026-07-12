@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { FAQDraft } from '../../api/faq'
 import { Button } from '../../components/ui/button'
+import { Alert } from '../../components/feedback/alert'
+import { EmptyState, LoadingState } from '../../components/feedback/state-views'
 import { useDocumentStatusQuery } from '../documents/queries'
 import { useKnowledgeBasesQuery } from '../knowledge-bases/queries'
 import {
@@ -63,19 +65,19 @@ export function FAQReviewPage() {
       </div>
 
       {approvedDocumentId ? <IndexStatus documentId={approvedDocumentId} /> : null}
-      {approve.isError ? <p role="alert" className="mt-4 rounded-md bg-red-50 p-3 text-sm text-[var(--color-danger)]">{approve.error.message}</p> : null}
+      {approve.isError ? <Alert tone="danger" className="mt-4">{approve.error.message}</Alert> : null}
 
       {query.isPending ? (
-        <div role="status" className="mt-6 min-h-48 p-6">正在加载 FAQ…</div>
+        <div className="mt-6"><LoadingState message="正在加载 FAQ…" minH="min-h-48" /></div>
       ) : query.isError ? (
-        <div role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 p-5">
-          <h3 className="font-semibold">FAQ 加载失败</h3>
-          <p className="mt-1 text-sm">{query.error.message}</p>
-          <Button className="mt-3" onClick={() => void query.refetch()}>重新加载</Button>
+        <div className="mt-6">
+          <Alert tone="danger" title="FAQ 加载失败" action={<Button onClick={() => void query.refetch()}>重新加载</Button>}>
+            <p>{query.error.message}</p>
+          </Alert>
         </div>
       ) : query.data.length === 0 ? (
-        <div className="mt-6 grid min-h-64 place-items-center rounded-xl border border-dashed border-[var(--color-border)] bg-white text-center">
-          <div><FileQuestion className="mx-auto size-8 text-[var(--color-text-secondary)]" /><h3 className="mt-3 font-semibold">没有符合条件的 FAQ</h3></div>
+        <div className="mt-6">
+          <EmptyState icon={<FileQuestion aria-hidden="true" className="size-8" />} title="没有符合条件的 FAQ" />
         </div>
       ) : (
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -93,7 +95,7 @@ export function FAQReviewPage() {
               </dl>
               {item.status === 'draft' || item.status === 'pending_review' ? (
                 <div className="mt-4 flex justify-end gap-3">
-                  <Button className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50" onClick={() => setRejecting(item)}>驳回</Button>
+                  <Button variant="secondary" onClick={() => setRejecting(item)}>驳回</Button>
                   <Button disabled={approve.isPending} onClick={() => void approveItem(item)}><Check className="size-4" />审核通过</Button>
                 </div>
               ) : null}
@@ -109,7 +111,7 @@ export function FAQReviewPage() {
 function IndexStatus({ documentId }: { documentId: string }) {
   const query = useDocumentStatusQuery(documentId, 'pending')
   const status = query.data?.indexStatus ?? 'pending'
-  return <p role="status" className="mt-4 rounded-md bg-blue-50 p-3 text-sm">FAQ 文档索引状态：{status}</p>
+  return <Alert tone="info" className="mt-4">FAQ 文档索引状态：{status}</Alert>
 }
 
 function RejectDialog({ item, onOpenChange }: { item: FAQDraft | null; onOpenChange: (open: boolean) => void }) {
@@ -130,10 +132,10 @@ function RejectDialog({ item, onOpenChange }: { item: FAQDraft | null; onOpenCha
           <Dialog.Title className="text-lg font-semibold">驳回 FAQ</Dialog.Title>
           <Dialog.Description className="mt-1 text-sm text-[var(--color-text-secondary)]">请说明驳回原因，最多 1000 字。</Dialog.Description>
           <Dialog.Close aria-label="关闭对话框" className="absolute right-4 top-4"><X className="size-5" /></Dialog.Close>
-          {mutation.isError ? <p role="alert" className="mt-4 text-sm text-[var(--color-danger)]">{mutation.error.message}</p> : null}
+          {mutation.isError ? <Alert tone="danger" className="mt-4">{mutation.error.message}</Alert> : null}
           <form className="mt-5" onSubmit={submit}>
             <label className="text-sm font-semibold">驳回原因<textarea required maxLength={1000} rows={5} value={reason} onChange={(event) => setReason(event.target.value)} className="mt-2 w-full rounded-md border border-[var(--color-border)] p-3 font-normal" /></label>
-            <div className="mt-5 flex justify-end gap-3"><Button className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)]" onClick={() => onOpenChange(false)}>取消</Button><Button type="submit" disabled={!reason.trim() || mutation.isPending}>确认驳回</Button></div>
+            <div className="mt-5 flex justify-end gap-3"><Button variant="secondary" onClick={() => onOpenChange(false)}>取消</Button><Button type="submit" disabled={!reason.trim() || mutation.isPending}>确认驳回</Button></div>
           </form>
         </Dialog.Content>
       </Dialog.Portal>

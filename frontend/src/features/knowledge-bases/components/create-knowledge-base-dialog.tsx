@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { AppError } from '../../../api/errors'
 import { Button } from '../../../components/ui/button'
+import { Alert } from '../../../components/feedback/alert'
 import {
   useCreateKnowledgeBaseMutation,
   useCreateOptionsQuery,
@@ -99,12 +100,7 @@ export function CreateKnowledgeBaseDialog({
           </Dialog.Close>
 
           {summary ? (
-            <div
-              role="alert"
-              className="mt-[var(--space-4)] rounded-md border border-red-200 bg-red-50 p-[var(--space-3)] text-sm text-[var(--color-danger)]"
-            >
-              {summary}
-            </div>
+            <Alert tone="danger" className="mt-[var(--space-4)]">{summary}</Alert>
           ) : null}
 
           <form
@@ -155,7 +151,7 @@ export function CreateKnowledgeBaseDialog({
 
           <div className="mt-[var(--space-6)] flex justify-end gap-[var(--space-3)]">
             <Button
-              className="bg-white text-[var(--color-text-primary)] ring-1 ring-[var(--color-border)] hover:bg-slate-50"
+              variant="secondary"
               onClick={() => changeOpen(false)}
               disabled={mutation.isPending}
             >

@@ -1,28 +1,90 @@
 :root {
   color-scheme: light;
+
+  /* —— 间距（补齐缺失档位，保持 4px 基线）—— */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
+  --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
+  --space-10: 40px;
   --space-12: 48px;
-  --color-background: #f8fafc;
+  --space-16: 64px;
+
+  /* —— 表面与文字（更冷调、更有层次的 slate）—— */
+  --color-background: #f5f7fb;
+  --color-background-soft: #eef2f9;
   --color-surface: #ffffff;
-  --color-text-primary: #0f172a;
-  --color-text-secondary: #475569;
-  --color-border: #e2e8f0;
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
+  --color-surface-muted: #f8fafc;
+  --color-text-primary: #0f1729;
+  --color-text-secondary: #5b6577;
+  --color-text-tertiary: #8a93a6;
+  --color-border: #e3e8f0;
+  --color-border-strong: #cbd3e1;
+  --color-border-hover: #aab4c5;
+
+  /* —— 主品牌色（indigo 系，比纯蓝更有质感）—— */
+  --color-primary: #4f46e5;
+  --color-primary-hover: #4338ca;
+  --color-primary-active: #3730a3;
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-700: #4338ca;
+  --color-primary-foreground: #ffffff;
+
+  /* —— 语义色 —— */
   --color-success: #15803d;
+  --color-success-50: #f0fdf4;
+  --color-success-100: #dcfce7;
+  --color-success-200: #bbf7d0;
+  --color-success-700: #15803d;
   --color-warning: #b45309;
-  --color-danger: #b91c1c;
-  --font-page-title-size: 24px;
-  --font-page-title-line-height: 32px;
-  --font-section-title-size: 18px;
-  --font-section-title-line-height: 28px;
-  --font-card-title-size: 16px;
-  --font-card-title-line-height: 24px;
+  --color-warning-50: #fffbeb;
+  --color-warning-100: #fef3c7;
+  --color-warning-200: #fde68a;
+  --color-danger: #dc2626;
+  --color-danger-50: #fef2f2;
+  --color-danger-100: #fee2e2;
+  --color-danger-200: #fecaca;
+  --color-danger-hover: #b91c1c;
+  --color-info: #1d4ed8;
+  --color-info-50: #eff6ff;
+  --color-info-100: #dbeafe;
+
+  /* —— 侧边栏（深色，带细微渐变与品牌点缀）—— */
+  --color-sidebar-bg: #0b1220;
+  --color-sidebar-bg-soft: #131c30;
+  --color-sidebar-border: #1f2a40;
+  --color-sidebar-active: #4f46e5;
+  --color-sidebar-text: #c7d0e0;
+  --color-sidebar-text-muted: #6b7689;
+  --color-sidebar-hover: #1a2438;
+
+  /* —— 阴影 / 海拔（柔和、分层）—— */
+  --shadow-xs: 0 1px 2px 0 rgb(15 23 41 / 0.04);
+  --shadow-sm: 0 1px 3px 0 rgb(15 23 41 / 0.06), 0 1px 2px -1px rgb(15 23 41 / 0.05);
+  --shadow-md: 0 4px 12px -2px rgb(15 23 41 / 0.08), 0 2px 6px -2px rgb(15 23 41 / 0.05);
+  --shadow-lg: 0 12px 28px -6px rgb(15 23 41 / 0.12), 0 6px 12px -6px rgb(15 23 41 / 0.08);
+  --shadow-focus: 0 0 0 3px rgb(79 70 229 / 0.18);
+
+  /* —— 圆角（统一尺度）—— */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* —— 字体 —— */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", "Fira Code", Menlo, monospace;
+  --font-page-title-size: 22px;
+  --font-page-title-line-height: 30px;
+  --font-section-title-size: 17px;
+  --font-section-title-line-height: 26px;
+  --font-card-title-size: 15px;
+  --font-card-title-line-height: 22px;
   --font-body-size: 14px;
   --font-body-line-height: 22px;
   --font-caption-size: 12px;

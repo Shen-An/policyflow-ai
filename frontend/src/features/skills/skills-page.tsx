@@ -1,9 +1,11 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { Activity, Braces, Clipboard, Play, RefreshCw, Search, X } from 'lucide-react'
+import { Activity, Braces, Clipboard, Play, Search, X } from 'lucide-react'
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { Skill } from '../../api/skills'
 import { Button } from '../../components/ui/button'
+import { Alert } from '../../components/feedback/alert'
+import { EmptyState, LoadingState } from '../../components/feedback/state-views'
 import {
   useRunSkillMutation,
   useSetSkillEnabledMutation,
@@ -71,20 +73,13 @@ function SkillRegistry() {
         </p>
       </div>
       {query.isPending ? (
-        <div role="status" className="flex min-h-48 items-center justify-center gap-2">
-          <RefreshCw className="size-4 animate-spin motion-reduce:animate-none" />
-          正在加载 Skill…
-        </div>
+        <LoadingState message="正在加载 Skill…" minH="min-h-48" />
       ) : query.isError ? (
-        <div role="alert" className="m-5 rounded-lg bg-red-50 p-4">
-          <p className="font-semibold">Skill 加载失败</p>
-          <p className="mt-1 text-sm">{query.error.message}</p>
-          <Button className="mt-3" onClick={() => void query.refetch()}>重新加载</Button>
-        </div>
+        <Alert tone="danger" className="m-5" title="Skill 加载失败" action={<Button onClick={() => void query.refetch()}>重新加载</Button>}>
+          <p>{query.error.message}</p>
+        </Alert>
       ) : query.data.length === 0 ? (
-        <div className="grid min-h-48 place-items-center p-6 text-center">
-          <p>尚未登记 Skill。</p>
-        </div>
+        <EmptyState title="尚未登记 Skill。" minH="min-h-48" />
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
@@ -154,9 +149,7 @@ function SkillRegistry() {
         </div>
       )}
       {toggle.isError ? (
-        <p role="alert" className="border-t border-[var(--color-border)] p-4 text-sm text-[var(--color-danger)]">
-          {toggle.error.message}
-        </p>
+        <Alert tone="danger" className="border-t border-[var(--color-border)]">{toggle.error.message}</Alert>
       ) : null}
       {runningSkill ? (
         <SkillRunDialog
@@ -230,8 +223,8 @@ function SkillRunDialog({
                 spellCheck={false}
                 className="mt-2 w-full rounded-md border border-[var(--color-border)] p-3 font-mono text-xs"
               />
-              {parseError ? <p role="alert" className="mt-2 text-sm text-[var(--color-danger)]">{parseError}</p> : null}
-              {mutation.isError ? <p role="alert" className="mt-2 text-sm text-[var(--color-danger)]">{mutation.error.message}</p> : null}
+              {parseError ? <Alert tone="danger" className="mt-2">{parseError}</Alert> : null}
+              {mutation.isError ? <Alert tone="danger" className="mt-2">{mutation.error.message}</Alert> : null}
               <Button type="submit" className="mt-3" disabled={mutation.isPending}>
                 <Play className="size-4" />{mutation.isPending ? '正在运行…' : '确认运行'}
               </Button>
@@ -325,17 +318,13 @@ function ToolLogSection() {
         </div>
       </div>
       {logs.isPending ? (
-        <div role="status" className="grid min-h-48 place-items-center">正在加载 Tool 日志…</div>
+        <LoadingState message="正在加载 Tool 日志…" minH="min-h-48" />
       ) : logs.isError ? (
-        <div role="alert" className="m-5 rounded-lg bg-red-50 p-4">
-          <p className="font-semibold">Tool 日志加载失败</p>
-          <p className="mt-1 text-sm">{logs.error.message}</p>
-          <Button className="mt-3" onClick={() => void logs.refetch()}>重新加载</Button>
-        </div>
+        <Alert tone="danger" className="m-5" title="Tool 日志加载失败" action={<Button onClick={() => void logs.refetch()}>重新加载</Button>}>
+          <p>{logs.error.message}</p>
+        </Alert>
       ) : logs.data.items.length === 0 ? (
-        <div className="grid min-h-48 place-items-center p-6 text-center">
-          <p>没有符合条件的 Tool 调用日志。</p>
-        </div>
+        <EmptyState title="没有符合条件的 Tool 调用日志。" minH="min-h-48" />
       ) : (
         <>
           <div className="overflow-x-auto">
@@ -405,9 +394,9 @@ function ToolLogDialog({ id, onOpenChange }: { id: string; onOpenChange: (open: 
             <X className="size-5" />
           </Dialog.Close>
           {query.isPending ? (
-            <p role="status" className="mt-5">正在加载详情…</p>
+            <LoadingState message="正在加载详情…" minH="min-h-0" />
           ) : query.isError ? (
-            <p role="alert" className="mt-5 text-[var(--color-danger)]">{query.error.message}</p>
+            <Alert tone="danger" className="mt-5">{query.error.message}</Alert>
           ) : query.data ? (
             <div className="mt-5 space-y-4 text-sm">
               <dl className="grid gap-3 sm:grid-cols-2">
@@ -431,9 +420,7 @@ function ToolLogDialog({ id, onOpenChange }: { id: string; onOpenChange: (open: 
                 <p className="mt-1 break-all">{query.data.requestId ?? '无'}</p>
               </div>
               {query.data.errorMessage ? (
-                <p role="alert" className="rounded-md bg-red-50 p-3 text-[var(--color-danger)]">
-                  {query.data.errorMessage}
-                </p>
+                <Alert tone="danger">{query.data.errorMessage}</Alert>
               ) : null}
               <JsonDetails title="脱敏输入参数" value={query.data.inputSummary} />
               <JsonDetails title="脱敏输出结果" value={query.data.outputSummary} />
