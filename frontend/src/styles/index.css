@@ -57,7 +57,7 @@ textarea {
   top: 0;
   height: 100dvh;
   overflow: auto;
-  background: #ffffff !important;
+  background: var(--color-sidebar-bg) !important;
   border-right: 1px solid var(--color-sidebar-border) !important;
   box-shadow: none;
   scrollbar-width: thin;
@@ -73,7 +73,7 @@ textarea {
   line-height: var(--shell-header-height) !important;
   padding-inline: 16px 20px !important;
   border-bottom: 1px solid var(--color-border-secondary);
-  background: rgba(255, 255, 255, 0.86) !important;
+  background: color-mix(in srgb, var(--color-surface) 86%, transparent) !important;
   backdrop-filter: blur(14px) saturate(1.1);
   box-shadow: none;
 }
@@ -855,7 +855,11 @@ textarea {
   min-height: 52px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--color-border-secondary);
-  background: linear-gradient(180deg, #ffffff 0%, #fbfcfc 100%);
+  background: linear-gradient(
+    180deg,
+    var(--color-surface) 0%,
+    color-mix(in srgb, var(--color-surface) 92%, var(--color-background)) 100%
+  );
 }
 
 .chat-page__session-copy {
@@ -999,14 +1003,14 @@ textarea {
 .chat-page__composer-shell {
   border: 1px solid var(--color-border-secondary);
   border-radius: var(--radius-lg);
-  background: #ffffff;
+  background: var(--color-surface);
   padding: 10px 12px 8px;
   box-shadow: var(--shadow-xs);
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .chat-page__composer-shell:focus-within {
-  border-color: #4db894;
+  border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-border));
   box-shadow: var(--shadow-focus);
 }
 
@@ -1156,7 +1160,7 @@ textarea {
 
 .chat-bubble__actions .ant-btn:hover {
   color: var(--color-primary-deep) !important;
-  background: rgba(15, 154, 116, 0.08) !important;
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent) !important;
 }
 
 /* User question actions: hidden until hover/focus, shown below content */
@@ -1213,7 +1217,7 @@ textarea {
 
 .chat-bubble--assistant {
   width: min(760px, 100%);
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border-secondary);
   border-bottom-left-radius: 6px;
   color: var(--color-text-primary);
@@ -1222,7 +1226,11 @@ textarea {
 
 .chat-bubble--warning {
   border-color: var(--color-warning-200);
-  background: linear-gradient(180deg, #fff7ed 0%, #ffffff 48%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-warning) 10%, var(--color-surface)) 0%,
+    var(--color-surface) 48%
+  );
 }
 
 .chat-bubble__title {
