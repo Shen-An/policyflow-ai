@@ -418,19 +418,31 @@ index(content_hash)
 | id | String(36) | 主键 |
 | owner_type | String(20) | user / conversation / system |
 | owner_id | String(36) | 所属对象 |
-| memory_type | String(50) | conversation_summary / user_preference / system_note |
-| content | Text | 记忆内容 |
+| memory_type | String(50) | user_preference / long_term_event / entity / stm_summary / conversation_summary / system_note |
+| content | Text | 事件粒度记忆内容（单事件摘要，非整段对话 dump） |
 | source | String(20) | manual / summary / tool |
 | confidence | Float | 可信度 |
+| embedding | JSON, nullable | 向量（LTM/Entity 按需召回；失败可空） |
+| meta_json | JSON | event_type、entities、salience、source_message_ids、entity_key、facts、access 统计等 |
 | expires_at | DateTime, nullable | 过期时间 |
 | created_at | DateTime | 创建时间 |
 | updated_at | DateTime | 更新时间 |
+
+四层记忆落点：
+
+```text
+L0 感知：messages 表
+L1 短期：conversations.summary（滚动摘要 JSON）+ 最近 K 轮 messages
+L2 长期：memory_items.memory_type=long_term_event + embedding
+L3 实体：memory_items.memory_type=entity（按 entity_key upsert）
+```
 
 约束：
 
 ```text
 不得保存制度事实为 user_preference。
 不得保存敏感个人信息。
+记忆不得替代本轮知识库检索证据。
 ```
 
 ---

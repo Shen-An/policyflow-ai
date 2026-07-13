@@ -236,7 +236,10 @@ def test_phase3_end_to_end_flow(tmp_path: Path) -> None:
     with Session(app.state.engine) as session:
         memories = session.exec(select(MemoryItem)).all()
         logs = session.exec(select(ToolCallLog)).all()
-    assert any(item.memory_type == "conversation_summary" for item in memories)
+    assert any(
+        item.memory_type in {"conversation_summary", "long_term_event", "user_preference"}
+        for item in memories
+    )
     assert {log.status for log in logs} >= {"success", "failed"}
 
 

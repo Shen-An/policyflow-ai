@@ -16,6 +16,7 @@ from starlette.responses import Response
 
 from backend.app.agents.answer_agent import AnswerAgent
 from backend.app.agents.compliance_agent import ComplianceAgent
+from backend.app.agents.memory_agent import MemoryAgent
 from backend.app.agents.pipeline import AgentPipeline
 from backend.app.agents.retrieval_agent import RetrievalAgent
 from backend.app.agents.router_agent import RouterAgent
@@ -30,6 +31,7 @@ from backend.app.api.routes_feedback import router as feedback_router
 from backend.app.api.routes_kb import departments_router, documents_router
 from backend.app.api.routes_kb import router as knowledge_base_router
 from backend.app.api.routes_mcp import router as mcp_router
+from backend.app.api.routes_memory import router as memory_router
 from backend.app.api.routes_settings import router as settings_router
 from backend.app.api.routes_skill import router as skill_router
 from backend.app.api.routes_tool import router as tool_router
@@ -108,6 +110,11 @@ def create_app(
         SkillAgent(),
         ComplianceAgent(),
     )
+    memory_agent = MemoryAgent(
+        app_settings,
+        llm_service=language_model,
+        embedding_service=embedding_service,
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -139,6 +146,7 @@ def create_app(
     application.state.embedding_service = embedding_service
     application.state.rag_service = rag_service
     application.state.agent_pipeline = pipeline
+    application.state.memory_agent = memory_agent
     application.state.skill_registry = skill_registry
     application.state.tool_registry = tool_registry
     application.state.mcp_manager = mcp_manager
@@ -190,6 +198,7 @@ def create_app(
     application.include_router(documents_router)
     application.include_router(departments_router)
     application.include_router(mcp_router)
+    application.include_router(memory_router)
     application.include_router(settings_router)
     application.include_router(skill_router)
     application.include_router(tool_router)

@@ -4,8 +4,9 @@ import {
   getConversation,
   listConversations,
   renameConversation,
-  sendChat,
+  sendChatStream,
   submitFeedback,
+  type ChatStreamHandlers,
   type FeedbackRating,
   type SendChatInput,
 } from '../../api/chat'
@@ -32,10 +33,15 @@ export function useConversationQuery(id: string) {
   })
 }
 
+export type SendChatMutationInput = SendChatInput & {
+  streamHandlers?: ChatStreamHandlers
+}
+
 export function useSendChatMutation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: SendChatInput) => sendChat(input),
+    mutationFn: ({ streamHandlers, ...input }: SendChatMutationInput) =>
+      sendChatStream(input, streamHandlers),
     onSuccess: async (result) => {
       await Promise.all([
         queryClient.invalidateQueries({

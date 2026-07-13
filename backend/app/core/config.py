@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     LLM_EMBEDDING_MODEL: str | None = None
     LLM_EMBEDDING_DIM: int = 1536
     LLM_TIMEOUT_SECONDS: float = 120.0
+    # Memory system (STM/LTM/entity)
+    MEMORY_STM_WINDOW_TURNS: int = 6
+    MEMORY_LTM_TOP_K: int = 5
+    MEMORY_FIXED_PREFS_LIMIT: int = 10
+    MEMORY_ENTITY_LIMIT: int = 8
+    MEMORY_COMPRESS_TURN_THRESHOLD: int = 8
+    MEMORY_LTM_SALIENCE_THRESHOLD: float = 0.55
+    MEMORY_WRITEBACK_ENABLED: bool = True
 
     @property
     def log_file(self) -> Path:

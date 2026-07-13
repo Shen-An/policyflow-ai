@@ -8,6 +8,7 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   MessageOutlined,
+  DatabaseOutlined,
   SettingOutlined,
   TeamOutlined,
   ToolOutlined,
@@ -30,6 +31,7 @@ function titleFor(pathname: string): string {
   if (pathname.startsWith('/knowledge-bases')) return '知识库'
   if (pathname.startsWith('/chat')) return '制度问答'
   if (pathname.startsWith('/drafts')) return '我的草稿'
+  if (pathname.startsWith('/memory')) return '我的记忆'
   if (pathname.startsWith('/faq-review')) return 'FAQ 审核'
   if (pathname.startsWith('/evaluation')) return '评估中心'
   if (pathname.startsWith('/admin/audit')) return '审计日志'
@@ -67,6 +69,7 @@ export function AppShell() {
   const canBrowseKnowledgeBases = canCallApi('knowledgeBases')
   const canChat = canCallApi('chat') && canCallApi('feedback')
   const canUseDrafts = canCallApi('drafts')
+  const canUseMemory = canCallApi('memory')
   const canReviewFAQ = Boolean(user && hasAnyRole(user.roles, ['kb_admin', 'sys_admin']) && canCallApi('faq'))
   const canEvaluate = Boolean(user && hasAnyRole(user.roles, ['kb_admin', 'sys_admin']) && canCallApi('eval'))
   const canViewAudit = Boolean(user && hasAnyRole(user.roles, ['sys_admin']) && canCallApi('audit'))
@@ -89,6 +92,7 @@ export function AppShell() {
     if (path === '/') return ['/']
     if (path.startsWith('/chat')) return ['/chat']
     if (path.startsWith('/drafts')) return ['/drafts']
+    if (path.startsWith('/memory')) return ['/memory']
     if (path.startsWith('/knowledge-bases')) return ['/knowledge-bases']
     if (path.startsWith('/faq-review')) return ['/faq-review']
     if (path.startsWith('/evaluation')) return ['/evaluation']
@@ -102,7 +106,7 @@ export function AppShell() {
 
   const openKeys = useMemo(() => {
     const keys: string[] = []
-    if (canChat || canUseDrafts) keys.push('work')
+    if (canChat || canUseDrafts || canUseMemory) keys.push('work')
     if (canBrowseKnowledgeBases || canReviewFAQ) keys.push('knowledge')
     if (canEvaluate || canViewAudit) keys.push('quality')
     if (canManageUsers || canManageSkills || canManageIntegrations || canManageModelSettings) {
@@ -119,6 +123,7 @@ export function AppShell() {
     canManageUsers,
     canReviewFAQ,
     canUseDrafts,
+    canUseMemory,
     canViewAudit,
   ])
 
@@ -128,7 +133,7 @@ export function AppShell() {
       icon: <ClusterOutlined />,
       label: '工作台',
     },
-    ...(canChat || canUseDrafts
+    ...(canChat || canUseDrafts || canUseMemory
       ? [
           {
             key: 'work',
@@ -140,6 +145,9 @@ export function AppShell() {
                 : null,
               canUseDrafts
                 ? { key: '/drafts', icon: <FormOutlined />, label: '我的草稿' }
+                : null,
+              canUseMemory
+                ? { key: '/memory', icon: <DatabaseOutlined />, label: '我的记忆' }
                 : null,
             ].filter(Boolean),
           },

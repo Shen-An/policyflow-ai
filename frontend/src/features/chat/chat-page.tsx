@@ -2,6 +2,7 @@ import {
   AlertOutlined,
   BookOutlined,
   CheckCircleOutlined,
+  CopyOutlined,
   DeleteOutlined,
   EditOutlined,
   HistoryOutlined,
@@ -25,17 +26,23 @@ import {
   Tag,
   Typography,
 } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import type {
   AssistantMetadata,
   ChatResult,
+  ChatStageEvent,
+  CommandTrace,
   ConversationMessage,
   ConversationSummary,
   FeedbackRating,
+  ToolCallTrace,
+  TurnDiagnostics,
+  UsedMemoryItem,
 } from '../../api/chat'
 import type { QueryMode } from '../../api/knowledge-bases'
 import { LoadingState } from '../../components/feedback/state-views'
+import { MarkdownContent } from '../../components/markdown/markdown-content'
 import { palette } from '../../styles/palette'
 import { useKnowledgeBasesQuery } from '../knowledge-bases/queries'
 import {
@@ -55,6 +62,7 @@ const emptyMetadata: AssistantMetadata = {
   routerResult: null,
   suggestedSkills: [],
   compliance: null,
+  diagnostics: { memories: [], tools: [], commands: [] },
 }
 
 function resultMessage(result: ChatResult): ConversationMessage {
@@ -71,6 +79,7 @@ function resultMessage(result: ChatResult): ConversationMessage {
       routerResult: result.routerResult,
       suggestedSkills: result.suggestedSkills,
       compliance: result.compliance,
+      diagnostics: result.diagnostics,
     },
   }
 }
@@ -111,6 +120,25 @@ function formatHistoryTime(value: string): string {
   }).format(date)
 }
 
+async function copyTextToClipboard(text: string): Promise<void> {
+  const value = text ?? ''
+  if (!value) throw new Error('没有可复制的内容')
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value)
+    return
+  }
+  const textarea = document.createElement('textarea')
+  textarea.value = value
+  textarea.setAttribute('readonly', 'true')
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const ok = document.execCommand('copy')
+  document.body.removeChild(textarea)
+  if (!ok) throw new Error('复制失败')
+}
+
 export function ChatPage() {
   const { conversationId = '' } = useParams()
   const navigate = useNavigate()
@@ -130,11 +158,21 @@ export function ChatPage() {
   const [failedQuestion, setFailedQuestion] = useState<string | null>(null)
   const [renaming, setRenaming] = useState<ConversationSummary | null>(null)
   const [renameTitle, setRenameTitle] = useState('')
+  const [thinkingStages, setThinkingStages] = useState<ChatStageEvent[]>([])
+  const [thinkingDiagnostics, setThinkingDiagnostics] = useState<TurnDiagnostics>({
+    memories: [],
+    tools: [],
+    commands: [],
+  })
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     setMessages([])
     setQuestion('')
     setFailedQuestion(null)
+    setThinkingStages([])
+    setThinkingDiagnostics({ memories: [], tools: [], commands: [] })
   }, [conversationId])
 
   useEffect(() => {
@@ -146,6 +184,52 @@ export function ChatPage() {
 
   const visibleMessages =
     messages.length > 0 ? messages : conversation.data?.messages ?? []
+
+  useEffect(() => {
+    // Open/refresh conversation and new messages should land at the latest turn.
+    const frame = window.requestAnimationFrame(() => {
+      const end = messagesEndRef.current
+      if (end && typeof end.scrollIntoView === 'function') {
+        end.scrollIntoView({ block: 'end', behavior: 'auto' })
+      }
+      const container = messagesContainerRef.current
+      if (container) container.scrollTop = container.scrollHeight
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [
+    conversationId,
+    conversation.isPending,
+    conversation.data?.id,
+    visibleMessages.length,
+    sendMutation.isPending,
+    thinkingStages.length,
+  ])
+
+  async function handleCopy(content: string) {
+    try {
+      await copyTextToClipboard(content)
+      message.success('已复制到剪贴板')
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '复制失败')
+    }
+  }
+
+  function handleEditQuestion(content: string) {
+    setQuestion(content)
+    window.requestAnimationFrame(() => {
+      const el = document.getElementById('chat-question') as HTMLTextAreaElement | null
+      if (!el) return
+      el.focus()
+      const cursor = content.length
+      if (typeof el.setSelectionRange === 'function') {
+        el.setSelectionRange(cursor, cursor)
+      }
+      if (typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    })
+    message.info('问题已填入输入框，可修改后重新发送')
+  }
 
   async function submit(value: string, appendUser = true) {
     const normalized = value.trim()
@@ -164,13 +248,34 @@ export function ChatPage() {
     }
     setQuestion('')
     setFailedQuestion(null)
+    setThinkingStages([])
+    setThinkingDiagnostics({ memories: [], tools: [], commands: [] })
     try {
       const result = await sendMutation.mutateAsync({
         conversationId: conversationId || undefined,
         question: normalized,
         knowledgeBaseIds: selectedKnowledgeBases,
         queryMode,
+        streamHandlers: {
+          onStage: (event) => {
+            setThinkingStages((current) => {
+              const next = [...current]
+              const index = next.findIndex((item) => item.stage === event.stage)
+              if (index >= 0) next[index] = event
+              else next.push(event)
+              return next
+            })
+          },
+          onDiagnosticsPartial: (partial) => {
+            setThinkingDiagnostics(partial as TurnDiagnostics)
+          },
+          onDiagnostics: (diagnostics) => {
+            setThinkingDiagnostics(diagnostics)
+          },
+        },
       })
+      setThinkingStages([])
+      setThinkingDiagnostics({ memories: [], tools: [], commands: [] })
       setMessages((current) => [...current, resultMessage(result)])
       if (!conversationId) {
         navigate(`/chat/${result.conversationId}`, { replace: true })
@@ -334,7 +439,11 @@ export function ChatPage() {
 
         <Card className="chat-page__main" styles={{ body: { padding: 0, height: '100%' } }}>
           <div className="chat-page__main-inner">
-            <div aria-live="polite" className="chat-page__messages">
+            <div
+              aria-live="polite"
+              className="chat-page__messages"
+              ref={messagesContainerRef}
+            >
               {conversation.isPending && conversationId && visibleMessages.length === 0 ? (
                 <LoadingState message="正在加载会话…" minH="min-h-0" />
               ) : conversation.isError ? (
@@ -371,14 +480,42 @@ export function ChatPage() {
                   />
                 </div>
               ) : (
-                visibleMessages.map((message) => (
-                  <MessageCard key={message.id} message={message} />
+                visibleMessages.map((item) => (
+                  <MessageCard
+                    key={item.id}
+                    message={item}
+                    onCopy={() => void handleCopy(item.content)}
+                    onEditQuestion={
+                      item.role === 'user'
+                        ? () => handleEditQuestion(item.content)
+                        : undefined
+                    }
+                  />
                 ))
               )}
 
               {sendMutation.isPending ? (
-                <div className="chat-bubble chat-bubble--assistant">
-                  <LoadingState message="正在检索授权知识库并生成回答…" minH="min-h-0" />
+                <div className="chat-row chat-row--assistant">
+                  <article
+                    aria-label="PolicyFlow 思考中"
+                    className="chat-bubble chat-bubble--assistant chat-bubble--thinking"
+                  >
+                    <div className="chat-bubble__title">
+                      <Space size={8} wrap>
+                        <ThunderboltOutlined
+                          style={{ color: palette.primary }}
+                          aria-hidden
+                          className="chat-thinking__pulse"
+                        />
+                        <span>思考中</span>
+                        <Tag color="processing">流式执行</Tag>
+                      </Space>
+                    </div>
+                    <ThinkingStreamPanel
+                      stages={thinkingStages}
+                      diagnostics={thinkingDiagnostics}
+                    />
+                  </article>
                 </div>
               ) : null}
 
@@ -394,6 +531,7 @@ export function ChatPage() {
                   }
                 />
               ) : null}
+              <div ref={messagesEndRef} aria-hidden className="chat-page__messages-end" />
             </div>
 
             <div className="chat-page__composer">
@@ -579,13 +717,42 @@ function HistoryItem({
   )
 }
 
-function MessageCard({ message }: { message: ConversationMessage }) {
+function MessageCard({
+  message,
+  onCopy,
+  onEditQuestion,
+}: {
+  message: ConversationMessage
+  onCopy: () => void
+  onEditQuestion?: () => void
+}) {
   if (message.role === 'user') {
     return (
       <div className="chat-row chat-row--user">
         <div className="chat-bubble chat-bubble--user">
-          <div className="chat-bubble__meta">你的问题</div>
           <div className="chat-bubble__content">{message.content}</div>
+          <div className="chat-bubble__actions chat-bubble__actions--user">
+            <Button
+              type="text"
+              size="small"
+              icon={<CopyOutlined />}
+              aria-label="复制问题"
+              onClick={onCopy}
+            >
+              复制
+            </Button>
+            {onEditQuestion ? (
+              <Button
+                type="text"
+                size="small"
+                icon={<EditOutlined />}
+                aria-label="编辑问题"
+                onClick={onEditQuestion}
+              >
+                编辑
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
     )
@@ -624,11 +791,14 @@ function MessageCard({ message }: { message: ConversationMessage }) {
           />
         ) : null}
 
-        <div className="chat-bubble__content chat-bubble__content--assistant">
-          {message.content}
-        </div>
+        <MarkdownContent
+          className="chat-bubble__content chat-bubble__content--assistant"
+          content={message.content}
+        />
 
         {noEvidence ? null : <CitationList citations={message.metadata.citations} />}
+
+        <TurnDiagnosticsPanel diagnostics={message.metadata.diagnostics} />
 
         <Space wrap style={{ marginTop: 12 }}>
           {noEvidence ? (
@@ -669,6 +839,18 @@ function MessageCard({ message }: { message: ConversationMessage }) {
             当前回答缺少反馈标识，暂不能评价。
           </Typography.Text>
         )}
+
+        <div className="chat-bubble__actions chat-bubble__actions--footer">
+          <Button
+            type="text"
+            size="small"
+            icon={<CopyOutlined />}
+            aria-label="复制回答"
+            onClick={onCopy}
+          >
+            复制
+          </Button>
+        </div>
       </article>
     </div>
   )
@@ -699,6 +881,263 @@ function CitationList({ citations }: { citations: AssistantMetadata['citations']
         ))}
       </Space>
     </details>
+  )
+}
+
+const memoryTypeLabel: Record<string, string> = {
+  user_preference: '偏好',
+  long_term_event: '长期',
+  entity: '实体',
+  stm_summary: '摘要',
+  conversation_summary: '会话',
+  conversation_history: '历史',
+}
+
+const sourceSlotLabel: Record<string, string> = {
+  fixed: '固定加载',
+  recalled: '按需召回',
+  rolling_summary: '滚动摘要',
+  history: '短期窗口',
+}
+
+function prettyJson(value: Record<string, unknown>): string {
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
+function ThinkingStreamPanel({
+  stages,
+  diagnostics,
+}: {
+  stages: ChatStageEvent[]
+  diagnostics: TurnDiagnostics
+}) {
+  const memoryCount = diagnostics.memories.length
+  const toolCount = diagnostics.tools.length
+  const commandCount = Math.max(diagnostics.commands.length, stages.length)
+
+  return (
+    <div className="chat-thinking" aria-live="polite">
+      <div className="chat-diagnostics__overview">
+        <span className="chat-diagnostics__overview-label">本轮使用</span>
+        <Tag color="purple">记忆 {memoryCount}</Tag>
+        <Tag color="geekblue">工具 {toolCount}</Tag>
+        <Tag color="cyan">命令 {commandCount}</Tag>
+      </div>
+
+      <div className="chat-thinking__stages">
+        {(stages.length > 0
+          ? stages
+          : [{ stage: '准备中', status: 'running', message: '正在初始化本轮执行…' }]
+        ).map((stage) => (
+          <div key={stage.stage} className="chat-thinking__stage">
+            <div className="chat-thinking__stage-head">
+              <strong>{stage.stage}</strong>
+              <Tag
+                color={
+                  stage.status === 'running'
+                    ? 'processing'
+                    : stage.status === 'success'
+                      ? 'success'
+                      : stage.status === 'warning'
+                        ? 'warning'
+                        : stage.status === 'empty' || stage.status === 'skipped'
+                          ? 'default'
+                          : 'error'
+                }
+              >
+                {stage.status}
+              </Tag>
+            </div>
+            <div className="chat-thinking__stage-message">{stage.message}</div>
+          </div>
+        ))}
+      </div>
+
+      {memoryCount + toolCount + diagnostics.commands.length > 0 ? (
+        <TurnDiagnosticsPanel diagnostics={diagnostics} compact />
+      ) : (
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          记忆 / 工具 / 命令将在执行过程中逐步出现，可点击展开查看详情。
+        </Typography.Text>
+      )}
+    </div>
+  )
+}
+
+function TurnDiagnosticsPanel({
+  diagnostics,
+  compact = false,
+}: {
+  diagnostics?: TurnDiagnostics | null
+  compact?: boolean
+}) {
+  const data = diagnostics ?? { memories: [], tools: [], commands: [] }
+  const memoryCount = data.memories.length
+  const toolCount = data.tools.length
+  const commandCount = data.commands.length
+  if (memoryCount + toolCount + commandCount === 0) return null
+
+  return (
+    <div className="chat-diagnostics" aria-label="本轮执行摘要">
+      {compact ? null : (
+        <div className="chat-diagnostics__overview">
+          <span className="chat-diagnostics__overview-label">本轮使用</span>
+          <Tag color="purple">记忆 {memoryCount}</Tag>
+          <Tag color="geekblue">工具 {toolCount}</Tag>
+          <Tag color="cyan">命令 {commandCount}</Tag>
+        </div>
+      )}
+
+      {memoryCount > 0 ? (
+        <details className="chat-diagnostics__section">
+          <summary>
+            记忆 · {memoryCount}
+            <span className="chat-diagnostics__hint">
+              {data.memories
+                .slice(0, 3)
+                .map((item) => memoryTypeLabel[item.memoryType] ?? item.memoryType)
+                .join(' / ')}
+            </span>
+          </summary>
+          <div className="chat-diagnostics__body">
+            {data.memories.map((item, index) => (
+              <MemoryDiagItem key={`${item.id ?? item.memoryType}-${index}`} item={item} />
+            ))}
+          </div>
+        </details>
+      ) : null}
+
+      {toolCount > 0 ? (
+        <details className="chat-diagnostics__section">
+          <summary>
+            工具 · {toolCount}
+            <span className="chat-diagnostics__hint">
+              {data.tools
+                .slice(0, 3)
+                .map((item) => item.toolName)
+                .join(' / ')}
+            </span>
+          </summary>
+          <div className="chat-diagnostics__body">
+            {data.tools.map((item, index) => (
+              <ToolDiagItem key={`${item.toolName}-${index}`} item={item} />
+            ))}
+          </div>
+        </details>
+      ) : null}
+
+      {commandCount > 0 ? (
+        <details className="chat-diagnostics__section">
+          <summary>
+            命令 · {commandCount}
+            <span className="chat-diagnostics__hint">
+              {data.commands
+                .slice(0, 4)
+                .map((item) => item.name)
+                .join(' → ')}
+            </span>
+          </summary>
+          <div className="chat-diagnostics__body">
+            {data.commands.map((item, index) => (
+              <CommandDiagItem key={`${item.name}-${index}`} item={item} />
+            ))}
+          </div>
+        </details>
+      ) : null}
+    </div>
+  )
+}
+
+function MemoryDiagItem({ item }: { item: UsedMemoryItem }) {
+  return (
+    <div className="chat-diagnostics__item">
+      <div className="chat-diagnostics__item-head">
+        <Tag color="purple">{memoryTypeLabel[item.memoryType] ?? item.memoryType}</Tag>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          {sourceSlotLabel[item.sourceSlot] ?? item.sourceSlot}
+          {item.confidence !== null ? ` · conf ${item.confidence.toFixed(2)}` : ''}
+        </Typography.Text>
+      </div>
+      <div className="chat-diagnostics__item-content">{item.content}</div>
+    </div>
+  )
+}
+
+function ToolDiagItem({ item }: { item: ToolCallTrace }) {
+  const hasPayload =
+    Object.keys(item.inputSummary).length > 0 ||
+    Object.keys(item.outputSummary).length > 0 ||
+    Boolean(item.errorMessage)
+  return (
+    <div className="chat-diagnostics__item">
+      <div className="chat-diagnostics__item-head">
+        <strong>{item.toolName}</strong>
+        <Tag color={item.status === 'success' || item.status === 'suggested' ? 'blue' : 'error'}>
+          {item.status}
+        </Tag>
+        {item.agentName ? (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            via {item.agentName}
+          </Typography.Text>
+        ) : null}
+        {item.latencyMs > 0 ? (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {item.latencyMs} ms
+          </Typography.Text>
+        ) : null}
+      </div>
+      {hasPayload ? (
+        <details className="chat-diagnostics__nested">
+          <summary>输入 / 输出</summary>
+          {Object.keys(item.inputSummary).length > 0 ? (
+            <pre className="chat-diagnostics__code">{prettyJson(item.inputSummary)}</pre>
+          ) : null}
+          {Object.keys(item.outputSummary).length > 0 ? (
+            <pre className="chat-diagnostics__code">{prettyJson(item.outputSummary)}</pre>
+          ) : null}
+          {item.errorMessage ? (
+            <Typography.Text type="danger" style={{ fontSize: 12 }}>
+              {item.errorMessage}
+            </Typography.Text>
+          ) : null}
+        </details>
+      ) : null}
+    </div>
+  )
+}
+
+function CommandDiagItem({ item }: { item: CommandTrace }) {
+  const hasOutput = Object.keys(item.output).length > 0
+  return (
+    <div className="chat-diagnostics__item">
+      <div className="chat-diagnostics__item-head">
+        <strong>{item.name}</strong>
+        <Tag
+          color={
+            item.status === 'success'
+              ? 'success'
+              : item.status === 'warning'
+                ? 'warning'
+                : item.status === 'skipped' || item.status === 'empty'
+                  ? 'default'
+                  : 'error'
+          }
+        >
+          {item.status}
+        </Tag>
+      </div>
+      {item.summary ? <div className="chat-diagnostics__item-content">{item.summary}</div> : null}
+      {hasOutput ? (
+        <details className="chat-diagnostics__nested">
+          <summary>输出结果</summary>
+          <pre className="chat-diagnostics__code">{prettyJson(item.output)}</pre>
+        </details>
+      ) : null}
+    </div>
   )
 }
 

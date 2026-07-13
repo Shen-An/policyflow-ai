@@ -32,6 +32,36 @@ const metadata = {
   },
   suggested_skills: [{ name: 'process_checklist', description: '生成流程清单' }],
   compliance: { passed: true, warnings: [] },
+  diagnostics: {
+    memories: [
+      {
+        id: 'mem-1',
+        memory_type: 'user_preference',
+        content: 'Prefer tables',
+        source_slot: 'fixed',
+        confidence: 0.8,
+      },
+    ],
+    tools: [
+      {
+        tool_name: 'memory.read',
+        status: 'success',
+        agent_name: 'ToolRegistry',
+        input_summary: { owner_type: 'user' },
+        output_summary: { items: 1 },
+        error_message: null,
+        latency_ms: 12,
+      },
+    ],
+    commands: [
+      {
+        name: 'AnswerAgent',
+        status: 'success',
+        summary: '需要经理审批。',
+        output: { confidence_score: 0.91 },
+      },
+    ],
+  },
 }
 
 describe('chat API adapters', () => {
@@ -62,6 +92,11 @@ describe('chat API adapters', () => {
         documentTitle: 'Travel Policy',
       }],
       routerResult: { taskType: 'knowledge_qa' },
+      diagnostics: {
+        memories: [{ memoryType: 'user_preference', sourceSlot: 'fixed' }],
+        tools: [{ toolName: 'memory.read', status: 'success' }],
+        commands: [{ name: 'AnswerAgent', status: 'success' }],
+      },
     })
     expect(requestBody).toEqual({
       conversation_id: null,

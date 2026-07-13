@@ -470,6 +470,22 @@ MVP 必须实现：
 5. 会话摘要区分事实、证据、推测和待确认事项；
 6. 知识库更新后旧回答不能作为事实复用。
 
+### 8.1 四层记忆与 Context Window
+
+每轮 Chat 的记忆闭环：
+
+```text
+persist user message
+  → MemoryLoad（固定偏好/实体 + 最近 K 轮 + 向量按需召回）
+  → build_context 分区装配
+  → Router / Retrieval（本轮必检）/ Answer / Skill / Compliance
+  → persist assistant
+  → MemoryWriteback（事件抽取 → LTM/Entity/偏好；超窗压缩卸载）
+  → 清空请求级 working set
+```
+
+AnswerAgent 消费的 `MemoryWorkingSet` 仅作非权威上下文（指代、风格、任务状态）；制度事实仍只绑定本轮 Evidence。
+
 ---
 
 ## 9. 非功能目标

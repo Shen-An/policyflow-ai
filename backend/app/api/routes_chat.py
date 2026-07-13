@@ -1,10 +1,13 @@
 """Chat and conversation API routes."""
 
-from typing import Annotated
+import json
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Request, Response, status
+from fastapi.responses import StreamingResponse
 
 from backend.app.api.deps import CurrentUser, SessionDep
+from backend.app.core.exceptions import ApplicationError
 from backend.app.schemas.chat import (
     ChatRequest,
     ChatResponse,
@@ -16,12 +19,17 @@ from backend.app.schemas.chat import (
 from backend.app.services.chat_service import (
     delete_conversation,
     get_conversation,
+    iter_chat_events,
     list_conversations,
     rename_conversation,
     send_chat_message,
 )
 
 router = APIRouter(tags=["chat"])
+
+
+def _sse(event: str, data: dict[str, Any]) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
 
 
 @router.post("/api/chat", response_model=ChatResponse)
@@ -31,7 +39,62 @@ async def post_chat(
     user: CurrentUser,
     session: SessionDep,
 ) -> ChatResponse:
-    return await send_chat_message(session, user, data, request.app.state.agent_pipeline)
+    return await send_chat_message(
+        session,
+        user,
+        data,
+        request.app.state.agent_pipeline,
+        memory_agent=getattr(request.app.state, "memory_agent", None),
+    )
+
+
+@router.post("/api/chat/stream")
+async def post_chat_stream(
+    data: ChatRequest,
+    request: Request,
+    user: CurrentUser,
+    session: SessionDep,
+) -> StreamingResponse:
+    """Stream thinking stages (memory/tools/commands) then the final answer as SSE."""
+
+    async def event_generator():
+        try:
+            async for event_name, payload in iter_chat_events(
+                session,
+                user,
+                data,
+                request.app.state.agent_pipeline,
+                memory_agent=getattr(request.app.state, "memory_agent", None),
+            ):
+                yield _sse(event_name, payload if isinstance(payload, dict) else {"value": payload})
+        except ApplicationError as exc:
+            yield _sse(
+                "error",
+                {
+                    "code": exc.code,
+                    "message": exc.message,
+                    "status_code": exc.status_code,
+                },
+            )
+        except Exception as exc:  # noqa: BLE001 - surface unexpected failures to client stream
+            yield _sse(
+                "error",
+                {
+                    "code": "CHAT_STREAM_ERROR",
+                    "message": f"流式问答失败：{type(exc).__name__}",
+                    "status_code": 500,
+                },
+            )
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/api/conversations", response_model=ConversationListResponse)

@@ -432,7 +432,53 @@ GET /api/conversations/{conversation_id}
 
 ---
 
-## 5.3 问答反馈
+## 5.3 用户记忆管理
+
+仅当前用户可访问自己的记忆（user 级偏好/实体/长期事件 + 本人会话摘要轨迹）。
+
+### 列表
+
+```http
+GET /api/memory?page=1&page_size=20&memory_type=user_preference&keyword=表格
+```
+
+响应：
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "owner_type": "user",
+      "owner_id": "uuid",
+      "memory_type": "user_preference",
+      "content": "以后请用表格回答",
+      "source": "summary",
+      "confidence": 0.8,
+      "meta_json": {},
+      "has_embedding": true,
+      "expires_at": null,
+      "created_at": "...",
+      "updated_at": "..."
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+### 删除
+
+```http
+DELETE /api/memory/{memory_id}
+```
+
+返回 `204 No Content`。不可删除其他用户的记忆。
+
+---
+
+## 5.4 问答反馈
 
 ```http
 POST /api/query-logs/{query_log_id}/feedback
