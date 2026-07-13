@@ -7,7 +7,13 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from backend.app.core.config import Settings
-from backend.app.db.models import FAQDraft, KnowledgeBase, KnowledgeDocument
+from backend.app.db.models import (
+    EvalCase,
+    FAQDraft,
+    KnowledgeBase,
+    KnowledgeDocument,
+    RetrievalEvalItem,
+)
 from backend.app.evals.retrieval_metrics import calculate_retrieval_metrics
 from backend.app.main import create_app
 from backend.app.schemas.retrieval import Evidence, RetrievalRequest
@@ -302,3 +308,106 @@ def test_faq_approval_indexes_document_and_eval_run_is_reproducible(tmp_path: Pa
     assert faq_document is not None
     assert faq_document.index_status == "indexed"
     assert len(backend.documents) == 2
+
+
+def test_eval_cleanup_deletes_stale_and_disables_non_eval_test(tmp_path: Path) -> None:
+    backend = Phase4LightRAG()
+    app = build_phase4_app(tmp_path, backend)
+
+    with TestClient(app) as client:
+        headers = login(client)
+        kbs = client.get("/api/knowledge-bases", headers=headers).json()["items"]
+        hr_id = next(item["id"] for item in kbs if item["code"] == "hr")
+        sandbox_id = next(item["id"] for item in kbs if item["code"] == "eval_test")
+
+        with Session(app.state.engine) as session:
+            live_doc = KnowledgeDocument(
+                knowledge_base_id=sandbox_id,
+                title="Live gold",
+                file_path=str(tmp_path / "live.txt"),
+                file_type="txt",
+                content_text="live",
+                content_hash="live-hash",
+                index_status="indexed",
+                created_by="system",
+            )
+            deleted_doc = KnowledgeDocument(
+                knowledge_base_id=sandbox_id,
+                title="Deleted gold",
+                file_path=str(tmp_path / "deleted.txt"),
+                file_type="txt",
+                content_text="gone",
+                content_hash="deleted-hash",
+                index_status="deleted",
+                created_by="system",
+            )
+            session.add(live_doc)
+            session.add(deleted_doc)
+            session.flush()
+
+            healthy = RetrievalEvalItem(
+                query="healthy eval_test",
+                knowledge_base_ids=[sandbox_id],
+                relevant_document_ids=[live_doc.id],
+            )
+            stale = RetrievalEvalItem(
+                query="stale gold",
+                knowledge_base_ids=[sandbox_id],
+                relevant_document_ids=[deleted_doc.id],
+            )
+            empty_gold = RetrievalEvalItem(
+                query="empty gold",
+                knowledge_base_ids=[sandbox_id],
+                relevant_document_ids=[],
+            )
+            business = RetrievalEvalItem(
+                query="hr pollution",
+                knowledge_base_ids=[hr_id],
+                relevant_document_ids=[live_doc.id],
+            )
+            hr_case = EvalCase(
+                question="hr case",
+                category="hr",
+                expected_answer_keywords=["x"],
+                expected_source_documents=[],
+            )
+            eval_case = EvalCase(
+                question="eval case",
+                category="eval_test",
+                expected_answer_keywords=["y"],
+                expected_source_documents=[],
+            )
+            session.add(healthy)
+            session.add(stale)
+            session.add(empty_gold)
+            session.add(business)
+            session.add(hr_case)
+            session.add(eval_case)
+            session.commit()
+            healthy_id = healthy.id
+            business_id = business.id
+            hr_case_id = hr_case.id
+            eval_case_id = eval_case.id
+            deleted_doc_id = deleted_doc.id
+
+        response = client.post("/api/eval/datasets/cleanup", headers=headers, json={})
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["stale_items_deleted"] == 2
+        assert body["non_eval_items_disabled"] == 1
+        assert body["eval_cases_disabled"] == 1
+        assert body["deleted_documents_purged"] == 1
+        assert body["remaining_stale_enabled_items"] == 0
+        assert body["eval_test_enabled_items"] == 1
+
+        enabled = client.get(
+            "/api/eval/retrieval-items?enabled=true",
+            headers=headers,
+        ).json()
+        assert [item["id"] for item in enabled] == [healthy_id]
+
+        with Session(app.state.engine) as session:
+            assert session.get(RetrievalEvalItem, business_id).enabled is False
+            assert session.get(EvalCase, hr_case_id).enabled is False
+            assert session.get(EvalCase, eval_case_id).enabled is True
+            assert session.get(KnowledgeDocument, deleted_doc_id) is None
