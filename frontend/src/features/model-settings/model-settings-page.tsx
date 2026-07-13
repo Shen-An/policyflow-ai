@@ -1,42 +1,397 @@
-import { CheckCircle2, Cpu, KeyRound, RefreshCw, Save, TestTube2, XCircle } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import {
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  CloudServerOutlined,
+  KeyOutlined,
+} from '@ant-design/icons'
+import {
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  Col,
+  Form,
+  Input,
+  InputNumber,
+  Row,
+  Select,
+  Space,
+  Typography,
+} from 'antd'
+import { useState } from 'react'
 import type { ModelCapability, ModelEndpointSettings } from '../../api/model-settings'
-import { Alert } from '../../components/feedback/alert'
 import { LoadingState } from '../../components/feedback/state-views'
-import { Button } from '../../components/ui/button'
-import { useModelSettingsQuery, useProviderModelsMutation, useSaveModelSettingsMutation, useTestModelProviderMutation } from './queries'
+import {
+  useModelSettingsQuery,
+  useProviderModelsMutation,
+  useSaveModelSettingsMutation,
+  useTestModelProviderMutation,
+} from './queries'
 
-type FormState = { name: string; baseUrl: string; authMode: 'bearer' | 'none'; apiStyle: 'openai_chat_completions' | 'openai_responses' | 'openai_embeddings'; apiKey: string; clearApiKey: boolean; model: string; embeddingDimension: number; embeddingInputType: 'none' | 'query' | 'passage'; timeoutSeconds: number; enabled: boolean }
-function initialForm(capability: ModelCapability, provider: ModelEndpointSettings | null): FormState {
-  return provider ? { name: provider.name, baseUrl: provider.baseUrl, authMode: provider.authMode === 'none' ? 'none' : 'bearer', apiStyle: provider.apiStyle, apiKey: '', clearApiKey: false, model: provider.model, embeddingDimension: provider.embeddingDimension ?? 1536, embeddingInputType: provider.baseUrl.includes('integrate.api.nvidia.com') ? 'none' : provider.embeddingInputType ?? 'none', timeoutSeconds: provider.timeoutSeconds, enabled: provider.enabled } : { name: capability === 'chat' ? 'chat-provider' : 'embedding-provider', baseUrl: '', authMode: 'bearer', apiStyle: capability === 'chat' ? 'openai_chat_completions' : 'openai_embeddings', apiKey: '', clearApiKey: false, model: '', embeddingDimension: 1536, embeddingInputType: 'none', timeoutSeconds: 120, enabled: true }
+type FormState = {
+  name: string
+  baseUrl: string
+  authMode: 'bearer' | 'none'
+  apiStyle: 'openai_chat_completions' | 'openai_responses' | 'openai_embeddings'
+  apiKey: string
+  clearApiKey: boolean
+  model: string
+  embeddingDimension: number
+  embeddingInputType: 'none' | 'query' | 'passage'
+  timeoutSeconds: number
+  enabled: boolean
 }
-function TestResult({ result }: { result?: { status: string; message: string; dimension: number | null } }) {
+
+function initialForm(
+  capability: ModelCapability,
+  provider: ModelEndpointSettings | null,
+): FormState {
+  if (provider) {
+    return {
+      name: provider.name,
+      baseUrl: provider.baseUrl,
+      authMode: provider.authMode === 'none' ? 'none' : 'bearer',
+      apiStyle: provider.apiStyle,
+      apiKey: '',
+      clearApiKey: false,
+      model: provider.model,
+      embeddingDimension: provider.embeddingDimension ?? 1536,
+      embeddingInputType: provider.baseUrl.includes('integrate.api.nvidia.com')
+        ? 'none'
+        : provider.embeddingInputType ?? 'none',
+      timeoutSeconds: provider.timeoutSeconds,
+      enabled: provider.enabled,
+    }
+  }
+  return {
+    name: capability === 'chat' ? 'chat-provider' : 'embedding-provider',
+    baseUrl: '',
+    authMode: 'bearer',
+    apiStyle: capability === 'chat' ? 'openai_chat_completions' : 'openai_embeddings',
+    apiKey: '',
+    clearApiKey: false,
+    model: '',
+    embeddingDimension: 1536,
+    embeddingInputType: 'none',
+    timeoutSeconds: 120,
+    enabled: true,
+  }
+}
+
+function TestResult({
+  result,
+}: {
+  result?: { status: string; message: string; dimension: number | null }
+}) {
   if (!result) return null
   const passed = result.status === 'passed'
-  const classes = passed
-    ? 'rounded-lg border border-[var(--color-success-200)] bg-[var(--color-success-50)] p-3 text-sm text-[var(--color-success-700)]'
-    : 'rounded-lg border border-[var(--color-danger-200)] bg-[var(--color-danger-50)] p-3 text-sm text-[var(--color-danger)]'
-  return <div className={classes}><p className="flex items-center gap-2 font-semibold">{passed ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />}{passed ? '连接成功' : '连接失败'}</p><p className="mt-1">{result.message}{result.dimension ? `（维度 ${result.dimension}）` : ''}</p></div>
+  return (
+    <Alert
+      type={passed ? 'success' : 'error'}
+      showIcon
+      icon={passed ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+      title={passed ? '连接成功' : '连接失败'}
+      description={`${result.message}${result.dimension ? `（维度 ${result.dimension}）` : ''}`}
+    />
+  )
 }
-function ProviderForm({ capability, title, description, provider }: { capability: ModelCapability; title: string; description: string; provider: ModelEndpointSettings | null }) {
-  const [form, setForm] = useState<FormState>(() => initialForm(capability, provider))
-  const save = useSaveModelSettingsMutation(); const catalog = useProviderModelsMutation(); const test = useTestModelProviderMutation()
-  const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((current) => ({ ...current, [key]: value }))
-  const submit = (event: FormEvent) => { event.preventDefault(); save.mutate({ capability, input: { name: form.name, baseUrl: form.baseUrl, authMode: form.authMode, apiStyle: form.apiStyle, apiKey: form.apiKey || undefined, clearApiKey: form.clearApiKey, model: form.model, embeddingDimension: capability === 'embedding' ? form.embeddingDimension : null, embeddingInputType: capability === 'embedding' ? form.embeddingInputType : null, timeoutSeconds: form.timeoutSeconds, enabled: form.enabled } }, { onSuccess: () => setForm((current) => ({ ...current, apiKey: '', clearApiKey: false })) }) }
-  return <form onSubmit={submit} className="space-y-5 rounded-xl border border-[var(--color-border)] bg-white p-6 shadow-sm">
-    <div><h3 className="text-lg font-semibold">{title}</h3><p className="mt-1 text-sm text-[var(--color-text-secondary)]">{description}</p></div>
-    {capability === 'chat' ? <label className="block text-sm font-medium">接口协议<select className="mt-2 w-full rounded-md border p-2" value={form.apiStyle} onChange={(e) => set('apiStyle', e.target.value as 'openai_chat_completions' | 'openai_responses')}><option value="openai_chat_completions">OpenAI Chat Completions</option><option value="openai_responses">OpenAI Responses API</option></select></label> : null}
-    <div className="grid gap-4 md:grid-cols-2"><label className="text-sm font-medium">配置名称<input className="mt-2 w-full rounded-md border p-2" value={form.name} onChange={(e) => set('name', e.target.value)} required /></label><label className="text-sm font-medium">Base URL / 完整 Endpoint<input className="mt-2 w-full rounded-md border p-2" placeholder={capability === 'chat' && form.apiStyle === 'openai_responses' ? 'https://provider.example.com/v1/responses' : 'https://provider.example.com/v1'} value={form.baseUrl} onChange={(e) => set('baseUrl', e.target.value)} required /></label><label className="text-sm font-medium">鉴权方式<select className="mt-2 w-full rounded-md border p-2" value={form.authMode} onChange={(e) => set('authMode', e.target.value as 'bearer' | 'none')}><option value="bearer">Bearer API Key</option><option value="none">无鉴权（本地模型）</option></select></label><label className="text-sm font-medium"><span className="flex items-center gap-2"><KeyRound className="size-4" />API Key</span><input type="password" autoComplete="new-password" className="mt-2 w-full rounded-md border p-2" placeholder={provider?.apiKeyConfigured ? '已配置；留空保持不变' : '输入 API Key'} value={form.apiKey} disabled={form.authMode === 'none'} onChange={(e) => set('apiKey', e.target.value)} /></label></div>
-    {provider?.apiKeyConfigured && form.authMode === 'bearer' ? <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.clearApiKey} onChange={(e) => set('clearApiKey', e.target.checked)} />清除已保存的 API Key</label> : null}
-    <div className="grid gap-4 md:grid-cols-2"><label className="text-sm font-medium">{capability === 'chat' ? 'Chat 模型' : 'Embedding 模型'}<input list={`models-${capability}`} className="mt-2 w-full rounded-md border p-2" value={form.model} onChange={(e) => set('model', e.target.value)} required /></label>{capability === 'embedding' ? <><label className="text-sm font-medium">Embedding 维度<input type="number" min={1} className="mt-2 w-full rounded-md border p-2" value={form.embeddingDimension} onChange={(e) => set('embeddingDimension', Number(e.target.value))} /></label><label className="text-sm font-medium">输入类型<select className="mt-2 w-full rounded-md border p-2" value={form.embeddingInputType} onChange={(e) => set('embeddingInputType', e.target.value as 'none' | 'query' | 'passage')}><option value="none">不发送（标准 OpenAI）</option><option value="query">query（问题/搜索词）</option><option value="passage">passage（文档内容）</option></select></label></> : null}<label className="text-sm font-medium">超时（秒）<input type="number" min={1} max={600} className="mt-2 w-full rounded-md border p-2" value={form.timeoutSeconds} onChange={(e) => set('timeoutSeconds', Number(e.target.value))} /></label></div>
-    <datalist id={`models-${capability}`}>{catalog.data?.map((model) => <option key={model} value={model} />)}</datalist><label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={form.enabled} onChange={(e) => set('enabled', e.target.checked)} />启用此配置</label>
-    <div className="flex flex-wrap gap-3 border-t pt-4"><Button type="submit" disabled={save.isPending}><Save className="size-4" />保存 {title}</Button><Button variant="secondary" onClick={() => catalog.mutate(capability)} disabled={catalog.isPending}><RefreshCw className={catalog.isPending ? 'size-4 animate-spin' : 'size-4'} />拉取模型</Button><Button variant="secondary" onClick={() => test.mutate(capability)} disabled={test.isPending}><TestTube2 className="size-4" />测试连接</Button></div>
-    {save.isSuccess ? <Alert tone="success">已保存并立即生效。</Alert> : null}{save.isError ? <Alert tone="danger">{save.error.message}</Alert> : null}{catalog.isSuccess ? <Alert tone="info">发现 {catalog.data.length} 个模型。</Alert> : null}{catalog.isError ? <Alert tone="danger">{catalog.error.message}</Alert> : null}<TestResult result={test.data?.result} />{test.data?.requestId ? <p className="text-xs text-slate-500">Request ID: {test.data.requestId}</p> : null}
-  </form>
+
+function ProviderForm({
+  capability,
+  title,
+  description,
+  provider,
+}: {
+  capability: ModelCapability
+  title: string
+  description: string
+  provider: ModelEndpointSettings | null
+}) {
+  const [form] = Form.useForm<FormState>()
+  const [authMode, setAuthMode] = useState<'bearer' | 'none'>(
+    provider?.authMode === 'none' ? 'none' : 'bearer',
+  )
+  const [apiStyle, setApiStyle] = useState(initialForm(capability, provider).apiStyle)
+  const save = useSaveModelSettingsMutation()
+  const catalog = useProviderModelsMutation()
+  const test = useTestModelProviderMutation()
+
+  return (
+    <Card title={title}>
+      <Typography.Paragraph type="secondary">{description}</Typography.Paragraph>
+      <Form
+        form={form}
+        layout="vertical"
+        requiredMark={false}
+        initialValues={initialForm(capability, provider)}
+        onFinish={(values) => {
+          save.mutate(
+            {
+              capability,
+              input: {
+                name: values.name,
+                baseUrl: values.baseUrl,
+                authMode: values.authMode,
+                apiStyle: values.apiStyle,
+                apiKey: values.apiKey || undefined,
+                clearApiKey: values.clearApiKey,
+                model: values.model,
+                embeddingDimension:
+                  capability === 'embedding' ? values.embeddingDimension : null,
+                embeddingInputType:
+                  capability === 'embedding' ? values.embeddingInputType : null,
+                timeoutSeconds: values.timeoutSeconds,
+                enabled: values.enabled,
+              },
+            },
+            {
+              onSuccess: () =>
+                form.setFieldsValue({ apiKey: '', clearApiKey: false }),
+            },
+          )
+        }}
+      >
+        {capability === 'chat' ? (
+          <Form.Item label="接口协议" name="apiStyle">
+            <Select
+              onChange={(value) => setApiStyle(value)}
+              options={[
+                { value: 'openai_chat_completions', label: 'OpenAI Chat Completions' },
+                { value: 'openai_responses', label: 'OpenAI Responses API' },
+              ]}
+            />
+          </Form.Item>
+        ) : (
+          <Form.Item name="apiStyle" hidden>
+            <Input />
+          </Form.Item>
+        )}
+
+        <Row gutter={16}>
+          <Col xs={24} md={12}>
+            <Form.Item
+              label="配置名称"
+              name="name"
+              rules={[{ required: true, message: '请输入配置名称' }]}
+            >
+              <Input />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item
+              label="Base URL / 完整 Endpoint"
+              name="baseUrl"
+              rules={[{ required: true, message: '请输入 Base URL' }]}
+            >
+              <Input
+                placeholder={
+                  capability === 'chat' && apiStyle === 'openai_responses'
+                    ? 'https://provider.example.com/v1/responses'
+                    : 'https://provider.example.com/v1'
+                }
+              />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item label="鉴权方式" name="authMode">
+              <Select
+                onChange={(value) => setAuthMode(value)}
+                options={[
+                  { value: 'bearer', label: 'Bearer API Key' },
+                  { value: 'none', label: '无鉴权（本地模型）' },
+                ]}
+              />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item
+              label={
+                <Space>
+                  <KeyOutlined />
+                  API Key
+                </Space>
+              }
+              name="apiKey"
+            >
+              <Input.Password
+                autoComplete="new-password"
+                disabled={authMode === 'none'}
+                placeholder={
+                  provider?.apiKeyConfigured ? '已配置；留空保持不变' : '输入 API Key'
+                }
+              />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        {provider?.apiKeyConfigured && authMode === 'bearer' ? (
+          <Form.Item name="clearApiKey" valuePropName="checked">
+            <Checkbox>清除已保存的 API Key</Checkbox>
+          </Form.Item>
+        ) : null}
+
+        <Row gutter={16}>
+          <Col xs={24} md={12}>
+            <Form.Item
+              label={capability === 'chat' ? 'Chat 模型' : 'Embedding 模型'}
+              name="model"
+              rules={[{ required: true, message: '请输入模型名称' }]}
+            >
+              <Input list={`models-${capability}`} />
+            </Form.Item>
+            <datalist id={`models-${capability}`}>
+              {catalog.data?.map((model) => (
+                <option key={model} value={model} />
+              ))}
+            </datalist>
+          </Col>
+          {capability === 'embedding' ? (
+            <>
+              <Col xs={24} md={12}>
+                <Form.Item label="Embedding 维度" name="embeddingDimension">
+                  <InputNumber min={1} style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item label="输入类型" name="embeddingInputType">
+                  <Select
+                    options={[
+                      { value: 'none', label: '不发送（标准 OpenAI）' },
+                      { value: 'query', label: 'query（问题/搜索词）' },
+                      { value: 'passage', label: 'passage（文档内容）' },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+            </>
+          ) : null}
+          <Col xs={24} md={12}>
+            <Form.Item label="超时（秒）" name="timeoutSeconds">
+              <InputNumber min={1} max={600} style={{ width: '100%' }} />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Form.Item name="enabled" valuePropName="checked">
+          <Checkbox>启用此配置</Checkbox>
+        </Form.Item>
+
+        <Space wrap style={{ borderTop: '1px solid #e3e8f0', paddingTop: 16, width: '100%' }}>
+          <Button type="primary" htmlType="submit" autoInsertSpace={false} loading={save.isPending}>
+            保存 {title}
+          </Button>
+          <Button
+            autoInsertSpace={false}
+            onClick={() => catalog.mutate(capability)}
+            loading={catalog.isPending}
+          >
+            拉取模型
+          </Button>
+          <Button
+            autoInsertSpace={false}
+            onClick={() => test.mutate(capability)}
+            loading={test.isPending}
+          >
+            测试连接
+          </Button>
+        </Space>
+
+        <Space orientation="vertical" size={12} style={{ width: '100%', marginTop: 16 }}>
+          {save.isSuccess ? <Alert type="success" showIcon title="已保存并立即生效。" /> : null}
+          {save.isError ? (
+            <Alert type="error" showIcon title={save.error.message} />
+          ) : null}
+          {catalog.isSuccess ? (
+            <Alert type="info" showIcon title={`发现 ${catalog.data.length} 个模型。`} />
+          ) : null}
+          {catalog.isError ? (
+            <Alert type="error" showIcon title={catalog.error.message} />
+          ) : null}
+          <TestResult result={test.data?.result} />
+          {test.data?.requestId ? (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Request ID: {test.data.requestId}
+            </Typography.Text>
+          ) : null}
+        </Space>
+      </Form>
+    </Card>
+  )
 }
+
 export function ModelSettingsPage() {
   const query = useModelSettingsQuery()
+
   if (query.isPending) return <LoadingState message="正在加载模型设置…" />
-  if (query.isError) return <Alert tone="danger" title="模型设置加载失败" action={<Button onClick={() => void query.refetch()}>重试</Button>}><p>{query.error.message}</p></Alert>
-  return <section className="mx-auto max-w-6xl"><div className="flex items-start gap-3"><div className="rounded-xl bg-[var(--color-primary-50)] p-3 text-[var(--color-primary-700)]"><Cpu className="size-6" /></div><div><h2 className="text-2xl font-semibold">模型设置</h2><p className="mt-1 text-sm text-[var(--color-text-secondary)]">Chat 与 Embedding 使用完全独立的服务配置，可以分别接入不同公司。</p></div></div><div className="mt-6 grid gap-6 xl:grid-cols-2"><ProviderForm key={query.data.chat?.updatedAt ?? 'new-chat'} capability="chat" title="Chat 服务" description="用于制度问答、摘要和 Agent 生成。" provider={query.data.chat} /><ProviderForm key={query.data.embedding?.updatedAt ?? 'new-embedding'} capability="embedding" title="Embedding 服务" description="用于向量化和 Embedding 连通性验证。" provider={query.data.embedding} /></div><Alert className="mt-5" tone="warning">若检索由独立 LightRAG 服务执行，LightRAG 服务端的 Embedding 配置也需要与这里保持一致。</Alert></section>
+  if (query.isError) {
+    return (
+      <Alert
+        type="error"
+        showIcon
+        message="模型设置加载失败"
+        description={query.error.message}
+        action={
+          <Button size="small" onClick={() => void query.refetch()}>
+            重试
+          </Button>
+        }
+      />
+    )
+  }
+
+  return (
+    <div>
+      <div className="page-header">
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              background: 'rgba(79, 70, 229, 0.08)',
+              color: '#4f46e5',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 22,
+            }}
+          >
+            <CloudServerOutlined />
+          </div>
+          <div>
+            <h2>模型设置</h2>
+            <p>Chat 与 Embedding 使用完全独立的服务配置，可以分别接入不同公司。</p>
+          </div>
+        </div>
+      </div>
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} xl={12}>
+          <ProviderForm
+            key={query.data.chat?.updatedAt ?? 'new-chat'}
+            capability="chat"
+            title="Chat 服务"
+            description="用于制度问答、摘要和 Agent 生成。"
+            provider={query.data.chat}
+          />
+        </Col>
+        <Col xs={24} xl={12}>
+          <ProviderForm
+            key={query.data.embedding?.updatedAt ?? 'new-embedding'}
+            capability="embedding"
+            title="Embedding 服务"
+            description="用于向量化和 Embedding 连通性验证。"
+            provider={query.data.embedding}
+          />
+        </Col>
+      </Row>
+
+      <Alert
+        type="warning"
+        showIcon
+        style={{ marginTop: 16 }}
+        title="若检索由独立 LightRAG 服务执行，LightRAG 服务端的 Embedding 配置也需要与这里保持一致。"
+      />
+    </div>
+  )
 }

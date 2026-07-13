@@ -11,6 +11,7 @@ from backend.app.core.exceptions import ApplicationError, ConflictError
 from backend.app.db.models import KnowledgeDocument, RagIndexJob, User, new_id, utc_now
 from backend.app.rag.document_loader import SUPPORTED_FILE_TYPES, load_document_text
 from backend.app.schemas.knowledge import (
+    DocumentDetail,
     DocumentListResponse,
     DocumentRead,
     DocumentStatusResponse,
@@ -228,4 +229,36 @@ def get_document_status(
         index_status=document.index_status,
         index_error=document.index_error,
         latest_job=latest_job_read,
+    )
+
+
+def get_document_detail(
+    session: Session,
+    user: User,
+    document_id: str,
+) -> DocumentDetail:
+    document = get_document(session, document_id)
+    if document.index_status == "deleted":
+        raise ApplicationError("DOCUMENT_NOT_FOUND", "Document not found", 404)
+    knowledge_base = get_knowledge_base(session, document.knowledge_base_id)
+    require_knowledge_base_permission(session, user, knowledge_base, "read")
+
+    content_text = document.content_text or ""
+    preview = content_text[:500]
+    if len(content_text) > 500:
+        preview = f"{preview}…"
+
+    return DocumentDetail(
+        id=document.id,
+        knowledge_base_id=document.knowledge_base_id,
+        title=document.title,
+        file_type=document.file_type,
+        index_status=document.index_status,
+        index_error=document.index_error,
+        source_version=document.source_version,
+        content_text=content_text,
+        content_preview=preview,
+        content_length=len(content_text),
+        created_at=document.created_at,
+        updated_at=document.updated_at,
     )

@@ -53,6 +53,21 @@ export type DocumentStatus = {
   } | null
 }
 
+export type DocumentDetail = {
+  id: string
+  knowledgeBaseId: string
+  title: string
+  fileType: string
+  indexStatus: string
+  indexError: string | null
+  sourceVersion: number
+  contentText: string
+  contentPreview: string
+  contentLength: number
+  createdAt: string
+  updatedAt: string
+}
+
 export type DocumentUploadResult = {
   documentId: string
   title: string
@@ -230,6 +245,40 @@ export async function getDocumentStatus(
           finishedAt: raw.latest_job.finished_at,
         }
       : null,
+  }
+}
+
+export async function getDocumentDetail(
+  documentId: string,
+  signal?: AbortSignal,
+): Promise<DocumentDetail> {
+  const raw = await apiClient.request<{
+    id: string
+    knowledge_base_id: string
+    title: string
+    file_type: string
+    index_status: string
+    index_error: string | null
+    source_version: number
+    content_text: string
+    content_preview: string
+    content_length: number
+    created_at: string
+    updated_at: string
+  }>(`/api/documents/${encodeURIComponent(documentId)}`, { signal })
+  return {
+    id: raw.id,
+    knowledgeBaseId: raw.knowledge_base_id,
+    title: raw.title,
+    fileType: raw.file_type,
+    indexStatus: raw.index_status,
+    indexError: raw.index_error,
+    sourceVersion: raw.source_version,
+    contentText: raw.content_text,
+    contentPreview: raw.content_preview,
+    contentLength: raw.content_length,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
   }
 }
 

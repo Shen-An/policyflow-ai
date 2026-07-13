@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ConfigProvider } from 'antd'
 import { HttpResponse, http } from 'msw'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -22,7 +23,15 @@ const faq = {
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  return render(<QueryClientProvider client={client}><MemoryRouter><FAQReviewPage /></MemoryRouter></QueryClientProvider>)
+  return render(
+    <ConfigProvider theme={{ token: { motion: false } }} autoInsertSpaceInButton={false}>
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <FAQReviewPage />
+        </MemoryRouter>
+      </QueryClientProvider>
+    </ConfigProvider>,
+  )
 }
 
 describe('FAQReviewPage', () => {

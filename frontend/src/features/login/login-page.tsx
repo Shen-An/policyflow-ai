@@ -1,13 +1,10 @@
-import { zodResolver } from '@hookform/resolvers/zod'
-import { LogIn } from 'lucide-react'
+import { LockOutlined, UserOutlined } from '@ant-design/icons'
+import { Alert, Button, Card, ConfigProvider, Form, Input, Typography } from 'antd'
 import { useEffect, useRef, useState } from 'react'
-import { useForm } from 'react-hook-form'
 import { login } from '../../api/auth'
 import { AppError } from '../../api/errors'
 import { authStore } from '../../auth/auth-store'
-import { Alert } from '../../components/feedback/alert'
-import { Button } from '../../components/ui/button'
-import { loginSchema, type LoginFormValues } from './login-schema'
+import type { LoginFormValues } from './login-schema'
 
 function errorMessage(error: unknown): string {
   if (error instanceof AppError && error.code === 'AUTH_INVALID_CREDENTIALS') {
@@ -19,49 +16,131 @@ function errorMessage(error: unknown): string {
 
 export function LoginPage() {
   const [summary, setSummary] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const summaryRef = useRef<HTMLDivElement>(null)
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { username: '', password: '' },
-  })
+  const submittingRef = useRef(false)
 
   useEffect(() => {
     if (summary) summaryRef.current?.focus()
   }, [summary])
 
-  async function submit(values: LoginFormValues) {
+  async function onFinish(values: LoginFormValues) {
+    if (submittingRef.current) return
+    submittingRef.current = true
     setSummary(null)
+    setSubmitting(true)
     try {
       const result = await login(values)
       authStore.authenticateForDuration(result.accessToken, result.expiresIn, result.user)
     } catch (error) {
       setSummary(errorMessage(error))
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
     }
   }
 
-  const onSubmit = handleSubmit(submit)
-
   return (
-    <main className="grid min-h-screen place-items-center bg-[var(--color-background)] p-[var(--space-4)]">
-      <section className="w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-[var(--space-8)] shadow-sm">
-        <div className="flex size-10 items-center justify-center rounded-lg bg-[var(--color-primary-50)] text-[var(--color-primary)]"><LogIn aria-hidden="true" className="size-5" /></div>
-        <h1 className="mt-[var(--space-4)] text-2xl font-semibold leading-8">登录 PolicyFlow AI</h1>
-        <p className="mt-[var(--space-2)] text-sm leading-[22px] text-[var(--color-text-secondary)]">使用组织账户继续访问企业政策助手。</p>
-        {summary ? <div ref={summaryRef} role="alert" tabIndex={-1}><Alert role="status" tone="danger">{summary}</Alert></div> : null}
-        <form className="mt-[var(--space-6)] space-y-[var(--space-4)]" onSubmit={onSubmit} noValidate>
-          <div>
-            <label className="text-sm font-semibold" htmlFor="username">用户名</label>
-            <input id="username" autoComplete="username" aria-invalid={Boolean(errors.username)} aria-describedby={errors.username ? 'username-error' : undefined} className="mt-[var(--space-2)] min-h-11 w-full rounded-md border border-[var(--color-border)] px-[var(--space-3)] text-base focus:border-[var(--color-primary)] sm:text-sm" {...register('username')} />
-            {errors.username ? <p id="username-error" className="mt-[var(--space-1)] text-xs text-[var(--color-danger)]">{errors.username.message}</p> : null}
+    <ConfigProvider
+      autoInsertSpaceInButton={false}
+      theme={{ token: { motion: false, colorPrimary: '#4f46e5' } }}
+    >
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'grid',
+          placeItems: 'center',
+          padding: 24,
+          background:
+            'radial-gradient(circle at top left, rgba(79,70,229,0.12), transparent 40%), radial-gradient(circle at bottom right, rgba(59,130,246,0.1), transparent 35%), #f5f7fb',
+        }}
+      >
+        <div style={{ width: '100%', maxWidth: 420 }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <div
+              style={{
+                width: 52,
+                height: 52,
+                margin: '0 auto',
+                borderRadius: 14,
+                background: '#4f46e5',
+                color: '#fff',
+                display: 'grid',
+                placeItems: 'center',
+                fontWeight: 700,
+                fontSize: 22,
+                boxShadow: '0 10px 30px rgba(79,70,229,0.28)',
+              }}
+            >
+              P
+            </div>
+            <Typography.Title level={3} style={{ marginTop: 16, marginBottom: 4 }}>
+              PolicyFlow AI
+            </Typography.Title>
+            <Typography.Text type="secondary">企业内部政策问答与流程助手</Typography.Text>
           </div>
-          <div>
-            <label className="text-sm font-semibold" htmlFor="password">密码</label>
-            <input id="password" type="password" autoComplete="current-password" aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? 'password-error' : undefined} className="mt-[var(--space-2)] min-h-11 w-full rounded-md border border-[var(--color-border)] px-[var(--space-3)] text-base focus:border-[var(--color-primary)] sm:text-sm" {...register('password')} />
-            {errors.password ? <p id="password-error" className="mt-[var(--space-1)] text-xs text-[var(--color-danger)]">{errors.password.message}</p> : null}
-          </div>
-          <Button className="w-full" type="submit" disabled={isSubmitting}>{isSubmitting ? '正在登录…' : '登录'}</Button>
-        </form>
-      </section>
-    </main>
+
+          <Card
+            title="登录账户"
+            styles={{ header: { borderBottom: '1px solid #f0f0f0' } }}
+            style={{ boxShadow: '0 12px 40px rgba(15,23,41,0.08)' }}
+          >
+            {summary ? (
+              <div ref={summaryRef} tabIndex={-1} style={{ marginBottom: 16, outline: 'none' }}>
+                <Alert type="error" showIcon message={summary} />
+              </div>
+            ) : null}
+
+            <Form
+              layout="vertical"
+              requiredMark={false}
+              validateTrigger={['onSubmit', 'onChange']}
+              onFinish={onFinish}
+              initialValues={{ username: '', password: '' }}
+            >
+              <Form.Item
+                label="用户名"
+                name="username"
+                rules={[
+                  { required: true, message: '请输入用户名' },
+                  { max: 64, message: '用户名过长' },
+                ]}
+              >
+                <Input
+                  size="large"
+                  prefix={<UserOutlined />}
+                  autoComplete="username"
+                  placeholder="请输入用户名"
+                />
+              </Form.Item>
+
+              <Form.Item
+                label="密码"
+                name="password"
+                rules={[
+                  { required: true, message: '请输入密码' },
+                  { max: 128, message: '密码过长' },
+                ]}
+              >
+                <Input.Password
+                  size="large"
+                  prefix={<LockOutlined />}
+                  autoComplete="current-password"
+                  placeholder="请输入密码"
+                />
+              </Form.Item>
+
+              <Button type="primary" htmlType="submit" size="large" block loading={submitting}>
+                登录
+              </Button>
+            </Form>
+          </Card>
+
+          <Typography.Paragraph type="secondary" style={{ textAlign: 'center', marginTop: 16 }}>
+            登录后仅可访问你被授权的知识库与管理功能
+          </Typography.Paragraph>
+        </div>
+      </div>
+    </ConfigProvider>
   )
 }

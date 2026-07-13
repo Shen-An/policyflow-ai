@@ -37,6 +37,11 @@ function serveMockWorkerInDevelopment(): Plugin {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), serveMockWorkerInDevelopment()],
+  resolve: {
+    alias: {
+      '@': path.resolve(projectRoot, 'src'),
+    },
+  },
   server: {
     host: '127.0.0.1',
     port: 5173,

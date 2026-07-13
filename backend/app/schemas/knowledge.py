@@ -90,3 +90,18 @@ class DocumentStatusResponse(BaseModel):
     index_status: str
     index_error: str | None
     latest_job: LatestIndexJob | None
+
+
+class DocumentDetail(BaseModel):
+    id: str
+    knowledge_base_id: str
+    title: str
+    file_type: str
+    index_status: str
+    index_error: str | None
+    source_version: int
+    content_text: str
+    content_preview: str
+    content_length: int
+    created_at: datetime
+    updated_at: datetime

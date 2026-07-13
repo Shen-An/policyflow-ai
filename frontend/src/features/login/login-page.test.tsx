@@ -59,7 +59,7 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: '登录' }))
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('用户名或密码不正确')
-    expect(alert).toHaveFocus()
+    expect(alert.closest('[tabindex="-1"]')).toHaveFocus()
     expect(screen.getByLabelText('用户名')).toHaveValue('admin')
   })
 

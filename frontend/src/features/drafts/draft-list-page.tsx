@@ -1,11 +1,23 @@
-import * as Dialog from '@radix-ui/react-dialog'
-import { FileEdit, Plus, X } from 'lucide-react'
-import { useState } from 'react'
+import { PlusOutlined } from '@ant-design/icons'
+import {
+  Button,
+  Card,
+  ConfigProvider,
+  Empty,
+  Form,
+  Input,
+  Modal,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from 'antd'
+import { LoadingState } from '../../components/feedback/state-views'
+import type { ColumnsType } from 'antd/es/table'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import type { DraftType } from '../../api/drafts'
-import { Button } from '../../components/ui/button'
-import { Alert } from '../../components/feedback/alert'
-import { EmptyState, LoadingState } from '../../components/feedback/state-views'
+import type { Draft, DraftType } from '../../api/drafts'
 import { useCreateDraftMutation, useDraftsQuery } from './queries'
 
 const draftTypes: Array<{ value: DraftType; label: string }> = [
@@ -16,6 +28,18 @@ const draftTypes: Array<{ value: DraftType; label: string }> = [
   { value: 'help_request', label: '求助' },
   { value: 'summary', label: '摘要' },
 ]
+
+const statusMap: Record<string, { label: string; color: string }> = {
+  draft: { label: '草稿', color: 'default' },
+  confirmed: { label: '已确认', color: 'success' },
+  discarded: { label: '已丢弃', color: 'error' },
+  exported: { label: '已导出', color: 'processing' },
+}
+
+const typeLabel = Object.fromEntries(draftTypes.map((item) => [item.value, item.label])) as Record<
+  string,
+  string
+>
 
 function positiveInt(value: string | null, fallback: number): number {
   const parsed = Number(value)
@@ -30,139 +54,171 @@ export function DraftListPage() {
   const status = searchParams.get('status') ?? ''
   const draftType = searchParams.get('draft_type') ?? ''
   const query = useDraftsQuery(page, pageSize, status, draftType)
-  const totalPages = Math.max(1, Math.ceil((query.data?.total ?? 0) / pageSize))
 
-  function setFilter(key: 'status' | 'draft_type', value: string) {
+  function updateParams(patch: Record<string, string | null>) {
     const next = new URLSearchParams(searchParams)
-    if (value) next.set(key, value)
-    else next.delete(key)
-    next.set('page', '1')
+    Object.entries(patch).forEach(([key, value]) => {
+      if (!value) next.delete(key)
+      else next.set(key, value)
+    })
     setSearchParams(next, { replace: true })
   }
 
-  function goToPage(nextPage: number) {
-    const next = new URLSearchParams(searchParams)
-    next.set('page', String(nextPage))
-    setSearchParams(next)
-  }
+  const columns: ColumnsType<Draft> = useMemo(
+    () => [
+      {
+        title: '标题',
+        dataIndex: 'title',
+        key: 'title',
+        render: (title: string, record) => (
+          <Link to={`/drafts/${record.id}`} style={{ fontWeight: 600 }}>
+            {title}
+          </Link>
+        ),
+      },
+      {
+        title: '类型',
+        dataIndex: 'draftType',
+        width: 120,
+        render: (value: string) => typeLabel[value] ?? value,
+      },
+      {
+        title: '状态',
+        dataIndex: 'status',
+        width: 120,
+        render: (value: string) => {
+          const meta = statusMap[value] ?? { label: value, color: 'default' }
+          return <Tag color={meta.color}>{meta.label}</Tag>
+        },
+      },
+      {
+        title: '摘要',
+        dataIndex: 'content',
+        ellipsis: true,
+        render: (value: string) => (
+          <Typography.Text type="secondary">{value}</Typography.Text>
+        ),
+      },
+      {
+        title: '操作',
+        key: 'actions',
+        width: 100,
+        render: (_, record) => (
+          <Button type="link" size="small">
+            <Link to={`/drafts/${record.id}`}>查看</Link>
+          </Button>
+        ),
+      },
+    ],
+    [],
+  )
 
   return (
-    <section>
-      <div className="flex flex-col gap-[var(--space-4)] sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold">我的草稿</h2>
-          <p className="mt-[var(--space-1)] text-sm text-[var(--color-text-secondary)]">
-            草稿仅在确认后变为只读，不会自动提交到外部系统。
-          </p>
-        </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus aria-hidden="true" className="size-4" />创建草稿
-        </Button>
-      </div>
-
-      <div className="mt-[var(--space-6)] flex flex-wrap gap-[var(--space-3)]">
-        <label className="text-sm font-semibold">
-          状态
-          <select
-            value={status}
-            onChange={(event) => setFilter('status', event.target.value)}
-            className="ml-[var(--space-2)] min-h-10 rounded-md border border-[var(--color-border)] px-[var(--space-3)] font-normal"
-          >
-            <option value="">全部</option>
-            <option value="draft">草稿</option>
-            <option value="confirmed">已确认</option>
-            <option value="discarded">已丢弃</option>
-            <option value="exported">已导出</option>
-          </select>
-        </label>
-        <label className="text-sm font-semibold">
-          类型
-          <select
-            value={draftType}
-            onChange={(event) => setFilter('draft_type', event.target.value)}
-            className="ml-[var(--space-2)] min-h-10 rounded-md border border-[var(--color-border)] px-[var(--space-3)] font-normal"
-          >
-            <option value="">全部</option>
-            {draftTypes.map((type) => (
-              <option key={type.value} value={type.value}>{type.label}</option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {query.isPending ? (
-        <div className="mt-[var(--space-6)]">
-          <LoadingState message="正在加载草稿…" minH="min-h-48" />
-        </div>
-      ) : query.isError ? (
-        <div className="mt-[var(--space-6)]">
-          <Alert tone="danger" title="草稿列表加载失败" action={<Button onClick={() => void query.refetch()}>重新加载</Button>}>
-            <p>{query.error.message}</p>
-          </Alert>
-        </div>
-      ) : query.data.items.length === 0 ? (
-        <div className="mt-[var(--space-6)]">
-          <EmptyState
-            icon={<FileEdit aria-hidden="true" className="size-8" />}
-            title="还没有符合条件的草稿"
-            hint="可以创建一份草稿，或调整筛选条件。"
-          />
-        </div>
-      ) : (
-        <>
-          <div className="mt-[var(--space-6)] grid gap-[var(--space-4)] md:grid-cols-2 xl:grid-cols-3">
-            {query.data.items.map((draft) => (
-              <article key={draft.id} className="rounded-xl border border-[var(--color-border)] bg-white p-[var(--space-5)] shadow-sm">
-                <div className="flex items-start justify-between gap-[var(--space-3)]">
-                  <div>
-                    <h3 className="font-semibold">{draft.title}</h3>
-                    <p className="mt-[var(--space-1)] text-xs text-[var(--color-text-secondary)]">
-                      {draft.draftType}
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-slate-100 px-[var(--space-2)] py-[var(--space-1)] text-xs">
-                    {draft.status}
-                  </span>
-                </div>
-                <p className="mt-[var(--space-3)] line-clamp-3 min-h-16 whitespace-pre-wrap text-sm text-[var(--color-text-secondary)]">
-                  {draft.content}
-                </p>
-                <Button asChild className="mt-[var(--space-4)] w-full">
-                  <Link to={`/drafts/${draft.id}`}>查看草稿</Link>
-                </Button>
-              </article>
-            ))}
+    <ConfigProvider autoInsertSpaceInButton={false} theme={{ token: { motion: false } }}>
+      <div>
+        <div className="page-header">
+          <div>
+            <h2>我的草稿</h2>
+            <p>草稿仅在确认后变为只读，不会自动提交到外部系统。</p>
           </div>
-          <div className="mt-[var(--space-6)] flex items-center justify-between">
-            <p className="text-sm text-[var(--color-text-secondary)]">
-              共 {query.data.total} 份，第 {page} / {totalPages} 页
-            </p>
-            <div className="flex gap-[var(--space-2)]">
-              <Button
-                variant="secondary"
-                disabled={page <= 1}
-                onClick={() => goToPage(page - 1)}
-              >
-                上一页
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={page >= totalPages}
-                onClick={() => goToPage(page + 1)}
-              >
-                下一页
-              </Button>
-            </div>
-          </div>
-        </>
-      )}
+          <Button type="primary" onClick={() => setCreateOpen(true)}>
+            <PlusOutlined aria-hidden />
+            创建草稿
+          </Button>
+        </div>
 
-      <CreateDraftDialog open={createOpen} onOpenChange={setCreateOpen} />
-    </section>
+        <Card styles={{ body: { paddingBottom: 8 } }}>
+          <div className="page-toolbar">
+            <Space wrap>
+              <label>
+                状态
+                <select
+                  aria-label="状态"
+                  value={status}
+                  onChange={(event) =>
+                    updateParams({ status: event.target.value || null, page: '1' })
+                  }
+                  style={{
+                    marginLeft: 8,
+                    height: 32,
+                    borderRadius: 8,
+                    border: '1px solid #d9d9d9',
+                    padding: '0 8px',
+                    minWidth: 140,
+                  }}
+                >
+                  <option value="">全部状态</option>
+                  <option value="draft">草稿</option>
+                  <option value="confirmed">已确认</option>
+                  <option value="discarded">已丢弃</option>
+                  <option value="exported">已导出</option>
+                </select>
+              </label>
+              <label>
+                类型
+                <select
+                  aria-label="类型"
+                  value={draftType}
+                  onChange={(event) =>
+                    updateParams({ draft_type: event.target.value || null, page: '1' })
+                  }
+                  style={{
+                    marginLeft: 8,
+                    height: 32,
+                    borderRadius: 8,
+                    border: '1px solid #d9d9d9',
+                    padding: '0 8px',
+                    minWidth: 140,
+                  }}
+                >
+                  <option value="">全部类型</option>
+                  {draftTypes.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </Space>
+          </div>
+
+          {query.isPending ? (
+            <LoadingState message="正在加载草稿…" minH="min-h-48" />
+          ) : (
+            <Table
+              rowKey="id"
+              columns={columns}
+              dataSource={query.data?.items ?? []}
+              locale={{
+                emptyText: (
+                  <Empty
+                    description={
+                      query.isError
+                        ? query.error.message
+                        : '还没有符合条件的草稿'
+                    }
+                  />
+                ),
+              }}
+              pagination={{
+                current: page,
+                pageSize,
+                total: query.data?.total ?? 0,
+                showSizeChanger: false,
+                showTotal: (total) => `共 ${total} 份`,
+                onChange: (nextPage) => updateParams({ page: String(nextPage) }),
+              }}
+            />
+          )}
+        </Card>
+
+        <CreateDraftModal open={createOpen} onOpenChange={setCreateOpen} />
+      </div>
+    </ConfigProvider>
   )
 }
 
-function CreateDraftDialog({
+function CreateDraftModal({
   open,
   onOpenChange,
 }: {
@@ -171,79 +227,74 @@ function CreateDraftDialog({
 }) {
   const navigate = useNavigate()
   const mutation = useCreateDraftMutation()
-  const [draftType, setDraftType] = useState<DraftType>('email')
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-  const [sourceQuestion, setSourceQuestion] = useState('')
+  const [form] = Form.useForm()
 
-  function changeOpen(next: boolean) {
-    if (!next && !mutation.isPending) {
-      setDraftType('email')
-      setTitle('')
-      setContent('')
-      setSourceQuestion('')
-      mutation.reset()
+  async function submit(values: {
+    draftType: DraftType
+    title: string
+    content: string
+    sourceQuestion?: string
+  }) {
+    try {
+      const created = await mutation.mutateAsync({
+        draftType: values.draftType,
+        title: values.title.trim(),
+        content: values.content.trim(),
+        sourceQuestion: values.sourceQuestion?.trim() ?? '',
+      })
+      form.resetFields()
+      onOpenChange(false)
+      navigate(`/drafts/${created.id}`)
+    } catch {
+      // keep modal open so the user can retry
     }
-    onOpenChange(next)
-  }
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault()
-    const created = await mutation.mutateAsync({
-      draftType,
-      title: title.trim(),
-      content: content.trim(),
-      sourceQuestion: sourceQuestion.trim(),
-    })
-    changeOpen(false)
-    navigate(`/drafts/${created.id}`)
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={changeOpen}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-slate-950/50" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100%-32px)] max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl bg-white p-[var(--space-6)] shadow-xl">
-          <Dialog.Title className="text-lg font-semibold">创建草稿</Dialog.Title>
-          <Dialog.Description className="mt-[var(--space-1)] text-sm text-[var(--color-text-secondary)]">
-            创建后可继续编辑、确认或导出。
-          </Dialog.Description>
-          <Dialog.Close aria-label="关闭对话框" className="absolute right-4 top-4 inline-flex size-9 items-center justify-center rounded-md hover:bg-slate-100">
-            <X aria-hidden="true" className="size-5" />
-          </Dialog.Close>
-          {mutation.isError ? (
-            <Alert tone="danger" className="mt-[var(--space-4)]">{mutation.error.message}</Alert>
-          ) : null}
-          <form className="mt-[var(--space-5)] space-y-[var(--space-4)]" onSubmit={submit}>
-            <label className="block text-sm font-semibold">
-              类型
-              <select value={draftType} onChange={(event) => setDraftType(event.target.value as DraftType)} className="mt-2 min-h-10 w-full rounded-md border border-[var(--color-border)] px-3 font-normal">
-                {draftTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
-              </select>
-            </label>
-            <label className="block text-sm font-semibold">
-              标题
-              <input required maxLength={255} value={title} onChange={(event) => setTitle(event.target.value)} className="mt-2 min-h-10 w-full rounded-md border border-[var(--color-border)] px-3 font-normal" />
-            </label>
-            <label className="block text-sm font-semibold">
-              正文
-              <textarea required rows={7} value={content} onChange={(event) => setContent(event.target.value)} className="mt-2 w-full rounded-md border border-[var(--color-border)] p-3 font-normal" />
-            </label>
-            <label className="block text-sm font-semibold">
-              来源问题
-              <input value={sourceQuestion} onChange={(event) => setSourceQuestion(event.target.value)} className="mt-2 min-h-10 w-full rounded-md border border-[var(--color-border)] px-3 font-normal" />
-            </label>
-            <div className="flex justify-end gap-[var(--space-3)]">
-              <Button variant="secondary" onClick={() => changeOpen(false)} disabled={mutation.isPending}>
-                取消
-              </Button>
-              <Button type="submit" disabled={mutation.isPending || !title.trim() || !content.trim()}>
-                {mutation.isPending ? '正在创建…' : '创建草稿'}
-              </Button>
-            </div>
-          </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <Modal
+      title="创建草稿"
+      open={open}
+      onCancel={() => {
+        if (!mutation.isPending) {
+          form.resetFields()
+          onOpenChange(false)
+        }
+      }}
+      onOk={() => void form.submit()}
+      confirmLoading={mutation.isPending}
+      okText="创建草稿"
+      destroyOnHidden
+      width={640}
+    >
+      <Form
+        form={form}
+        layout="vertical"
+        requiredMark={false}
+        initialValues={{ draftType: 'email' }}
+        onFinish={submit}
+        style={{ marginTop: 16 }}
+      >
+        <Form.Item label="类型" name="draftType" rules={[{ required: true }]}>
+          <Select options={draftTypes.map((item) => ({ value: item.value, label: item.label }))} />
+        </Form.Item>
+        <Form.Item
+          label="标题"
+          name="title"
+          rules={[{ required: true, message: '请输入标题' }, { max: 255 }]}
+        >
+          <Input />
+        </Form.Item>
+        <Form.Item
+          label="正文"
+          name="content"
+          rules={[{ required: true, message: '请输入正文' }]}
+        >
+          <Input.TextArea rows={7} />
+        </Form.Item>
+        <Form.Item label="来源问题" name="sourceQuestion">
+          <Input placeholder="可选" />
+        </Form.Item>
+      </Form>
+    </Modal>
   )
 }
