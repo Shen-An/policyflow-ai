@@ -39,7 +39,7 @@ class Evidence(BaseModel):
 class RetrievalRequest(BaseModel):
     query: str = Field(min_length=1, max_length=4000)
     knowledge_base_ids: list[str] = Field(min_length=1)
-    strategy: RetrievalStrategy = RetrievalStrategy.LIGHTRAG_ONLY
+    strategy: RetrievalStrategy = RetrievalStrategy.HYBRID_LIGHTRAG_BM25
     top_k: int = Field(default=5, ge=1, le=100)
     candidate_k: int | None = Field(default=None, ge=1, le=400)
     rerank_enabled: bool = False

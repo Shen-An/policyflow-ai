@@ -39,7 +39,7 @@ class RetrievalEvalItemRead(RetrievalEvalItemCreate):
 
 
 class RetrievalConfig(BaseModel):
-    strategy: RetrievalStrategy = RetrievalStrategy.LIGHTRAG_ONLY
+    strategy: RetrievalStrategy = RetrievalStrategy.HYBRID_LIGHTRAG_BM25
     top_k_values: list[Annotated[int, Field(ge=1, le=100)]] = Field(
         default_factory=lambda: [1, 3, 5],
         min_length=1,
@@ -144,7 +144,7 @@ class EvalRunListResponse(BaseModel):
 class RetrievalDebugRequest(BaseModel):
     query: str = Field(min_length=1)
     knowledge_base_ids: list[str] = Field(min_length=1)
-    strategy: RetrievalStrategy = RetrievalStrategy.LIGHTRAG_ONLY
+    strategy: RetrievalStrategy = RetrievalStrategy.HYBRID_LIGHTRAG_BM25
     top_k: int = Field(default=10, ge=1, le=100)
     rerank_enabled: bool = False
     query_mode: LightRAGQueryMode = LightRAGQueryMode.HYBRID

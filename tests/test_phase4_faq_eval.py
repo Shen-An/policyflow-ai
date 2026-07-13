@@ -229,13 +229,23 @@ def test_faq_approval_indexes_document_and_eval_run_is_reproducible(tmp_path: Pa
                 "query_mode": "hybrid",
             },
         )
-        unavailable_response = client.post(
+        bm25_response = client.post(
             "/api/eval/retrieval-debug",
             headers=admin_headers,
             json={
                 "query": "annual leave",
                 "knowledge_base_ids": [hr_id],
                 "strategy": "bm25_only",
+            },
+        )
+        rerank_response = client.post(
+            "/api/eval/retrieval-debug",
+            headers=admin_headers,
+            json={
+                "query": "annual leave",
+                "knowledge_base_ids": [hr_id],
+                "strategy": "lightrag_only",
+                "rerank_enabled": True,
             },
         )
 
@@ -266,8 +276,12 @@ def test_faq_approval_indexes_document_and_eval_run_is_reproducible(tmp_path: Pa
     assert debug_response.status_code == 200
     assert debug_response.json()["items"][0]["retriever_type"] == "lightrag"
     assert debug_response.json()["items"][0]["score"] == 0.9
-    assert unavailable_response.status_code == 503
-    assert unavailable_response.json()["error"]["code"] == "RETRIEVAL_STRATEGY_UNAVAILABLE"
+    assert bm25_response.status_code == 200
+    assert bm25_response.json()["items"]
+    assert bm25_response.json()["items"][0]["retriever_type"] == "bm25"
+    assert bm25_response.json()["items"][0]["chunk_id"] is None
+    assert rerank_response.status_code == 503
+    assert rerank_response.json()["error"]["code"] == "RERANKER_UNAVAILABLE"
 
     with Session(app.state.engine) as session:
         approved_faq = session.get(FAQDraft, first_faq["id"])

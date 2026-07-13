@@ -20,6 +20,7 @@ dependencies = [
     "python-docx>=1.1.2",
     "pypdf>=5.0.0",
     "lightrag-hku==1.5.4",
+    "rank-bm25>=0.2.2",
 ]
 
 [project.optional-dependencies]
@@ -58,11 +59,13 @@ warn_return_any = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [[tool.mypy.overrides]]
 module = "jose.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["docx.*", "pypdf.*", "lightrag.*"]
+module = ["docx.*", "pypdf.*", "lightrag.*", "rank_bm25.*"]
 ignore_missing_imports = true

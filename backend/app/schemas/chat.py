@@ -13,9 +13,10 @@ class ChatRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
     knowledge_base_ids: list[str] = Field(default_factory=list)
     enable_skill: bool = True
-    retrieval_strategy: RetrievalStrategy = RetrievalStrategy.LIGHTRAG_ONLY
+    retrieval_strategy: RetrievalStrategy = RetrievalStrategy.HYBRID_LIGHTRAG_BM25
     query_mode: LightRAGQueryMode = LightRAGQueryMode.HYBRID
     top_k: int = Field(default=5, ge=1, le=20)
+    rerank_enabled: bool = False
 
 
 class Citation(BaseModel):

@@ -92,6 +92,7 @@ async def send_chat_message(
             knowledge_base_ids=[knowledge_base.id for knowledge_base in knowledge_bases],
             strategy=data.retrieval_strategy,
             top_k=data.top_k,
+            rerank_enabled=data.rerank_enabled,
             lightrag_query_mode=data.query_mode,
         )
         if knowledge_bases

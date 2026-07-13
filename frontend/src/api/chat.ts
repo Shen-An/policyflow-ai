@@ -191,7 +191,7 @@ export async function sendChat(input: SendChatInput): Promise<ChatResult> {
       question: input.question,
       knowledge_base_ids: input.knowledgeBaseIds,
       enable_skill: true,
-      retrieval_strategy: 'lightrag_only',
+      retrieval_strategy: 'hybrid_lightrag_bm25',
       query_mode: input.queryMode,
       top_k: 5,
     }),
