@@ -122,7 +122,7 @@ function SkillRegistry() {
                 overflow: 'auto',
                 marginTop: 8,
                 fontSize: 11,
-                background: '#f8fafc',
+                background: 'var(--color-surface-muted)',
                 padding: 8,
                 borderRadius: 6,
               }}
@@ -285,14 +285,14 @@ function SkillRunDialog({
           </Button>
         </Form>
         <div>
-          <details open style={{ border: '1px solid #e3e8f0', borderRadius: 8 }}>
+          <details open className="pf-surface-muted">
             <summary style={{ cursor: 'pointer', padding: 12, fontWeight: 600 }}>输入 Schema</summary>
             <pre
               style={{
                 maxHeight: 256,
                 overflow: 'auto',
                 margin: 0,
-                borderTop: '1px solid #e3e8f0',
+                borderTop: '1px solid var(--color-border-secondary)',
                 padding: 12,
                 fontSize: 12,
               }}
@@ -319,7 +319,7 @@ function SkillRunDialog({
                       maxHeight: 256,
                       overflow: 'auto',
                       margin: 0,
-                      background: '#fff',
+                      background: 'var(--color-surface)',
                       padding: 12,
                       borderRadius: 8,
                       fontSize: 12,
@@ -555,14 +555,14 @@ function ToolLogDialog({
           {query.data.errorMessage ? (
             <Alert type="error" showIcon title={query.data.errorMessage} />
           ) : null}
-          <details style={{ border: '1px solid #e3e8f0', borderRadius: 8 }}>
+          <details className="pf-surface-muted">
             <summary style={{ cursor: 'pointer', padding: 12, fontWeight: 600 }}>脱敏输入参数</summary>
             <pre
               style={{
                 maxHeight: 320,
                 overflow: 'auto',
                 margin: 0,
-                borderTop: '1px solid #e3e8f0',
+                borderTop: '1px solid var(--color-border-secondary)',
                 padding: 12,
                 fontSize: 12,
               }}
@@ -570,14 +570,14 @@ function ToolLogDialog({
               {JSON.stringify(query.data.inputSummary, null, 2)}
             </pre>
           </details>
-          <details style={{ border: '1px solid #e3e8f0', borderRadius: 8 }}>
+          <details className="pf-surface-muted">
             <summary style={{ cursor: 'pointer', padding: 12, fontWeight: 600 }}>脱敏输出结果</summary>
             <pre
               style={{
                 maxHeight: 320,
                 overflow: 'auto',
                 margin: 0,
-                borderTop: '1px solid #e3e8f0',
+                borderTop: '1px solid var(--color-border-secondary)',
                 padding: 12,
                 fontSize: 12,
               }}

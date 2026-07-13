@@ -14,7 +14,9 @@ from backend.app.schemas.chat import (
     ChatRequest,
     ChatResponse,
     Citation,
+    ConversationListResponse,
     ConversationRead,
+    ConversationSummary,
     MessageRead,
 )
 from backend.app.schemas.retrieval import RetrievalRequest
@@ -49,12 +51,22 @@ def _conversation(
         session.flush()
         return conversation
     existing_conversation = session.get(Conversation, conversation_id)
-    if existing_conversation is None:
+    if existing_conversation is None or existing_conversation.status == "deleted":
         raise ApplicationError("CONVERSATION_NOT_FOUND", "Conversation not found", 404)
     role_codes = get_user_role_codes(session, user.id)
     if existing_conversation.user_id != user.id and "sys_admin" not in role_codes:
         raise ApplicationError("PERMISSION_DENIED", "Conversation access denied", 403)
     return existing_conversation
+
+
+def _owned_conversation(session: Session, user: User, conversation_id: str) -> Conversation:
+    """Resolve a conversation that the current user owns and can manage."""
+    conversation = session.get(Conversation, conversation_id)
+    if conversation is None or conversation.status == "deleted":
+        raise ApplicationError("CONVERSATION_NOT_FOUND", "Conversation not found", 404)
+    if conversation.user_id != user.id:
+        raise ApplicationError("PERMISSION_DENIED", "Conversation access denied", 403)
+    return conversation
 
 
 async def send_chat_message(
@@ -181,4 +193,131 @@ def get_conversation(session: Session, user: User, conversation_id: str) -> Conv
             )
             for message in messages
         ],
+        created_at=conversation.created_at,
+        updated_at=conversation.updated_at,
     )
+
+
+def list_conversations(
+    session: Session,
+    user: User,
+    page: int = 1,
+    page_size: int = 20,
+    keyword: str | None = None,
+) -> ConversationListResponse:
+    """Return conversations owned by the current user only.
+
+    Even sys_admin does not see other users' history here; admin access to a
+    specific conversation remains available via get_conversation.
+    """
+    safe_page = max(page, 1)
+    safe_page_size = min(max(page_size, 1), 100)
+    conversations = session.exec(
+        select(Conversation)
+        .where(
+            Conversation.user_id == user.id,
+            Conversation.status != "deleted",
+        )
+        .order_by(col(Conversation.updated_at).desc())
+    ).all()
+
+    normalized_keyword = (keyword or "").strip().lower()
+    filtered: list[Conversation] = []
+    for conversation in conversations:
+        if not normalized_keyword:
+            filtered.append(conversation)
+            continue
+        haystacks = [conversation.title.lower()]
+        latest = session.exec(
+            select(Message)
+            .where(Message.conversation_id == conversation.id)
+            .order_by(col(Message.created_at).desc())
+        ).first()
+        if latest is not None:
+            haystacks.append(latest.content.lower())
+        if any(normalized_keyword in value for value in haystacks):
+            filtered.append(conversation)
+
+    total = len(filtered)
+    start = (safe_page - 1) * safe_page_size
+    page_items = filtered[start : start + safe_page_size]
+
+    items: list[ConversationSummary] = []
+    for conversation in page_items:
+        messages = session.exec(
+            select(Message)
+            .where(Message.conversation_id == conversation.id)
+            .order_by(col(Message.created_at).desc())
+        ).all()
+        last_message = messages[0] if messages else None
+        preview = None
+        if last_message is not None:
+            preview = " ".join(last_message.content.split())
+            if len(preview) > 80:
+                preview = f"{preview[:80]}…"
+        items.append(
+            ConversationSummary(
+                id=conversation.id,
+                title=conversation.title,
+                status=conversation.status,
+                message_count=len(messages),
+                last_message_preview=preview,
+                last_message_role=last_message.role if last_message is not None else None,
+                created_at=conversation.created_at,
+                updated_at=conversation.updated_at,
+            )
+        )
+
+    return ConversationListResponse(
+        items=items,
+        total=total,
+        page=safe_page,
+        page_size=safe_page_size,
+    )
+
+
+def rename_conversation(
+    session: Session,
+    user: User,
+    conversation_id: str,
+    title: str,
+) -> ConversationSummary:
+    conversation = _owned_conversation(session, user, conversation_id)
+    cleaned = title.strip()
+    if not cleaned:
+        raise ApplicationError("VALIDATION_ERROR", "Conversation title is required", 422)
+    conversation.title = cleaned[:255]
+    conversation.updated_at = utc_now()
+    session.add(conversation)
+    session.commit()
+    session.refresh(conversation)
+
+    messages = session.exec(
+        select(Message)
+        .where(Message.conversation_id == conversation.id)
+        .order_by(col(Message.created_at).desc())
+    ).all()
+    last_message = messages[0] if messages else None
+    preview = None
+    if last_message is not None:
+        preview = " ".join(last_message.content.split())
+        if len(preview) > 80:
+            preview = f"{preview[:80]}…"
+    return ConversationSummary(
+        id=conversation.id,
+        title=conversation.title,
+        status=conversation.status,
+        message_count=len(messages),
+        last_message_preview=preview,
+        last_message_role=last_message.role if last_message is not None else None,
+        created_at=conversation.created_at,
+        updated_at=conversation.updated_at,
+    )
+
+
+def delete_conversation(session: Session, user: User, conversation_id: str) -> None:
+    conversation = _owned_conversation(session, user, conversation_id)
+    conversation.status = "deleted"
+    conversation.updated_at = utc_now()
+    session.add(conversation)
+    session.commit()

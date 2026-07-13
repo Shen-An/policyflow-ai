@@ -20,6 +20,7 @@ import type {
   ResourcePermission,
 } from '../../api/knowledge-bases'
 import { LoadingState } from '../../components/feedback/state-views'
+import { gradients, palette } from '../../styles/palette'
 import { UploadDocumentDialog } from './components/upload-document-dialog'
 import {
   useDocumentDetailQuery,
@@ -173,7 +174,7 @@ export function DocumentListPage() {
                   <div>
                     <div>还没有文档</div>
                     {writable ? (
-                      <div style={{ marginTop: 4, color: '#5b6577' }}>
+                      <div style={{ marginTop: 4, color: 'var(--color-text-secondary)' }}>
                         上传第一份制度文档开始索引。
                       </div>
                     ) : null}
@@ -334,12 +335,12 @@ function DocumentDetailDrawer({
                   overflow: 'auto',
                   padding: 16,
                   borderRadius: 12,
-                  border: '1px solid #eef2f7',
-                  background: 'linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%)',
+                  border: `1px solid ${palette.borderSecondary}`,
+                  background: gradients.documentContent,
                   whiteSpace: 'pre-wrap',
                   lineHeight: 1.8,
                   fontSize: 14,
-                  color: '#0f1729',
+                  color: palette.text,
                 }}
               >
                 {query.data.contentText}

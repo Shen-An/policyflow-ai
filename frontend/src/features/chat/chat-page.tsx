@@ -2,37 +2,48 @@ import {
   AlertOutlined,
   BookOutlined,
   CheckCircleOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  HistoryOutlined,
+  MessageOutlined,
   PlusOutlined,
+  SearchOutlined,
   SendOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons'
 import {
   Alert,
+  App,
   Button,
   Card,
   Checkbox,
   Empty,
-  Form,
   Input,
+  Modal,
   Select,
   Space,
   Tag,
   Typography,
 } from 'antd'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import type {
   AssistantMetadata,
   ChatResult,
   ConversationMessage,
+  ConversationSummary,
   FeedbackRating,
 } from '../../api/chat'
 import type { QueryMode } from '../../api/knowledge-bases'
 import { LoadingState } from '../../components/feedback/state-views'
+import { palette } from '../../styles/palette'
 import { useKnowledgeBasesQuery } from '../knowledge-bases/queries'
 import {
   useConversationQuery,
+  useConversationsQuery,
+  useDeleteConversationMutation,
   useFeedbackMutation,
+  useRenameConversationMutation,
   useSendChatMutation,
 } from './queries'
 
@@ -80,17 +91,58 @@ const queryModeLabels: Record<string, string> = {
   naive: '朴素搜索',
 }
 
+function formatHistoryTime(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const now = new Date()
+  const sameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  if (sameDay) {
+    return new Intl.DateTimeFormat('zh-CN', {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date)
+  }
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+}
+
 export function ChatPage() {
   const { conversationId = '' } = useParams()
   const navigate = useNavigate()
+  const { message, modal } = App.useApp()
+  const [historyKeyword, setHistoryKeyword] = useState('')
+  const [debouncedHistoryKeyword, setDebouncedHistoryKeyword] = useState('')
   const conversation = useConversationQuery(conversationId)
+  const history = useConversationsQuery(1, 50, debouncedHistoryKeyword)
   const knowledgeBases = useKnowledgeBasesQuery()
   const sendMutation = useSendChatMutation()
+  const renameMutation = useRenameConversationMutation()
+  const deleteMutation = useDeleteConversationMutation()
   const [messages, setMessages] = useState<ConversationMessage[]>([])
   const [question, setQuestion] = useState('')
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<string[]>([])
   const [queryMode, setQueryMode] = useState<QueryMode>('hybrid')
   const [failedQuestion, setFailedQuestion] = useState<string | null>(null)
+  const [renaming, setRenaming] = useState<ConversationSummary | null>(null)
+  const [renameTitle, setRenameTitle] = useState('')
+
+  useEffect(() => {
+    setMessages([])
+    setQuestion('')
+    setFailedQuestion(null)
+  }, [conversationId])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedHistoryKeyword(historyKeyword.trim())
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [historyKeyword])
 
   const visibleMessages =
     messages.length > 0 ? messages : conversation.data?.messages ?? []
@@ -128,128 +180,268 @@ export function ChatPage() {
     }
   }
 
+  function openConversation(id: string) {
+    if (id === conversationId) return
+    navigate(`/chat/${id}`)
+  }
+
+  function startNewConversation() {
+    navigate('/chat')
+  }
+
+  function openRename(item: ConversationSummary) {
+    setRenaming(item)
+    setRenameTitle(item.title)
+  }
+
+  async function confirmRename() {
+    if (!renaming) return
+    const nextTitle = renameTitle.trim()
+    if (!nextTitle) {
+      message.warning('会话标题不能为空')
+      return
+    }
+    try {
+      await renameMutation.mutateAsync({
+        conversationId: renaming.id,
+        title: nextTitle,
+      })
+      message.success('会话已重命名')
+      setRenaming(null)
+      setRenameTitle('')
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '重命名失败')
+    }
+  }
+
+  function confirmDelete(item: ConversationSummary) {
+    modal.confirm({
+      title: '删除历史会话',
+      content: `确定删除“${item.title || '未命名会话'}”吗？删除后不会再出现在你的历史列表中。`,
+      okText: '删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        await deleteMutation.mutateAsync(item.id)
+        message.success('会话已删除')
+        if (conversationId === item.id) {
+          navigate('/chat')
+        }
+      },
+    })
+  }
+
   const noKnowledgeBases = knowledgeBases.isSuccess && knowledgeBases.data.length === 0
   const title = conversation.data?.title ?? '新制度问答'
+  const historyItems = history.data?.items ?? []
 
   return (
-    <div>
-      <div className="page-header">
+    <div className="chat-page">
+      <div className="page-header chat-page__header">
         <div>
           <h2>{title}</h2>
-          <p>回答以授权知识库为依据；没有可靠证据时会明确说明。</p>
+          <p>回答以授权知识库为依据；历史会话仅展示你自己的记录，并与其他用户隔离。</p>
         </div>
-        {conversationId ? (
-          <Button icon={<PlusOutlined />} onClick={() => navigate('/chat')}>
-            新建问答
-          </Button>
-        ) : null}
+        <Button icon={<PlusOutlined />} onClick={startNewConversation}>
+          新建问答
+        </Button>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gap: 16,
-          gridTemplateColumns: 'minmax(0, 1fr) 300px',
-        }}
-        className="chat-layout"
-      >
-        <Card styles={{ body: { padding: 0 } }}>
-          <div
-            aria-live="polite"
-            style={{ minHeight: 460, padding: 20, display: 'grid', gap: 16 }}
+      <div className="chat-page__body">
+        <aside className="chat-page__history" aria-label="历史会话">
+          <Card
+            size="small"
+            title={
+              <Space>
+                <HistoryOutlined />
+                历史会话
+              </Space>
+            }
+            extra={
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                仅本人可见
+              </Typography.Text>
+            }
+            styles={{ body: { padding: 0 } }}
           >
-            {conversation.isPending && conversationId && visibleMessages.length === 0 ? (
-              <LoadingState message="正在加载会话…" minH="min-h-0" />
-            ) : conversation.isError ? (
-              <Alert
-                type="error"
-                showIcon
-                message="会话加载失败"
-                description={conversation.error.message}
-                action={
-                  <Button size="small" onClick={() => void conversation.refetch()}>
-                    重新加载
-                  </Button>
-                }
-              />
-            ) : visibleMessages.length === 0 ? (
-              <Empty
-                image={<ThunderboltOutlined style={{ fontSize: 40, color: '#4f46e5' }} />}
-                description={
-                  <div>
-                    <Typography.Title level={5}>从一个制度问题开始</Typography.Title>
-                    <Typography.Text type="secondary">
-                      例如：差旅住宿标准是多少？
-                    </Typography.Text>
-                  </div>
-                }
-                style={{ margin: '80px 0' }}
-              />
-            ) : (
-              visibleMessages.map((message) => (
-                <MessageCard key={message.id} message={message} />
-              ))
-            )}
-
-            {sendMutation.isPending ? (
-              <Card size="small">
-                <LoadingState message="正在检索授权知识库并生成回答…" minH="min-h-0" />
-              </Card>
-            ) : null}
-
-            {sendMutation.isError && failedQuestion ? (
-              <Alert
-                type="error"
-                showIcon
-                message={sendMutation.error.message}
-                action={
-                  <Button size="small" onClick={() => void submit(failedQuestion, false)}>
-                    重试发送
-                  </Button>
-                }
-              />
-            ) : null}
-          </div>
-
-          <div style={{ borderTop: '1px solid #f0f0f0', padding: 16 }}>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault()
-                void submit(question)
-              }}
-            >
-              <label
-                htmlFor="chat-question"
-                style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}
-              >
-                问题
-              </label>
-              <Input.TextArea
-                id="chat-question"
-                rows={3}
-                maxLength={4000}
-                value={question}
-                onChange={(event) => setQuestion(event.target.value)}
-                placeholder="输入你的制度问题，尽量描述完整场景"
-              />
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  loading={sendMutation.isPending}
-                  disabled={!question.trim() || noKnowledgeBases}
-                >
-                  <SendOutlined aria-hidden />
-                  发送问题
-                </Button>
+            <div className="chat-history">
+              <div className="chat-history__search">
+                <Input
+                  allowClear
+                  value={historyKeyword}
+                  onChange={(event) => setHistoryKeyword(event.target.value)}
+                  placeholder="搜索标题或最近消息"
+                  prefix={<SearchOutlined />}
+                  aria-label="搜索历史会话"
+                />
               </div>
-            </form>
+
+              <button
+                type="button"
+                className={`chat-history__item${conversationId ? '' : ' is-active'}`}
+                onClick={startNewConversation}
+                aria-label="开始新会话"
+                aria-current={conversationId ? undefined : 'page'}
+              >
+                <div className="chat-history__title">
+                  <MessageOutlined />
+                  新会话
+                </div>
+                <div className="chat-history__preview">从空白对话开始提问</div>
+              </button>
+
+              {history.isPending ? (
+                <div className="chat-history__state">
+                  <LoadingState message="正在加载历史会话…" minH="min-h-0" />
+                </div>
+              ) : history.isError ? (
+                <div className="chat-history__state">
+                  <Alert
+                    type="error"
+                    showIcon
+                    message="历史会话加载失败"
+                    action={
+                      <Button size="small" onClick={() => void history.refetch()}>
+                        重试
+                      </Button>
+                    }
+                  />
+                </div>
+              ) : historyItems.length === 0 ? (
+                <div className="chat-history__state">
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={
+                      debouncedHistoryKeyword ? '没有匹配的历史会话' : '还没有历史会话'
+                    }
+                  />
+                </div>
+              ) : (
+                historyItems.map((item) => (
+                  <HistoryItem
+                    key={item.id}
+                    item={item}
+                    active={item.id === conversationId}
+                    onOpen={() => openConversation(item.id)}
+                    onRename={() => openRename(item)}
+                    onDelete={() => confirmDelete(item)}
+                  />
+                ))
+              )}
+            </div>
+          </Card>
+        </aside>
+
+        <Card className="chat-page__main" styles={{ body: { padding: 0, height: '100%' } }}>
+          <div className="chat-page__main-inner">
+            <div aria-live="polite" className="chat-page__messages">
+              {conversation.isPending && conversationId && visibleMessages.length === 0 ? (
+                <LoadingState message="正在加载会话…" minH="min-h-0" />
+              ) : conversation.isError ? (
+                <Alert
+                  type="error"
+                  showIcon
+                  message="会话加载失败"
+                  description={conversation.error.message}
+                  action={
+                    <Button size="small" onClick={() => void conversation.refetch()}>
+                      重新加载
+                    </Button>
+                  }
+                />
+              ) : visibleMessages.length === 0 ? (
+                <div className="chat-page__empty">
+                  <Empty
+                    image={
+                      <ThunderboltOutlined
+                        className="pf-brand-icon"
+                        style={{ fontSize: 40 }}
+                      />
+                    }
+                    description={
+                      <div>
+                        <Typography.Title level={5} style={{ marginBottom: 4 }}>
+                          从一个制度问题开始
+                        </Typography.Title>
+                        <Typography.Text type="secondary">
+                          例如：差旅住宿标准是多少？
+                        </Typography.Text>
+                      </div>
+                    }
+                  />
+                </div>
+              ) : (
+                visibleMessages.map((message) => (
+                  <MessageCard key={message.id} message={message} />
+                ))
+              )}
+
+              {sendMutation.isPending ? (
+                <div className="chat-bubble chat-bubble--assistant">
+                  <LoadingState message="正在检索授权知识库并生成回答…" minH="min-h-0" />
+                </div>
+              ) : null}
+
+              {sendMutation.isError && failedQuestion ? (
+                <Alert
+                  type="error"
+                  showIcon
+                  message={sendMutation.error.message}
+                  action={
+                    <Button size="small" onClick={() => void submit(failedQuestion, false)}>
+                      重试发送
+                    </Button>
+                  }
+                />
+              ) : null}
+            </div>
+
+            <div className="chat-page__composer">
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void submit(question)
+                }}
+              >
+                <label htmlFor="chat-question" className="chat-page__composer-label">
+                  问题
+                </label>
+                <Input.TextArea
+                  id="chat-question"
+                  rows={3}
+                  maxLength={4000}
+                  value={question}
+                  onChange={(event) => setQuestion(event.target.value)}
+                  placeholder="输入你的制度问题，尽量描述完整场景"
+                  onPressEnter={(event) => {
+                    if (!event.shiftKey) {
+                      event.preventDefault()
+                      void submit(question)
+                    }
+                  }}
+                />
+                <div className="chat-page__composer-actions">
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    Enter 发送 · Shift + Enter 换行
+                  </Typography.Text>
+                  <Button
+                    type="primary"
+                    htmlType="submit"
+                    loading={sendMutation.isPending}
+                    disabled={!question.trim() || noKnowledgeBases}
+                  >
+                    <SendOutlined aria-hidden />
+                    发送问题
+                  </Button>
+                </div>
+              </form>
+            </div>
           </div>
         </Card>
 
-        <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+        <aside className="chat-page__sidebar">
           <Card title="检索范围" size="small">
-            <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+            <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 12 }}>
               不选择时检索全部可访问知识库。
             </Typography.Paragraph>
             {knowledgeBases.isPending ? (
@@ -271,7 +463,7 @@ export function ChatPage() {
               </Typography.Text>
             ) : (
               <Checkbox.Group
-                style={{ display: 'grid', gap: 10 }}
+                className="chat-page__kb-list"
                 value={selectedKnowledgeBases}
                 onChange={(values) => setSelectedKnowledgeBases(values as string[])}
                 options={knowledgeBases.data.map((kb) => ({
@@ -297,16 +489,92 @@ export function ChatPage() {
               options={queryModeOptions}
             />
           </Card>
-        </div>
+        </aside>
       </div>
 
-      <style>{`
-        @media (max-width: 1200px) {
-          .chat-layout {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
+      <Modal
+        title="重命名会话"
+        open={Boolean(renaming)}
+        okText="保存"
+        cancelText="取消"
+        confirmLoading={renameMutation.isPending}
+        onOk={() => void confirmRename()}
+        onCancel={() => {
+          setRenaming(null)
+          setRenameTitle('')
+        }}
+        destroyOnHidden
+      >
+        <Input
+          value={renameTitle}
+          maxLength={255}
+          onChange={(event) => setRenameTitle(event.target.value)}
+          placeholder="输入新的会话标题"
+          aria-label="会话标题"
+          onPressEnter={() => void confirmRename()}
+        />
+      </Modal>
+    </div>
+  )
+}
+
+function HistoryItem({
+  item,
+  active,
+  onOpen,
+  onRename,
+  onDelete,
+}: {
+  item: ConversationSummary
+  active: boolean
+  onOpen: () => void
+  onRename: () => void
+  onDelete: () => void
+}) {
+  return (
+    <div className={`chat-history__item${active ? ' is-active' : ''}`}>
+      <button
+        type="button"
+        className="chat-history__open"
+        onClick={onOpen}
+        aria-label={`打开会话：${item.title || '未命名会话'}`}
+        aria-current={active ? 'page' : undefined}
+      >
+        <div className="chat-history__item-top">
+          <div className="chat-history__title" title={item.title}>
+            {item.title || '未命名会话'}
+          </div>
+          <span className="chat-history__time">{formatHistoryTime(item.updatedAt)}</span>
+        </div>
+        <div className="chat-history__preview">
+          {item.lastMessagePreview || '暂无消息摘要'}
+        </div>
+        <div className="chat-history__meta">{item.messageCount} 条消息</div>
+      </button>
+      <div className="chat-history__actions">
+        <button
+          type="button"
+          className="chat-history__action"
+          aria-label={`重命名会话：${item.title || '未命名会话'}`}
+          onClick={(event) => {
+            event.stopPropagation()
+            onRename()
+          }}
+        >
+          <EditOutlined />
+        </button>
+        <button
+          type="button"
+          className="chat-history__action chat-history__action--danger"
+          aria-label={`删除会话：${item.title || '未命名会话'}`}
+          onClick={(event) => {
+            event.stopPropagation()
+            onDelete()
+          }}
+        >
+          <DeleteOutlined />
+        </button>
+      </div>
     </div>
   )
 }
@@ -314,130 +582,120 @@ export function ChatPage() {
 function MessageCard({ message }: { message: ConversationMessage }) {
   if (message.role === 'user') {
     return (
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Card
-          size="small"
-          style={{
-            maxWidth: 640,
-            background: '#4f46e5',
-            color: '#fff',
-            border: 'none',
-          }}
-          styles={{ body: { color: '#fff' } }}
-        >
-          <Typography.Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
-            你的问题
-          </Typography.Text>
-          <div style={{ whiteSpace: 'pre-wrap', marginTop: 6 }}>{message.content}</div>
-        </Card>
+      <div className="chat-row chat-row--user">
+        <div className="chat-bubble chat-bubble--user">
+          <div className="chat-bubble__meta">你的问题</div>
+          <div className="chat-bubble__content">{message.content}</div>
+        </div>
       </div>
     )
   }
 
   const noEvidence =
-    message.metadata.citations.length === 0 && message.metadata.confidenceScore === 0
+    message.metadata.citations.length === 0 &&
+    (message.metadata.confidenceScore === 0 ||
+      message.metadata.compliance?.warnings?.includes('NO_RELIABLE_EVIDENCE') === true)
 
   return (
-    <article aria-label="PolicyFlow 回答">
-    <Card
-      size="small"
-      style={{ maxWidth: 760 }}
-      title={
-        <Space>
-          <ThunderboltOutlined style={{ color: '#4f46e5' }} aria-hidden />
-          PolicyFlow 回答
+    <div className="chat-row chat-row--assistant">
+      <article
+        aria-label="PolicyFlow 回答"
+        className={`chat-bubble chat-bubble--assistant${noEvidence ? ' chat-bubble--warning' : ''}`}
+      >
+        <div className="chat-bubble__title">
+          <Space size={8} wrap>
+            <ThunderboltOutlined
+              style={{ color: noEvidence ? palette.warning : palette.primary }}
+              aria-hidden
+            />
+            <span>PolicyFlow 回答</span>
+            {noEvidence ? <Tag color="warning">模型参考 · 不可信</Tag> : null}
+          </Space>
+        </div>
+
+        {noEvidence ? (
+          <Alert
+            type="warning"
+            showIcon
+            icon={<AlertOutlined />}
+            style={{ marginBottom: 12 }}
+            message="未找到可靠依据"
+            description="当前授权知识库没有检索到制度证据。下面是模型基于通用知识给出的参考回答，不能作为正式制度依据，请你自行判断，并与相关部门确认后再执行。"
+          />
+        ) : null}
+
+        <div className="chat-bubble__content chat-bubble__content--assistant">
+          {message.content}
+        </div>
+
+        {noEvidence ? null : <CitationList citations={message.metadata.citations} />}
+
+        <Space wrap style={{ marginTop: 12 }}>
+          {noEvidence ? (
+            <Tag color="orange">可信度 0% · 需人工判断</Tag>
+          ) : message.metadata.confidenceScore !== null ? (
+            <Tag>可信度 {Math.round(message.metadata.confidenceScore * 100)}%</Tag>
+          ) : null}
+          {message.metadata.queryMode ? (
+            <Tag color="blue">
+              {queryModeLabels[message.metadata.queryMode] ?? message.metadata.queryMode}
+            </Tag>
+          ) : null}
+          {message.metadata.compliance?.passed ? (
+            <Tag icon={<CheckCircleOutlined />} color="success">
+              合规通过
+            </Tag>
+          ) : null}
         </Space>
-      }
-    >
-      <Typography.Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 12 }}>
-        {message.content}
-      </Typography.Paragraph>
 
-      {noEvidence ? (
-        <Alert
-          type="warning"
-          showIcon
-          icon={<AlertOutlined />}
-          message="未找到可靠依据"
-          description="当前授权知识库没有足够证据，请联系相关部门确认。"
-        />
-      ) : (
-        <CitationList citations={message.metadata.citations} />
-      )}
-
-      <Space wrap style={{ marginTop: 12 }}>
-        {message.metadata.confidenceScore !== null ? (
-          <Tag>
-            可信度 {Math.round(message.metadata.confidenceScore * 100)}%
-          </Tag>
+        {message.metadata.suggestedSkills.length > 0 ? (
+          <div className="chat-bubble__skills">
+            <div className="chat-bubble__skills-title">建议能力</div>
+            {message.metadata.suggestedSkills.map((skill) => (
+              <div key={skill.name} style={{ fontSize: 12, marginBottom: 4 }}>
+                {skill.name}：{skill.description}
+              </div>
+            ))}
+          </div>
         ) : null}
-        {message.metadata.queryMode ? (
-          <Tag color="blue">
-            {queryModeLabels[message.metadata.queryMode] ?? message.metadata.queryMode}
-          </Tag>
-        ) : null}
-        {message.metadata.compliance?.passed ? (
-          <Tag icon={<CheckCircleOutlined />} color="success">
-            合规通过
-          </Tag>
-        ) : null}
-      </Space>
 
-      {message.metadata.suggestedSkills.length > 0 ? (
-        <Card size="small" type="inner" title="建议能力" style={{ marginTop: 12 }}>
-          {message.metadata.suggestedSkills.map((skill) => (
-            <div key={skill.name} style={{ fontSize: 12, marginBottom: 4 }}>
-              {skill.name}：{skill.description}
-            </div>
-          ))}
-        </Card>
-      ) : null}
-
-      {message.metadata.queryLogId ? (
-        <FeedbackActions queryLogId={message.metadata.queryLogId} />
-      ) : (
-        <Typography.Text type="secondary" style={{ display: 'block', marginTop: 12, fontSize: 12 }}>
-          当前回答缺少反馈标识，暂不能评价。
-        </Typography.Text>
-      )}
-    </Card>
-    </article>
+        {message.metadata.queryLogId ? (
+          <FeedbackActions queryLogId={message.metadata.queryLogId} />
+        ) : (
+          <Typography.Text
+            type="secondary"
+            style={{ display: 'block', marginTop: 12, fontSize: 12 }}
+          >
+            当前回答缺少反馈标识，暂不能评价。
+          </Typography.Text>
+        )}
+      </article>
+    </div>
   )
 }
 
 function CitationList({ citations }: { citations: AssistantMetadata['citations'] }) {
   if (citations.length === 0) return null
   return (
-    <details
-      style={{
-        marginTop: 4,
-        border: '1px solid #f0f0f0',
-        borderRadius: 8,
-        padding: '8px 12px',
-        background: '#fafafa',
-      }}
-    >
-      <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
-        查看引用（{citations.length}）
-      </summary>
+    <details className="chat-citations" open>
+      <summary>查看引用（{citations.length}）</summary>
       <Space direction="vertical" style={{ width: '100%', marginTop: 12 }}>
         {citations.map((citation, index) => (
-          <Card key={`${citation.documentId ?? citation.knowledgeBaseId}-${index}`} size="small">
+          <div
+            key={`${citation.documentId ?? citation.knowledgeBaseId}-${index}`}
+            className="chat-citations__item"
+          >
             <Space>
-              <BookOutlined />
+              <BookOutlined className="pf-brand-icon" />
               <strong>
                 {citation.knowledgeBaseName} · {citation.documentTitle ?? '未命名文档'}
               </strong>
             </Space>
-            <div style={{ marginTop: 6, color: '#5b6577', fontSize: 12 }}>
-              {citation.snippet}
-            </div>
+            <p className="chat-citations__snippet">{citation.snippet}</p>
             {citation.chunkId ? (
-              <div style={{ marginTop: 4, color: '#8a93a6', fontSize: 11 }}>
-                Chunk：{citation.chunkId}
-              </div>
+              <p className="chat-citations__chunk">Chunk：{citation.chunkId}</p>
             ) : null}
-          </Card>
+          </div>
         ))}
       </Space>
     </details>
@@ -455,50 +713,68 @@ function FeedbackActions({ queryLogId }: { queryLogId: string }) {
   const mutation = useFeedbackMutation(queryLogId)
   const [rating, setRating] = useState<FeedbackRating>('useful')
   const [comment, setComment] = useState('')
+  const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const selectedLabel = useMemo(
     () => feedbackOptions.find((option) => option.value === rating)?.label,
     [rating],
   )
 
+  async function submitFeedbackNow() {
+    setStatusMessage(null)
+    setErrorMessage(null)
+    try {
+      await mutation.mutateAsync({ rating, comment })
+      setStatusMessage(`已记录“${selectedLabel}”，再次提交会覆盖你的上一条反馈。`)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '反馈提交失败')
+    }
+  }
+
   return (
-    <Form
-      layout="inline"
-      style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #f0f0f0', rowGap: 8 }}
-      onFinish={() => mutation.mutate({ rating, comment })}
-    >
-      <Form.Item label="评价">
-        <Select
-          aria-label="回答评价"
-          style={{ width: 140 }}
-          value={rating}
-          onChange={(value) => setRating(value as FeedbackRating)}
-          options={feedbackOptions}
-        />
-      </Form.Item>
-      <Form.Item style={{ flex: 1, minWidth: 180 }}>
-        <Input
+    <div className="chat-feedback">
+      <div className="chat-feedback__row">
+        <label className="chat-feedback__field">
+          <span>评价</span>
+          <select
+            aria-label="回答评价"
+            value={rating}
+            onChange={(event) => setRating(event.target.value as FeedbackRating)}
+          >
+            {feedbackOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <input
           aria-label="反馈备注"
           value={comment}
           maxLength={1000}
           onChange={(event) => setComment(event.target.value)}
           placeholder="补充说明（可选）"
+          className="chat-feedback__comment"
         />
-      </Form.Item>
-      <Form.Item>
-        <Button type="primary" htmlType="submit" loading={mutation.isPending}>
-          提交反馈
-        </Button>
-      </Form.Item>
-      {mutation.isSuccess ? (
-        <Typography.Text type="success" role="status" style={{ width: '100%', fontSize: 12 }}>
-          已记录“{selectedLabel}”，再次提交会覆盖你的上一条反馈。
-        </Typography.Text>
+        <button
+          type="button"
+          className="chat-feedback__submit"
+          disabled={mutation.isPending}
+          onClick={() => void submitFeedbackNow()}
+        >
+          {mutation.isPending ? '提交中…' : '提交反馈'}
+        </button>
+      </div>
+      {statusMessage ? (
+        <p role="status" className="chat-feedback__status chat-feedback__status--success">
+          {statusMessage}
+        </p>
       ) : null}
-      {mutation.isError ? (
-        <Typography.Text type="danger" role="alert" style={{ width: '100%', fontSize: 12 }}>
-          {mutation.error.message}
-        </Typography.Text>
+      {errorMessage ? (
+        <p role="alert" className="chat-feedback__status chat-feedback__status--error">
+          {errorMessage}
+        </p>
       ) : null}
-    </Form>
+    </div>
   )
 }

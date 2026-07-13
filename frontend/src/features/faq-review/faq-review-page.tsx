@@ -127,7 +127,7 @@ export function FAQReviewPage() {
       ) : query.data.length === 0 ? (
         <Card>
           <Empty
-            image={<FileSearchOutlined style={{ fontSize: 40, color: '#94a3b8' }} />}
+            image={<FileSearchOutlined className="pf-muted-icon" style={{ fontSize: 40 }} />}
             description="没有符合条件的 FAQ"
           />
         </Card>

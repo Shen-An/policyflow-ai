@@ -270,7 +270,7 @@ async def test_rag_service_deduplicates_reranks_and_reassigns_final_ranks() -> N
 
 
 @pytest.mark.asyncio
-async def test_agent_pipeline_refuses_without_evidence_without_calling_llm() -> None:
+async def test_agent_pipeline_marks_no_evidence_answers_as_untrusted() -> None:
     rag_service = RAGService(NoEvidenceRetriever())
     pipeline = AgentPipeline(
         RouterAgent(),
@@ -295,6 +295,7 @@ async def test_agent_pipeline_refuses_without_evidence_without_calling_llm() -> 
     assert result.retrieval_result.evidence == []
     assert result.answer_result.confidence_score == 0.0
     assert result.compliance.warnings == ["NO_RELIABLE_EVIDENCE"]
+    assert "不可信" in result.answer_result.answer or "未检索到" in result.answer_result.answer
 
 
 @pytest.mark.asyncio

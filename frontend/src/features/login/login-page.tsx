@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { login } from '../../api/auth'
 import { AppError } from '../../api/errors'
 import { authStore } from '../../auth/auth-store'
+import { antdTheme } from '../../styles/antd-theme'
+import { gradients, palette } from '../../styles/palette'
 import type { LoginFormValues } from './login-schema'
 
 function errorMessage(error: unknown): string {
@@ -43,7 +45,13 @@ export function LoginPage() {
   return (
     <ConfigProvider
       autoInsertSpaceInButton={false}
-      theme={{ token: { motion: false, colorPrimary: '#4f46e5' } }}
+      theme={{
+        ...antdTheme,
+        token: {
+          ...antdTheme.token,
+          motion: false,
+        },
+      }}
     >
       <div
         style={{
@@ -51,8 +59,7 @@ export function LoginPage() {
           display: 'grid',
           placeItems: 'center',
           padding: 24,
-          background:
-            'radial-gradient(circle at top left, rgba(79,70,229,0.12), transparent 40%), radial-gradient(circle at bottom right, rgba(59,130,246,0.1), transparent 35%), #f5f7fb',
+          background: gradients.login,
         }}
       >
         <div style={{ width: '100%', maxWidth: 420 }}>
@@ -63,18 +70,21 @@ export function LoginPage() {
                 height: 52,
                 margin: '0 auto',
                 borderRadius: 14,
-                background: '#4f46e5',
-                color: '#fff',
+                background: gradients.brandMark,
+                color: palette.textOnPrimary,
                 display: 'grid',
                 placeItems: 'center',
                 fontWeight: 700,
                 fontSize: 22,
-                boxShadow: '0 10px 30px rgba(79,70,229,0.28)',
+                boxShadow: '0 14px 34px rgba(79,70,229,0.32)',
               }}
             >
               P
             </div>
-            <Typography.Title level={3} style={{ marginTop: 16, marginBottom: 4 }}>
+            <Typography.Title
+              level={3}
+              style={{ marginTop: 16, marginBottom: 4, color: palette.text }}
+            >
               PolicyFlow AI
             </Typography.Title>
             <Typography.Text type="secondary">企业内部政策问答与流程助手</Typography.Text>
@@ -82,8 +92,17 @@ export function LoginPage() {
 
           <Card
             title="登录账户"
-            styles={{ header: { borderBottom: '1px solid #f0f0f0' } }}
-            style={{ boxShadow: '0 12px 40px rgba(15,23,41,0.08)' }}
+            styles={{
+              header: {
+                borderBottom: `1px solid ${palette.primarySoft}`,
+                background: gradients.cardHead,
+              },
+            }}
+            style={{
+              boxShadow: '0 18px 48px rgba(79,70,229,0.12), 0 8px 20px rgba(26,35,64,0.06)',
+              border: `1px solid ${palette.borderSecondary}`,
+              borderRadius: 16,
+            }}
           >
             {summary ? (
               <div ref={summaryRef} tabIndex={-1} style={{ marginBottom: 16, outline: 'none' }}>

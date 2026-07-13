@@ -142,7 +142,7 @@ export function DraftListPage() {
                     marginLeft: 8,
                     height: 32,
                     borderRadius: 8,
-                    border: '1px solid #d9d9d9',
+                    border: '1px solid var(--color-border)',
                     padding: '0 8px',
                     minWidth: 140,
                   }}
@@ -166,7 +166,7 @@ export function DraftListPage() {
                     marginLeft: 8,
                     height: 32,
                     borderRadius: 8,
-                    border: '1px solid #d9d9d9',
+                    border: '1px solid var(--color-border)',
                     padding: '0 8px',
                     minWidth: 140,
                   }}

@@ -46,6 +46,26 @@ export type Conversation = {
   status: string
   summary: Record<string, unknown>
   messages: ConversationMessage[]
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type ConversationSummary = {
+  id: string
+  title: string
+  status: string
+  messageCount: number
+  lastMessagePreview: string | null
+  lastMessageRole: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type ConversationListResult = {
+  items: ConversationSummary[]
+  total: number
+  page: number
+  pageSize: number
 }
 
 export type ChatResult = {
@@ -186,6 +206,77 @@ export async function sendChat(input: SendChatInput): Promise<ChatResult> {
   }
 }
 
+type ConversationSummaryRaw = {
+  id: string
+  title: string
+  status: string
+  message_count: number
+  last_message_preview: string | null
+  last_message_role: string | null
+  created_at: string
+  updated_at: string
+}
+
+function toConversationSummary(item: ConversationSummaryRaw): ConversationSummary {
+  return {
+    id: item.id,
+    title: item.title,
+    status: item.status,
+    messageCount: item.message_count,
+    lastMessagePreview: item.last_message_preview,
+    lastMessageRole: item.last_message_role,
+    createdAt: item.created_at,
+    updatedAt: item.updated_at,
+  }
+}
+
+export async function listConversations(
+  page = 1,
+  pageSize = 20,
+  keyword = '',
+  signal?: AbortSignal,
+): Promise<ConversationListResult> {
+  const search = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  })
+  const normalizedKeyword = keyword.trim()
+  if (normalizedKeyword) search.set('keyword', normalizedKeyword)
+  const raw = await apiClient.request<{
+    items: ConversationSummaryRaw[]
+    total: number
+    page: number
+    page_size: number
+  }>(`/api/conversations?${search.toString()}`, { signal })
+  return {
+    items: raw.items.map(toConversationSummary),
+    total: raw.total,
+    page: raw.page,
+    pageSize: raw.page_size,
+  }
+}
+
+export async function renameConversation(
+  conversationId: string,
+  title: string,
+): Promise<ConversationSummary> {
+  const raw = await apiClient.request<ConversationSummaryRaw>(
+    `/api/conversations/${encodeURIComponent(conversationId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ title: title.trim() }),
+    },
+  )
+  return toConversationSummary(raw)
+}
+
+export async function deleteConversation(conversationId: string): Promise<void> {
+  await apiClient.request<void>(
+    `/api/conversations/${encodeURIComponent(conversationId)}`,
+    { method: 'DELETE' },
+  )
+}
+
 export async function getConversation(
   conversationId: string,
   signal?: AbortSignal,
@@ -202,12 +293,16 @@ export async function getConversation(
       meta_json: AssistantMetadataRaw
       created_at: string
     }>
+    created_at?: string
+    updated_at?: string
   }>(`/api/conversations/${encodeURIComponent(conversationId)}`, { signal })
   return {
     id: raw.id,
     title: raw.title,
     status: raw.status,
     summary: raw.summary,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
     messages: raw.messages.map((message) => ({
       id: message.id,
       role: message.role,
