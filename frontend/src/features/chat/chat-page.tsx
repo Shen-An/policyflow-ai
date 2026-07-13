@@ -344,10 +344,13 @@ export function ChatPage() {
     <div className="chat-page">
       <div className="page-header chat-page__header">
         <div>
+          <Typography.Text type="secondary" className="chat-page__eyebrow">
+            企业制度问答
+          </Typography.Text>
           <h2>{title}</h2>
-          <p>回答以授权知识库为依据；历史会话仅展示你自己的记录，并与其他用户隔离。</p>
+          <p>基于授权知识库回答，带引用依据；历史会话仅你本人可见。</p>
         </div>
-        <Button icon={<PlusOutlined />} onClick={startNewConversation}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={startNewConversation}>
           新建问答
         </Button>
       </div>
@@ -356,6 +359,7 @@ export function ChatPage() {
         <aside className="chat-page__history" aria-label="历史会话">
           <Card
             size="small"
+            className="chat-page__history-card"
             title={
               <Space>
                 <HistoryOutlined />
@@ -383,7 +387,7 @@ export function ChatPage() {
 
               <button
                 type="button"
-                className={`chat-history__item${conversationId ? '' : ' is-active'}`}
+                className={`chat-history__item chat-history__item--new${conversationId ? '' : ' is-active'}`}
                 onClick={startNewConversation}
                 aria-label="开始新会话"
                 aria-current={conversationId ? undefined : 'page'}
@@ -462,19 +466,34 @@ export function ChatPage() {
                 <div className="chat-page__empty">
                   <Empty
                     image={
-                      <ThunderboltOutlined
-                        className="pf-brand-icon"
-                        style={{ fontSize: 40 }}
-                      />
+                      <div className="chat-page__empty-icon">
+                        <ThunderboltOutlined className="pf-brand-icon" />
+                      </div>
                     }
                     description={
-                      <div>
-                        <Typography.Title level={5} style={{ marginBottom: 4 }}>
+                      <div className="chat-page__empty-copy">
+                        <Typography.Title level={5} style={{ marginBottom: 6 }}>
                           从一个制度问题开始
                         </Typography.Title>
                         <Typography.Text type="secondary">
-                          例如：差旅住宿标准是多少？
+                          例如：差旅住宿标准是多少？报销需要哪些附件？
                         </Typography.Text>
+                        <div className="chat-page__suggestions">
+                          {[
+                            '差旅住宿标准是多少？',
+                            '怎么报销？需要哪些材料？',
+                            '请假流程有哪些步骤？',
+                          ].map((sample) => (
+                            <button
+                              key={sample}
+                              type="button"
+                              className="chat-page__suggestion"
+                              onClick={() => setQuestion(sample)}
+                            >
+                              {sample}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     }
                   />
@@ -541,36 +560,42 @@ export function ChatPage() {
                   void submit(question)
                 }}
               >
-                <label htmlFor="chat-question" className="chat-page__composer-label">
-                  问题
-                </label>
-                <Input.TextArea
-                  id="chat-question"
-                  rows={3}
-                  maxLength={4000}
-                  value={question}
-                  onChange={(event) => setQuestion(event.target.value)}
-                  placeholder="输入你的制度问题，尽量描述完整场景"
-                  onPressEnter={(event) => {
-                    if (!event.shiftKey) {
-                      event.preventDefault()
-                      void submit(question)
-                    }
-                  }}
-                />
-                <div className="chat-page__composer-actions">
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    Enter 发送 · Shift + Enter 换行
-                  </Typography.Text>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    loading={sendMutation.isPending}
-                    disabled={!question.trim() || noKnowledgeBases}
-                  >
-                    <SendOutlined aria-hidden />
-                    发送问题
-                  </Button>
+                <div className="chat-page__composer-shell">
+                  <label htmlFor="chat-question" className="chat-page__composer-label">
+                    输入问题
+                  </label>
+                  <Input.TextArea
+                    id="chat-question"
+                    rows={3}
+                    maxLength={4000}
+                    value={question}
+                    onChange={(event) => setQuestion(event.target.value)}
+                    placeholder="描述制度场景，例如：差旅报销需要哪些附件？"
+                    autoSize={{ minRows: 2, maxRows: 6 }}
+                    onPressEnter={(event) => {
+                      if (!event.shiftKey) {
+                        event.preventDefault()
+                        void submit(question)
+                      }
+                    }}
+                  />
+                  <div className="chat-page__composer-actions">
+                    <Typography.Text type="secondary" className="chat-page__composer-hint">
+                      Enter 发送 · Shift + Enter 换行
+                      {question.trim() ? ` · ${question.trim().length}/4000` : ''}
+                    </Typography.Text>
+                    <Button
+                      type="primary"
+                      htmlType="submit"
+                      size="large"
+                      loading={sendMutation.isPending}
+                      disabled={!question.trim() || noKnowledgeBases}
+                      className="chat-page__send"
+                    >
+                      <SendOutlined aria-hidden />
+                      发送
+                    </Button>
+                  </div>
                 </div>
               </form>
             </div>
@@ -578,9 +603,9 @@ export function ChatPage() {
         </Card>
 
         <aside className="chat-page__sidebar">
-          <Card title="检索范围" size="small">
-            <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 12 }}>
-              不选择时检索全部可访问知识库。
+          <Card title="检索范围" size="small" className="chat-page__side-card">
+            <Typography.Paragraph type="secondary" className="chat-page__side-help">
+              不选择时，将检索你有权限的全部知识库。
             </Typography.Paragraph>
             {knowledgeBases.isPending ? (
               <Typography.Text type="secondary">正在加载知识库…</Typography.Text>
@@ -606,9 +631,9 @@ export function ChatPage() {
                 onChange={(values) => setSelectedKnowledgeBases(values as string[])}
                 options={knowledgeBases.data.map((kb) => ({
                   label: (
-                    <span>
-                      <div style={{ fontWeight: 500 }}>{kb.name}</div>
-                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    <span className="chat-page__kb-option">
+                      <span className="chat-page__kb-name">{kb.name}</span>
+                      <Typography.Text type="secondary" className="chat-page__kb-code">
                         {kb.code}
                       </Typography.Text>
                     </span>
@@ -619,13 +644,16 @@ export function ChatPage() {
             )}
           </Card>
 
-          <Card title="检索模式" size="small">
+          <Card title="检索模式" size="small" className="chat-page__side-card">
             <Select
               style={{ width: '100%' }}
               value={queryMode}
               onChange={(value) => setQueryMode(value as QueryMode)}
               options={queryModeOptions}
             />
+            <Typography.Paragraph type="secondary" className="chat-page__side-help" style={{ marginTop: 10, marginBottom: 0 }}>
+              默认混合模式更稳；需要更宽覆盖时可切换全局或混合增强。
+            </Typography.Paragraph>
           </Card>
         </aside>
       </div>
