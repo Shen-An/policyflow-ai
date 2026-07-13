@@ -108,3 +108,68 @@
   --shell-sider-width: 236px;
   --shell-content-max: 1440px;
 }
+
+.dark {
+  color-scheme: dark;
+
+  --color-background: #0d1116;
+  --color-background-soft: #141a21;
+  --color-surface: #151b22;
+  --color-surface-muted: #1a222b;
+  --color-surface-elevated: #1a222b;
+  --color-input: #121820;
+
+  --color-text-primary: #e8edf2;
+  --color-text-secondary: #9aa6b2;
+  --color-text-tertiary: #6b7785;
+
+  --color-border: #2a3440;
+  --color-border-secondary: #222b35;
+  --color-border-strong: #3a4654;
+  --color-border-hover: #4a5868;
+
+  --color-primary: #34d399;
+  --color-primary-hover: #6ee7b7;
+  --color-primary-active: #10b981;
+  --color-primary-50: rgba(52, 211, 153, 0.10);
+  --color-primary-100: rgba(52, 211, 153, 0.16);
+  --color-primary-200: rgba(52, 211, 153, 0.28);
+  --color-primary-700: #6ee7b7;
+  --color-primary-deep: #a7f3d0;
+  --color-primary-foreground: #06281c;
+
+  --color-success: #4ade80;
+  --color-success-50: rgba(74, 222, 128, 0.10);
+  --color-success-100: rgba(74, 222, 128, 0.16);
+  --color-success-200: rgba(74, 222, 128, 0.28);
+  --color-success-700: #86efac;
+  --color-warning: #fb923c;
+  --color-warning-50: rgba(251, 146, 60, 0.10);
+  --color-warning-100: rgba(251, 146, 60, 0.16);
+  --color-warning-200: rgba(251, 146, 60, 0.28);
+  --color-danger: #f87171;
+  --color-danger-50: rgba(248, 113, 113, 0.10);
+  --color-danger-100: rgba(248, 113, 113, 0.16);
+  --color-danger-200: rgba(248, 113, 113, 0.28);
+  --color-danger-hover: #fca5a5;
+  --color-info: #38bdf8;
+  --color-info-50: rgba(56, 189, 248, 0.10);
+  --color-info-100: rgba(56, 189, 248, 0.16);
+
+  --color-sidebar-bg: #11161c;
+  --color-sidebar-bg-soft: #171d24;
+  --color-sidebar-border: #1e262f;
+  --color-sidebar-active: rgba(52, 211, 153, 0.12);
+  --color-sidebar-active-text: #a7f3d0;
+  --color-sidebar-text: #b4bec8;
+  --color-sidebar-text-muted: #6b7785;
+  --color-sidebar-hover: #1a222b;
+
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.28);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.32), 0 1px 1px -1px rgb(0 0 0 / 0.24);
+  --shadow-md: 0 10px 24px -14px rgb(0 0 0 / 0.55), 0 4px 10px -6px rgb(0 0 0 / 0.35);
+  --shadow-lg: 0 18px 40px -20px rgb(0 0 0 / 0.65), 0 8px 16px -10px rgb(0 0 0 / 0.40);
+  --shadow-focus: 0 0 0 3px rgb(52 211 153 / 0.22);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.28), 0 8px 20px -12px rgb(0 0 0 / 0.45);
+  --shadow-card-hover: 0 12px 28px -14px rgb(0 0 0 / 0.55), 0 6px 12px -8px rgb(0 0 0 / 0.35);
+}
