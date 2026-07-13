@@ -3,7 +3,7 @@ import { parseEnv } from './env'
 
 describe('environment contract', () => {
   it('uses safe same-origin defaults', () => {
-    expect(parseEnv({})).toEqual({ apiBaseUrl: '', enableMsw: false, requestTimeoutMs: 10_000 })
+    expect(parseEnv({})).toEqual({ apiBaseUrl: '', enableMsw: false, requestTimeoutMs: 60_000 })
   })
   it('rejects production mock activation', () => {
     expect(() => parseEnv({ VITE_ENABLE_MSW: 'true' }, true)).toThrow('MSW cannot be enabled in a production build.')

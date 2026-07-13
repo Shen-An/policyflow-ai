@@ -168,6 +168,9 @@ function toMetadata(raw: AssistantMetadataRaw): AssistantMetadata {
   }
 }
 
+/** Chat may span multi-KB retrieval + LLM generation; allow up to 3 minutes. */
+const CHAT_REQUEST_TIMEOUT_MS = 180_000
+
 export async function sendChat(input: SendChatInput): Promise<ChatResult> {
   const raw = await apiClient.request<{
     conversation_id: string
@@ -182,6 +185,7 @@ export async function sendChat(input: SendChatInput): Promise<ChatResult> {
     compliance: ComplianceRaw
   }>('/api/chat', {
     method: 'POST',
+    timeoutMs: CHAT_REQUEST_TIMEOUT_MS,
     body: JSON.stringify({
       conversation_id: input.conversationId ?? null,
       question: input.question,
