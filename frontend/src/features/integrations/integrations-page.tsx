@@ -19,6 +19,7 @@ import { useEffect, useState } from 'react'
 import type { MCPServer, MCPServerInput, MCPServerUpdate } from '../../api/mcp'
 import { LoadingState } from '../../components/feedback/state-views'
 import { confirmAction } from '../../lib/confirm'
+import { formatDateTime } from '../../lib/datetime'
 import {
   useCreateMCPServerMutation,
   useMCPHealthMutation,
@@ -28,10 +29,7 @@ import {
 
 function formatDate(value: string | null): string {
   if (!value) return '尚未检查'
-  return new Intl.DateTimeFormat('zh-CN', {
-    dateStyle: 'medium',
-    timeStyle: 'medium',
-  }).format(new Date(value))
+  return formatDateTime(value, { dateStyle: 'medium', timeStyle: 'medium' }, value)
 }
 
 function healthColor(status: string): string {
