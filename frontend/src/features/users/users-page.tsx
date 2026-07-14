@@ -6,6 +6,7 @@ import { useSearchParams } from 'react-router-dom'
 import type { UserRecord } from '../../api/users'
 import { AppError } from '../../api/errors'
 import { EmptyState, ErrorState } from '../../components/feedback/state-views'
+import { formatDateTime } from '../../lib/datetime'
 import { roleLabel, userStatusLabel } from '../../lib/labels'
 import { CreateUserDialog } from './components/create-user-dialog'
 import { EditRolesDialog } from './components/edit-roles-dialog'
@@ -17,10 +18,7 @@ function positiveInt(value: string | null, fallback: number): number {
 }
 
 function formatDate(value: string): string {
-  return new Intl.DateTimeFormat('zh-CN', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value))
+  return formatDateTime(value, { dateStyle: 'medium', timeStyle: 'short' }, value)
 }
 
 export function UsersPage() {
