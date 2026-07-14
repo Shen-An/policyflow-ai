@@ -54,7 +54,16 @@ describe('EvaluationPage', () => {
             hit_at_5: 0.9,
             completed_cases: 20,
           },
-          config_snapshot: {},
+          config_snapshot: {
+            eval_types: ['retrieval'],
+            retrieval_config: {
+              strategy: 'hybrid_lightrag_bm25',
+              top_k_values: [1, 3, 5],
+              rerank_enabled: false,
+              query_mode: 'hybrid',
+            },
+            compare_strategies: ['bm25_only'],
+          },
           created_by: 'u1',
           created_at: '2026-07-10T08:00:00Z',
           started_at: null,
@@ -98,10 +107,12 @@ describe('EvaluationPage', () => {
       </ConfigProvider>,
     )
 
-    expect(await screen.findByText('简历可直接写的主指标')).toBeVisible()
-    expect(screen.getByText(/Hit@1=70\.0%/)).toBeVisible()
-    expect(screen.getByText(/Hit@5=90\.0%/)).toBeVisible()
-    expect(screen.getByText(/MRR=0\.8200/)).toBeVisible()
+    expect(await screen.findByText('简历可直接写的主指标（含检索方式）')).toBeVisible()
+    expect(screen.getAllByText(/Hybrid\(LightRAG\+BM25\)/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Hit@1=70\.0%/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Hit@5=90\.0%/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/MRR=0\.8200/).length).toBeGreaterThan(0)
+    expect(screen.getByText(/示例写法/)).toBeVisible()
     // Per-case details are collapsed by default to keep the page scannable.
     expect(screen.getByText(/展开逐条检索结果/)).toBeVisible()
     expect(screen.queryByText('差旅住宿标准？')).not.toBeInTheDocument()

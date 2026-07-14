@@ -97,6 +97,41 @@ function coreRetrievalMetrics(metrics: Record<string, unknown> | null | undefine
   }
 }
 
+function strategyLabel(raw: unknown): string {
+  const value = String(raw ?? '').trim()
+  if (!value) return '未知策略'
+  if (value === 'hybrid_lightrag_bm25') return 'Hybrid(LightRAG+BM25)'
+  if (value === 'lightrag_only') return 'LightRAG'
+  if (value === 'bm25_only') return 'BM25'
+  return value
+}
+
+function extractRunStrategyInfo(configSnapshot: Record<string, unknown> | null | undefined) {
+  const retrievalConfig =
+    configSnapshot &&
+    typeof configSnapshot.retrieval_config === 'object' &&
+    configSnapshot.retrieval_config !== null
+      ? (configSnapshot.retrieval_config as Record<string, unknown>)
+      : {}
+  const primary = strategyLabel(retrievalConfig.strategy ?? 'hybrid_lightrag_bm25')
+  const compareRaw = Array.isArray(configSnapshot?.compare_strategies)
+    ? (configSnapshot?.compare_strategies as unknown[])
+    : []
+  const compare = compareRaw
+    .map((item) => strategyLabel(item))
+    .filter((item) => item && item !== primary)
+  const rerankEnabled = Boolean(retrievalConfig.rerank_enabled)
+  return {
+    primary,
+    compare,
+    rerankEnabled,
+    summary:
+      compare.length > 0
+        ? `${primary}（对比：${compare.join(' / ')}${rerankEnabled ? '；+本地重排' : ''}）`
+        : `${primary}${rerankEnabled ? ' + 本地重排' : ''}`,
+  }
+}
+
 export function EvaluationPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const runId = searchParams.get('run_id') ?? ''
@@ -893,6 +928,7 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
 
   const run = query.data
   const core = coreRetrievalMetrics(run.metrics)
+  const strategyInfo = extractRunStrategyInfo(run.configSnapshot)
   const strategyComparison =
     run.metrics.strategy_comparison &&
     typeof run.metrics.strategy_comparison === 'object' &&
@@ -901,14 +937,32 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
       : null
 
   const resumeLine = [
+    strategyInfo.primary,
     core.hit1 !== null ? `Hit@1=${formatRate(core.hit1, 1)}` : null,
     core.hit3 !== null ? `Hit@3=${formatRate(core.hit3, 1)}` : null,
     core.hit5 !== null ? `Hit@5=${formatRate(core.hit5, 1)}` : null,
     core.mrr !== null ? `MRR=${formatMrr(core.mrr)}` : null,
     core.cases !== null ? `N=${core.cases}` : null,
+    strategyInfo.rerankEnabled ? 'rerank=local_lexical_fusion' : null,
   ]
     .filter(Boolean)
     .join(' · ')
+
+  const resumeExamples =
+    strategyComparison && Object.keys(strategyComparison).length > 0
+      ? Object.entries(strategyComparison)
+          .map(([strategy, metrics]) => {
+            const hit5 =
+              pickMetric(metrics, 'hit_at_5') ??
+              pickMetric(metrics, 'hit_at_3') ??
+              pickMetric(metrics, 'hit_at_1')
+            const mrr = pickMetric(metrics, 'mrr')
+            if (hit5 === null && mrr === null) return null
+            return `${strategyLabel(strategy)} Hit@5=${formatRate(hit5, 1)}，MRR=${formatMrr(mrr)}`
+          })
+          .filter(Boolean)
+          .join('；')
+      : `${strategyInfo.primary} Hit@5=${formatRate(core.hit5, 1)}，MRR=${formatMrr(core.mrr)}（N=${core.cases ?? '—'}）`
 
   const perfectScore =
     core.hit1 === 1 &&
@@ -937,7 +991,7 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
     <Card
       size="small"
       style={{ marginTop: 16 }}
-      title={`${run.name} · 检索量化结果`}
+      title={`${run.name} · ${strategyInfo.primary} 检索量化结果`}
       extra={
         <Space>
           <Button
@@ -964,6 +1018,11 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
     >
       <Space wrap style={{ marginBottom: 8 }}>
         <Tag color={statusColor(run.status)}>{run.status}</Tag>
+        <Tag color="blue">主策略：{strategyInfo.primary}</Tag>
+        {strategyInfo.compare.map((item) => (
+          <Tag key={item}>对比：{item}</Tag>
+        ))}
+        {strategyInfo.rerankEnabled ? <Tag>本地重排</Tag> : null}
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Request ID：{run.requestId ?? '无'}
         </Typography.Text>
@@ -973,10 +1032,19 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
         type="info"
         showIcon
         style={{ marginBottom: 12 }}
-        title="简历可直接写的主指标"
+        title="简历可直接写的主指标（含检索方式）"
         description={
-          resumeLine ||
-          '等待 retrieval Run 完成后显示 Hit@K / MRR。请确保选择了检索用例并启动 retrieval 评估。'
+          <>
+            <div>
+              {resumeLine ||
+                '等待 retrieval Run 完成后显示 Hit@K / MRR。请确保选择了检索用例并启动 retrieval 评估。'}
+            </div>
+            {resumeLine ? (
+              <div style={{ marginTop: 6 }}>
+                示例写法：{resumeExamples || strategyInfo.summary}
+              </div>
+            ) : null}
+          </>
         }
       />
 
@@ -1027,7 +1095,7 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
             pagination={false}
             rowKey="strategy"
             dataSource={Object.entries(strategyComparison).map(([strategy, metrics]) => ({
-              strategy,
+              strategy: strategyLabel(strategy),
               hit1: metrics.hit_at_1,
               hit3: metrics.hit_at_3,
               hit5: metrics.hit_at_5 ?? metrics.hit_at_3,
