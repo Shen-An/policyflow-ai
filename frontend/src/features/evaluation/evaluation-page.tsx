@@ -107,15 +107,14 @@ export function EvaluationPage() {
         <div>
           <h2>评估中心</h2>
           <p>
-            主指标为可写进简历的检索量化结果：
-            <strong> Hit@1 / Hit@3 / Hit@5 / MRR</strong>
-            。导入 CRUD 金标到「测试库」后启动 retrieval Run 即可得到百分比分数。
+            默认只看两件事：1）导入测试语料；2）跑检索评估拿到
+            <strong> Hit@1 / Hit@5 / MRR</strong>
+            。高级配置与逐条结果默认折叠。
           </p>
         </div>
       </div>
       <Space orientation="vertical" size={16} style={{ width: '100%' }}>
         <CrudImportSection />
-        <DatasetSection />
         <RunSection
           selectedRunId={runId}
           onSelectRun={(id) => {
@@ -125,7 +124,20 @@ export function EvaluationPage() {
             setSearchParams(next)
           }}
         />
-        <RetrievalDebugSection />
+        <Collapse
+          items={[
+            {
+              key: 'dataset',
+              label: '高级：手工管理评估用例（通常不用）',
+              children: <DatasetSection />,
+            },
+            {
+              key: 'debug',
+              label: '高级：单次检索调试（通常不用）',
+              children: <RetrievalDebugSection />,
+            },
+          ]}
+        />
       </Space>
     </div>
   )
@@ -318,7 +330,10 @@ function DatasetSection() {
   const [itemForm] = Form.useForm()
 
   return (
-    <Card title="评估数据集">
+    <div>
+      <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
+        这里只在需要手工补用例时使用。日常请用上方「CRUD 导入」，不要在这里逐条堆数据。
+      </Typography.Paragraph>
       <Row gutter={[16, 16]}>
         <Col xs={24} xl={12}>
           <Card type="inner" title="新增回答评估用例" size="small">
@@ -326,7 +341,7 @@ function DatasetSection() {
               form={caseForm}
               layout="vertical"
               requiredMark={false}
-              initialValues={{ category: 'hr' }}
+              initialValues={{ category: 'eval_test' }}
               onFinish={(values: {
                 question: string
                 category: string
@@ -466,49 +481,48 @@ function DatasetSection() {
         </Col>
       </Row>
 
-      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col xs={24} lg={12}>
-          <Typography.Title level={5} style={{ marginTop: 0 }}>
-            回答用例（{cases.data?.length ?? 0}）
-          </Typography.Title>
-          {cases.isPending ? (
-            <LoadingState message="正在加载…" minH="min-h-0" />
-          ) : (
-            <List
-              size="small"
-              bordered
-              dataSource={cases.data ?? []}
-              locale={{ emptyText: <Empty description="暂无用例" /> }}
-              renderItem={(item) => (
-                <List.Item>
-                  {item.enabled ? 'enabled' : 'disabled'} · {item.category} · {item.question}
-                </List.Item>
-              )}
-            />
-          )}
-        </Col>
-        <Col xs={24} lg={12}>
-          <Typography.Title level={5} style={{ marginTop: 0 }}>
-            检索用例（{items.data?.length ?? 0}）
-          </Typography.Title>
-          {items.isPending ? (
-            <LoadingState message="正在加载…" minH="min-h-0" />
-          ) : (
-            <List
-              size="small"
-              bordered
-              dataSource={items.data ?? []}
-              locale={{ emptyText: <Empty description="暂无用例" /> }}
-              renderItem={(item) => (
-                <List.Item>
-                  {item.enabled ? 'enabled' : 'disabled'} · {item.query}
-                </List.Item>
-              )}
-            />
-          )}
-        </Col>
-      </Row>
-    </Card>
+      <Collapse
+        style={{ marginTop: 16 }}
+        items={[
+          {
+            key: 'lists',
+            label: `展开查看已有用例（回答 ${cases.data?.length ?? 0} / 检索 ${items.data?.length ?? 0}，列表最多展示 50 条）`,
+            children: (
+              <Row gutter={[16, 16]}>
+                <Col xs={24} lg={12}>
+                  <List
+                    size="small"
+                    bordered
+                    header="回答用例"
+                    dataSource={(cases.data ?? []).slice(0, 50)}
+                    locale={{ emptyText: <Empty description="暂无用例" /> }}
+                    renderItem={(item) => (
+                      <List.Item>
+                        {item.enabled ? 'enabled' : 'disabled'} · {item.category} · {item.question}
+                      </List.Item>
+                    )}
+                  />
+                </Col>
+                <Col xs={24} lg={12}>
+                  <List
+                    size="small"
+                    bordered
+                    header="检索用例"
+                    dataSource={(items.data ?? []).slice(0, 50)}
+                    locale={{ emptyText: <Empty description="暂无用例" /> }}
+                    renderItem={(item) => (
+                      <List.Item>
+                        {item.enabled ? 'enabled' : 'disabled'} · {item.query}
+                      </List.Item>
+                    )}
+                  />
+                </Col>
+              </Row>
+            ),
+          },
+        ]}
+      />
+    </div>
   )
 }
 
@@ -583,8 +597,7 @@ function RunSection({
   return (
     <Card title="评估 Run（主看 Hit@K / MRR）">
       <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-        勾选「检索」评估类型和检索用例后启动。完成后列表直接显示 Hit@1 / Hit@5 / MRR，
-        可复制到简历，例如：Hybrid 检索 Hit@5=90%，MRR=0.82（N=50）。
+        只做检索量化：评估类型勾「检索」→ 点「随机 50/100」→ 启动。完成后看 Hit@1 / Hit@5 / MRR。
       </Typography.Paragraph>
       <Form
         form={form}
@@ -1072,16 +1085,30 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
         ]}
       />
 
-      <Typography.Title level={5} style={{ marginTop: 16 }}>
-        逐条检索结果（Hit@K / MRR）
-      </Typography.Title>
-      <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-        {run.results.length === 0 ? (
-          <Empty description="暂无结果；Run 完成后刷新" />
-        ) : (
-          run.results.map((result) => <RetrievalResultCard key={result.id} result={result} />)
-        )}
-      </Space>
+      <Collapse
+        style={{ marginTop: 16 }}
+        items={[
+          {
+            key: 'cases',
+            label: `展开逐条检索结果（${run.results.length} 条，99% 情况不用看）`,
+            children:
+              run.results.length === 0 ? (
+                <Empty description="暂无结果；Run 完成后刷新" />
+              ) : (
+                <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+                  {run.results.slice(0, 100).map((result) => (
+                    <RetrievalResultCard key={result.id} result={result} />
+                  ))}
+                  {run.results.length > 100 ? (
+                    <Typography.Text type="secondary">
+                      仅展示前 100 条，完整结果请导出 JSON/CSV。
+                    </Typography.Text>
+                  ) : null}
+                </Space>
+              ),
+          },
+        ]}
+      />
     </Card>
   )
 }
