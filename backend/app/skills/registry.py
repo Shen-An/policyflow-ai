@@ -18,6 +18,7 @@ from backend.app.schemas.skill import (
     SummaryInput,
 )
 from backend.app.services.audit_service import record_audit
+from backend.app.rag.protocols import LLMService
 from backend.app.skills.base import SkillHandler
 from backend.app.skills.handlers.builtin import (
     PolicyCompareSkill,
@@ -27,11 +28,11 @@ from backend.app.skills.handlers.builtin import (
 
 
 class SkillRegistry:
-    def __init__(self) -> None:
+    def __init__(self, llm_service: LLMService | None = None) -> None:
         self.handlers: dict[str, SkillHandler] = {
-            "process_checklist": ProcessChecklistSkill(),
-            "policy_compare": PolicyCompareSkill(),
-            "summary": SummarySkill(),
+            "process_checklist": ProcessChecklistSkill(llm_service),
+            "policy_compare": PolicyCompareSkill(llm_service),
+            "summary": SummarySkill(llm_service),
         }
         self.input_models: dict[str, type[BaseModel]] = {
             "process_checklist": ProcessChecklistInput,

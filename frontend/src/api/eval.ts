@@ -270,13 +270,35 @@ export const getEvalRun = async (id: string, signal?: AbortSignal) =>
     { signal },
   ))
 
+export async function exportEvalRun(
+  id: string,
+  format: 'json' | 'csv' = 'json',
+): Promise<Blob> {
+  const path = `/api/eval/runs/${encodeURIComponent(id)}/export?format=${format}`
+  const headers = new Headers()
+  const token = apiClient.getAccessToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const response = await fetch(apiClient.resolveRequestUrl(path), { headers })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text || `Export failed (${response.status})`)
+  }
+  return response.blob()
+}
+
 export async function createEvalRun(input: {
   name: string
   caseIds: string[]
   retrievalItemIds: string[]
   evalTypes: Array<'retrieval' | 'rag_answer' | 'ragas'>
   queryMode: QueryMode
+  strategy?: string
+  compareStrategies?: string[]
+  ragasEnabled?: boolean
+  rerankEnabled?: boolean
 }): Promise<EvalRun> {
+  const ragasEnabled =
+    input.ragasEnabled ?? input.evalTypes.includes('ragas')
   return toRun(await apiClient.request<EvalRunRaw>('/api/eval/runs', {
     method: 'POST',
     body: JSON.stringify({
@@ -285,14 +307,96 @@ export async function createEvalRun(input: {
       retrieval_item_ids: input.retrievalItemIds,
       eval_types: input.evalTypes,
       retrieval_config: {
-        strategy: 'lightrag_only',
-        top_k_values: [1, 3, 5],
-        rerank_enabled: false,
+        strategy: input.strategy ?? 'hybrid_lightrag_bm25',
+        top_k_values: [1, 3, 5, 10],
+        rerank_enabled: Boolean(input.rerankEnabled),
         query_mode: input.queryMode,
       },
-      ragas_config: { enabled: false, metrics: [] },
+      compare_strategies: input.compareStrategies ?? [],
+      ragas_config: {
+        enabled: ragasEnabled,
+        metrics: ['faithfulness', 'answer_relevancy', 'context_precision'],
+      },
     }),
   }))
+}
+
+export type CrudImportResult = {
+  knowledgeBaseId: string
+  taskType: string
+  documentsCreated: number
+  documentsReused: number
+  distractorDocumentsCreated: number
+  retrievalItemsCreated: number
+  evalCasesCreated: number
+  indexed: number
+  indexFailed: number
+  indexQueued: number
+  sampleSize: number
+  corpusDocumentCount: number
+  sourcePath: string
+  warning: string | null
+}
+
+export async function importCrudDataset(input: {
+  knowledgeBaseId?: string
+  sourcePath?: string
+  taskType?: 'questanswer_1doc' | 'questanswer_2docs' | 'questanswer_3docs'
+  sampleSize?: number
+  distractorCount?: number
+  createEvalCases?: boolean
+  indexDocuments?: boolean
+  useEvalTestKb?: boolean
+}): Promise<CrudImportResult> {
+  // Import used to block on LightRAG indexing and exceed the default 60s timeout,
+  // leaving the button spinning. Backend now queues indexing; keep a generous
+  // timeout for large JSON parse + DB writes only.
+  const raw = await apiClient.request<{
+    knowledge_base_id: string
+    task_type: string
+    documents_created: number
+    documents_reused: number
+    distractor_documents_created?: number
+    retrieval_items_created: number
+    eval_cases_created: number
+    indexed: number
+    index_failed: number
+    index_queued?: number
+    sample_size: number
+    corpus_document_count?: number
+    source_path: string
+    warning?: string | null
+  }>('/api/eval/datasets/crud-import', {
+    method: 'POST',
+    timeoutMs: 180_000,
+    body: JSON.stringify({
+      knowledge_base_id: input.knowledgeBaseId || null,
+      source_path: input.sourcePath || null,
+      task_type: input.taskType ?? 'questanswer_1doc',
+      sample_size: input.sampleSize ?? 50,
+      distractor_count: input.distractorCount ?? 200,
+      create_eval_cases: input.createEvalCases ?? true,
+      index_documents: input.indexDocuments ?? true,
+      use_eval_test_kb: input.useEvalTestKb ?? true,
+      offset: 0,
+    }),
+  })
+  return {
+    knowledgeBaseId: raw.knowledge_base_id,
+    taskType: raw.task_type,
+    documentsCreated: raw.documents_created,
+    documentsReused: raw.documents_reused,
+    distractorDocumentsCreated: raw.distractor_documents_created ?? 0,
+    retrievalItemsCreated: raw.retrieval_items_created,
+    evalCasesCreated: raw.eval_cases_created,
+    indexed: raw.indexed,
+    indexFailed: raw.index_failed,
+    indexQueued: raw.index_queued ?? 0,
+    sampleSize: raw.sample_size,
+    corpusDocumentCount: raw.corpus_document_count ?? 0,
+    sourcePath: raw.source_path,
+    warning: raw.warning ?? null,
+  }
 }
 
 export async function retrievalDebug(input: {

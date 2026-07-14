@@ -24,6 +24,7 @@ from backend.app.db.models import (
     ToolCallLog,
     User,
     UserRole,
+    utc_now,
 )
 from backend.app.db.session import get_engine
 
@@ -60,6 +61,9 @@ SQLITE_COLUMN_MIGRATIONS = {
         "embedding": "embedding JSON",
         "meta_json": "meta_json JSON NOT NULL DEFAULT '{}'",
     },
+    "knowledge_documents": {
+        "external_id": "external_id VARCHAR(128)",
+    },
 }
 
 ROLE_SEEDS = (
@@ -82,6 +86,8 @@ KNOWLEDGE_BASE_SEEDS = (
     ("it", "IT 制度库", "信息技术与安全制度"),
     ("admin", "行政制度库", "行政管理制度与流程"),
     ("legal", "法务制度库", "法务与合规制度"),
+    # Isolated sandbox for CRUD/Hit@K evaluation imports — do not mix with business KBs.
+    ("eval_test", "测试库", "评估/回归专用沙箱知识库，仅放 CRUD 评测语料"),
 )
 
 
@@ -328,25 +334,37 @@ def seed_initial_data(
                 select(KnowledgeBase).where(KnowledgeBase.code == code)
             ).first()
             if knowledge_base is None:
+                # eval_test reuses admin department so it is clearly non-business.
+                department_code = code if code in departments else "admin"
                 knowledge_base = KnowledgeBase(
                     code=code,
                     name=name,
                     description=description,
-                    department_id=departments[code].id,
+                    department_id=departments[department_code].id,
                     rag_workspace=str(app_settings.RAG_WORKSPACE_DIR / code),
+                    status="active",
                 )
                 session.add(knowledge_base)
                 session.flush()
                 knowledge_bases_created += 1
+            else:
+                # Revive soft-deleted seeded sandboxes (especially eval_test).
+                if knowledge_base.status == "deleted" and code == "eval_test":
+                    knowledge_base.status = "active"
+                    knowledge_base.name = name
+                    knowledge_base.description = description
+                    knowledge_base.updated_at = utc_now()
+                    session.add(knowledge_base)
             knowledge_bases[code] = knowledge_base
 
         for code, knowledge_base in knowledge_bases.items():
+            department_code = code if code in departments else "admin"
             permissions_created += int(
                 _ensure_permission(
                     session,
                     knowledge_base.id,
                     "department",
-                    departments[code].id,
+                    departments[department_code].id,
                     "read",
                 )
             )
@@ -359,6 +377,7 @@ def seed_initial_data(
                     "admin",
                 )
             )
+            # Evaluation sandbox should also be manageable by sys_admin / bootstrap admin later.
 
         if app_settings.BOOTSTRAP_ADMIN_PASSWORD:
             admin = session.exec(

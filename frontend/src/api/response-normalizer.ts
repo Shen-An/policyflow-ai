@@ -42,11 +42,55 @@ function defaultMessage(status: number): string {
   return '请求未能完成，请检查后重试。'
 }
 
+function formatValidationDetails(details: unknown): string | null {
+  if (!Array.isArray(details) || details.length === 0) return null
+  const parts: string[] = []
+  for (const item of details) {
+    if (!item || typeof item !== 'object') continue
+    const row = item as { loc?: unknown; msg?: unknown; type?: unknown }
+    const loc = Array.isArray(row.loc)
+      ? row.loc.filter((part) => part !== 'body').join('.')
+      : ''
+    const msg = typeof row.msg === 'string' ? row.msg : 'validation error'
+    parts.push(loc ? `${loc}: ${msg}` : msg)
+  }
+  return parts.length ? parts.join('；') : null
+}
+
+function humanizeValidationMessage(raw: string, details: unknown): string {
+  const detailText = formatValidationDetails(details)
+  const lower = raw.toLowerCase()
+
+  if (
+    lower.includes('at least one case or retrieval item') ||
+    lower.includes('retrieval eval requires retrieval_item_ids')
+  ) {
+    return '请先勾选至少一个「检索用例」。只勾评估类型、不选用例会校验失败。'
+  }
+  if (lower.includes('rag_answer and ragas eval require case_ids')) {
+    return '勾选了「回答」或「RAGAS」时，必须同时勾选至少一个「回答用例」。若只做 Hit@K/MRR，请只勾「检索」。'
+  }
+  if (lower.includes('compare_strategies requires retrieval')) {
+    return '多策略对比需要勾选「检索」评估类型。'
+  }
+  if (raw === 'Request validation failed' || lower.includes('validation')) {
+    return detailText
+      ? `请求校验失败：${detailText}`
+      : '请求校验失败。若你在跑检索评估，请确认已勾选检索用例。'
+  }
+  return detailText ? `${raw}（${detailText}）` : raw
+}
+
 export function normalizeError(status: number, payload: unknown, responseRequestId?: string): AppError {
   const candidate = typeof payload === 'object' && payload !== null ? payload as ErrorPayload : undefined
   const nested = candidate?.error
   const code = typeof nested?.code === 'string' ? nested.code : `HTTP_${status}`
-  const message = typeof nested?.message === 'string' ? nested.message : defaultMessage(status)
+  const details = nested?.details ?? candidate?.detail
+  const rawMessage = typeof nested?.message === 'string' ? nested.message : defaultMessage(status)
+  const message =
+    status === 422 || code === 'VALIDATION_ERROR'
+      ? humanizeValidationMessage(rawMessage, details)
+      : rawMessage
   const payloadRequestId = typeof nested?.request_id === 'string'
     ? nested.request_id
     : typeof candidate?.request_id === 'string' ? candidate.request_id : undefined
@@ -55,7 +99,7 @@ export function normalizeError(status: number, payload: unknown, responseRequest
     kind: kindForStatus(status),
     code,
     message,
-    details: nested?.details ?? candidate?.detail,
+    details,
     status,
     requestId: responseRequestId ?? payloadRequestId,
     retryable: status === 429 || status >= 500,

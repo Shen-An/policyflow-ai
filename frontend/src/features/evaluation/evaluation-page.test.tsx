@@ -8,28 +8,84 @@ import { server } from '../../mocks/server'
 import { EvaluationPage } from './evaluation-page'
 
 describe('EvaluationPage', () => {
-  it('renders terminal skipped semantics without treating them as zero scores', async () => {
+  it('shows Hit@K and MRR as primary resume metrics', async () => {
     server.use(
       http.get('*/api/knowledge-bases', () => HttpResponse.json({ items: [], total: 0 })),
       http.get('*/api/eval/cases', () => HttpResponse.json([])),
       http.get('*/api/eval/retrieval-items', () => HttpResponse.json([])),
-      http.get('*/api/eval/runs', () => HttpResponse.json({
-        items: [{ id: 'run-1', name: 'Skipped Run', status: 'skipped', total_cases: 1,
-          created_by: 'u1', created_at: '2026-07-10T08:00:00Z', started_at: null,
-          finished_at: null, metrics: { skipped_cases: 1 }, error_summary: null, request_id: 'req-1' }],
-        total: 1, page: 1, page_size: 20,
-      })),
-      http.get('*/api/eval/runs/run-1', () => HttpResponse.json({
-        id: 'run-1', name: 'Skipped Run', status: 'skipped', total_cases: 1,
-        metrics: { skipped_cases: 1 }, config_snapshot: {}, created_by: 'u1',
-        created_at: '2026-07-10T08:00:00Z', started_at: null, finished_at: null,
-        error_summary: null, request_id: 'req-1',
-        results: [{ id: 'result-1', question: 'Q', answer: null, retrieved_sources: [],
-          retrieval_metrics: { status: 'skipped', reason: 'empty_ground_truth' },
-          answer_metrics: null, ragas_metrics: { status: 'skipped', reason: 'disabled' },
-          type_statuses: { retrieval: 'skipped' }, score: 0, passed: false,
-          error_message: null, latency_ms: 0 }],
-      })),
+      http.get('*/api/eval/runs', () =>
+        HttpResponse.json({
+          items: [
+            {
+              id: 'run-1',
+              name: 'Hybrid Demo',
+              status: 'success',
+              total_cases: 20,
+              created_by: 'u1',
+              created_at: '2026-07-10T08:00:00Z',
+              started_at: null,
+              finished_at: null,
+              metrics: {
+                mrr: 0.82,
+                hit_at_1: 0.7,
+                hit_at_3: 0.85,
+                hit_at_5: 0.9,
+                completed_cases: 20,
+              },
+              error_summary: null,
+              request_id: 'req-1',
+            },
+          ],
+          total: 1,
+          page: 1,
+          page_size: 20,
+        }),
+      ),
+      http.get('*/api/eval/runs/run-1', () =>
+        HttpResponse.json({
+          id: 'run-1',
+          name: 'Hybrid Demo',
+          status: 'success',
+          total_cases: 20,
+          metrics: {
+            mrr: 0.82,
+            hit_at_1: 0.7,
+            hit_at_3: 0.85,
+            hit_at_5: 0.9,
+            completed_cases: 20,
+          },
+          config_snapshot: {},
+          created_by: 'u1',
+          created_at: '2026-07-10T08:00:00Z',
+          started_at: null,
+          finished_at: null,
+          error_summary: null,
+          request_id: 'req-1',
+          results: [
+            {
+              id: 'result-1',
+              question: '差旅住宿标准？',
+              answer: null,
+              retrieved_sources: [],
+              retrieval_metrics: {
+                status: 'completed',
+                mrr: 1,
+                hit_at_1: 1,
+                hit_at_3: 1,
+                hit_at_5: 1,
+                first_relevant_rank: 1,
+              },
+              answer_metrics: null,
+              ragas_metrics: { status: 'skipped', reason: 'disabled' },
+              type_statuses: { retrieval: 'completed' },
+              score: 1,
+              passed: true,
+              error_message: null,
+              latency_ms: 12,
+            },
+          ],
+        }),
+      ),
     )
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
@@ -41,8 +97,12 @@ describe('EvaluationPage', () => {
         </QueryClientProvider>
       </ConfigProvider>,
     )
-    expect(await screen.findByText('retrieval:skipped')).toBeVisible()
-    expect(screen.getByText('skipped（empty_ground_truth）')).toBeVisible()
-    expect(screen.getByText('skipped（disabled）')).toBeVisible()
+
+    expect(await screen.findByText('简历可直接写的主指标')).toBeVisible()
+    expect(screen.getByText(/Hit@1=70\.0%/)).toBeVisible()
+    expect(screen.getByText(/Hit@5=90\.0%/)).toBeVisible()
+    expect(screen.getByText(/MRR=0\.8200/)).toBeVisible()
+    expect(screen.getByText('差旅住宿标准？')).toBeVisible()
+    expect(screen.getByText('命中')).toBeVisible()
   })
 })

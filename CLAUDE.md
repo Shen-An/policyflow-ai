@@ -32,3 +32,5 @@ uvicorn app.main:app --reload
 - `docs/02-database-design-sqlite.md` — 数据库设计
 - `docs/03-api-design.md` — API 设计
 - `docs/04-ai-pipeline-rag-eval-design.md` — AI/RAG/Eval 设计
+- `docs/08-de-toy-multiagent-skill-eval-strategy.md` — **去玩具化 / 多智能体落点 / Skill·Tool·MCP 诚实实现 / CRUD Eval（Hit@K·MRR）总策略**（实现以此为准；§10 落地状态）
+- `docs/09-interview-demo-script.md` — 面试演示脚本

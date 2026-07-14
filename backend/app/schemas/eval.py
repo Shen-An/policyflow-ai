@@ -71,9 +71,12 @@ class EvalRunCreate(BaseModel):
     retrieval_item_ids: list[str] = Field(default_factory=list)
     eval_types: list[EvalType] = Field(default_factory=default_eval_types, min_length=1)
     retrieval_config: RetrievalConfig = Field(default_factory=RetrievalConfig)
+    # Optional multi-strategy comparison: runs retrieval once per strategy and
+    # stores per-strategy aggregates under metrics["strategy_comparison"].
+    compare_strategies: list[RetrievalStrategy] = Field(default_factory=list)
     ragas_config: RagasConfig = Field(default_factory=RagasConfig)
 
-    @field_validator("case_ids", "retrieval_item_ids", "eval_types")
+    @field_validator("case_ids", "retrieval_item_ids", "eval_types", "compare_strategies")
     @classmethod
     def deduplicate_values(cls, value: list[Any]) -> list[Any]:
         return list(dict.fromkeys(value))
@@ -86,6 +89,8 @@ class EvalRunCreate(BaseModel):
             raise ValueError("retrieval eval requires retrieval_item_ids")
         if {"rag_answer", "ragas"} & set(self.eval_types) and not self.case_ids:
             raise ValueError("rag_answer and ragas eval require case_ids")
+        if self.compare_strategies and "retrieval" not in self.eval_types:
+            raise ValueError("compare_strategies requires retrieval eval_types")
         return self
 
 

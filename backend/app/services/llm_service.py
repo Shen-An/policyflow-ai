@@ -1,7 +1,11 @@
 """OpenAI-compatible language-model service."""
 
+from __future__ import annotations
+
 import asyncio
+import json
 import os
+from typing import Any
 
 import httpx
 from sqlalchemy.engine import Engine
@@ -11,6 +15,7 @@ from backend.app.core.config import Settings
 from backend.app.core.exceptions import ApplicationError
 from backend.app.core.mcp_security import decrypt_secret
 from backend.app.db.models import ModelProvider
+from backend.app.rag.protocols import LLMCompletion, LLMMessage, ToolCallRequest
 
 
 def _responses_output_text(data: dict[str, object]) -> str:
@@ -62,6 +67,73 @@ def authorization_headers(provider: ModelProvider, settings: Settings) -> dict[s
     return {"Authorization": f"Bearer {api_key}"}
 
 
+def _parse_tool_arguments(raw: Any) -> dict[str, Any]:
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return {}
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            return {"_raw": text}
+        return parsed if isinstance(parsed, dict) else {"value": parsed}
+    return {"value": raw}
+
+
+def _tool_calls_from_message(message: dict[str, Any]) -> list[ToolCallRequest]:
+    raw_calls = message.get("tool_calls") or []
+    results: list[ToolCallRequest] = []
+    if not isinstance(raw_calls, list):
+        return results
+    for index, item in enumerate(raw_calls):
+        if not isinstance(item, dict):
+            continue
+        function = item.get("function") if isinstance(item.get("function"), dict) else {}
+        name = str(function.get("name") or item.get("name") or "").strip()
+        if not name:
+            continue
+        call_id = str(item.get("id") or f"call_{index}")
+        results.append(
+            ToolCallRequest(
+                id=call_id,
+                name=name,
+                arguments=_parse_tool_arguments(function.get("arguments")),
+            )
+        )
+    return results
+
+
+def _to_openai_messages(messages: list[LLMMessage]) -> list[dict[str, Any]]:
+    payload: list[dict[str, Any]] = []
+    for message in messages:
+        item: dict[str, Any] = {"role": message.role}
+        if message.content is not None:
+            item["content"] = message.content
+        if message.role == "assistant" and message.tool_calls:
+            item["tool_calls"] = [
+                {
+                    "id": call.id,
+                    "type": "function",
+                    "function": {
+                        "name": call.name,
+                        "arguments": json.dumps(call.arguments, ensure_ascii=False),
+                    },
+                }
+                for call in message.tool_calls
+            ]
+            item.setdefault("content", None)
+        if message.role == "tool":
+            item["tool_call_id"] = message.tool_call_id or ""
+            if message.name:
+                item["name"] = message.name
+        payload.append(item)
+    return payload
+
+
 class OpenAICompatibleLLMService:
     def __init__(
         self,
@@ -80,45 +152,19 @@ class OpenAICompatibleLLMService:
     def available(self) -> bool:
         return self._provider() is not None
 
-    async def complete(self, system_prompt: str, user_prompt: str) -> str:
-        provider = self._provider()
-        if provider is None or provider.base_url is None:
-            raise ApplicationError(
-                "LLM_PROVIDER_ERROR", "No enabled LLM provider is configured", 503
-            )
-        api_style = str(provider.config_json.get("api_style") or "openai_chat_completions")
-        headers = authorization_headers(provider, self.settings)
-        if api_style == "openai_responses":
-            endpoint = (
-                provider.base_url
-                if provider.base_url.rstrip("/").endswith("/responses")
-                else f"{provider.base_url.rstrip('/')}/responses"
-            )
-            payload = {
-                "model": provider.default_chat_model,
-                "instructions": system_prompt,
-                "input": user_prompt,
-                "max_output_tokens": 1024,
-            }
-        else:
-            endpoint = (
-                provider.base_url
-                if provider.base_url.rstrip("/").endswith("/chat/completions")
-                else f"{provider.base_url.rstrip('/')}/chat/completions"
-            )
-            payload = {
-                "model": provider.default_chat_model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                "temperature": 0.1,
-            }
-        client = self._client or httpx.AsyncClient(
-            timeout=float(
-                provider.config_json.get("timeout_seconds", self.settings.LLM_TIMEOUT_SECONDS)
-            )
+    def _timeout(self, provider: ModelProvider) -> float:
+        return float(
+            provider.config_json.get("timeout_seconds", self.settings.LLM_TIMEOUT_SECONDS)
         )
+
+    async def _post_json(
+        self,
+        endpoint: str,
+        headers: dict[str, str],
+        payload: dict[str, Any],
+        timeout: float,
+    ) -> dict[str, Any]:
+        client = self._client or httpx.AsyncClient(timeout=timeout)
         owns_client = self._client is None
         try:
             response: httpx.Response | None = None
@@ -133,19 +179,103 @@ class OpenAICompatibleLLMService:
                 raise ValueError("LLM provider returned no response")
             response.raise_for_status()
             data = response.json()
-            content = (
-                _responses_output_text(data)
-                if api_style == "openai_responses"
-                else data["choices"][0]["message"]["content"]
-            )
-            if not isinstance(content, str) or not content.strip():
-                raise ValueError("LLM response content is empty")
-            return content.strip()
+            if not isinstance(data, dict):
+                raise ValueError("LLM response is not a JSON object")
+            return data
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
             raise ApplicationError("LLM_PROVIDER_ERROR", "LLM request failed", 502) from exc
         finally:
             if owns_client:
                 await client.aclose()
+
+    async def complete(self, system_prompt: str, user_prompt: str) -> str:
+        result = await self.complete_with_tools(
+            [
+                LLMMessage(role="system", content=system_prompt),
+                LLMMessage(role="user", content=user_prompt),
+            ],
+            tools=[],
+        )
+        content = (result.content or "").strip()
+        if not content:
+            raise ApplicationError("LLM_PROVIDER_ERROR", "LLM response content is empty", 502)
+        return content
+
+    async def complete_with_tools(
+        self,
+        messages: list[LLMMessage],
+        tools: list[dict[str, Any]],
+    ) -> LLMCompletion:
+        provider = self._provider()
+        if provider is None or provider.base_url is None:
+            raise ApplicationError(
+                "LLM_PROVIDER_ERROR", "No enabled LLM provider is configured", 503
+            )
+        api_style = str(provider.config_json.get("api_style") or "openai_chat_completions")
+        headers = authorization_headers(provider, self.settings)
+
+        # Tool calling is only supported on chat.completions style providers.
+        if api_style == "openai_responses" or not tools:
+            if api_style == "openai_responses":
+                system_prompt = next(
+                    (item.content or "" for item in messages if item.role == "system"),
+                    "",
+                )
+                user_chunks = [
+                    item.content or ""
+                    for item in messages
+                    if item.role in {"user", "tool", "assistant"} and item.content
+                ]
+                endpoint = (
+                    provider.base_url
+                    if provider.base_url.rstrip("/").endswith("/responses")
+                    else f"{provider.base_url.rstrip('/')}/responses"
+                )
+                payload = {
+                    "model": provider.default_chat_model,
+                    "instructions": system_prompt,
+                    "input": "\n".join(user_chunks),
+                    "max_output_tokens": 1024,
+                }
+                data = await self._post_json(
+                    endpoint, headers, payload, self._timeout(provider)
+                )
+                text = _responses_output_text(data).strip()
+                return LLMCompletion(content=text, tool_calls=[])
+
+            endpoint = (
+                provider.base_url
+                if provider.base_url.rstrip("/").endswith("/chat/completions")
+                else f"{provider.base_url.rstrip('/')}/chat/completions"
+            )
+            payload = {
+                "model": provider.default_chat_model,
+                "messages": _to_openai_messages(messages),
+                "temperature": 0.1,
+            }
+            data = await self._post_json(endpoint, headers, payload, self._timeout(provider))
+            message = data["choices"][0]["message"]
+            content = message.get("content")
+            text = content.strip() if isinstance(content, str) else None
+            return LLMCompletion(content=text, tool_calls=_tool_calls_from_message(message))
+
+        endpoint = (
+            provider.base_url
+            if provider.base_url.rstrip("/").endswith("/chat/completions")
+            else f"{provider.base_url.rstrip('/')}/chat/completions"
+        )
+        payload = {
+            "model": provider.default_chat_model,
+            "messages": _to_openai_messages(messages),
+            "tools": tools,
+            "tool_choice": "auto",
+            "temperature": 0.1,
+        }
+        data = await self._post_json(endpoint, headers, payload, self._timeout(provider))
+        message = data["choices"][0]["message"]
+        content = message.get("content")
+        text = content.strip() if isinstance(content, str) and content.strip() else None
+        return LLMCompletion(content=text, tool_calls=_tool_calls_from_message(message))
 
     async def list_models(self) -> list[str]:
         provider = self._provider()
@@ -160,11 +290,7 @@ class OpenAICompatibleLLMService:
             catalog_base_url = catalog_base_url.removesuffix("/chat/completions")
         elif catalog_base_url.endswith("/responses"):
             catalog_base_url = catalog_base_url.removesuffix("/responses")
-        client = self._client or httpx.AsyncClient(
-            timeout=float(
-                provider.config_json.get("timeout_seconds", self.settings.LLM_TIMEOUT_SECONDS)
-            )
-        )
+        client = self._client or httpx.AsyncClient(timeout=self._timeout(provider))
         owns_client = self._client is None
         try:
             response = await client.get(

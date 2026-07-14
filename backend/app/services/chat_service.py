@@ -201,10 +201,37 @@ def _build_command_traces(
         CommandTrace(
             name="RouterAgent",
             status="success",
-            summary=f"domain={router.domain}, task={router.task_type}, risk={router.risk_level}",
+            summary=(
+                f"domain={router.domain}, task={router.task_type}, "
+                f"risk={router.risk_level}, need_skill={getattr(router, 'need_skill', False)}"
+            ),
             output=router.model_dump(mode="json"),
         )
     )
+    # Reconstruct allowlist from router hints so non-SSE clients still see it.
+    try:
+        from backend.app.tools.chat_tools import resolve_allowed_tools
+
+        allowed = sorted(
+            resolve_allowed_tools(
+                getattr(router, "tool_hints", None),
+                need_skill=bool(getattr(router, "need_skill", False)),
+            )
+        )
+        commands.append(
+            CommandTrace(
+                name="ToolAllowlist",
+                status="success",
+                summary="tools=" + ",".join(allowed),
+                output={
+                    "allowed_tools": allowed,
+                    "tool_hints": list(getattr(router, "tool_hints", None) or []),
+                    "need_skill": bool(getattr(router, "need_skill", False)),
+                },
+            )
+        )
+    except Exception:
+        pass
     evidence_count = len(pipeline_result.retrieval_result.evidence)
     commands.append(
         CommandTrace(
@@ -221,6 +248,29 @@ def _build_command_traces(
             },
         )
     )
+    skills = pipeline_result.suggested_skills or []
+    skill_results = getattr(pipeline_result, "skill_results", None) or []
+    if skill_results:
+        ok = sum(1 for item in skill_results if item.get("status") == "success")
+        skill_summary = f"执行 Skill {ok}/{len(skill_results)}"
+        skill_status = "success" if ok else "warning"
+    elif skills:
+        skill_summary = "建议 Skill：" + "、".join(item.get("name", "") for item in skills)
+        skill_status = "success"
+    else:
+        skill_summary = "无 Skill"
+        skill_status = "empty"
+    commands.append(
+        CommandTrace(
+            name="SkillAgent",
+            status=skill_status,
+            summary=skill_summary,
+            output={
+                "suggested_skills": skills,
+                "skill_results": skill_results,
+            },
+        )
+    )
     commands.append(
         CommandTrace(
             name="AnswerAgent",
@@ -229,20 +279,10 @@ def _build_command_traces(
             output={
                 "confidence_score": pipeline_result.answer_result.confidence_score,
                 "answer_preview": _clip(pipeline_result.answer_result.answer, 400),
+                "skill_context_count": sum(
+                    1 for item in skill_results if item.get("status") == "success"
+                ),
             },
-        )
-    )
-    skills = pipeline_result.suggested_skills or []
-    commands.append(
-        CommandTrace(
-            name="SkillAgent",
-            status="success" if skills else "empty",
-            summary=(
-                "建议 Skill：" + "、".join(item.get("name", "") for item in skills)
-                if skills
-                else "无 Skill 建议"
-            ),
-            output={"suggested_skills": skills},
         )
     )
     compliance = pipeline_result.compliance
@@ -290,21 +330,25 @@ def _build_diagnostics(
         user_id=user.id,
         since=turn_started_at,
     )
-    if not tools and pipeline_result.suggested_skills:
-        for skill in pipeline_result.suggested_skills:
-            tools.append(
-                ToolCallTrace(
-                    tool_name=f"skill.suggest:{skill.get('name', 'unknown')}",
-                    status="suggested",
-                    agent_name="SkillAgent",
-                    input_summary={},
-                    output_summary={
-                        "name": skill.get("name"),
-                        "description": skill.get("description"),
-                    },
-                    latency_ms=0,
-                )
+    # Include in-memory answer tool traces that may not yet be in ToolCallLog.
+    existing_names = {(item.tool_name, item.status) for item in tools}
+    for raw in getattr(pipeline_result.answer_result, "tool_trace", None) or []:
+        key = (str(raw.get("tool_name") or ""), str(raw.get("status") or "success"))
+        if key in existing_names:
+            continue
+        tools.append(
+            ToolCallTrace(
+                tool_name=str(raw.get("tool_name") or "unknown"),
+                status=str(raw.get("status") or "success"),
+                agent_name="AnswerAgent",
+                input_summary=dict(raw.get("arguments") or {}),
+                output_summary=dict(raw.get("output") or {})
+                if isinstance(raw.get("output"), dict)
+                else {"result": raw.get("output")},
+                error_message=raw.get("error_message"),
+                latency_ms=int(raw.get("latency_ms") or 0),
             )
+        )
     commands = _build_command_traces(
         pipeline_result,
         knowledge_bases,
@@ -319,6 +363,9 @@ async def send_chat_message(
     data: ChatRequest,
     pipeline: AgentPipeline,
     memory_agent: MemoryAgent | None = None,
+    tool_registry: Any | None = None,
+    skill_registry: Any | None = None,
+    rag_service: Any | None = None,
 ) -> ChatResponse:
     final: ChatResponse | None = None
     async for event_name, payload in iter_chat_events(
@@ -327,6 +374,9 @@ async def send_chat_message(
         data,
         pipeline,
         memory_agent=memory_agent,
+        tool_registry=tool_registry,
+        skill_registry=skill_registry,
+        rag_service=rag_service,
     ):
         if event_name == "final":
             final = ChatResponse.model_validate(payload)
@@ -347,9 +397,15 @@ async def iter_chat_events(
     data: ChatRequest,
     pipeline: AgentPipeline,
     memory_agent: MemoryAgent | None = None,
+    tool_registry: Any | None = None,
+    skill_registry: Any | None = None,
+    rag_service: Any | None = None,
 ):
-    """Yield (event_name, payload) stages for SSE streaming."""
+    """Yield (event_name, payload) stages for SSE streaming via unified pipeline."""
     from collections.abc import AsyncIterator
+    import asyncio
+
+    from backend.app.tools.chat_tools import ChatToolExecutor
 
     started_at = perf_counter()
     turn_started_at = utc_now()
@@ -443,200 +499,65 @@ async def iter_chat_events(
             },
         )
 
-    from backend.app.agents.base import PipelineResult
-    from backend.app.schemas.retrieval import RetrievalResult
+    event_queue: asyncio.Queue[tuple[str, dict[str, Any]]] = asyncio.Queue()
 
-    yield (
-        "stage",
-        {"stage": "RouterAgent", "status": "running", "message": "正在分析问题领域与风险…"},
-    )
-    router_result = await pipeline.router_agent.run(data.question, knowledge_bases)
-    yield (
-        "stage",
-        {
-            "stage": "RouterAgent",
-            "status": "success",
-            "message": f"domain={router_result.domain}, risk={router_result.risk_level}",
-        },
-    )
-    yield (
-        "diagnostics_partial",
-        {
-            "commands": [
-                {
-                    "name": "RouterAgent",
-                    "status": "success",
-                    "summary": (
-                        f"domain={router_result.domain}, "
-                        f"task={router_result.task_type}, risk={router_result.risk_level}"
-                    ),
-                    "output": router_result.model_dump(mode="json"),
-                }
-            ]
-        },
-    )
+    async def on_stage(stage: str, status: str, message: str) -> None:
+        await event_queue.put(("stage", {"stage": stage, "status": status, "message": message}))
 
-    yield (
-        "stage",
-        {"stage": "RetrievalAgent", "status": "running", "message": "正在检索授权知识库…"},
-    )
-    retrieval_result = (
-        await pipeline.retrieval_agent.run(retrieval_request)
-        if retrieval_request is not None
-        else RetrievalResult(evidence=[], trace=[], latency_ms=0)
-    )
-    evidence_count = len(retrieval_result.evidence)
-    yield (
-        "stage",
-        {
-            "stage": "RetrievalAgent",
-            "status": "success" if evidence_count else "empty",
-            "message": f"检索 {len(knowledge_bases)} 个知识库，命中 {evidence_count} 条证据",
-        },
-    )
-    yield (
-        "diagnostics_partial",
-        {
-            "commands": [
-                {
-                    "name": "RetrievalAgent",
-                    "status": "success" if evidence_count else "empty",
-                    "summary": f"检索 {len(knowledge_bases)} 个知识库，命中 {evidence_count} 条证据",
-                    "output": {
-                        "knowledge_bases": [kb.name for kb in knowledge_bases],
-                        "evidence_count": evidence_count,
-                    },
-                }
-            ]
-        },
+    async def on_event(event: str, payload: dict[str, Any]) -> None:
+        await event_queue.put((event, payload))
+
+    tool_executor = None
+    if tool_registry is not None:
+        tool_executor = ChatToolExecutor(
+            session=session,
+            user=user,
+            tool_registry=tool_registry,
+            skill_registry=skill_registry,
+            rag_service=rag_service,
+            knowledge_base_ids=[kb.id for kb in knowledge_bases],
+            conversation_id=conversation.id,
+            retrieval_strategy=data.retrieval_strategy,
+        )
+
+    pipeline_task = asyncio.create_task(
+        pipeline.run(
+            data.question,
+            knowledge_bases,
+            retrieval_request,
+            enable_skill=data.enable_skill,
+            working_set=working_set,
+            on_stage=on_stage,
+            on_event=on_event,
+            session=session,
+            user=user,
+            tool_executor=tool_executor,
+            execute_skills=bool(data.enable_skill and skill_registry is not None),
+        )
     )
 
-    yield (
-        "stage",
-        {"stage": "AnswerAgent", "status": "running", "message": "正在结合证据与记忆生成回答…"},
-    )
-    answer_result = await pipeline.answer_agent.run(
-        data.question,
-        retrieval_result.evidence,
-        working_set,
-    )
-    yield (
-        "stage",
-        {"stage": "AnswerAgent", "status": "success", "message": "回答已生成"},
-    )
-    yield (
-        "diagnostics_partial",
-        {
-            "commands": [
-                {
-                    "name": "AnswerAgent",
-                    "status": "success",
-                    "summary": _clip(answer_result.answer, 160),
-                    "output": {
-                        "confidence_score": answer_result.confidence_score,
-                        "answer_preview": _clip(answer_result.answer, 400),
-                    },
-                }
-            ]
-        },
-    )
+    pipeline_result = None
+    while True:
+        if pipeline_task.done() and event_queue.empty():
+            pipeline_result = await pipeline_task
+            break
+        try:
+            event_name, payload = await asyncio.wait_for(event_queue.get(), timeout=0.05)
+            yield (event_name, payload)
+        except asyncio.TimeoutError:
+            if pipeline_task.done() and event_queue.empty():
+                pipeline_result = await pipeline_task
+                break
+            continue
 
-    yield (
-        "stage",
-        {"stage": "SkillAgent", "status": "running", "message": "正在匹配可用 Skill…"},
-    )
-    suggested_skills = await pipeline.skill_agent.run(
-        data.question, router_result, data.enable_skill
-    )
-    yield (
-        "stage",
-        {
-            "stage": "SkillAgent",
-            "status": "success" if suggested_skills else "empty",
-            "message": (
-                "建议：" + "、".join(item.get("name", "") for item in suggested_skills)
-                if suggested_skills
-                else "无 Skill 建议"
-            ),
-        },
-    )
-    tool_traces: list[dict[str, Any]] = []
-    if suggested_skills:
-        for skill in suggested_skills:
-            tool_traces.append(
-                {
-                    "tool_name": f"skill.suggest:{skill.get('name', 'unknown')}",
-                    "status": "suggested",
-                    "agent_name": "SkillAgent",
-                    "input_summary": {},
-                    "output_summary": {
-                        "name": skill.get("name"),
-                        "description": skill.get("description"),
-                    },
-                    "error_message": None,
-                    "latency_ms": 0,
-                }
-            )
-    yield (
-        "diagnostics_partial",
-        {
-            "tools": tool_traces,
-            "commands": [
-                {
-                    "name": "SkillAgent",
-                    "status": "success" if suggested_skills else "empty",
-                    "summary": (
-                        "建议 Skill：" + "、".join(item.get("name", "") for item in suggested_skills)
-                        if suggested_skills
-                        else "无 Skill 建议"
-                    ),
-                    "output": {"suggested_skills": suggested_skills},
-                }
-            ],
-        },
-    )
+    # Drain any remaining events.
+    while not event_queue.empty():
+        event_name, payload = event_queue.get_nowait()
+        yield (event_name, payload)
 
-    yield (
-        "stage",
-        {"stage": "ComplianceAgent", "status": "running", "message": "正在做合规检查…"},
-    )
-    compliance = await pipeline.compliance_agent.run(
-        answer_result.answer,
-        retrieval_result.evidence,
-    )
-    yield (
-        "stage",
-        {
-            "stage": "ComplianceAgent",
-            "status": "success" if compliance.passed else "warning",
-            "message": "合规通过" if compliance.passed else "存在合规告警",
-        },
-    )
-    yield (
-        "diagnostics_partial",
-        {
-            "commands": [
-                {
-                    "name": "ComplianceAgent",
-                    "status": "success" if compliance.passed else "warning",
-                    "summary": (
-                        "合规通过"
-                        if compliance.passed
-                        else "合规告警：" + "、".join(compliance.warnings)
-                    ),
-                    "output": compliance.model_dump(mode="json"),
-                }
-            ]
-        },
-    )
+    if pipeline_result is None:
+        pipeline_result = await pipeline_task
 
-    pipeline_result = PipelineResult(
-        router_result=router_result,
-        retrieval_result=retrieval_result,
-        answer_result=answer_result,
-        compliance=compliance,
-        suggested_skills=suggested_skills,
-    )
     citations = [
         Citation(
             knowledge_base_id=evidence.knowledge_base_id,

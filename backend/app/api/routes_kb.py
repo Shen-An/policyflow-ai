@@ -20,30 +20,38 @@ from backend.app.core.permissions import require_roles
 from backend.app.db.models import User
 from backend.app.schemas.knowledge import (
     DepartmentListResponse,
+    DocumentDeleteResponse,
     DocumentDetail,
     DocumentListResponse,
     DocumentStatusResponse,
+    DocumentUpdate,
     DocumentUploadResponse,
     IndexJobResponse,
     KnowledgeBaseCreate,
     KnowledgeBaseCreateOptions,
+    KnowledgeBaseDeleteResponse,
     KnowledgeBaseListResponse,
     KnowledgeBaseRead,
+    KnowledgeBaseUpdate,
 )
 from backend.app.services.document_service import (
     create_index_job,
+    delete_document,
     get_document_detail,
     get_document_status,
     list_documents,
+    update_document,
     upload_document,
 )
 from backend.app.services.indexing_service import process_document_index
 from backend.app.services.knowledge_base_service import (
     create_knowledge_base,
+    delete_knowledge_base,
     get_knowledge_base_create_options,
     get_knowledge_base_detail,
     list_departments,
     list_knowledge_bases,
+    update_knowledge_base,
 )
 
 router = APIRouter(prefix="/api/knowledge-bases", tags=["knowledge-bases"])
@@ -97,6 +105,39 @@ def get_knowledge_base(
     session: SessionDep,
 ) -> KnowledgeBaseRead:
     return get_knowledge_base_detail(session, user, str(knowledge_base_id))
+
+
+@router.patch("/{knowledge_base_id}", response_model=KnowledgeBaseRead)
+@router.put("/{knowledge_base_id}", response_model=KnowledgeBaseRead)
+def put_knowledge_base(
+    knowledge_base_id: UUID,
+    data: KnowledgeBaseUpdate,
+    request: Request,
+    session: SessionDep,
+    user: KnowledgeAdmin,
+) -> KnowledgeBaseRead:
+    return update_knowledge_base(
+        session,
+        user,
+        str(knowledge_base_id),
+        data,
+        _client_ip(request),
+    )
+
+
+@router.delete("/{knowledge_base_id}", response_model=KnowledgeBaseDeleteResponse)
+def remove_knowledge_base(
+    knowledge_base_id: UUID,
+    request: Request,
+    session: SessionDep,
+    user: KnowledgeAdmin,
+) -> KnowledgeBaseDeleteResponse:
+    return delete_knowledge_base(
+        session,
+        user,
+        str(knowledge_base_id),
+        _client_ip(request),
+    )
 
 
 @router.post(
@@ -167,6 +208,39 @@ def get_document(
     session: SessionDep,
 ) -> DocumentDetail:
     return get_document_detail(session, user, document_id)
+
+
+@documents_router.patch("/{document_id}", response_model=DocumentDetail)
+@documents_router.put("/{document_id}", response_model=DocumentDetail)
+def put_document(
+    document_id: str,
+    data: DocumentUpdate,
+    request: Request,
+    user: CurrentUser,
+    session: SessionDep,
+) -> DocumentDetail:
+    return update_document(
+        session,
+        user,
+        document_id,
+        data,
+        _client_ip(request),
+    )
+
+
+@documents_router.delete("/{document_id}", response_model=DocumentDeleteResponse)
+def remove_document(
+    document_id: str,
+    request: Request,
+    user: CurrentUser,
+    session: SessionDep,
+) -> DocumentDeleteResponse:
+    return delete_document(
+        session,
+        user,
+        document_id,
+        _client_ip(request),
+    )
 
 
 @documents_router.get("/{document_id}/status", response_model=DocumentStatusResponse)

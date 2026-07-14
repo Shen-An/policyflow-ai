@@ -268,11 +268,9 @@ def test_faq_approval_indexes_document_and_eval_run_is_reproducible(tmp_path: Pa
     )
     assert retrieval_result["retrieval_metrics"]["hit_at_1"] == 1.0
     assert retrieval_result["retrieval_metrics"]["mrr"] == 1.0
-    assert answer_result["ragas_metrics"] == {
-        "status": "skipped",
-        "metrics": {},
-        "reason": "disabled",
-    }
+    assert answer_result["ragas_metrics"]["status"] == "skipped"
+    assert answer_result["ragas_metrics"]["reason"] == "disabled"
+    assert answer_result["ragas_metrics"]["metrics"] == {}
     assert debug_response.status_code == 200
     assert debug_response.json()["items"][0]["retriever_type"] == "lightrag"
     assert debug_response.json()["items"][0]["score"] == 0.9
@@ -280,8 +278,13 @@ def test_faq_approval_indexes_document_and_eval_run_is_reproducible(tmp_path: Pa
     assert bm25_response.json()["items"]
     assert bm25_response.json()["items"][0]["retriever_type"] == "bm25"
     assert bm25_response.json()["items"][0]["chunk_id"] is None
-    assert rerank_response.status_code == 503
-    assert rerank_response.json()["error"]["code"] == "RERANKER_UNAVAILABLE"
+    assert rerank_response.status_code == 200
+    assert rerank_response.json()["rerank_applied"] is True
+    assert rerank_response.json()["items"]
+    assert (
+        rerank_response.json()["items"][0].get("metadata", {}).get("rerank_method")
+        == "local_lexical_fusion"
+    )
 
     with Session(app.state.engine) as session:
         approved_faq = session.get(FAQDraft, first_faq["id"])

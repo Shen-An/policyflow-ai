@@ -56,12 +56,14 @@ class EvalRunner:
         run_id: str,
         item: RetrievalEvalItem,
         request: EvalRunCreate,
+        strategy: Any | None = None,
     ) -> EvalResult:
+        selected_strategy = strategy or request.retrieval_config.strategy
         retrieval = await self.rag_service.retrieve(
             RetrievalRequest(
                 query=item.query,
                 knowledge_base_ids=item.knowledge_base_ids,
-                strategy=request.retrieval_config.strategy,
+                strategy=selected_strategy,
                 top_k=max(request.retrieval_config.top_k_values),
                 rerank_enabled=request.retrieval_config.rerank_enabled,
                 lightrag_query_mode=request.retrieval_config.query_mode,
@@ -73,6 +75,14 @@ class EvalRunner:
             item.relevant_chunk_ids,
             request.retrieval_config.top_k_values,
         )
+        metrics = {
+            **metrics,
+            "strategy": str(
+                selected_strategy.value
+                if hasattr(selected_strategy, "value")
+                else selected_strategy
+            ),
+        }
         status = str(metrics["status"])
         if status == "completed":
             max_k = max(request.retrieval_config.top_k_values)
@@ -181,8 +191,14 @@ class EvalRunner:
                     evidence.snippet
                     for evidence in pipeline_result.retrieval_result.evidence
                 ],
+                reference_answer=(
+                    " ".join(case.expected_answer_keywords)
+                    if case.expected_answer_keywords
+                    else None
+                ),
             ),
             "ragas" in request.eval_types and request.ragas_config.enabled,
+            metrics=request.ragas_config.metrics,
         )
         if "ragas" in request.eval_types:
             type_statuses["ragas"] = ragas_result.status
@@ -226,8 +242,19 @@ class EvalRunner:
                     select(EvalCase).where(col(EvalCase.id).in_(request.case_ids))
                 ).all()
             ]
+            strategies_for_count = (
+                list(request.compare_strategies) or [request.retrieval_config.strategy]
+                if "retrieval" in request.eval_types
+                else []
+            )
+            # Deduplicate while preserving order.
+            ordered_count: list[Any] = []
+            for strategy in strategies_for_count:
+                if strategy not in ordered_count:
+                    ordered_count.append(strategy)
+            strategy_multiplier = max(len(ordered_count), 1 if "retrieval" in request.eval_types else 0)
             eval_run.status = "running"
-            eval_run.total_cases = len(retrieval_items) + len(cases)
+            eval_run.total_cases = len(retrieval_items) * strategy_multiplier + len(cases)
             eval_run.started_at = utc_now()
             session.add(eval_run)
             session.commit()
@@ -239,25 +266,39 @@ class EvalRunner:
         skipped_cases = 0
 
         if "retrieval" in request.eval_types:
-            for item in retrieval_items:
-                try:
-                    result = await self._run_retrieval_item(run_id, item, request)
-                except Exception as exc:
-                    failed_cases += 1
-                    result = EvalResult(
-                        eval_run_id=run_id,
-                        retrieval_eval_item_id=item.id,
-                        question=item.query,
-                        error_message=str(exc),
-                        ragas_metrics={"status": "skipped", "reason": "case_failed"},
-                        type_statuses={"retrieval": "failed"},
-                    )
-                if result.retrieval_metrics:
-                    if result.type_statuses.get("retrieval") == "completed":
-                        retrieval_metric_sets.append(result.retrieval_metrics)
-                    elif result.type_statuses.get("retrieval") == "skipped":
-                        skipped_cases += 1
-                results.append(result)
+            strategies = list(request.compare_strategies) or [request.retrieval_config.strategy]
+            # Primary strategy first for default aggregate metrics.
+            primary = request.retrieval_config.strategy
+            ordered = [primary] + [s for s in strategies if s != primary]
+            per_strategy_sets: dict[str, list[dict[str, Any]]] = {
+                str(getattr(s, "value", s)): [] for s in ordered
+            }
+            for strategy in ordered:
+                strategy_key = str(getattr(strategy, "value", strategy))
+                for item in retrieval_items:
+                    try:
+                        result = await self._run_retrieval_item(
+                            run_id, item, request, strategy=strategy
+                        )
+                    except Exception as exc:
+                        failed_cases += 1
+                        result = EvalResult(
+                            eval_run_id=run_id,
+                            retrieval_eval_item_id=item.id,
+                            question=item.query,
+                            error_message=str(exc),
+                            retrieval_metrics={"strategy": strategy_key, "status": "failed"},
+                            ragas_metrics={"status": "skipped", "reason": "case_failed"},
+                            type_statuses={"retrieval": "failed"},
+                        )
+                    if result.retrieval_metrics:
+                        if result.type_statuses.get("retrieval") == "completed":
+                            per_strategy_sets[strategy_key].append(result.retrieval_metrics)
+                            if strategy == primary:
+                                retrieval_metric_sets.append(result.retrieval_metrics)
+                        elif result.type_statuses.get("retrieval") == "skipped":
+                            skipped_cases += 1
+                    results.append(result)
 
         if {"rag_answer", "ragas"} & set(request.eval_types):
             for case in cases:
@@ -298,6 +339,20 @@ class EvalRunner:
         }
         aggregate.update(_average_numeric_metrics(retrieval_metric_sets))
         aggregate.update(_average_numeric_metrics(answer_metric_sets))
+        if "retrieval" in request.eval_types:
+            strategies = list(request.compare_strategies) or [request.retrieval_config.strategy]
+            if len(strategies) > 1 or request.compare_strategies:
+                comparison: dict[str, Any] = {}
+                # Rebuild per-strategy aggregates from results for honesty even if loop vars change.
+                buckets: dict[str, list[dict[str, Any]]] = {}
+                for result in results:
+                    metrics = result.retrieval_metrics or {}
+                    strategy_name = str(metrics.get("strategy") or "unknown")
+                    if result.type_statuses.get("retrieval") == "completed":
+                        buckets.setdefault(strategy_name, []).append(metrics)
+                for strategy_name, metric_sets in buckets.items():
+                    comparison[strategy_name] = _average_numeric_metrics(metric_sets)
+                aggregate["strategy_comparison"] = comparison
 
         if completed_cases:
             status = "success"

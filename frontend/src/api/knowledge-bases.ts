@@ -25,6 +25,17 @@ export type CreateKnowledgeBaseInput = {
   defaultQueryMode: QueryMode
 }
 
+export type UpdateKnowledgeBaseInput = {
+  name?: string
+  description?: string
+  defaultQueryMode?: QueryMode
+  status?: 'active' | 'disabled'
+}
+
+export type UpdateDocumentInput = {
+  title?: string
+}
+
 export type KnowledgeDocument = {
   id: string
   title: string
@@ -167,6 +178,42 @@ export async function createKnowledgeBase(
   return toKnowledgeBase(raw)
 }
 
+export async function updateKnowledgeBase(
+  id: string,
+  input: UpdateKnowledgeBaseInput,
+): Promise<KnowledgeBase> {
+  const body: Record<string, unknown> = {}
+  if (input.name !== undefined) body.name = input.name
+  if (input.description !== undefined) body.description = input.description
+  if (input.defaultQueryMode !== undefined) body.default_query_mode = input.defaultQueryMode
+  if (input.status !== undefined) body.status = input.status
+  const raw = await apiClient.request<KnowledgeBaseRaw>(
+    `/api/knowledge-bases/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    },
+  )
+  return toKnowledgeBase(raw)
+}
+
+export async function deleteKnowledgeBase(
+  id: string,
+): Promise<{ knowledgeBaseId: string; status: string; deleted: boolean; documentsDeleted: number }> {
+  const raw = await apiClient.request<{
+    knowledge_base_id: string
+    status: string
+    deleted: boolean
+    documents_deleted: number
+  }>(`/api/knowledge-bases/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  return {
+    knowledgeBaseId: raw.knowledge_base_id,
+    status: raw.status,
+    deleted: raw.deleted,
+    documentsDeleted: raw.documents_deleted,
+  }
+}
+
 export async function listDocuments(
   knowledgeBaseId: string,
   page: number,
@@ -290,4 +337,58 @@ export async function reindexDocument(
     { method: 'POST' },
   )
   return { jobId: raw.job_id, status: raw.status }
+}
+
+export async function updateDocument(
+  documentId: string,
+  input: UpdateDocumentInput,
+): Promise<DocumentDetail> {
+  const body: Record<string, unknown> = {}
+  if (input.title !== undefined) body.title = input.title
+  const raw = await apiClient.request<{
+    id: string
+    knowledge_base_id: string
+    title: string
+    file_type: string
+    index_status: string
+    index_error: string | null
+    source_version: number
+    content_text: string
+    content_preview: string
+    content_length: number
+    created_at: string
+    updated_at: string
+  }>(`/api/documents/${encodeURIComponent(documentId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+  return {
+    id: raw.id,
+    knowledgeBaseId: raw.knowledge_base_id,
+    title: raw.title,
+    fileType: raw.file_type,
+    indexStatus: raw.index_status,
+    indexError: raw.index_error,
+    sourceVersion: raw.source_version,
+    contentText: raw.content_text,
+    contentPreview: raw.content_preview,
+    contentLength: raw.content_length,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  }
+}
+
+export async function deleteDocument(
+  documentId: string,
+): Promise<{ documentId: string; indexStatus: string; deleted: boolean }> {
+  const raw = await apiClient.request<{
+    document_id: string
+    index_status: string
+    deleted: boolean
+  }>(`/api/documents/${encodeURIComponent(documentId)}`, { method: 'DELETE' })
+  return {
+    documentId: raw.document_id,
+    indexStatus: raw.index_status,
+    deleted: raw.deleted,
+  }
 }

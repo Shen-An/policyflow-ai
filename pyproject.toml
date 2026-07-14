@@ -32,6 +32,10 @@ dev = [
     "httpx>=0.27.0",
     "ipython>=8.0.0",
 ]
+ragas = [
+    "ragas>=0.2.0",
+    "datasets>=2.19.0",
+]
 
 [project.scripts]
 start = "backend.app.main:main"

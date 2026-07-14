@@ -16,6 +16,9 @@ export type RouterResult = {
   domain: string
   taskType: string
   riskLevel: string
+  needSkill?: boolean
+  toolHints?: string[]
+  rewriteQuery?: string | null
 }
 
 export type ComplianceResult = {
@@ -152,6 +155,9 @@ type RouterResultRaw = {
   domain: string
   task_type: string
   risk_level: string
+  need_skill?: boolean
+  tool_hints?: string[]
+  rewrite_query?: string | null
 }
 
 type ComplianceRaw = { passed: boolean; warnings: string[] }
@@ -215,6 +221,9 @@ function toRouterResult(raw: RouterResultRaw): RouterResult {
     domain: raw.domain,
     taskType: raw.task_type,
     riskLevel: raw.risk_level,
+    needSkill: raw.need_skill,
+    toolHints: raw.tool_hints,
+    rewriteQuery: raw.rewrite_query,
   }
 }
 

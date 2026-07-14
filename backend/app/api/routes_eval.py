@@ -1,10 +1,11 @@
 """Evaluation case, run, and retrieval-debug API routes."""
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, status
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 
 from backend.app.agents.pipeline import AgentPipeline
 from backend.app.api.deps import SessionDep
@@ -21,11 +22,18 @@ from backend.app.schemas.eval import (
     RetrievalEvalItemCreate,
     RetrievalEvalItemRead,
 )
+from backend.app.services.eval_dataset_import import (
+    CrudImportRequest,
+    CrudImportResult,
+    import_crud_dataset,
+)
 from backend.app.services.eval_service import (
     create_eval_case,
     create_eval_run,
     create_retrieval_item,
     execute_eval_run,
+    export_eval_run_csv,
+    export_eval_run_payload,
     get_eval_run,
     list_eval_cases,
     list_eval_runs,
@@ -76,6 +84,46 @@ def get_retrieval_items(
     enabled: bool | None = None,
 ) -> list[RetrievalEvalItemRead]:
     return list_retrieval_items(session, enabled)
+
+
+@router.post(
+    "/datasets/crud-import",
+    response_model=CrudImportResult,
+    status_code=status.HTTP_201_CREATED,
+)
+async def post_crud_import(
+    data: CrudImportRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: EvalAdmin,
+    session: SessionDep,
+) -> CrudImportResult:
+    """Import CRUD-RAG questanswer samples into documents + retrieval eval items.
+
+    Document indexing is queued in the background so the UI does not hang on
+    long LightRAG inserts.
+    """
+    from backend.app.services.indexing_service import process_document_index
+
+    indexer = getattr(request.app.state, "lightrag_adapter", None)
+    result = await import_crud_dataset(
+        session,
+        request.app.state.engine,
+        user,
+        data,
+        indexer=indexer,
+        settings=request.app.state.settings,
+    )
+    if data.index_documents and indexer is not None:
+        for document_id in result.pending_index_document_ids:
+            background_tasks.add_task(
+                process_document_index,
+                request.app.state.engine,
+                indexer,
+                document_id,
+            )
+    # Exclude internal pending list from response model dump via model fields.
+    return result
 
 
 @router.post("/runs", response_model=EvalRunRead, status_code=status.HTTP_201_CREATED)
@@ -135,6 +183,33 @@ def get_eval_run_route(
     _: EvalAdmin,
 ) -> EvalRunRead:
     return get_eval_run(session, str(run_id))
+
+
+@router.get("/runs/{run_id}/export")
+def export_eval_run_route(
+    run_id: UUID,
+    session: SessionDep,
+    _: EvalAdmin,
+    format: Literal["json", "csv"] = Query(default="json"),
+) -> Response:
+    """Export an evaluation run for interview reports / offline review."""
+    run_key = str(run_id)
+    if format == "csv":
+        content = export_eval_run_csv(session, run_key)
+        return PlainTextResponse(
+            content,
+            media_type="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="eval-run-{run_key}.csv"'
+            },
+        )
+    payload = export_eval_run_payload(session, run_key)
+    return JSONResponse(
+        payload,
+        headers={
+            "Content-Disposition": f'attachment; filename="eval-run-{run_key}.json"'
+        },
+    )
 
 
 @router.post("/retrieval-debug", response_model=RetrievalDebugResponse)

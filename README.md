@@ -16,7 +16,7 @@
 | **草稿** | 邮件、清单、申请、FAQ 等草稿的创建、编辑、确认、导出 |
 | **FAQ 审核** | 草稿生成、人工通过 / 驳回，通过后增量入库索引 |
 | **评估中心** | 回答 / 检索用例、评估 Run、检索调试 |
-| **Skill / Tool / MCP** | Skill 注册与运行、Tool 调用审计（敏感字段脱敏）、MCP 集成元数据（MVP 以 Mock 为主） |
+| **Skill / Tool / MCP** | Skill 证据规程执行、Tool 调用审计（敏感字段脱敏）、MCP 真协议客户端（stdio/http）+ 企业连接器可 mock 标注 |
 | **模型设置** | Chat 与 Embedding 独立配置 OpenAI 兼容接口，密钥加密存储 |
 | **用户与审计** | 用户 / 角色管理，系统审计日志 |
 
@@ -172,14 +172,14 @@ policyflow-ai/
 ### 草稿 / Skill / MCP
 
 - 草稿生命周期：创建 → 编辑 → 确认 / 丢弃 → 导出 Markdown  
-- Skill 可列表与手动运行；Tool 调用日志递归脱敏  
-- MCP 以配置与健康检查为主，MVP **不执行真实外部写操作**  
+- Skill 基于证据执行（清单/对比/摘要）；Tool 调用写审计日志并脱敏  
+- MCP：stdio/http 走真实 JSON-RPC；企业 SaaS 可 mock，响应带 `status=mock`  
 
 ### 评估与 FAQ
 
 - FAQ 草稿生成与人工审核，通过后增量索引  
-- 评估用例、Run 快照、检索调试  
-- RAGAS 默认关闭；跳过项以 `skipped` 表示，不用 0 分伪装  
+- CRUD 语料导入、Hit@K/MRR/HitAll、多策略对比、JSON/CSV 导出  
+- 可选本地 lexical rerank（非 cross-encoder）；RAGAS 默认关，开启失败时 reason 可见  
 
 ---
 
@@ -251,6 +251,8 @@ python scripts/seed_enterprise_docs.py
 | [docs/03-api-design.md](docs/03-api-design.md) | API 设计 |
 | [docs/04-ai-pipeline-rag-eval-design.md](docs/04-ai-pipeline-rag-eval-design.md) | AI / RAG / Eval |
 | [docs/05-development-roadmap.md](docs/05-development-roadmap.md) | 开发路线图 |
+| [docs/08-de-toy-multiagent-skill-eval-strategy.md](docs/08-de-toy-multiagent-skill-eval-strategy.md) | **去玩具化 / 多智能体落点 / Skill·Tool·MCP 诚实实现 / CRUD Eval（Hit@K·MRR）总策略** |
+| [docs/09-interview-demo-script.md](docs/09-interview-demo-script.md) | 面试演示脚本（12 分钟路径 + 问答对齐代码） |
 | [docs/frontend/](docs/frontend/) | 前端范围、路由权限、交付与部署 |
 
 ---

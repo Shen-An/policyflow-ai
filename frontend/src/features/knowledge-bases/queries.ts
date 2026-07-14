@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createKnowledgeBase,
+  deleteKnowledgeBase,
   getCreateOptions,
   getKnowledgeBase,
   listKnowledgeBases,
+  updateKnowledgeBase,
   type CreateKnowledgeBaseInput,
+  type UpdateKnowledgeBaseInput,
 } from '../../api/knowledge-bases'
 
 export const knowledgeBaseKeys = {
@@ -44,6 +47,28 @@ export function useCreateKnowledgeBaseMutation() {
     mutationFn: (input: CreateKnowledgeBaseInput) => createKnowledgeBase(input),
     onSuccess: async (created) => {
       queryClient.setQueryData(knowledgeBaseKeys.detail(created.id), created)
+      await queryClient.invalidateQueries({ queryKey: knowledgeBaseKeys.list() })
+    },
+  })
+}
+
+export function useUpdateKnowledgeBaseMutation(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: UpdateKnowledgeBaseInput) => updateKnowledgeBase(id, input),
+    onSuccess: async (updated) => {
+      queryClient.setQueryData(knowledgeBaseKeys.detail(updated.id), updated)
+      await queryClient.invalidateQueries({ queryKey: knowledgeBaseKeys.list() })
+    },
+  })
+}
+
+export function useDeleteKnowledgeBaseMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteKnowledgeBase(id),
+    onSuccess: async (_, id) => {
+      queryClient.removeQueries({ queryKey: knowledgeBaseKeys.detail(id) })
       await queryClient.invalidateQueries({ queryKey: knowledgeBaseKeys.list() })
     },
   })

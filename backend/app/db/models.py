@@ -107,6 +107,7 @@ class KnowledgeDocument(SQLModel, table=True):
     file_type: str = Field(max_length=20)
     content_text: str | None = None
     content_hash: str = Field(index=True, max_length=128)
+    external_id: str | None = Field(default=None, index=True, max_length=128)
     index_status: str = Field(default="pending", index=True, max_length=20)
     index_error: str | None = None
     source_version: int = 1

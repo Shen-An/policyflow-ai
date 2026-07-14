@@ -31,6 +31,13 @@ class KnowledgeBaseCreate(BaseModel):
     default_query_mode: QueryMode = "mix"
 
 
+class KnowledgeBaseUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    description: str | None = None
+    default_query_mode: QueryMode | None = None
+    status: Literal["active", "disabled"] | None = None
+
+
 class KnowledgeBaseRead(BaseModel):
     id: str
     name: str
@@ -105,3 +112,20 @@ class DocumentDetail(BaseModel):
     content_length: int
     created_at: datetime
     updated_at: datetime
+
+
+class DocumentUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+
+
+class DocumentDeleteResponse(BaseModel):
+    document_id: str
+    index_status: str
+    deleted: bool = True
+
+
+class KnowledgeBaseDeleteResponse(BaseModel):
+    knowledge_base_id: str
+    status: str
+    deleted: bool = True
+    documents_deleted: int = 0

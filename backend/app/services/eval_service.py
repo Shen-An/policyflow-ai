@@ -1,6 +1,7 @@
 """Evaluation datasets, asynchronous runs, history, and retrieval debug."""
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, col, select
@@ -233,6 +234,98 @@ def get_eval_run(session: Session, run_id: str) -> EvalRunRead:
         raise ApplicationError("EVAL_RUN_NOT_FOUND", "Evaluation run not found", 404)
     session.refresh(eval_run)
     return _to_eval_run_read(session, eval_run, include_results=True)
+
+
+def export_eval_run_payload(session: Session, run_id: str) -> dict[str, Any]:
+    """Structured JSON payload for interview report export."""
+    run = get_eval_run(session, run_id)
+    return {
+        "export_version": "1.0",
+        "run": {
+            "id": run.id,
+            "name": run.name,
+            "status": run.status,
+            "total_cases": run.total_cases,
+            "metrics": run.metrics,
+            "config_snapshot": run.config_snapshot,
+            "created_by": run.created_by,
+            "created_at": run.created_at.isoformat() if run.created_at else None,
+            "started_at": run.started_at.isoformat() if run.started_at else None,
+            "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+            "error_summary": run.error_summary,
+            "request_id": run.request_id,
+        },
+        "results": [
+            {
+                "id": item.id,
+                "question": item.question,
+                "answer": item.answer,
+                "score": item.score,
+                "passed": item.passed,
+                "latency_ms": item.latency_ms,
+                "type_statuses": item.type_statuses,
+                "retrieval_metrics": item.retrieval_metrics,
+                "answer_metrics": item.answer_metrics,
+                "ragas_metrics": item.ragas_metrics,
+                "error_message": item.error_message,
+                "retrieved_sources": item.retrieved_sources,
+            }
+            for item in run.results
+        ],
+    }
+
+
+def export_eval_run_csv(session: Session, run_id: str) -> str:
+    """CSV summary for spreadsheet screenshots / attachments."""
+    import csv
+    import io
+
+    run = get_eval_run(session, run_id)
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [
+            "run_id",
+            "run_name",
+            "run_status",
+            "question",
+            "passed",
+            "score",
+            "latency_ms",
+            "mrr",
+            "hit_at_5",
+            "hit_all_at_5",
+            "recall_at_5",
+            "strategy",
+            "answer_accuracy",
+            "ragas_status",
+            "error_message",
+        ]
+    )
+    for item in run.results:
+        retrieval = item.retrieval_metrics or {}
+        answer = item.answer_metrics or {}
+        ragas = item.ragas_metrics or {}
+        writer.writerow(
+            [
+                run.id,
+                run.name,
+                run.status,
+                item.question,
+                item.passed,
+                item.score,
+                item.latency_ms,
+                retrieval.get("mrr", ""),
+                retrieval.get("hit_at_5", retrieval.get("hit_at_3", "")),
+                retrieval.get("hit_all_at_5", ""),
+                retrieval.get("recall_at_5", retrieval.get("recall_at_3", "")),
+                retrieval.get("strategy", ""),
+                answer.get("answer_accuracy", ""),
+                ragas.get("status", ""),
+                item.error_message or "",
+            ]
+        )
+    return buffer.getvalue()
 
 
 def list_eval_runs(

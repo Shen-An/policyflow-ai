@@ -4,6 +4,7 @@ import {
   createEvalRun,
   createRetrievalItem,
   getEvalRun,
+  importCrudDataset,
   listEvalCases,
   listEvalRuns,
   listRetrievalItems,
@@ -64,6 +65,21 @@ export const useCreateEvalCaseMutation = () =>
   useCreateMutation(createEvalCase, evalKeys.cases())
 export const useCreateRetrievalItemMutation = () =>
   useCreateMutation(createRetrievalItem, evalKeys.retrievalItems())
+
+export function useImportCrudDatasetMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: importCrudDataset,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: evalKeys.cases() }),
+        queryClient.invalidateQueries({ queryKey: evalKeys.retrievalItems() }),
+        // Refresh KB list so 测试库 document counts / presence update.
+        queryClient.invalidateQueries({ queryKey: ['knowledge-bases'] }),
+      ])
+    },
+  })
+}
 
 export function useCreateEvalRunMutation() {
   const queryClient = useQueryClient()

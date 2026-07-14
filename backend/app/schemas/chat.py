@@ -33,6 +33,9 @@ class RouterResult(BaseModel):
     domain: str
     task_type: str = "knowledge_qa"
     risk_level: str = "low"
+    need_skill: bool = False
+    tool_hints: list[str] = Field(default_factory=list)
+    rewrite_query: str | None = None
 
 
 class ComplianceResult(BaseModel):

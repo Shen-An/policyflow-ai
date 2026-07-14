@@ -45,6 +45,9 @@ async def post_chat(
         data,
         request.app.state.agent_pipeline,
         memory_agent=getattr(request.app.state, "memory_agent", None),
+        tool_registry=getattr(request.app.state, "tool_registry", None),
+        skill_registry=getattr(request.app.state, "skill_registry", None),
+        rag_service=getattr(request.app.state, "rag_service", None),
     )
 
 
@@ -65,6 +68,9 @@ async def post_chat_stream(
                 data,
                 request.app.state.agent_pipeline,
                 memory_agent=getattr(request.app.state, "memory_agent", None),
+                tool_registry=getattr(request.app.state, "tool_registry", None),
+                skill_registry=getattr(request.app.state, "skill_registry", None),
+                rag_service=getattr(request.app.state, "rag_service", None),
             ):
                 yield _sse(event_name, payload if isinstance(payload, dict) else {"value": payload})
         except ApplicationError as exc:

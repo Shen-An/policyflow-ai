@@ -1,11 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  deleteDocument,
   getDocumentDetail,
   getDocumentStatus,
   listDocuments,
   reindexDocument,
+  updateDocument,
   uploadDocument,
   type DocumentStatus,
+  type UpdateDocumentInput,
 } from '../../api/knowledge-bases'
 import { knowledgeBaseKeys } from '../knowledge-bases/queries'
 
@@ -84,6 +87,38 @@ export function useReindexDocumentMutation(knowledgeBaseId: string) {
       await queryClient.invalidateQueries({
         queryKey: documentKeys.all(knowledgeBaseId),
       })
+    },
+  })
+}
+
+export function useUpdateDocumentMutation(knowledgeBaseId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ documentId, input }: { documentId: string; input: UpdateDocumentInput }) =>
+      updateDocument(documentId, input),
+    onSuccess: async (detail) => {
+      queryClient.setQueryData(documentKeys.detail(detail.id), detail)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: documentKeys.all(knowledgeBaseId) }),
+        queryClient.invalidateQueries({ queryKey: knowledgeBaseKeys.detail(knowledgeBaseId) }),
+        queryClient.invalidateQueries({ queryKey: knowledgeBaseKeys.list() }),
+      ])
+    },
+  })
+}
+
+export function useDeleteDocumentMutation(knowledgeBaseId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (documentId: string) => deleteDocument(documentId),
+    onSuccess: async (_, documentId) => {
+      queryClient.removeQueries({ queryKey: documentKeys.detail(documentId) })
+      queryClient.removeQueries({ queryKey: documentKeys.status(documentId) })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: documentKeys.all(knowledgeBaseId) }),
+        queryClient.invalidateQueries({ queryKey: knowledgeBaseKeys.detail(knowledgeBaseId) }),
+        queryClient.invalidateQueries({ queryKey: knowledgeBaseKeys.list() }),
+      ])
     },
   })
 }

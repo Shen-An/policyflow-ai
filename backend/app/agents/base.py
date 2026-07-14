@@ -11,6 +11,7 @@ from backend.app.schemas.retrieval import RetrievalResult
 class AnswerResult(BaseModel):
     answer: str
     confidence_score: float
+    tool_trace: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class MemoryWorkingSet(BaseModel):
@@ -29,3 +30,4 @@ class PipelineResult(BaseModel):
     answer_result: AnswerResult
     compliance: ComplianceResult
     suggested_skills: list[dict[str, str]] = Field(default_factory=list)
+    skill_results: list[dict[str, Any]] = Field(default_factory=list)

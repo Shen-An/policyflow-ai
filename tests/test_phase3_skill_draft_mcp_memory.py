@@ -129,7 +129,17 @@ def test_phase3_end_to_end_flow(tmp_path: Path) -> None:
         skill_run = client.post(
             "/api/skills/process_checklist/run",
             headers=employee_headers,
-            json={"input": {"question": "差旅申请"}},
+            json={
+                "input": {
+                    "question": "差旅申请",
+                    "evidence": [
+                        {
+                            "document_title": "差旅制度",
+                            "snippet": "出差需提前申请，住宿按标准报销。",
+                        }
+                    ],
+                }
+            },
         )
         chat_response = client.post(
             "/api/chat",

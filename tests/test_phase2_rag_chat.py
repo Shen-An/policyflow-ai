@@ -188,16 +188,17 @@ async def test_rag_service_deduplicates_and_rejects_unavailable_modes() -> None:
         )
     assert hybrid_error.value.code == "RETRIEVAL_STRATEGY_UNAVAILABLE"
 
-    with pytest.raises(ApplicationError) as rerank_error:
-        await service.retrieve(
-            RetrievalRequest(
-                query="hotel",
-                knowledge_base_ids=["kb-1"],
-                strategy=RetrievalStrategy.LIGHTRAG_ONLY,
-                rerank_enabled=True,
-            )
+    reranked = await service.retrieve(
+        RetrievalRequest(
+            query="hotel",
+            knowledge_base_ids=["kb-1"],
+            strategy=RetrievalStrategy.LIGHTRAG_ONLY,
+            rerank_enabled=True,
         )
-    assert rerank_error.value.code == "RERANKER_UNAVAILABLE"
+    )
+    assert reranked.rerank_applied is True
+    assert reranked.evidence
+    assert reranked.evidence[0].metadata.get("rerank_method") == "local_lexical_fusion"
 
 
 @pytest.mark.asyncio
@@ -339,9 +340,10 @@ def test_chat_returns_citations_refuses_without_evidence_and_logs_trace(tmp_path
     assert refusal_response.status_code == 200
     assert refusal_response.json()["citations"] == []
     assert refusal_response.json()["confidence_score"] == 0.0
-    assert refusal_response.json()["compliance"]["warnings"] == ["NO_RELIABLE_EVIDENCE"]
+    assert "NO_RELIABLE_EVIDENCE" in refusal_response.json()["compliance"]["warnings"]
+    assert refusal_response.json()["compliance"]["passed"] is False
     refusal_answer = refusal_response.json()["answer"]
-    assert "未检索到" in refusal_answer or "不可信" in refusal_answer
+    assert "没有检索到可靠制度证据" in refusal_answer or "未检索到" in refusal_answer
     assert conversation_response.status_code == 200
     assert len(conversation_response.json()["messages"]) == 2
 
