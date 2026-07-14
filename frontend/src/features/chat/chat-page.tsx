@@ -30,6 +30,7 @@ import type {
 import type { QueryMode } from '../../api/knowledge-bases'
 import { LoadingState } from '../../components/feedback/state-views'
 import { MarkdownContent } from '../../components/markdown/markdown-content'
+import { formatHistoryTime } from '../../lib/datetime'
 import { palette } from '../../styles/palette'
 import { useKnowledgeBasesQuery } from '../knowledge-bases/queries'
 import {
@@ -85,26 +86,6 @@ const queryModeLabels: Record<string, string> = {
   local: '局部搜索',
   global: '全局搜索',
   naive: '朴素搜索',
-}
-
-function formatHistoryTime(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  const now = new Date()
-  const sameDay =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
-  if (sameDay) {
-    return new Intl.DateTimeFormat('zh-CN', {
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date)
-  }
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date)
 }
 
 async function copyTextToClipboard(text: string): Promise<void> {

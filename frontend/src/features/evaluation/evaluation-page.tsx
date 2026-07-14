@@ -23,9 +23,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { EvalResult, EvalRunScope, EvalRunSummary } from '../../api/eval'
 import { LoadingState } from '../../components/feedback/state-views'
+import { confirmAction } from '../../lib/confirm'
+import { formatDateTime } from '../../lib/datetime'
 import { palette } from '../../styles/palette'
 import { useKnowledgeBasesQuery } from '../knowledge-bases/queries'
-import { confirmAction } from '../../lib/confirm'
 import {
   useCleanupEvalDatasetMutation,
   useCreateEvalCaseMutation,
@@ -709,7 +710,7 @@ function RunSection({
         title: '创建时间',
         dataIndex: 'createdAt',
         width: 170,
-        render: (value: string) => new Date(value).toLocaleString('zh-CN'),
+        render: (value: string) => formatDateTime(value, undefined, value),
       },
       {
         title: '操作',

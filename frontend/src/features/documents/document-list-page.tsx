@@ -22,10 +22,11 @@ import type {
   ResourcePermission,
 } from '../../api/knowledge-bases'
 import { LoadingState } from '../../components/feedback/state-views'
+import { confirmAction } from '../../lib/confirm'
+import { formatDateTime } from '../../lib/datetime'
 import { documentIndexStatusLabel } from '../../lib/labels'
 import { gradients, palette } from '../../styles/palette'
 import { UploadDocumentDialog } from './components/upload-document-dialog'
-import { confirmAction } from '../../lib/confirm'
 import {
   useDeleteDocumentMutation,
   useDocumentDetailQuery,
@@ -52,10 +53,7 @@ function statusColor(status: string): string {
 }
 
 function formatDate(value: string): string {
-  return new Intl.DateTimeFormat('zh-CN', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value))
+  return formatDateTime(value, { dateStyle: 'medium', timeStyle: 'short' }, value)
 }
 
 export function DocumentListPage() {
