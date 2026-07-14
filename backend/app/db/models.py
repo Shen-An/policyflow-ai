@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import JSON, Column, UniqueConstraint
+from sqlalchemy import JSON, Column, DateTime, TypeDecorator, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -16,6 +16,31 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+class UTCDateTime(TypeDecorator):
+    """Store UTC as naive datetime; rehydrate as timezone-aware UTC.
+
+    SQLite drops tzinfo on round-trip. Without this, API JSON omits `Z` and
+    browsers treat the timestamp as local time (e.g. UTC 08:54 → 08:54 local).
+    """
+
+    impl = DateTime
+    cache_ok = True
+
+    def process_bind_param(self, value: datetime | None, dialect) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is not None:
+            return value.astimezone(UTC).replace(tzinfo=None)
+        return value
+
+    def process_result_value(self, value: datetime | None, dialect) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+
 class Role(SQLModel, table=True):
     __tablename__ = "roles"
 
@@ -23,7 +48,7 @@ class Role(SQLModel, table=True):
     code: str = Field(unique=True, index=True, max_length=50)
     name: str = Field(max_length=100)
     description: str = ""
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class Department(SQLModel, table=True):
@@ -33,7 +58,7 @@ class Department(SQLModel, table=True):
     name: str = Field(max_length=100)
     code: str = Field(unique=True, index=True, max_length=50)
     parent_id: str | None = Field(default=None, foreign_key="departments.id", max_length=36)
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class User(SQLModel, table=True):
@@ -51,8 +76,8 @@ class User(SQLModel, table=True):
         max_length=36,
     )
     status: str = Field(default="active", index=True, max_length=20)
-    created_at: datetime = Field(default_factory=utc_now)
-    updated_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class UserRole(SQLModel, table=True):
@@ -74,8 +99,8 @@ class KnowledgeBase(SQLModel, table=True):
     default_query_mode: str = Field(default="mix", max_length=20)
     status: str = Field(default="active", index=True, max_length=20)
     created_by: str = Field(default="system", max_length=36)
-    created_at: datetime = Field(default_factory=utc_now)
-    updated_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class KnowledgeBasePermission(SQLModel, table=True):
@@ -90,7 +115,7 @@ class KnowledgeBasePermission(SQLModel, table=True):
     subject_type: str = Field(index=True, max_length=20)
     subject_id: str = Field(index=True, max_length=36)
     permission: str = Field(max_length=20)
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class KnowledgeDocument(SQLModel, table=True):
@@ -112,8 +137,8 @@ class KnowledgeDocument(SQLModel, table=True):
     index_error: str | None = None
     source_version: int = 1
     created_by: str = Field(max_length=36)
-    created_at: datetime = Field(default_factory=utc_now)
-    updated_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class RagIndexJob(SQLModel, table=True):
@@ -127,11 +152,11 @@ class RagIndexJob(SQLModel, table=True):
     )
     job_type: str = Field(default="insert", max_length=20)
     status: str = Field(default="pending", index=True, max_length=20)
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
+    started_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
+    finished_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
     error_message: str | None = None
     retry_count: int = 0
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class AuditLog(SQLModel, table=True):
@@ -145,7 +170,7 @@ class AuditLog(SQLModel, table=True):
     detail: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
     ip_address: str | None = Field(default=None, max_length=64)
     request_id: str | None = Field(default=None, index=True, max_length=128)
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class ModelProvider(SQLModel, table=True):
@@ -162,8 +187,8 @@ class ModelProvider(SQLModel, table=True):
     default_embedding_model: str | None = Field(default=None, max_length=100)
     enabled: bool = True
     config_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
-    created_at: datetime = Field(default_factory=utc_now)
-    updated_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class Conversation(SQLModel, table=True):
@@ -175,8 +200,8 @@ class Conversation(SQLModel, table=True):
     channel: str = Field(default="api", max_length=20)
     status: str = Field(default="active", index=True, max_length=20)
     summary: str | None = None
-    created_at: datetime = Field(default_factory=utc_now)
-    updated_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class Message(SQLModel, table=True):
@@ -187,7 +212,7 @@ class Message(SQLModel, table=True):
     role: str = Field(max_length=20)
     content: str
     meta_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class AIQueryLog(SQLModel, table=True):
@@ -207,7 +232,7 @@ class AIQueryLog(SQLModel, table=True):
     query_mode: str = Field(default="hybrid", max_length=20)
     latency_ms: int = 0
     token_usage: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class QueryFeedback(SQLModel, table=True):
@@ -219,8 +244,8 @@ class QueryFeedback(SQLModel, table=True):
     user_id: str = Field(foreign_key="users.id", index=True, max_length=36)
     rating: str = Field(max_length=30)
     comment: str | None = None
-    created_at: datetime = Field(default_factory=utc_now)
-    updated_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class Skill(SQLModel, table=True):
@@ -233,8 +258,8 @@ class Skill(SQLModel, table=True):
     config: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
     enabled: bool = True
     risk_level: str = Field(default="low", max_length=20)
-    created_at: datetime = Field(default_factory=utc_now)
-    updated_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class Tool(SQLModel, table=True):
@@ -248,7 +273,7 @@ class Tool(SQLModel, table=True):
     risk_level: str = Field(default="low", max_length=20)
     enabled: bool = True
     timeout_seconds: int = 30
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class ToolCallLog(SQLModel, table=True):
@@ -265,7 +290,7 @@ class ToolCallLog(SQLModel, table=True):
     status: str = Field(index=True, max_length=20)
     error_message: str | None = None
     latency_ms: int = 0
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class Draft(SQLModel, table=True):
@@ -288,8 +313,8 @@ class Draft(SQLModel, table=True):
         sa_column=Column(JSON, nullable=False),
     )
     status: str = Field(default="draft", index=True, max_length=20)
-    created_at: datetime = Field(default_factory=utc_now)
-    updated_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class MCPServer(SQLModel, table=True):
@@ -307,9 +332,9 @@ class MCPServer(SQLModel, table=True):
     tools: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
     last_error_code: str | None = Field(default=None, max_length=100)
     last_error_message: str | None = None
-    last_checked_at: datetime | None = None
-    created_at: datetime = Field(default_factory=utc_now)
-    updated_at: datetime = Field(default_factory=utc_now)
+    last_checked_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class MemoryItem(SQLModel, table=True):
@@ -324,9 +349,9 @@ class MemoryItem(SQLModel, table=True):
     confidence: float = 0.5
     embedding: list[float] | None = Field(default=None, sa_column=Column(JSON, nullable=True))
     meta_json: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
-    expires_at: datetime | None = None
-    created_at: datetime = Field(default_factory=utc_now)
-    updated_at: datetime = Field(default_factory=utc_now)
+    expires_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class FAQDraft(SQLModel, table=True):
@@ -342,8 +367,8 @@ class FAQDraft(SQLModel, table=True):
     generated_by: str = Field(default="ai", max_length=20)
     reviewer_id: str | None = Field(default=None, max_length=36)
     review_note: str | None = None
-    created_at: datetime = Field(default_factory=utc_now)
-    updated_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class EvalCase(SQLModel, table=True):
@@ -357,7 +382,7 @@ class EvalCase(SQLModel, table=True):
     expected_chunk_ids: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
     should_answer: bool = True
     enabled: bool = True
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class RetrievalEvalItem(SQLModel, table=True):
@@ -371,7 +396,7 @@ class RetrievalEvalItem(SQLModel, table=True):
     relevant_chunk_ids: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
     relevance_judgement: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
     enabled: bool = True
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class EvalRun(SQLModel, table=True):
@@ -381,14 +406,14 @@ class EvalRun(SQLModel, table=True):
     name: str = Field(max_length=255)
     status: str = Field(default="pending", index=True, max_length=20)
     total_cases: int = 0
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
+    started_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
+    finished_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
     metrics: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
     config_snapshot: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
     created_by: str | None = Field(default=None, max_length=36)
     error_summary: str | None = None
     request_id: str | None = Field(default=None, index=True, max_length=128)
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
 
 class EvalResult(SQLModel, table=True):
@@ -409,4 +434,4 @@ class EvalResult(SQLModel, table=True):
     passed: bool = False
     error_message: str | None = None
     latency_ms: int = 0
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
