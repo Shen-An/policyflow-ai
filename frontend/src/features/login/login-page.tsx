@@ -76,7 +76,7 @@ export function LoginPage() {
                 placeItems: 'center',
                 fontWeight: 700,
                 fontSize: 22,
-                boxShadow: '0 14px 34px rgba(79,70,229,0.32)',
+                boxShadow: '0 14px 34px rgba(13,143,106,0.18)',
               }}
             >
               P
@@ -99,9 +99,9 @@ export function LoginPage() {
               },
             }}
             style={{
-              boxShadow: '0 18px 48px rgba(79,70,229,0.12), 0 8px 20px rgba(26,35,64,0.06)',
+              boxShadow: '0 18px 48px rgba(31,41,51,0.08), 0 8px 20px rgba(31,41,51,0.04)',
               border: `1px solid ${palette.borderSecondary}`,
-              borderRadius: 16,
+              borderRadius: 18,
             }}
           >
             {summary ? (
