@@ -143,7 +143,7 @@ export function EvaluationPage() {
           <h2>评估中心</h2>
           <p>
             默认只看两件事：1）导入测试语料；2）跑检索评估拿到
-            <strong> Hit@1 / Hit@5 / MRR</strong>
+            <strong> Hit@1 / Hit@5 / Hit@10 / MRR</strong>
             。高级配置与逐条结果默认折叠。
           </p>
         </div>
@@ -593,22 +593,28 @@ function RunSection({
       {
         title: 'Hit@1',
         key: 'hit1',
-        width: 90,
+        width: 80,
         render: (_, run) => formatRate(coreRetrievalMetrics(run.metrics).hit1),
       },
       {
         title: 'Hit@5',
         key: 'hit5',
-        width: 90,
+        width: 80,
         render: (_, run) => formatRate(coreRetrievalMetrics(run.metrics).hit5),
+      },
+      {
+        title: 'Hit@10',
+        key: 'hit10',
+        width: 80,
+        render: (_, run) => formatRate(coreRetrievalMetrics(run.metrics).hit10),
       },
       {
         title: 'MRR',
         key: 'mrr',
-        width: 100,
+        width: 90,
         render: (_, run) => formatMrr(coreRetrievalMetrics(run.metrics).mrr),
       },
-      { title: '用例', dataIndex: 'totalCases', width: 80 },
+      { title: '用例', dataIndex: 'totalCases', width: 70 },
       {
         title: '创建时间',
         dataIndex: 'createdAt',
@@ -632,7 +638,7 @@ function RunSection({
   return (
     <Card title="评估 Run（主看 Hit@K / MRR）">
       <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-        只做检索量化：评估类型勾「检索」→ 点「随机 50/100」→ 启动。完成后看 Hit@1 / Hit@5 / MRR。
+        只做检索量化：评估类型勾「检索」→ 点「随机 50/100」→ 启动。完成后看 Hit@1 / Hit@5 / Hit@10 / MRR。
       </Typography.Paragraph>
       <Form
         form={form}
@@ -939,8 +945,8 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const resumeLine = [
     strategyInfo.primary,
     core.hit1 !== null ? `Hit@1=${formatRate(core.hit1, 1)}` : null,
-    core.hit3 !== null ? `Hit@3=${formatRate(core.hit3, 1)}` : null,
     core.hit5 !== null ? `Hit@5=${formatRate(core.hit5, 1)}` : null,
+    core.hit10 !== null ? `Hit@10=${formatRate(core.hit10, 1)}` : null,
     core.mrr !== null ? `MRR=${formatMrr(core.mrr)}` : null,
     core.cases !== null ? `N=${core.cases}` : null,
     strategyInfo.rerankEnabled ? 'rerank=local_lexical_fusion' : null,
@@ -956,13 +962,16 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
               pickMetric(metrics, 'hit_at_5') ??
               pickMetric(metrics, 'hit_at_3') ??
               pickMetric(metrics, 'hit_at_1')
+            const hit10 = pickMetric(metrics, 'hit_at_10')
             const mrr = pickMetric(metrics, 'mrr')
-            if (hit5 === null && mrr === null) return null
-            return `${strategyLabel(strategy)} Hit@5=${formatRate(hit5, 1)}，MRR=${formatMrr(mrr)}`
+            if (hit5 === null && hit10 === null && mrr === null) return null
+            const hit10Part =
+              hit10 !== null ? `，Hit@10=${formatRate(hit10, 1)}` : ''
+            return `${strategyLabel(strategy)} Hit@5=${formatRate(hit5, 1)}${hit10Part}，MRR=${formatMrr(mrr)}`
           })
           .filter(Boolean)
           .join('；')
-      : `${strategyInfo.primary} Hit@5=${formatRate(core.hit5, 1)}，MRR=${formatMrr(core.mrr)}（N=${core.cases ?? '—'}）`
+      : `${strategyInfo.primary} Hit@5=${formatRate(core.hit5, 1)}，Hit@10=${formatRate(core.hit10, 1)}，MRR=${formatMrr(core.mrr)}（N=${core.cases ?? '—'}）`
 
   const perfectScore =
     core.hit1 === 1 &&
@@ -1059,34 +1068,47 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
       ) : null}
 
       <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
-        <Col xs={12} md={6}>
+        <Col xs={12} sm={8} md={6} lg={4}>
           <Card size="small">
             <Statistic title="Hit@1" value={formatRate(core.hit1)} valueStyle={{ color: '#1677ff' }} />
           </Card>
         </Col>
-        <Col xs={12} md={6}>
-          <Card size="small">
-            <Statistic title="Hit@3" value={formatRate(core.hit3)} valueStyle={{ color: '#1677ff' }} />
-          </Card>
-        </Col>
-        <Col xs={12} md={6}>
+        <Col xs={12} sm={8} md={6} lg={4}>
           <Card size="small">
             <Statistic title="Hit@5" value={formatRate(core.hit5)} valueStyle={{ color: '#1677ff' }} />
           </Card>
         </Col>
-        <Col xs={12} md={6}>
+        <Col xs={12} sm={8} md={6} lg={4}>
+          <Card size="small">
+            <Statistic
+              title="Hit@10"
+              value={formatRate(core.hit10)}
+              valueStyle={{ color: '#1677ff' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={8} md={6} lg={4}>
           <Card size="small">
             <Statistic title="MRR" value={formatMrr(core.mrr)} valueStyle={{ color: '#cf1322' }} />
           </Card>
         </Col>
+        <Col xs={12} sm={8} md={6} lg={4}>
+          <Card size="small">
+            <Statistic title="完成用例 N" value={core.cases ?? '—'} />
+          </Card>
+        </Col>
+        {core.hit3 !== null ? (
+          <Col xs={12} sm={8} md={6} lg={4}>
+            <Card size="small">
+              <Statistic
+                title="Hit@3（补充）"
+                value={formatRate(core.hit3)}
+                valueStyle={{ color: '#64748b' }}
+              />
+            </Card>
+          </Col>
+        ) : null}
       </Row>
-
-      {core.hit10 !== null ? (
-        <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-          补充：Hit@10 = {formatRate(core.hit10)}
-          {core.cases !== null ? ` · 完成用例 ${core.cases}` : ''}
-        </Typography.Paragraph>
-      ) : null}
 
       {strategyComparison ? (
         <Card size="small" type="inner" title="策略对比（只看 Hit@K / MRR）" style={{ marginBottom: 12 }}>
@@ -1097,8 +1119,8 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
             dataSource={Object.entries(strategyComparison).map(([strategy, metrics]) => ({
               strategy: strategyLabel(strategy),
               hit1: metrics.hit_at_1,
-              hit3: metrics.hit_at_3,
               hit5: metrics.hit_at_5 ?? metrics.hit_at_3,
+              hit10: metrics.hit_at_10,
               mrr: metrics.mrr,
             }))}
             columns={[
@@ -1109,13 +1131,13 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
                 render: (value) => formatRate(value),
               },
               {
-                title: 'Hit@3',
-                dataIndex: 'hit3',
+                title: 'Hit@5',
+                dataIndex: 'hit5',
                 render: (value) => formatRate(value),
               },
               {
-                title: 'Hit@5',
-                dataIndex: 'hit5',
+                title: 'Hit@10',
+                dataIndex: 'hit10',
                 render: (value) => formatRate(value),
               },
               {
@@ -1186,6 +1208,7 @@ function RetrievalResultCard({ result }: { result: EvalResult }) {
   const mrr = pickMetric(metrics, 'mrr')
   const hit1 = pickMetric(metrics, 'hit_at_1')
   const hit5 = pickMetric(metrics, 'hit_at_5') ?? pickMetric(metrics, 'hit_at_3')
+  const hit10 = pickMetric(metrics, 'hit_at_10')
   const firstRank = pickMetric(metrics, 'first_relevant_rank')
   const status = metrics?.status
 
@@ -1201,6 +1224,7 @@ function RetrievalResultCard({ result }: { result: EvalResult }) {
           </Tag>
           <Tag>Hit@1 {formatRate(hit1, 0)}</Tag>
           <Tag>Hit@5 {formatRate(hit5, 0)}</Tag>
+          {hit10 !== null ? <Tag>Hit@10 {formatRate(hit10, 0)}</Tag> : null}
           <Tag color="red">MRR {formatMrr(mrr)}</Tag>
           {firstRank !== null ? <Tag>首个相关位次 #{firstRank}</Tag> : null}
         </Space>

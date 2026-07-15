@@ -9,12 +9,21 @@ import {
   Row,
   Select,
   Space,
+  Tag,
   Typography,
   message,
 } from 'antd'
 import { useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import type { KnowledgeBase, QueryMode } from '../../api/knowledge-bases'
+import {
+  permissionColor,
+  permissionLabel,
+  queryModeLabel,
+  queryModeOptions,
+  statusColor,
+  statusLabel,
+} from './labels'
 import {
   useDeleteKnowledgeBaseMutation,
   useUpdateKnowledgeBaseMutation,
@@ -32,6 +41,8 @@ export function KnowledgeBaseOverviewPage() {
   const updateMutation = useUpdateKnowledgeBaseMutation(knowledgeBase.id)
   const deleteMutation = useDeleteKnowledgeBaseMutation()
   const admin = canAdmin(knowledgeBase.permission)
+  const isEvalTest = knowledgeBase.code === 'eval_test'
+  const statusText = statusLabel[knowledgeBase.status] ?? knowledgeBase.status
 
   function openEdit() {
     form.setFieldsValue({
@@ -58,10 +69,9 @@ export function KnowledgeBaseOverviewPage() {
   function handleDelete() {
     Modal.confirm({
       title: `物理删除知识库「${knowledgeBase.name}」？`,
-      content:
-        knowledgeBase.code === 'eval_test'
-          ? '将永久删除测试库、其文档、索引任务与本地工作区，且不可恢复。'
-          : '将永久删除该知识库、其下全部文档、权限与本地工作区，且不可恢复。',
+      content: isEvalTest
+        ? '将永久删除测试库、其文档、索引任务与本地工作区，且不可恢复。'
+        : '将永久删除该知识库、其下全部文档、权限与本地工作区，且不可恢复。',
       okText: '永久删除',
       okButtonProps: { danger: true },
       cancelText: '取消',
@@ -76,39 +86,59 @@ export function KnowledgeBaseOverviewPage() {
   return (
     <Row gutter={[16, 16]}>
       <Col span={24}>
+        {isEvalTest ? (
+          <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 12 }}>
+            这是评估专用「测试库」。CRUD / Hit@K 导入默认进入此库；演示完可直接删除。
+          </Typography.Paragraph>
+        ) : null}
+
         <Card
           size="small"
           title="基本信息"
           extra={
             admin ? (
-              <Space>
+              <Space wrap>
                 <Button size="small" onClick={openEdit}>
                   编辑
                 </Button>
-                <Button size="small" danger onClick={handleDelete} loading={deleteMutation.isPending}>
+                <Button
+                  size="small"
+                  danger
+                  onClick={handleDelete}
+                  loading={deleteMutation.isPending}
+                >
                   删除知识库
                 </Button>
               </Space>
-            ) : null
+            ) : (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                当前为只读权限
+              </Typography.Text>
+            )
           }
         >
-          {knowledgeBase.code === 'eval_test' ? (
-            <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-              这是评估专用「测试库」。CRUD / Hit@K 导入默认进入此库；演示完可直接删除。
-            </Typography.Paragraph>
-          ) : null}
           <Descriptions column={{ xs: 1, sm: 2 }} bordered size="small">
             <Descriptions.Item label="描述" span={2}>
               {knowledgeBase.description || '暂无描述'}
             </Descriptions.Item>
-            <Descriptions.Item label="状态">{knowledgeBase.status}</Descriptions.Item>
-            <Descriptions.Item label="资源权限">{knowledgeBase.permission}</Descriptions.Item>
+            <Descriptions.Item label="状态">
+              <Tag color={statusColor[knowledgeBase.status] ?? 'default'}>{statusText}</Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="资源权限">
+              <Tag color={permissionColor[knowledgeBase.permission]}>
+                {permissionLabel[knowledgeBase.permission]}
+              </Tag>
+            </Descriptions.Item>
             <Descriptions.Item label="文档数量">{knowledgeBase.documentCount}</Descriptions.Item>
             <Descriptions.Item label="默认检索模式">
-              {knowledgeBase.defaultQueryMode}
+              {queryModeLabel[knowledgeBase.defaultQueryMode] ?? knowledgeBase.defaultQueryMode}
             </Descriptions.Item>
-            <Descriptions.Item label="编码">{knowledgeBase.code}</Descriptions.Item>
-            <Descriptions.Item label="部门 ID">{knowledgeBase.departmentId}</Descriptions.Item>
+            <Descriptions.Item label="编码">
+              <Typography.Text code>{knowledgeBase.code}</Typography.Text>
+            </Descriptions.Item>
+            <Descriptions.Item label="部门 ID">
+              <Typography.Text type="secondary">{knowledgeBase.departmentId}</Typography.Text>
+            </Descriptions.Item>
           </Descriptions>
         </Card>
       </Col>
@@ -134,21 +164,13 @@ export function KnowledgeBaseOverviewPage() {
             <Input.TextArea rows={3} />
           </Form.Item>
           <Form.Item label="默认检索模式" name="defaultQueryMode">
-            <Select
-              options={[
-                { value: 'naive', label: 'naive' },
-                { value: 'local', label: 'local' },
-                { value: 'global', label: 'global' },
-                { value: 'hybrid', label: 'hybrid' },
-                { value: 'mix', label: 'mix' },
-              ]}
-            />
+            <Select options={queryModeOptions} />
           </Form.Item>
           <Form.Item label="状态" name="status">
             <Select
               options={[
-                { value: 'active', label: 'active' },
-                { value: 'disabled', label: 'disabled' },
+                { value: 'active', label: '启用' },
+                { value: 'disabled', label: '停用' },
               ]}
             />
           </Form.Item>

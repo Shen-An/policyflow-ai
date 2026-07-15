@@ -41,7 +41,7 @@ class RetrievalEvalItemRead(RetrievalEvalItemCreate):
 class RetrievalConfig(BaseModel):
     strategy: RetrievalStrategy = RetrievalStrategy.HYBRID_LIGHTRAG_BM25
     top_k_values: list[Annotated[int, Field(ge=1, le=100)]] = Field(
-        default_factory=lambda: [1, 3, 5],
+        default_factory=lambda: [1, 3, 5, 10],
         min_length=1,
     )
     rerank_enabled: bool = False
