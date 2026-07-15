@@ -1,4 +1,4 @@
-import { BugOutlined } from '@ant-design/icons'
+import { BugOutlined, DeleteOutlined } from '@ant-design/icons'
 import {
   Alert,
   Button,
@@ -10,6 +10,7 @@ import {
   Form,
   Input,
   List,
+  Modal,
   Row,
   Select,
   Space,
@@ -17,17 +18,19 @@ import {
   Table,
   Tag,
   Typography,
+  message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import type { EvalResult, EvalRunSummary } from '../../api/eval'
+import type { EvalResult, EvalRunScope, EvalRunSummary } from '../../api/eval'
 import { LoadingState } from '../../components/feedback/state-views'
 import { useKnowledgeBasesQuery } from '../knowledge-bases/queries'
 import {
   useCreateEvalCaseMutation,
   useCreateEvalRunMutation,
   useCreateRetrievalItemMutation,
+  useDeleteEvalRunMutation,
   useEvalCasesQuery,
   useEvalRunQuery,
   useEvalRunsQuery,
@@ -130,6 +133,40 @@ function extractRunStrategyInfo(configSnapshot: Record<string, unknown> | null |
         ? `${primary}（对比：${compare.join(' / ')}${rerankEnabled ? '；+本地重排' : ''}）`
         : `${primary}${rerankEnabled ? ' + 本地重排' : ''}`,
   }
+}
+
+function formatScopeLabel(scope: EvalRunScope | null | undefined): string | null {
+  if (!scope) return null
+  if (scope.label) return scope.label
+  const parts: string[] = []
+  if (scope.knowledgeBases.length) {
+    parts.push(scope.knowledgeBases.map((item) => `${item.name}(${item.code})`).join('/'))
+  }
+  if (scope.taskTypes.length) parts.push(scope.taskTypes.join('+'))
+  else if (scope.sources.length) parts.push(scope.sources.join('+'))
+  if (scope.itemCount) parts.push(`N=${scope.itemCount}`)
+  if (scope.staleGoldCount) parts.push(`stale_gold=${scope.staleGoldCount}`)
+  return parts.length ? parts.join(' · ') : null
+}
+
+function rankHistogramText(metrics: Record<string, unknown> | null | undefined): string | null {
+  const hist = metrics?.first_rank_histogram
+  if (!hist || typeof hist !== 'object' || Array.isArray(hist)) return null
+  const entries = Object.entries(hist as Record<string, unknown>)
+    .map(([key, value]) => {
+      const count = asNumber(value)
+      return count === null ? null : { key, count }
+    })
+    .filter((item): item is { key: string; count: number } => item !== null)
+    .sort((a, b) => {
+      if (a.key === 'miss') return 1
+      if (b.key === 'miss') return -1
+      return Number(a.key) - Number(b.key)
+    })
+  if (!entries.length) return null
+  return entries
+    .map((item) => (item.key === 'miss' ? `未命中 ${item.count}` : `rank#${item.key} ${item.count}`))
+    .join(' · ')
 }
 
 export function EvaluationPage() {
@@ -572,6 +609,7 @@ function RunSection({
   const retrievalItems = useRetrievalItemsQuery()
   const runs = useEvalRunsQuery(1, 20, '')
   const create = useCreateEvalRunMutation()
+  const deleteRun = useDeleteEvalRunMutation()
   const [form] = Form.useForm()
   const [customSampleSize, setCustomSampleSize] = useState('50')
   const selectedItemCount =
@@ -582,7 +620,21 @@ function RunSection({
       {
         title: '名称',
         dataIndex: 'name',
-        render: (value: string) => <Typography.Text strong>{value}</Typography.Text>,
+        render: (value: string, run) => {
+          const scopeLabel = formatScopeLabel(run.scope)
+          return (
+            <div>
+              <Typography.Text strong>{value}</Typography.Text>
+              {scopeLabel ? (
+                <div>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {scopeLabel}
+                  </Typography.Text>
+                </div>
+              ) : null}
+            </div>
+          )
+        },
       },
       {
         title: '状态',
@@ -624,15 +676,40 @@ function RunSection({
       {
         title: '操作',
         key: 'actions',
-        width: 110,
+        width: 180,
         render: (_, run) => (
-          <Button size="small" autoInsertSpace={false} onClick={() => onSelectRun(run.id)}>
-            查看分数
-          </Button>
+          <Space size={4}>
+            <Button size="small" autoInsertSpace={false} onClick={() => onSelectRun(run.id)}>
+              查看分数
+            </Button>
+            <Button
+              size="small"
+              danger
+              autoInsertSpace={false}
+              loading={deleteRun.isPending}
+              icon={<DeleteOutlined />}
+              onClick={() => {
+                Modal.confirm({
+                  title: `物理删除 Run「${run.name}」？`,
+                  content: '将永久删除该 Run 及其逐条结果，不可恢复。',
+                  okText: '永久删除',
+                  okButtonProps: { danger: true },
+                  cancelText: '取消',
+                  onOk: async () => {
+                    await deleteRun.mutateAsync(run.id)
+                    if (selectedRunId === run.id) onSelectRun('')
+                    message.success('评估 Run 已物理删除')
+                  },
+                })
+              }}
+            >
+              删除
+            </Button>
+          </Space>
         ),
       },
     ],
-    [onSelectRun],
+    [deleteRun, onSelectRun, selectedRunId],
   )
 
   return (
@@ -977,6 +1054,16 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
     core.hit1 === 1 &&
     (core.hit5 === 1 || core.hit3 === 1) &&
     core.mrr === 1
+  const scopeLabel = formatScopeLabel(run.scope)
+  const rankHistText = rankHistogramText(run.metrics)
+  const midRankHits = asNumber(run.metrics.mid_rank_hits) ?? 0
+  const collapsedHits =
+    core.hit1 !== null &&
+    core.hit5 !== null &&
+    core.hit1 === core.hit5 &&
+    (core.hit10 === null || core.hit1 === core.hit10) &&
+    core.mrr !== null &&
+    Math.abs(core.mrr - core.hit1) < 1e-9
 
   async function handleExport(format: 'json' | 'csv') {
     try {
@@ -1032,10 +1119,47 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
           <Tag key={item}>对比：{item}</Tag>
         ))}
         {strategyInfo.rerankEnabled ? <Tag>本地重排</Tag> : null}
+        {run.scope?.taskTypes.map((item) => (
+          <Tag key={`task-${item}`} color="purple">
+            {item}
+          </Tag>
+        ))}
+        {run.scope?.sources.map((item) => (
+          <Tag key={`src-${item}`}>来源：{item}</Tag>
+        ))}
+        {run.scope?.knowledgeBases.map((item) => (
+          <Tag key={item.id} color="cyan">
+            KB：{item.name}({item.code})
+          </Tag>
+        ))}
+        {run.scope && run.scope.staleGoldCount > 0 ? (
+          <Tag color="error">stale gold {run.scope.staleGoldCount}</Tag>
+        ) : null}
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Request ID：{run.requestId ?? '无'}
         </Typography.Text>
       </Space>
+
+      {scopeLabel ? (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          title="用例来源（与 Run 名称无关）"
+          description={
+            <>
+              <div>
+                自由文本名称只是标签；真正评测范围是：
+                <strong> {scopeLabel}</strong>
+              </div>
+              <div style={{ marginTop: 4, color: '#64748b' }}>
+                名称像「离职手续」不代表测的是 HR 离职制度——请以 KB / task_type /
+                N 为准。
+              </div>
+            </>
+          }
+        />
+      ) : null}
 
       <Alert
         type="info"
@@ -1053,6 +1177,9 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
                 示例写法：{resumeExamples || strategyInfo.summary}
               </div>
             ) : null}
+            {scopeLabel ? (
+              <div style={{ marginTop: 6, color: '#64748b' }}>范围：{scopeLabel}</div>
+            ) : null}
           </>
         }
       />
@@ -1064,6 +1191,44 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
           style={{ marginBottom: 12 }}
           title="满分结果可信度警告"
           description="Hit@K/MRR 全是 100% 通常意味着语料太小或干扰文档不足（1 文档金标几乎必然排第一）。请重新导入：评测问 50 + 干扰文档 ≥200，并等索引完成后再跑。不要把这种满分直接写进简历。"
+        />
+      ) : null}
+
+      {collapsedHits ? (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 12 }}
+          title="Hit@1 / Hit@5 / Hit@10 数值相同"
+          description={
+            <>
+              <div>
+                这通常不是公式错误，而是几乎所有命中都在
+                <strong> 第 1 位</strong>，未命中则
+                <strong> top-10 全丢</strong>
+                （没有 rank 2–10 的中间命中，所以放大 K 也分不开）。
+              </div>
+              {rankHistText ? (
+                <div style={{ marginTop: 6 }}>首相关位次分布：{rankHistText}</div>
+              ) : (
+                <div style={{ marginTop: 6 }}>
+                  旧 Run 可能没有位次直方图；重新跑一次会写入 first_rank_histogram。
+                </div>
+              )}
+              {run.scope && run.scope.staleGoldCount > 0 ? (
+                <div style={{ marginTop: 6 }}>
+                  当前选中用例有 <strong>{run.scope.staleGoldCount}</strong>{' '}
+                  条金标文档已删除/缺失（id 对不上重导入副本）。请清理旧检索用例后重新导入
+                  CRUD，并等索引完成再评。
+                </div>
+              ) : null}
+              {midRankHits === 0 ? (
+                <div style={{ marginTop: 6, color: '#64748b' }}>
+                  mid_rank_hits=0（没有任何用例首命中落在 #2–#10）。
+                </div>
+              ) : null}
+            </>
+          }
         />
       ) : null}
 

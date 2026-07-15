@@ -31,6 +31,7 @@ from backend.app.services.eval_service import (
     create_eval_case,
     create_eval_run,
     create_retrieval_item,
+    delete_eval_run,
     execute_eval_run,
     export_eval_run_csv,
     export_eval_run_payload,
@@ -183,6 +184,17 @@ def get_eval_run_route(
     _: EvalAdmin,
 ) -> EvalRunRead:
     return get_eval_run(session, str(run_id))
+
+
+@router.delete("/runs/{run_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_eval_run_route(
+    run_id: UUID,
+    session: SessionDep,
+    _: EvalAdmin,
+) -> Response:
+    """Physically delete an evaluation run and all of its per-case results."""
+    delete_eval_run(session, str(run_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/runs/{run_id}/export")

@@ -35,6 +35,15 @@ describe('EvaluationPage', () => {
               },
               error_summary: null,
               request_id: 'req-1',
+              scope: {
+                knowledge_bases: [{ id: 'kb1', code: 'eval_test', name: '测试库' }],
+                task_types: ['questanswer_1doc'],
+                sources: ['crud_rag'],
+                item_count: 20,
+                case_count: 0,
+                stale_gold_count: 0,
+                label: '测试库(eval_test) · questanswer_1doc · N=20',
+              },
             },
           ],
           total: 1,
@@ -55,6 +64,8 @@ describe('EvaluationPage', () => {
             hit_at_5: 0.9,
             hit_at_10: 0.95,
             completed_cases: 20,
+            first_rank_histogram: { '1': 14, '3': 3, miss: 3 },
+            mid_rank_hits: 3,
           },
           config_snapshot: {
             eval_types: ['retrieval'],
@@ -72,6 +83,15 @@ describe('EvaluationPage', () => {
           finished_at: null,
           error_summary: null,
           request_id: 'req-1',
+          scope: {
+            knowledge_bases: [{ id: 'kb1', code: 'eval_test', name: '测试库' }],
+            task_types: ['questanswer_1doc'],
+            sources: ['crud_rag'],
+            item_count: 20,
+            case_count: 0,
+            stale_gold_count: 0,
+            label: '测试库(eval_test) · questanswer_1doc · N=20',
+          },
           results: [
             {
               id: 'result-1',
@@ -117,6 +137,10 @@ describe('EvaluationPage', () => {
     expect(screen.getAllByText(/Hit@10=95\.0%/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/MRR=0\.8200/).length).toBeGreaterThan(0)
     expect(screen.getByText(/示例写法/)).toBeVisible()
+    expect(
+      screen.getAllByText(/测试库\(eval_test\) · questanswer_1doc · N=20/).length,
+    ).toBeGreaterThan(0)
+    expect(screen.getByText(/用例来源（与 Run 名称无关）/)).toBeVisible()
     // Per-case details are collapsed by default to keep the page scannable.
     expect(screen.getByText(/展开逐条检索结果/)).toBeVisible()
     expect(screen.queryByText('差旅住宿标准？')).not.toBeInTheDocument()

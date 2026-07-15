@@ -20,6 +20,38 @@ FRONTEND_DIST = FRONTEND_ROOT / "dist"
 FRONTEND_INDEX = FRONTEND_DIST / "index.html"
 
 
+def ensure_policyflow_runtime() -> None:
+    """Fail fast when the process is not the conda policyflow env with LightRAG."""
+    missing: list[str] = []
+    try:
+        import lightrag  # noqa: F401
+    except ImportError:
+        missing.append("lightrag (package: lightrag-hku)")
+    try:
+        import rank_bm25  # noqa: F401
+    except ImportError:
+        missing.append("rank_bm25")
+    if missing:
+        raise RuntimeError(
+            "当前 Python 缺少 RAG 依赖："
+            + "、".join(missing)
+            + f"。\n  解释器：{sys.executable}\n"
+            "请先激活正确环境再启动：\n"
+            "  conda activate policyflow\n"
+            "  python start.py\n"
+            "或：\n"
+            "  E:\\Coding\\Anaconda\\envs\\policyflow\\python.exe start.py\n"
+            "用 base/Anaconda 根环境启动会导致文档索引全部 failed（No module named 'lightrag'）。"
+        )
+    # Soft hint when not clearly the policyflow env, but deps are present.
+    exe = sys.executable.replace("\\", "/").lower()
+    if "policyflow" not in exe and "envs/" not in exe:
+        print(
+            f"[PolicyFlow] 警告：当前解释器可能不是 conda policyflow 环境：{sys.executable}",
+            file=sys.stderr,
+        )
+
+
 def npm_command() -> str:
     command = "npm.cmd" if os.name == "nt" else "npm"
     resolved = shutil.which(command)
@@ -153,6 +185,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    ensure_policyflow_runtime()
     if not args.dev and not args.no_build:
         build_frontend(force=args.rebuild)
     if not args.dev and not FRONTEND_INDEX.is_file():

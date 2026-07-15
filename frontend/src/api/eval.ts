@@ -39,6 +39,16 @@ export type EvalResult = {
   latencyMs: number
 }
 
+export type EvalRunScope = {
+  knowledgeBases: Array<{ id: string; code: string; name: string }>
+  taskTypes: string[]
+  sources: string[]
+  itemCount: number
+  caseCount: number
+  staleGoldCount: number
+  label: string | null
+}
+
 export type EvalRun = {
   id: string
   name: string
@@ -52,6 +62,7 @@ export type EvalRun = {
   finishedAt: string | null
   errorSummary: string | null
   requestId: string | null
+  scope: EvalRunScope | null
   results: EvalResult[]
 }
 
@@ -115,6 +126,16 @@ type EvalResultRaw = {
   latency_ms: number
 }
 
+type EvalRunScopeRaw = {
+  knowledge_bases?: Array<{ id: string; code: string; name: string }>
+  task_types?: string[]
+  sources?: string[]
+  item_count?: number
+  case_count?: number
+  stale_gold_count?: number
+  label?: string | null
+}
+
 type EvalRunRaw = {
   id: string
   name: string
@@ -128,6 +149,7 @@ type EvalRunRaw = {
   finished_at: string | null
   error_summary: string | null
   request_id: string | null
+  scope?: EvalRunScopeRaw | null
   results: EvalResultRaw[]
 }
 
@@ -163,20 +185,44 @@ function toResult(raw: EvalResultRaw): EvalResult {
   }
 }
 
-function toRun(raw: EvalRunRaw): EvalRun {
+function toScope(raw: EvalRunScopeRaw | null | undefined): EvalRunScope | null {
+  if (!raw) return null
+  return {
+    knowledgeBases: (raw.knowledge_bases ?? []).map((item) => ({
+      id: item.id,
+      code: item.code,
+      name: item.name,
+    })),
+    taskTypes: raw.task_types ?? [],
+    sources: raw.sources ?? [],
+    itemCount: raw.item_count ?? 0,
+    caseCount: raw.case_count ?? 0,
+    staleGoldCount: raw.stale_gold_count ?? 0,
+    label: raw.label ?? null,
+  }
+}
+
+function toRunSummary(raw: EvalRunSummaryRaw): EvalRunSummary {
   return {
     id: raw.id,
     name: raw.name,
     status: raw.status,
     totalCases: raw.total_cases,
     metrics: raw.metrics,
-    configSnapshot: raw.config_snapshot,
     createdBy: raw.created_by,
     createdAt: raw.created_at,
     startedAt: raw.started_at,
     finishedAt: raw.finished_at,
     errorSummary: raw.error_summary,
     requestId: raw.request_id,
+    scope: toScope(raw.scope),
+  }
+}
+
+function toRun(raw: EvalRunRaw): EvalRun {
+  return {
+    ...toRunSummary(raw),
+    configSnapshot: raw.config_snapshot,
     results: (raw.results ?? []).map(toResult),
   }
 }
@@ -245,19 +291,7 @@ export async function listEvalRuns(
     { signal },
   )
   return {
-    items: raw.items.map((item) => ({
-      id: item.id,
-      name: item.name,
-      status: item.status,
-      totalCases: item.total_cases,
-      metrics: item.metrics,
-      createdBy: item.created_by,
-      createdAt: item.created_at,
-      startedAt: item.started_at,
-      finishedAt: item.finished_at,
-      errorSummary: item.error_summary,
-      requestId: item.request_id,
-    })),
+    items: raw.items.map(toRunSummary),
     total: raw.total,
     page: raw.page,
     pageSize: raw.page_size,
@@ -269,6 +303,12 @@ export const getEvalRun = async (id: string, signal?: AbortSignal) =>
     `/api/eval/runs/${encodeURIComponent(id)}`,
     { signal },
   ))
+
+export async function deleteEvalRun(id: string): Promise<void> {
+  await apiClient.request(`/api/eval/runs/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+}
 
 export async function exportEvalRun(
   id: string,

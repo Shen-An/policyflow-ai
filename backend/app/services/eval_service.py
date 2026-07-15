@@ -13,6 +13,7 @@ from backend.app.db.models import (
     EvalResult,
     EvalRun,
     KnowledgeBase,
+    KnowledgeDocument,
     RetrievalEvalItem,
     User,
 )
@@ -24,6 +25,7 @@ from backend.app.schemas.eval import (
     EvalRunCreate,
     EvalRunListResponse,
     EvalRunRead,
+    EvalRunScopeSummary,
     EvalRunSummary,
     RetrievalDebugRequest,
     RetrievalDebugResponse,
@@ -201,6 +203,111 @@ async def execute_eval_run(
     await EvalRunner(engine, rag_service, pipeline).run(run_id, data)
 
 
+def _run_scope_summary(
+    session: Session,
+    config_snapshot: dict[str, Any] | None,
+) -> EvalRunScopeSummary:
+    """Derive KB / task_type / source from the items this run actually scored."""
+    snapshot = config_snapshot or {}
+    item_ids = [str(value) for value in snapshot.get("retrieval_item_ids") or [] if value]
+    case_ids = [str(value) for value in snapshot.get("case_ids") or [] if value]
+
+    knowledge_bases: dict[str, dict[str, str]] = {}
+    task_types: list[str] = []
+    sources: list[str] = []
+    stale_gold_count = 0
+
+    if item_ids:
+        items = session.exec(
+            select(RetrievalEvalItem).where(col(RetrievalEvalItem.id).in_(item_ids))
+        ).all()
+        kb_ids = {
+            str(kb_id)
+            for item in items
+            for kb_id in (item.knowledge_base_ids or [])
+            if kb_id
+        }
+        kb_rows = (
+            session.exec(select(KnowledgeBase).where(col(KnowledgeBase.id).in_(list(kb_ids)))).all()
+            if kb_ids
+            else []
+        )
+        kb_by_id = {row.id: row for row in kb_rows}
+        for kb_id in sorted(kb_ids):
+            kb = kb_by_id.get(kb_id)
+            if kb is not None:
+                knowledge_bases[kb_id] = {
+                    "id": kb.id,
+                    "code": kb.code,
+                    "name": kb.name,
+                }
+            else:
+                knowledge_bases[kb_id] = {
+                    "id": kb_id,
+                    "code": "unknown",
+                    "name": kb_id[:8],
+                }
+
+        gold_ids = {
+            str(document_id)
+            for item in items
+            for document_id in (item.relevant_document_ids or [])
+            if document_id
+        }
+        gold_rows = (
+            session.exec(
+                select(KnowledgeDocument).where(col(KnowledgeDocument.id).in_(list(gold_ids)))
+            ).all()
+            if gold_ids
+            else []
+        )
+        gold_status = {row.id: row.index_status for row in gold_rows}
+
+        for item in items:
+            judgement = item.relevance_judgement or {}
+            if isinstance(judgement, dict):
+                source = judgement.get("source")
+                if source and source not in sources:
+                    sources.append(str(source))
+                task_type = judgement.get("task_type")
+                if task_type and task_type not in task_types:
+                    task_types.append(str(task_type))
+            item_golds = [str(value) for value in (item.relevant_document_ids or []) if value]
+            if not item_golds:
+                stale_gold_count += 1
+                continue
+            if any(
+                gold_status.get(document_id) in (None, "deleted") for document_id in item_golds
+            ):
+                stale_gold_count += 1
+
+    label_parts: list[str] = []
+    if knowledge_bases:
+        label_parts.append(
+            "/".join(
+                f"{item['name']}({item['code']})" for item in knowledge_bases.values()
+            )
+        )
+    if task_types:
+        label_parts.append("+".join(task_types))
+    elif sources:
+        label_parts.append("+".join(sources))
+    if item_ids:
+        label_parts.append(f"N={len(item_ids)}")
+    if stale_gold_count:
+        label_parts.append(f"stale_gold={stale_gold_count}")
+
+    return EvalRunScopeSummary(
+        knowledge_bases=list(knowledge_bases.values()),
+        task_types=task_types,
+        sources=sources,
+        item_count=len(item_ids),
+        case_count=len(case_ids),
+        stale_gold_count=stale_gold_count,
+        label=" · ".join(label_parts) if label_parts else None,
+    )
+
+
 def _to_eval_run_read(
     session: Session,
     eval_run: EvalRun,
@@ -224,6 +331,7 @@ def _to_eval_run_read(
         finished_at=eval_run.finished_at,
         error_summary=eval_run.error_summary,
         request_id=eval_run.request_id,
+        scope=_run_scope_summary(session, eval_run.config_snapshot),
         results=[EvalResultRead.model_validate(result.model_dump()) for result in results],
     )
 
@@ -234,6 +342,20 @@ def get_eval_run(session: Session, run_id: str) -> EvalRunRead:
         raise ApplicationError("EVAL_RUN_NOT_FOUND", "Evaluation run not found", 404)
     session.refresh(eval_run)
     return _to_eval_run_read(session, eval_run, include_results=True)
+
+
+def delete_eval_run(session: Session, run_id: str) -> None:
+    """Physically delete an evaluation run and all of its per-case results."""
+    eval_run = session.get(EvalRun, run_id)
+    if eval_run is None:
+        raise ApplicationError("EVAL_RUN_NOT_FOUND", "Evaluation run not found", 404)
+    results = session.exec(
+        select(EvalResult).where(EvalResult.eval_run_id == run_id)
+    ).all()
+    for result in results:
+        session.delete(result)
+    session.delete(eval_run)
+    session.commit()
 
 
 def export_eval_run_payload(session: Session, run_id: str) -> dict[str, Any]:
@@ -362,6 +484,7 @@ def list_eval_runs(
                 metrics=item.metrics,
                 error_summary=item.error_summary,
                 request_id=item.request_id,
+                scope=_run_scope_summary(session, item.config_snapshot),
             )
             for item in runs[start : start + page_size]
         ],

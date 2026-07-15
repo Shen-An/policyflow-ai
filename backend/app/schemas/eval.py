@@ -109,6 +109,18 @@ class EvalResultRead(BaseModel):
     latency_ms: int
 
 
+class EvalRunScopeSummary(BaseModel):
+    """Resolved from selected retrieval items — keeps free-text run names honest."""
+
+    knowledge_bases: list[dict[str, str]] = Field(default_factory=list)
+    task_types: list[str] = Field(default_factory=list)
+    sources: list[str] = Field(default_factory=list)
+    item_count: int = 0
+    case_count: int = 0
+    stale_gold_count: int = 0
+    label: str | None = None
+
+
 class EvalRunRead(BaseModel):
     id: str
     name: str
@@ -122,6 +134,7 @@ class EvalRunRead(BaseModel):
     finished_at: datetime | None
     error_summary: str | None
     request_id: str | None
+    scope: EvalRunScopeSummary | None = None
     results: list[EvalResultRead]
 
 
@@ -137,6 +150,7 @@ class EvalRunSummary(BaseModel):
     metrics: dict[str, Any]
     error_summary: str | None
     request_id: str | None
+    scope: EvalRunScopeSummary | None = None
 
 
 class EvalRunListResponse(BaseModel):
