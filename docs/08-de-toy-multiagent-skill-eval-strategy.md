@@ -164,13 +164,36 @@ frontend/src/features/evaluation/      # 评估中心页
 
 ### 3.4 多智能体「加在哪」（清单）
 
-1. **Router** — 关键词 → LLM 结构化（domain, risk, task_type, need_skill, tool_hints, rewrite）  
+1. **Router** — 关键词 → LLM 结构化（domain, risk, task_type, need_skill, tool_hints, rewrite, **complexity, plan_steps**）  
 2. **Answer tool loop** — 最大收益的 agent 化  
 3. **SkillExecutor** — 真执行 registry  
 4. **Verifier** — citation / 无证据拒绝 / 合并 compliance  
 5. **（可选）QueryRewrite** — 并入 Router 或独立一小步  
-6. **不要**并行六个 agent 互聊  
+6. **渐进式多步规划（L1）** — Router 输出 `complexity/plan_steps`；`plan_normalize` 服务校验/用户步骤优先；Pipeline 驱动同一流水线并 SSE `plan`/`plan_step`；**不是**开放 Planner Agent，也不是 peer multi-agent  
+7. **不要**并行六个 agent 互聊  
 
+### 3.5 渐进式规划（L1 / L2 落点）
+
+| 层级 | 行为 | 状态 |
+|---|---|---|
+| L0 单路径 | Router → Retrieval → Skill? → Answer | 已有 |
+| **L1 Router 计划** | 简单题 simple；复杂题/用户编号步骤 → plan checklist；同流水线解释执行 | **已落地** |
+| **L2 PlanExecutor** | 按步真执行；`depends_on` 推断；**独立子任务同波并行**（`asyncio.gather`，多 retrieve 等）；证据 bag 累积；仍中心化 | **已落地** |
+| L3 Worker 拆分 | 瓶颈环节专才 Worker | 未做 |
+| L4 群聊 multi-agent | 禁止 | 禁止 |
+
+配置：
+- `CHAT_PLANNING_ENABLED`、`CHAT_PLAN_MAX_STEPS`（默认 5）
+- `CHAT_PLAN_EXECUTOR`（L2 开关，默认 true）
+- `CHAT_PLAN_PARALLEL`（同波并行，默认 true）
+
+并行判定（保守）：
+- 显式 `depends_on` 优先；否则 skill/tool 依赖全部 prior retrieve；answer/verify 依赖 prior 生产步
+- **不同 query 的 retrieve 互不依赖 → 同一 wave 并行**
+- 相同 query 的 retrieve 串行去重；answer/tool/verify 永不与其它步同波
+
+SSE：`plan`（含 steps / waves / parallel_used）+ `plan_step`  
+代码：`plan_normalize.py`、`plan_executor.py`、Pipeline L1/L2 分支。
 ---
 
 ## 4. Skill / Tool / MCP：诚实实现
@@ -467,6 +490,8 @@ CRUD import ── id 对齐 ── Hit@K 看板
 | 本地 Rerank | **已完成（诚实）** | 2026-07-14 | `RerankService`=lexical fusion；`metadata.rerank_method=local_lexical_fusion`；非 cross-encoder |
 | Router tool_hints 过滤工具表 | **已完成** | 2026-07-14 | `resolve_allowed_tools` + pipeline `ToolAllowlist` diagnostics |
 | 评估专用「测试库」隔离 | **已完成** | 2026-07-14 | code=`eval_test`；CRUD 导入默认进测试库，避免污染业务 KB |
+| 渐进式多步规划 L1 | **已完成** | 2026-07-20 | Router `complexity/plan_steps` + `plan_normalize` + SSE plan/plan_step + 思考中 checklist；非开放 Planner Agent |
+| 渐进式多步规划 L2 | **已完成** | 2026-07-20 | `PlanExecutor` 真按步执行；`depends_on`/waves；独立 retrieve 等 `asyncio.gather` 并行；`CHAT_PLAN_EXECUTOR`/`CHAT_PLAN_PARALLEL` |
 
 ---
 
@@ -477,3 +502,5 @@ CRUD import ── id 对齐 ── Hit@K 看板
 | v1.0 | 2026-07-14 | 合并去玩具化、多智能体落点、Skill/Tool/MCP 诚实实现、CRUD Eval 面试页策略；基于代码审阅写入 |
 | v1.1 | 2026-07-14 | Phase 0–3 主线/加分落地：synthetic score、grounding confidence、claim 门、导出、面试脚本；勾选 §7/§8 |
 | v1.2 | 2026-07-14 | 本地 lexical rerank 可用；§1 增加改造后快照，避免基线表被误读为当前状态 |
+| v1.3 | 2026-07-20 | L1 渐进式规划：Router 结构化计划字段、plan_normalize、Pipeline 驱动与前端步骤清单 |
+| v1.4 | 2026-07-20 | L2 PlanExecutor：依赖波次、独立子任务并行、证据 bag、与 L1 共存开关 |
