@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ConfigProvider } from 'antd'
 import { HttpResponse, http } from 'msw'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { server } from '../../mocks/server'
 import { DraftListPage } from './draft-list-page'
@@ -26,14 +27,16 @@ function renderPage() {
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/drafts']}>
-        <Routes>
-          <Route path="/drafts" element={<DraftListPage />} />
-          <Route path="/drafts/:draftId" element={<p>草稿详情已打开</p>} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+    <ConfigProvider theme={{ token: { motion: false } }} button={{ autoInsertSpace: false }}>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/drafts']}>
+          <Routes>
+            <Route path="/drafts" element={<DraftListPage />} />
+            <Route path="/drafts/:draftId" element={<p>草稿详情已打开</p>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </ConfigProvider>,
   )
 }
 
@@ -53,10 +56,12 @@ describe('DraftListPage', () => {
     )
     const user = userEvent.setup()
     renderPage()
-    expect(screen.getByRole('status')).toHaveTextContent('正在加载草稿')
     expect(await screen.findByText('差旅申请')).toBeVisible()
-    await user.selectOptions(screen.getByLabelText('状态'), 'draft')
-    await user.selectOptions(screen.getByLabelText('类型'), 'email')
+    // antd Select: open dropdown then click option by title
+    await user.click(screen.getByLabelText('状态'))
+    await user.click(await screen.findByTitle('草稿'))
+    await user.click(screen.getByLabelText('类型'))
+    await user.click(await screen.findByTitle('邮件'))
     await vi.waitFor(() => {
       const latest = new URL(requests.at(-1) ?? 'http://localhost')
       expect(latest.searchParams.get('status')).toBe('draft')

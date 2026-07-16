@@ -9,8 +9,6 @@ import {
   Empty,
   Form,
   Input,
-  List,
-  Modal,
   Row,
   Select,
   Space,
@@ -25,7 +23,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { EvalResult, EvalRunScope, EvalRunSummary } from '../../api/eval'
 import { LoadingState } from '../../components/feedback/state-views'
+import { palette } from '../../styles/palette'
 import { useKnowledgeBasesQuery } from '../knowledge-bases/queries'
+import { confirmAction } from '../../lib/confirm'
 import {
   useCreateEvalCaseMutation,
   useCreateEvalRunMutation,
@@ -562,32 +562,34 @@ function DatasetSection() {
             children: (
               <Row gutter={[16, 16]}>
                 <Col xs={24} lg={12}>
-                  <List
-                    size="small"
-                    bordered
-                    header="回答用例"
-                    dataSource={(cases.data ?? []).slice(0, 50)}
-                    locale={{ emptyText: <Empty description="暂无用例" /> }}
-                    renderItem={(item) => (
-                      <List.Item>
-                        {item.enabled ? 'enabled' : 'disabled'} · {item.category} · {item.question}
-                      </List.Item>
+                  <Card type="inner" size="small" title="回答用例">
+                    {(cases.data ?? []).slice(0, 50).length === 0 ? (
+                      <Empty description="暂无用例" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                    ) : (
+                      <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                        {(cases.data ?? []).slice(0, 50).map((item) => (
+                          <Typography.Text key={item.id}>
+                            {item.enabled ? 'enabled' : 'disabled'} · {item.category} · {item.question}
+                          </Typography.Text>
+                        ))}
+                      </Space>
                     )}
-                  />
+                  </Card>
                 </Col>
                 <Col xs={24} lg={12}>
-                  <List
-                    size="small"
-                    bordered
-                    header="检索用例"
-                    dataSource={(items.data ?? []).slice(0, 50)}
-                    locale={{ emptyText: <Empty description="暂无用例" /> }}
-                    renderItem={(item) => (
-                      <List.Item>
-                        {item.enabled ? 'enabled' : 'disabled'} · {item.query}
-                      </List.Item>
+                  <Card type="inner" size="small" title="检索用例">
+                    {(items.data ?? []).slice(0, 50).length === 0 ? (
+                      <Empty description="暂无用例" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                    ) : (
+                      <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                        {(items.data ?? []).slice(0, 50).map((item) => (
+                          <Typography.Text key={item.id}>
+                            {item.enabled ? 'enabled' : 'disabled'} · {item.query}
+                          </Typography.Text>
+                        ))}
+                      </Space>
                     )}
-                  />
+                  </Card>
                 </Col>
               </Row>
             ),
@@ -689,7 +691,7 @@ function RunSection({
               loading={deleteRun.isPending}
               icon={<DeleteOutlined />}
               onClick={() => {
-                Modal.confirm({
+                confirmAction({
                   title: `物理删除 Run「${run.name}」？`,
                   content: '将永久删除该 Run 及其逐条结果，不可恢复。',
                   okText: '永久删除',
@@ -1235,12 +1237,12 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
       <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
         <Col xs={12} sm={8} md={6} lg={4}>
           <Card size="small">
-            <Statistic title="Hit@1" value={formatRate(core.hit1)} valueStyle={{ color: '#1677ff' }} />
+            <Statistic title="Hit@1" value={formatRate(core.hit1)} valueStyle={{ color: palette.primary }} />
           </Card>
         </Col>
         <Col xs={12} sm={8} md={6} lg={4}>
           <Card size="small">
-            <Statistic title="Hit@5" value={formatRate(core.hit5)} valueStyle={{ color: '#1677ff' }} />
+            <Statistic title="Hit@5" value={formatRate(core.hit5)} valueStyle={{ color: palette.primary }} />
           </Card>
         </Col>
         <Col xs={12} sm={8} md={6} lg={4}>
@@ -1248,7 +1250,7 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
             <Statistic
               title="Hit@10"
               value={formatRate(core.hit10)}
-              valueStyle={{ color: '#1677ff' }}
+              valueStyle={{ color: palette.primary }}
             />
           </Card>
         </Col>

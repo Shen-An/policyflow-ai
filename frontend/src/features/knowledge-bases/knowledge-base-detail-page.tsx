@@ -48,9 +48,7 @@ export function KnowledgeBaseDetailPage() {
           >
             返回知识库
           </Button>
-          <Typography.Title level={3} style={{ margin: 0 }}>
-            {knowledgeBase.name}
-          </Typography.Title>
+          <h2 style={{ margin: 0 }}>{knowledgeBase.name}</h2>
           <Space wrap size={[8, 4]} style={{ marginTop: 8 }}>
             <Typography.Text type="secondary" code>
               {knowledgeBase.code}

@@ -199,7 +199,7 @@ function AuditDetailModal({ id, onClose }: { id: string; onClose: () => void }) 
       ) : query.isError ? (
         <Alert tone="danger">{query.error.message}</Alert>
       ) : query.data ? (
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <Space orientation="vertical" size={16} style={{ width: '100%' }}>
           <Descriptions bordered size="small" column={2}>
             <Descriptions.Item label="动作">{query.data.action}</Descriptions.Item>
             <Descriptions.Item label="操作者">

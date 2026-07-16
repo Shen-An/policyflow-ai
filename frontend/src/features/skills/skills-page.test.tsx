@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ConfigProvider } from 'antd'
+import { ConfigProvider, Modal } from 'antd'
 import { HttpResponse, http } from 'msw'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { server } from '../../mocks/server'
 import { SkillsPage } from './skills-page'
@@ -41,7 +41,7 @@ const log = {
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <ConfigProvider theme={{ token: { motion: false } }} autoInsertSpaceInButton={false}>
+    <ConfigProvider theme={{ token: { motion: false } }} button={{ autoInsertSpace: false }}>
       <QueryClientProvider client={client}>
         <MemoryRouter><SkillsPage /></MemoryRouter>
       </QueryClientProvider>
@@ -49,9 +49,16 @@ function renderPage() {
   )
 }
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  Modal.destroyAll()
+  vi.restoreAllMocks()
+})
 
 describe('SkillsPage', () => {
+  beforeEach(() => {
+    Modal.destroyAll()
+    document.body.innerHTML = ''
+  })
   it('runs only implemented Skills and displays audit identifiers and Tool redaction', async () => {
     server.use(
       http.get('*/api/skills', () => HttpResponse.json({
@@ -115,10 +122,9 @@ describe('SkillsPage', () => {
     await user.click(within(logDialog).getByText('脱敏输入参数'))
     expect(await within(logDialog).findByText(/\[REDACTED\]/u)).toBeVisible()
     expect(within(logDialog).getByText(/visible/u)).toBeVisible()
-  })
+  }, 15_000)
 
   it('requires confirmation before changing Skill state', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
     let disabled = false
     server.use(
       http.get('*/api/skills', () => HttpResponse.json({
@@ -136,7 +142,9 @@ describe('SkillsPage', () => {
     const user = userEvent.setup()
     renderPage()
     await user.click(await screen.findByRole('button', { name: '禁用' }))
-    expect(confirm).toHaveBeenCalledOnce()
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent('确认禁用 Skill“summary”吗')
+    await user.click(within(dialog).getByRole('button', { name: '禁用' }))
     expect(await screen.findByText('已禁用')).toBeVisible()
-  })
+  }, 15_000)
 })

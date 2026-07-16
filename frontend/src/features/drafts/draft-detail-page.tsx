@@ -10,14 +10,14 @@ import {
   Button,
   Card,
   Collapse,
-  ConfigProvider,
   Form,
   Input,
+  Modal,
   Space,
   Tag,
   Typography,
 } from 'antd'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   Link,
   useBeforeUnload,
@@ -27,6 +27,7 @@ import {
 } from 'react-router-dom'
 import { ErrorState, LoadingState } from '../../components/feedback/state-views'
 import { downloadMarkdown } from './download'
+import { confirmAction } from '../../lib/confirm'
 import {
   useConfirmDraftMutation,
   useDiscardDraftMutation,
@@ -64,12 +65,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
   )
   const editable = query.data?.status === 'draft'
   const blocker = useBlocker(dirty)
-
-  useEffect(() => {
-    if (blocker.state !== 'blocked') return
-    if (window.confirm('草稿有未保存修改，确定离开吗？')) blocker.proceed()
-    else blocker.reset()
-  }, [blocker])
+  const leaveOpen = blocker.state === 'blocked'
 
   useBeforeUnload((event) => {
     if (!dirty) return
@@ -102,9 +98,15 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
     await confirm.mutateAsync()
   }
 
-  async function discardDraft() {
-    if (!window.confirm('确定丢弃这份草稿吗？此操作会改变草稿状态。')) return
-    await discard.mutateAsync()
+  function discardDraft() {
+    confirmAction({
+      title: '丢弃这份草稿？',
+      content: '确定丢弃这份草稿吗？此操作会改变草稿状态。',
+      okText: '丢弃',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: () => discard.mutateAsync(),
+    })
   }
 
   async function exportDraft() {
@@ -116,8 +118,20 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
     update.error ?? confirm.error ?? discard.error ?? exportMutation.error
 
   return (
-    <ConfigProvider autoInsertSpaceInButton={false}>
     <div style={{ maxWidth: 960, margin: '0 auto' }}>
+      <Modal
+        title="离开当前草稿？"
+        open={leaveOpen}
+        okText="离开"
+        cancelText="继续编辑"
+        okButtonProps={{ danger: true, autoInsertSpace: false }}
+        cancelButtonProps={{ autoInsertSpace: false }}
+        onOk={() => blocker.proceed?.()}
+        onCancel={() => blocker.reset?.()}
+        destroyOnHidden
+      >
+        草稿有未保存修改，确定离开吗？
+      </Modal>
       <Space style={{ marginBottom: 16 }}>
         <Button>
           <Link to="/drafts"><ArrowLeftOutlined aria-hidden /> 返回草稿</Link>
@@ -127,7 +141,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
 
       <Card
         title={
-          <Space direction="vertical" size={2}>
+          <Space orientation="vertical" size={2}>
             <Typography.Text type="secondary">{draft.draftType}</Typography.Text>
             <Typography.Title level={4} style={{ margin: 0 }}>
               {draft.title}
@@ -247,6 +261,5 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
         返回草稿列表
       </button>
     </div>
-    </ConfigProvider>
   )
 }

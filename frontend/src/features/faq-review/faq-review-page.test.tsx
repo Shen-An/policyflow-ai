@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ConfigProvider } from 'antd'
+import { ConfigProvider, Modal } from 'antd'
 import { HttpResponse, http } from 'msw'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { server } from '../../mocks/server'
 import { FAQReviewPage } from './faq-review-page'
@@ -24,7 +24,7 @@ const faq = {
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
-    <ConfigProvider theme={{ token: { motion: false } }} autoInsertSpaceInButton={false}>
+    <ConfigProvider theme={{ token: { motion: false } }} button={{ autoInsertSpace: false }}>
       <QueryClientProvider client={client}>
         <MemoryRouter>
           <FAQReviewPage />
@@ -35,8 +35,15 @@ function renderPage() {
 }
 
 describe('FAQReviewPage', () => {
+  beforeEach(() => {
+    Modal.destroyAll()
+    document.body.innerHTML = ''
+  })
+  afterEach(() => {
+    Modal.destroyAll()
+  })
+
   it('shows sources and requires explicit approval confirmation', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     server.use(
       http.get('*/api/knowledge-bases', () => HttpResponse.json({ items: [kb], total: 1 })),
       http.get('*/api/faq-drafts', () => HttpResponse.json({ items: [faq] })),
@@ -52,9 +59,11 @@ describe('FAQReviewPage', () => {
     const card = await screen.findByRole('article')
     expect(card).toHaveTextContent('Leave Policy')
     await user.click(within(card).getByRole('button', { name: '审核通过' }))
-    expect(window.confirm).toHaveBeenCalled()
-    expect(await screen.findByRole('status')).toHaveTextContent('indexed')
-  })
+    const dialog = (await screen.findAllByRole('dialog')).at(-1)!
+    expect(dialog).toHaveTextContent('审核通过后会创建知识文档并触发增量索引')
+    await user.click(within(dialog).getByRole('button', { name: /审核通过/ }))
+    expect(await screen.findByRole('status')).toHaveTextContent('已索引')
+  }, 15_000)
 
   it('requires a rejection reason and maps the reviewed state', async () => {
     server.use(
@@ -68,10 +77,13 @@ describe('FAQReviewPage', () => {
     const user = userEvent.setup()
     renderPage()
     await user.click(await screen.findByRole('button', { name: '驳回' }))
-    const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByRole('button', { name: '确认驳回' })).toBeDisabled()
+    const dialog = (await screen.findAllByRole('dialog')).at(-1)!
+    expect(dialog).toHaveTextContent('驳回 FAQ')
+    expect(within(dialog).getByRole('button', { name: /确认驳回/ })).toBeDisabled()
     await user.type(within(dialog).getByLabelText('驳回原因'), '重复主题')
-    await user.click(within(dialog).getByRole('button', { name: '确认驳回' }))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: /确认驳回/ }))
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
   })
 })

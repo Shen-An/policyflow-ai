@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ConfigProvider, Modal } from 'antd'
 import { HttpResponse, http } from 'msw'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { server } from '../../mocks/server'
 import { DraftDetailPage } from './draft-detail-page'
@@ -30,14 +31,23 @@ function renderPage() {
     { path: '/drafts/:draftId', element: <DraftDetailPage /> },
   ], { initialEntries: ['/drafts/draft-1'] })
   return render(
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
+    <ConfigProvider theme={{ token: { motion: false } }} button={{ autoInsertSpace: false }}>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </ConfigProvider>,
   )
 }
 
 describe('DraftDetailPage', () => {
-  afterEach(() => vi.restoreAllMocks())
+  beforeEach(() => {
+    Modal.destroyAll()
+    document.body.innerHTML = ''
+  })
+  afterEach(() => {
+    Modal.destroyAll()
+    vi.restoreAllMocks()
+  })
 
   it('saves, confirms, becomes read-only, and exports markdown', async () => {
     let updatedBody: unknown
@@ -94,7 +104,6 @@ describe('DraftDetailPage', () => {
   })
 
   it('requires confirmation before discarding', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
     let discarded = false
     server.use(
       http.get('*/api/drafts/draft-1', () => HttpResponse.json(rawDraft)),
@@ -107,12 +116,13 @@ describe('DraftDetailPage', () => {
     renderPage()
     await screen.findByLabelText('正文')
     await user.click(screen.getByRole('button', { name: '丢弃草稿' }))
-    expect(confirm).toHaveBeenCalledWith('确定丢弃这份草稿吗？此操作会改变草稿状态。')
+    const dialog = (await screen.findAllByRole('dialog')).at(-1)!
+    expect(dialog).toHaveTextContent('确定丢弃这份草稿吗')
+    await user.click(within(dialog).getByRole('button', { name: /丢弃/ }))
     await vi.waitFor(() => expect(discarded).toBe(true))
   })
 
   it('blocks navigation while edits are unsaved', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     server.use(
       http.get('*/api/drafts/draft-1', () => HttpResponse.json(rawDraft)),
     )
@@ -120,12 +130,18 @@ describe('DraftDetailPage', () => {
     renderPage()
     await screen.findByLabelText('正文')
     await user.type(screen.getByLabelText('正文'), ' 未保存')
-    await user.click(screen.getByRole('link', { name: '返回草稿' }))
-    expect(confirm).toHaveBeenCalledWith('草稿有未保存修改，确定离开吗？')
+    await user.click(screen.getByRole('link', { name: /返回草稿/ }))
+    const dialog = (await screen.findAllByRole('dialog')).at(-1)!
+    expect(dialog).toHaveTextContent('草稿有未保存修改')
+    await user.click(within(dialog).getByRole('button', { name: /继续编辑/ }))
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
     expect(screen.getByLabelText('正文')).toBeVisible()
 
-    confirm.mockReturnValue(true)
-    await user.click(screen.getByRole('link', { name: '返回草稿' }))
+    await user.click(screen.getByRole('link', { name: /返回草稿/ }))
+    const leaveDialog = (await screen.findAllByRole('dialog')).at(-1)!
+    await user.click(within(leaveDialog).getByRole('button', { name: /离开/ }))
     expect(await screen.findByText('草稿列表')).toBeVisible()
   })
 })

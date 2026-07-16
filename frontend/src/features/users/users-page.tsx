@@ -6,6 +6,7 @@ import { useSearchParams } from 'react-router-dom'
 import type { UserRecord } from '../../api/users'
 import { AppError } from '../../api/errors'
 import { ErrorState } from '../../components/feedback/state-views'
+import { roleLabel, userStatusLabel } from '../../lib/labels'
 import { CreateUserDialog } from './components/create-user-dialog'
 import { EditRolesDialog } from './components/edit-roles-dialog'
 import { useUsersQuery } from './queries'
@@ -74,7 +75,7 @@ export function UsersPage() {
       render: (roles: string[]) => (
         <Space size={[4, 4]} wrap>
           {roles.map((role) => (
-            <Tag key={role}>{role}</Tag>
+            <Tag key={role}>{roleLabel[role] ?? role}</Tag>
           ))}
         </Space>
       ),
@@ -84,7 +85,9 @@ export function UsersPage() {
       dataIndex: 'status',
       width: 100,
       render: (status: string) => (
-        <Tag color={status === 'active' ? 'success' : 'default'}>{status}</Tag>
+        <Tag color={status === 'active' ? 'success' : 'default'}>
+          {userStatusLabel[status] ?? status}
+        </Tag>
       ),
     },
     {

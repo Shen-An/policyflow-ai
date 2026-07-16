@@ -44,7 +44,6 @@ export function LoginPage() {
 
   return (
     <ConfigProvider
-      autoInsertSpaceInButton={false}
       theme={{
         ...antdTheme,
         token: {

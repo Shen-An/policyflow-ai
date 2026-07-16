@@ -157,12 +157,8 @@ export function MemoryPage() {
       <div>
         <div className="page-header">
           <div>
-            <Typography.Title level={3} style={{ marginBottom: 4 }}>
-              我的记忆
-            </Typography.Title>
-            <Typography.Text type="secondary">
-              查看助手为你保留的偏好、实体与长期事件。制度事实仍以知识库检索为准。
-            </Typography.Text>
+            <h2>我的记忆</h2>
+            <p>查看助手为你保留的偏好、实体与长期事件。制度事实仍以知识库检索为准。</p>
           </div>
           <Space>
             <Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>

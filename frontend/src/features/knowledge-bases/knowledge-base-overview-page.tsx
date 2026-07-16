@@ -24,6 +24,7 @@ import {
   statusColor,
   statusLabel,
 } from './labels'
+import { confirmAction } from '../../lib/confirm'
 import {
   useDeleteKnowledgeBaseMutation,
   useUpdateKnowledgeBaseMutation,
@@ -67,7 +68,7 @@ export function KnowledgeBaseOverviewPage() {
   }
 
   function handleDelete() {
-    Modal.confirm({
+    confirmAction({
       title: `物理删除知识库「${knowledgeBase.name}」？`,
       content: isEvalTest
         ? '将永久删除测试库、其文档、索引任务与本地工作区，且不可恢复。'

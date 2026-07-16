@@ -218,7 +218,7 @@ function renderPage(entry = '/chat') {
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   return render(
-    <ConfigProvider theme={{ token: { motion: false } }} autoInsertSpaceInButton={false}>
+    <ConfigProvider theme={{ token: { motion: false } }} button={{ autoInsertSpace: false }}>
       <App>
         <QueryClientProvider client={queryClient}>
           <MemoryRouter initialEntries={[entry]}>

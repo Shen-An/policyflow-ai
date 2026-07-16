@@ -2,7 +2,6 @@ import { PlusOutlined } from '@ant-design/icons'
 import {
   Button,
   Card,
-  ConfigProvider,
   Empty,
   Form,
   Input,
@@ -114,7 +113,6 @@ export function DraftListPage() {
   )
 
   return (
-    <ConfigProvider autoInsertSpaceInButton={false} theme={{ token: { motion: false } }}>
       <div>
         <div className="page-header">
           <div>
@@ -130,55 +128,29 @@ export function DraftListPage() {
         <Card styles={{ body: { paddingBottom: 8 } }}>
           <div className="page-toolbar">
             <Space wrap>
-              <label>
-                状态
-                <select
-                  aria-label="状态"
-                  value={status}
-                  onChange={(event) =>
-                    updateParams({ status: event.target.value || null, page: '1' })
-                  }
-                  style={{
-                    marginLeft: 8,
-                    height: 32,
-                    borderRadius: 8,
-                    border: '1px solid var(--color-border)',
-                    padding: '0 8px',
-                    minWidth: 140,
-                  }}
-                >
-                  <option value="">全部状态</option>
-                  <option value="draft">草稿</option>
-                  <option value="confirmed">已确认</option>
-                  <option value="discarded">已丢弃</option>
-                  <option value="exported">已导出</option>
-                </select>
-              </label>
-              <label>
-                类型
-                <select
-                  aria-label="类型"
-                  value={draftType}
-                  onChange={(event) =>
-                    updateParams({ draft_type: event.target.value || null, page: '1' })
-                  }
-                  style={{
-                    marginLeft: 8,
-                    height: 32,
-                    borderRadius: 8,
-                    border: '1px solid var(--color-border)',
-                    padding: '0 8px',
-                    minWidth: 140,
-                  }}
-                >
-                  <option value="">全部类型</option>
-                  {draftTypes.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <Select
+                aria-label="状态"
+                allowClear
+                placeholder="全部状态"
+                style={{ width: 140 }}
+                value={status || undefined}
+                onChange={(value) => updateParams({ status: value || null, page: '1' })}
+                options={[
+                  { value: 'draft', label: '草稿' },
+                  { value: 'confirmed', label: '已确认' },
+                  { value: 'discarded', label: '已丢弃' },
+                  { value: 'exported', label: '已导出' },
+                ]}
+              />
+              <Select
+                aria-label="类型"
+                allowClear
+                placeholder="全部类型"
+                style={{ width: 140 }}
+                value={draftType || undefined}
+                onChange={(value) => updateParams({ draft_type: value || null, page: '1' })}
+                options={draftTypes}
+              />
             </Space>
           </div>
 
@@ -214,7 +186,6 @@ export function DraftListPage() {
 
         <CreateDraftModal open={createOpen} onOpenChange={setCreateOpen} />
       </div>
-    </ConfigProvider>
   )
 }
 

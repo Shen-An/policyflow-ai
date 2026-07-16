@@ -21,6 +21,8 @@ import { useSearchParams } from 'react-router-dom'
 import type { Skill } from '../../api/skills'
 import type { ToolCallLog } from '../../api/tools'
 import { LoadingState } from '../../components/feedback/state-views'
+import { skillRiskLabel, toolLogStatusLabel } from '../../lib/labels'
+import { confirmAction } from '../../lib/confirm'
 import {
   useRunSkillMutation,
   useSetSkillEnabledMutation,
@@ -64,14 +66,16 @@ function SkillRegistry() {
   const toggle = useSetSkillEnabledMutation()
   const [runningSkill, setRunningSkill] = useState<Skill | null>(null)
 
-  async function changeStatus(skill: Skill) {
+  function changeStatus(skill: Skill) {
     const enabled = !skill.enabled
-    // Keep window.confirm for existing tests that spy on it.
-    const confirmed = window.confirm(
-      `确认${enabled ? '启用' : '禁用'} Skill“${skill.name}”吗？该操作会写入审计日志。`,
-    )
-    if (!confirmed) return
-    await toggle.mutateAsync({ name: skill.name, enabled })
+    confirmAction({
+      title: `${enabled ? '启用' : '禁用'} Skill`,
+      content: `确认${enabled ? '启用' : '禁用'} Skill“${skill.name}”吗？该操作会写入审计日志。`,
+      okText: enabled ? '启用' : '禁用',
+      okButtonProps: enabled ? undefined : { danger: true },
+      cancelText: '取消',
+      onOk: () => toggle.mutateAsync({ name: skill.name, enabled }),
+    })
   }
 
   const columns: ColumnsType<Skill> = useMemo(
@@ -89,7 +93,12 @@ function SkillRegistry() {
         ),
       },
       { title: '版本', dataIndex: 'version', width: 100 },
-      { title: '风险', dataIndex: 'riskLevel', width: 100 },
+      {
+        title: '风险',
+        dataIndex: 'riskLevel',
+        width: 100,
+        render: (value: string) => skillRiskLabel[value] ?? value,
+      },
       {
         title: '实现状态',
         dataIndex: 'implemented',
@@ -392,7 +401,7 @@ function ToolLogSection() {
       width: 100,
       render: (value: string) => (
         <Tag color={value === 'success' ? 'success' : value === 'failed' ? 'error' : 'default'}>
-          {value}
+          {toolLogStatusLabel[value] ?? value}
         </Tag>
       ),
     },

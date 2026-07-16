@@ -121,7 +121,7 @@ describe('EvaluationPage', () => {
     )
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
-      <ConfigProvider theme={{ token: { motion: false } }} autoInsertSpaceInButton={false}>
+      <ConfigProvider theme={{ token: { motion: false } }} button={{ autoInsertSpace: false }}>
         <QueryClientProvider client={client}>
           <MemoryRouter initialEntries={['/evaluation?run_id=run-1']}>
             <EvaluationPage />
