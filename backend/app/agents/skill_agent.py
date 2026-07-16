@@ -81,6 +81,71 @@ class SkillAgent:
         """Backward-compatible suggest-only API used by older callers."""
         return self.suggest(question, router_result, enabled)
 
+    async def execute_one(
+        self,
+        session: Session,
+        user: User,
+        skill_name: str,
+        question: str,
+        evidence: list[Evidence],
+        *,
+        step_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Run a single named skill against evidence (PlanExecutor / L2)."""
+        name = (skill_name or "").strip()
+        if not name:
+            return {
+                "name": name,
+                "status": "failed",
+                "error": "empty skill name",
+                "step_id": step_id,
+            }
+        if self.skill_registry is None:
+            return {
+                "name": name,
+                "status": "failed",
+                "error": "skill registry unavailable",
+                "step_id": step_id,
+            }
+        evidence_payload = [item.model_dump(mode="json") for item in evidence]
+        if name == "process_checklist":
+            payload: dict[str, Any] = {"question": question, "evidence": evidence_payload}
+        elif name == "policy_compare":
+            policies = [
+                {
+                    "title": item.document_title or "证据",
+                    "content": item.snippet,
+                }
+                for item in evidence
+            ]
+            if len(policies) < 2:
+                return {
+                    "name": name,
+                    "status": "skipped",
+                    "error": "policy_compare requires at least 2 evidence snippets",
+                    "step_id": step_id,
+                }
+            payload = {"policies": policies}
+        else:
+            text = "\n".join(item.snippet for item in evidence) or question
+            payload = {"text": text, "question": question}
+        try:
+            response = await self.skill_registry.run(session, user, name, payload)
+            return {
+                "name": name,
+                "status": "success",
+                "output": response.output,
+                "audit_id": response.audit_id,
+                "step_id": step_id,
+            }
+        except Exception as exc:
+            return {
+                "name": name,
+                "status": "failed",
+                "error": str(exc),
+                "step_id": step_id,
+            }
+
     async def execute_suggested(
         self,
         session: Session,
@@ -95,49 +160,9 @@ class SkillAgent:
             return suggestions, []
 
         results: list[dict[str, Any]] = []
-        evidence_payload = [item.model_dump(mode="json") for item in evidence]
         for skill in suggestions:
             name = skill.get("name") or ""
-            payload: dict[str, Any]
-            if name == "process_checklist":
-                payload = {"question": question, "evidence": evidence_payload}
-            elif name == "policy_compare":
-                policies = [
-                    {
-                        "title": item.document_title or "证据",
-                        "content": item.snippet,
-                    }
-                    for item in evidence
-                ]
-                if len(policies) < 2:
-                    results.append(
-                        {
-                            "name": name,
-                            "status": "skipped",
-                            "error": "policy_compare requires at least 2 evidence snippets",
-                        }
-                    )
-                    continue
-                payload = {"policies": policies}
-            else:
-                text = "\n".join(item.snippet for item in evidence) or question
-                payload = {"text": text, "question": question}
-            try:
-                response = await self.skill_registry.run(session, user, name, payload)
-                results.append(
-                    {
-                        "name": name,
-                        "status": "success",
-                        "output": response.output,
-                        "audit_id": response.audit_id,
-                    }
-                )
-            except Exception as exc:
-                results.append(
-                    {
-                        "name": name,
-                        "status": "failed",
-                        "error": str(exc),
-                    }
-                )
+            results.append(
+                await self.execute_one(session, user, name, question, evidence)
+            )
         return suggestions, results
