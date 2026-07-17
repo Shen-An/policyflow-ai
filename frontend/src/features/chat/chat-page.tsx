@@ -17,12 +17,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import type {
   AssistantMetadata,
+  ChatPlanEvent,
   ChatResult,
   ChatStageEvent,
   CommandTrace,
   ConversationMessage,
   ConversationSummary,
   FeedbackRating,
+  PlanStep,
   ToolCallTrace,
   TurnDiagnostics,
   UsedMemoryItem,
@@ -127,6 +129,7 @@ export function ChatPage() {
   const [renaming, setRenaming] = useState<ConversationSummary | null>(null)
   const [renameTitle, setRenameTitle] = useState('')
   const [thinkingStages, setThinkingStages] = useState<ChatStageEvent[]>([])
+  const [thinkingPlan, setThinkingPlan] = useState<ChatPlanEvent | null>(null)
   const [thinkingDiagnostics, setThinkingDiagnostics] = useState<TurnDiagnostics>({
     memories: [],
     tools: [],
@@ -140,6 +143,7 @@ export function ChatPage() {
     setQuestion('')
     setFailedQuestion(null)
     setThinkingStages([])
+    setThinkingPlan(null)
     setThinkingDiagnostics({ memories: [], tools: [], commands: [] })
   }, [conversationId])
 
@@ -171,6 +175,7 @@ export function ChatPage() {
     visibleMessages.length,
     sendMutation.isPending,
     thinkingStages.length,
+    thinkingPlan?.steps.length,
   ])
 
   async function handleCopy(content: string) {
@@ -217,6 +222,7 @@ export function ChatPage() {
     setQuestion('')
     setFailedQuestion(null)
     setThinkingStages([])
+    setThinkingPlan(null)
     setThinkingDiagnostics({ memories: [], tools: [], commands: [] })
     try {
       const result = await sendMutation.mutateAsync({
@@ -234,6 +240,26 @@ export function ChatPage() {
               return next
             })
           },
+          onPlan: (plan) => {
+            setThinkingPlan(plan)
+          },
+          onPlanStep: (step) => {
+            setThinkingPlan((current) => {
+              if (!current) return current
+              return {
+                ...current,
+                steps: current.steps.map((item) =>
+                  item.id === step.id
+                    ? {
+                        ...item,
+                        status: step.status,
+                        message: step.message ?? item.message,
+                      }
+                    : item,
+                ),
+              }
+            })
+          },
           onDiagnosticsPartial: (partial) => {
             setThinkingDiagnostics(partial as TurnDiagnostics)
           },
@@ -243,6 +269,7 @@ export function ChatPage() {
         },
       })
       setThinkingStages([])
+      setThinkingPlan(null)
       setThinkingDiagnostics({ memories: [], tools: [], commands: [] })
       setMessages((current) => [...current, resultMessage(result)])
       if (!conversationId) {
@@ -250,6 +277,9 @@ export function ChatPage() {
       }
     } catch {
       setFailedQuestion(normalized)
+      setThinkingStages([])
+      setThinkingPlan(null)
+      setThinkingDiagnostics({ memories: [], tools: [], commands: [] })
     }
   }
 
@@ -542,11 +572,19 @@ export function ChatPage() {
                       <Space size={8} wrap>
                         <Lightning size={16} weight="duotone" className="chat-thinking__pulse" style={{color: palette.primary}} aria-hidden />
                         <span>思考中</span>
-                        <Tag color="processing">流式执行</Tag>
+                        {(() => {
+                          const mode = describeExecutionMode(thinkingPlan)
+                          return (
+                            <Tag color={mode.color} title={mode.detail}>
+                              {mode.label}
+                            </Tag>
+                          )
+                        })()}
                       </Space>
                     </div>
                     <ThinkingStreamPanel
                       stages={thinkingStages}
+                      plan={thinkingPlan}
                       diagnostics={thinkingDiagnostics} />
                   </article>
                 </div>
@@ -939,16 +977,123 @@ function prettyJson(value: Record<string, unknown>): string {
   }
 }
 
+function describeExecutionMode(plan: ChatPlanEvent | null): {
+  label: string
+  color: string
+  detail: string
+} {
+  if (!plan || !plan.steps?.length) {
+    return {
+      label: '流式阶段',
+      color: 'processing',
+      detail: '记忆 → 路由 → 检索 → 回答',
+    }
+  }
+
+  const steps = plan.steps
+  const waves =
+    plan.waves && plan.waves.length > 0
+      ? plan.waves
+      : inferWavesFromSteps(steps)
+  const hasParallelWave = waves.some((wave) => wave.length > 1)
+  const parallelLive = Boolean(plan.parallelUsed) || hasParallelWave
+  const running = steps.filter((s) => s.status === 'running')
+  const concurrentRunning = running.length >= 2
+  const isL2 = plan.executor === 'L2' || Boolean(plan.parallelUsed) || hasParallelWave
+
+  if (parallelLive || concurrentRunning) {
+    const parallelWaveSize = Math.max(
+      ...waves.map((w) => w.length),
+      concurrentRunning ? running.length : 1,
+    )
+    return {
+      label: concurrentRunning ? '并行执行中' : '计划并行',
+      color: 'blue',
+      detail:
+        parallelWaveSize > 1
+          ? `独立子任务可同波并行（最大 ${parallelWaveSize} 路）`
+          : '独立子任务可并行',
+    }
+  }
+
+  if (isL2 || plan.complexity === 'multi_step') {
+    return {
+      label: isL2 ? '分步执行' : '计划串行',
+      color: 'processing',
+      detail: `按依赖顺序执行 ${steps.length} 步`,
+    }
+  }
+
+  return {
+    label: '流式阶段',
+    color: 'processing',
+    detail: '记忆 → 路由 → 检索 → 回答',
+  }
+}
+
+function inferWavesFromSteps(steps: PlanStep[]): string[][] {
+  // Client-side fallback when backend has not yet sent waves:
+  // independent ready retrieve/skill steps share a wave; remaining steps stay serial.
+  const byId = new Map(steps.map((s) => [s.id, s]))
+  const ready = steps.filter((s) => {
+    const deps = s.dependsOn ?? []
+    if (deps.length === 0) return true
+    return deps.every((d) => {
+      const dep = byId.get(d)
+      return dep && (dep.status === 'success' || dep.status === 'skipped')
+    })
+  })
+  const parallelizable = ready.filter(
+    (s) =>
+      (s.kind === 'retrieve' || s.kind === 'skill') &&
+      (s.status === 'pending' || s.status === 'running'),
+  )
+  if (parallelizable.length < 2) {
+    return steps.map((s) => [s.id])
+  }
+
+  const parallelIds = new Set(parallelizable.map((s) => s.id))
+  const waves: string[][] = [parallelizable.map((s) => s.id)]
+  for (const step of steps) {
+    if (!parallelIds.has(step.id)) {
+      waves.push([step.id])
+    }
+  }
+  return waves
+}
+
+function planStatusColor(status: string): string {
+  if (status === 'running') return 'processing'
+  if (status === 'success') return 'success'
+  if (status === 'error') return 'error'
+  if (status === 'skipped') return 'default'
+  return 'default'
+}
+
 function ThinkingStreamPanel({
   stages,
+  plan,
   diagnostics,
 }: {
   stages: ChatStageEvent[]
+  plan: ChatPlanEvent | null
   diagnostics: TurnDiagnostics
 }) {
   const memoryCount = diagnostics.memories.length
   const toolCount = diagnostics.tools.length
   const commandCount = Math.max(diagnostics.commands.length, stages.length)
+  const planSteps = plan?.steps ?? []
+  const mode = describeExecutionMode(plan)
+  const waves =
+    plan?.waves && plan.waves.length > 0
+      ? plan.waves
+      : planSteps.length > 0
+        ? inferWavesFromSteps(planSteps)
+        : []
+  const stepById = new Map(planSteps.map((s) => [s.id, s]))
+  const parallelWaveIds = new Set(
+    waves.filter((w) => w.length > 1).flatMap((w) => w),
+  )
 
   return (
     <div className="chat-thinking" aria-live="polite">
@@ -957,7 +1102,115 @@ function ThinkingStreamPanel({
         <Tag color="purple">记忆 {memoryCount}</Tag>
         <Tag color="geekblue">工具 {toolCount}</Tag>
         <Tag color="cyan">命令 {commandCount}</Tag>
+        {planSteps.length > 0 ? (
+          <Tag color="blue">
+            计划 {planSteps.length}
+            {plan?.planSource ? ` · ${plan.planSource}` : ''}
+          </Tag>
+        ) : null}
+        <Tag color={mode.color}>{mode.label}</Tag>
       </div>
+
+      {planSteps.length > 0 ? (
+        <div className="chat-thinking__plan" aria-label="执行计划">
+          <div className="chat-thinking__plan-title">
+            <strong>执行计划</strong>
+            <Tag color={mode.color}>{mode.label}</Tag>
+            {plan?.executor ? <Tag>{plan.executor}</Tag> : null}
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {mode.detail}
+            </Typography.Text>
+          </div>
+
+          {waves.some((w) => w.length > 1) ? (
+            <div className="chat-thinking__waves" aria-label="执行波次">
+              {waves.map((wave, waveIndex) => {
+                const parallel = wave.length > 1
+                return (
+                  <div
+                    key={`wave-${waveIndex}`}
+                    className={
+                      parallel
+                        ? 'chat-thinking__wave chat-thinking__wave--parallel'
+                        : 'chat-thinking__wave'
+                    }
+                  >
+                    <div className="chat-thinking__wave-head">
+                      <span>第 {waveIndex + 1} 波</span>
+                      <Tag color={parallel ? 'blue' : 'default'}>
+                        {parallel ? `并行 ×${wave.length}` : '串行'}
+                      </Tag>
+                    </div>
+                    <ol className="chat-thinking__plan-list">
+                      {wave.map((id) => {
+                        const step = stepById.get(id)
+                        if (!step) return null
+                        const index = planSteps.findIndex((s) => s.id === id)
+                        return (
+                          <li
+                            key={step.id}
+                            className={`chat-thinking__plan-item chat-thinking__plan-item--${step.status || 'pending'}${
+                              parallelWaveIds.has(step.id)
+                                ? ' chat-thinking__plan-item--parallel'
+                                : ''
+                            }`}
+                          >
+                            <div className="chat-thinking__plan-item-head">
+                              <span className="chat-thinking__plan-index">
+                                {index >= 0 ? index + 1 : '·'}
+                              </span>
+                              <strong>{step.title}</strong>
+                              {step.kind ? <Tag>{step.kind}</Tag> : null}
+                              {parallel ? <Tag color="blue">∥</Tag> : null}
+                              <Tag color={planStatusColor(String(step.status))}>
+                                {step.status}
+                              </Tag>
+                            </div>
+                            {step.dependsOn && step.dependsOn.length > 0 ? (
+                              <div className="chat-thinking__plan-message">
+                                依赖：{step.dependsOn.join(', ')}
+                              </div>
+                            ) : null}
+                            {step.message ? (
+                              <div className="chat-thinking__plan-message">
+                                {step.message}
+                              </div>
+                            ) : null}
+                          </li>
+                        )
+                      })}
+                    </ol>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <ol className="chat-thinking__plan-list">
+              {planSteps.map((step: PlanStep, index: number) => (
+                <li
+                  key={step.id}
+                  className={`chat-thinking__plan-item chat-thinking__plan-item--${step.status || 'pending'}`}
+                >
+                  <div className="chat-thinking__plan-item-head">
+                    <span className="chat-thinking__plan-index">{index + 1}</span>
+                    <strong>{step.title}</strong>
+                    {step.kind ? <Tag>{step.kind}</Tag> : null}
+                    <Tag color={planStatusColor(String(step.status))}>{step.status}</Tag>
+                  </div>
+                  {step.dependsOn && step.dependsOn.length > 0 ? (
+                    <div className="chat-thinking__plan-message">
+                      依赖：{step.dependsOn.join(', ')}
+                    </div>
+                  ) : null}
+                  {step.message ? (
+                    <div className="chat-thinking__plan-message">{step.message}</div>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      ) : null}
 
       <div className="chat-thinking__stages">
         {(stages.length > 0

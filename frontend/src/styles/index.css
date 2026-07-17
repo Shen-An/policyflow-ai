@@ -1540,6 +1540,108 @@ textarea {
   color: var(--color-text-secondary);
 }
 
+.chat-thinking__plan {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 22%, var(--color-border-secondary));
+  background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
+  display: grid;
+  gap: 8px;
+}
+
+.chat-thinking__plan-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-thinking__plan-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.chat-thinking__plan-item {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border-secondary);
+  background: var(--color-surface);
+}
+
+.chat-thinking__plan-item--running {
+  border-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-border-secondary));
+}
+
+.chat-thinking__plan-item--success {
+  border-color: color-mix(in srgb, #16a34a 35%, var(--color-border-secondary));
+}
+
+.chat-thinking__plan-item--error {
+  border-color: color-mix(in srgb, #dc2626 35%, var(--color-border-secondary));
+}
+
+.chat-thinking__plan-item--parallel {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border-secondary));
+}
+
+.chat-thinking__waves {
+  display: grid;
+  gap: 8px;
+}
+
+.chat-thinking__wave {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border-secondary);
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+}
+
+.chat-thinking__wave--parallel {
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-border-secondary));
+  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface));
+}
+
+.chat-thinking__wave-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.chat-thinking__plan-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-thinking__plan-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.chat-thinking__plan-message {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
 .chat-thinking__pulse {
   animation: chat-thinking-pulse 1.2s ease-in-out infinite;
 }
