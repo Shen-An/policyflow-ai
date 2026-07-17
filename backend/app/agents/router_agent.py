@@ -6,7 +6,11 @@ import json
 import re
 from typing import Any
 
-from backend.app.agents.plan_normalize import should_be_multi_step
+from backend.app.agents.plan_normalize import (
+    difficulty_to_reasoning_mode,
+    should_be_branched,
+    should_be_multi_step,
+)
 from backend.app.db.models import KnowledgeBase
 from backend.app.rag.protocols import LLMService
 from backend.app.schemas.chat import PlanStep, RouterResult
@@ -21,6 +25,7 @@ _VALID_TASK_TYPES = {
 }
 _VALID_RISK = {"low", "medium", "high"}
 _VALID_COMPLEXITY = {"simple", "multi_step"}
+_VALID_DIFFICULTY = {"simple", "multi_step", "branched"}
 _VALID_PLAN_KINDS = {"retrieve", "skill", "answer", "tool", "verify"}
 _SKILL_TASKS = {"process_checklist", "policy_compare", "summary"}
 
@@ -71,12 +76,28 @@ def _heuristic_route(question: str, knowledge_bases: list[KnowledgeBase]) -> Rou
         tool_hints=sorted(set(tool_hints)),
         rewrite_query=None,
         complexity="simple",
+        difficulty="simple",
+        reasoning_mode="cot_direct",
         plan_steps=[],
         plan_source="none",
     )
-    # Light complexity hint only; normalize_plan finalizes steps.
-    if should_be_multi_step(question, provisional):
-        provisional = provisional.model_copy(update={"complexity": "multi_step"})
+    # Light difficulty hint only; normalize_plan finalizes steps + mode.
+    if should_be_branched(question, provisional):
+        provisional = provisional.model_copy(
+            update={
+                "complexity": "multi_step",
+                "difficulty": "branched",
+                "reasoning_mode": "tot_select",
+            }
+        )
+    elif should_be_multi_step(question, provisional):
+        provisional = provisional.model_copy(
+            update={
+                "complexity": "multi_step",
+                "difficulty": "multi_step",
+                "reasoning_mode": "cot_steps",
+            }
+        )
     return provisional
 
 
@@ -172,6 +193,7 @@ class RouterAgent:
             '{"domain": str, "task_type": str, "risk_level": str, '
             '"need_skill": bool, "tool_hints": [str], "rewrite_query": str|null, '
             '"complexity": "simple"|"multi_step", '
+            '"difficulty": "simple"|"multi_step"|"branched", '
             '"plan_steps": [{"id": str, "title": str, "kind": str, "query": str|null, '
             '"skill_hint": str|null, "tool_hints": [str]}]}。'
             f"domain 优先从这些知识库 code 中选：{json.dumps([k['code'] for k in kb_catalog], ensure_ascii=False)}；"
@@ -183,9 +205,12 @@ class RouterAgent:
             "rewrite_query：若原问题含指代/省略，给出更适合检索的完整查询；否则 null。"
             "complexity=simple：单事实问答/短跟进；"
             "complexity=multi_step：多意图、多阶段、用户已编号步骤、或需先检索再清单/对比。"
-            "multi_step 时 plan_steps 给 2-5 步，kind ∈ retrieve|skill|answer|tool|verify；"
+            "difficulty=simple：直答；multi_step：单链分步；"
+            "difficulty=branched：存在多种合理执行路径需用户选路（如几种方案/对比路径/先A或先B）。"
+            "用户已编号 1.2.3. 线性步骤时 difficulty 必须 multi_step 而非 branched。"
+            "multi_step/branched 时 plan_steps 给 2-5 步主路径草案，kind ∈ retrieve|skill|answer|tool|verify；"
             "simple 时 plan_steps 必须为 []。"
-            "你不是开放式 planner：只做结构化路由，不要写长说明。"
+            "你不是开放式 planner，也不是学术 ToT 搜索：只做结构化路由。"
             "不要解释。"
         )
         user = f"问题：{question}\n可用知识库：{json.dumps(kb_catalog, ensure_ascii=False)}"
@@ -252,11 +277,23 @@ class RouterAgent:
             complexity_raw = str(parsed.get("complexity") or fallback.complexity).strip().lower()
             if complexity_raw not in _VALID_COMPLEXITY:
                 complexity_raw = fallback.complexity
+            difficulty_raw = str(
+                parsed.get("difficulty") or getattr(fallback, "difficulty", "simple")
+            ).strip().lower()
+            if difficulty_raw not in _VALID_DIFFICULTY:
+                difficulty_raw = getattr(fallback, "difficulty", "simple")
             plan_steps = _coerce_plan_steps(parsed.get("plan_steps"))
-            if complexity_raw == "simple":
+            if complexity_raw == "simple" and difficulty_raw == "simple":
                 plan_steps = []
             # If model gave multi steps but labeled simple, promote.
             if len(plan_steps) >= 2:
+                complexity_raw = "multi_step"
+                if difficulty_raw == "simple":
+                    difficulty_raw = "multi_step"
+            if difficulty_raw == "branched":
+                complexity_raw = "multi_step"
+            # Align complexity with difficulty for multi_step.
+            if difficulty_raw == "multi_step":
                 complexity_raw = "multi_step"
 
             return RouterResult(
@@ -267,6 +304,8 @@ class RouterAgent:
                 tool_hints=sorted(set(tool_hints)),
                 rewrite_query=rewrite_query,
                 complexity=complexity_raw,  # type: ignore[arg-type]
+                difficulty=difficulty_raw,  # type: ignore[arg-type]
+                reasoning_mode=difficulty_to_reasoning_mode(difficulty_raw),  # type: ignore[arg-type]
                 plan_steps=plan_steps,
                 plan_source="router" if plan_steps else "none",
             )
