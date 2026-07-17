@@ -31,6 +31,24 @@ async def test_heuristic_router_sets_need_skill_and_task_type() -> None:
     assert "skill.run" in result.tool_hints
 
 
+@pytest.mark.asyncio
+async def test_heuristic_router_marks_multi_step_for_compound_task() -> None:
+    router = RouterAgent(llm_service=None)
+    kb = KnowledgeBase(
+        id="kb1",
+        name="HR",
+        code="hr",
+        department_id="d1",
+        rag_workspace="rag/hr",
+    )
+    result = await router.run(
+        "对比一线与二线差旅住宿标准，并给出报销申请清单",
+        [kb],
+    )
+    assert result.complexity == "multi_step"
+    # Final step list is produced by normalize_plan in pipeline; router only hints.
+
+
 def test_skill_agent_respects_need_skill_false_for_plain_qa() -> None:
     agent = SkillAgent()
     router = RouterResult(
