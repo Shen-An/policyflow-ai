@@ -64,6 +64,16 @@ function statusColor(value: string): string {
   return 'default'
 }
 
+function statusLabel(value: string): string {
+  if (value === 'success' || value === 'passed') return '成功'
+  if (value === 'failed') return '失败'
+  if (value === 'skipped') return '跳过'
+  if (value === 'disabled') return '已禁用'
+  if (value === 'running') return '运行中'
+  if (value === 'pending') return '排队中'
+  return value
+}
+
 function asNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
@@ -179,9 +189,9 @@ export function EvaluationPage() {
         <div>
           <h2>评估中心</h2>
           <p>
-            默认只看两件事：1）导入测试语料；2）跑检索评估拿到
+            两步完成检索量化：导入测试语料 → 随机抽样跑 Run，主看
             <strong> Hit@1 / Hit@5 / Hit@10 / MRR</strong>
-            。高级配置与逐条结果默认折叠。
+            。
           </p>
         </div>
       </div>
@@ -197,6 +207,7 @@ export function EvaluationPage() {
           }}
         />
         <Collapse
+          ghost
           items={[
             {
               key: 'dataset',
@@ -231,13 +242,9 @@ function CrudImportSection() {
   }, [evalTestKb?.id, form])
 
   return (
-    <Card title="CRUD 数据集导入（Hit@K / MRR）">
-      <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-        从 CRUD-RAG 的 <code>questanswer_*</code> 任务导入语料与金标检索用例。
-        <strong>默认导入到专用「测试库」(code=eval_test)</strong>，避免污染业务知识库。
-        默认数据路径：
-        <code> D:\Coding\Code\Github\CRUD_RAG\data\crud_split\split_merged.json</code>
-        。建议先小样本（20–50）；勾选「导入后建立索引」时索引在<strong>后台</strong>执行，页面不会一直转圈。
+    <Card title="1. 导入测试语料">
+      <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 16 }}>
+        导入到专用「测试库」(code=eval_test)，避免污染业务库。建议先 50 问 + 干扰文档 ≥200；索引在后台排队。
       </Typography.Paragraph>
       <Form
         form={form}
@@ -260,8 +267,6 @@ function CrudImportSection() {
           indexDocuments: boolean
           createEvalCases: boolean
         }) => {
-          // Always prefer dedicated sandbox. If user left default/old deleted id,
-          // omit id so backend creates/revives eval_test.
           const selected = values.knowledgeBaseId || undefined
           const selectedKb = (knowledgeBases.data ?? []).find((kb) => kb.id === selected)
           const useSandbox =
@@ -280,82 +285,86 @@ function CrudImportSection() {
           })
         }}
       >
-        <Row gutter={16}>
-          <Col xs={24} md={8}>
-            <Form.Item
-              label="目标知识库（默认：测试库）"
-              name="knowledgeBaseId"
-              extra="留空则自动使用/创建 code=eval_test 的测试库"
-            >
+        <Row gutter={[16, 0]}>
+          <Col xs={24} sm={12} md={6}>
+            <Form.Item label="评测问题数" name="sampleSize">
+              <Input type="number" min={1} max={2000} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Form.Item label="干扰文档数" name="distractorCount">
+              <Input type="number" min={0} max={5000} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Form.Item label="任务类型" name="taskType">
+              <Select
+                options={[
+                  { value: 'questanswer_1doc', label: '1doc（主评测）' },
+                  { value: 'questanswer_2docs', label: '2docs' },
+                  { value: 'questanswer_3docs', label: '3docs' },
+                ]}
+              />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Form.Item label="目标库" name="knowledgeBaseId">
               <Select
                 allowClear
-                placeholder={evalTestKb ? `默认 ${evalTestKb.name}` : '默认自动创建「测试库」'}
+                placeholder={evalTestKb ? `默认 ${evalTestKb.name}` : '自动创建测试库'}
                 options={(knowledgeBases.data ?? []).map((kb) => ({
                   value: kb.id,
                   label:
                     kb.code === 'eval_test' || kb.name === '测试库'
-                      ? `${kb.name}（推荐·评估沙箱）`
+                      ? `${kb.name}（推荐）`
                       : `${kb.name}（${kb.code}）`,
                 }))}
               />
             </Form.Item>
           </Col>
-          <Col xs={24} md={8}>
-            <Form.Item label="任务类型" name="taskType">
-              <Select
-                options={[
-                  { value: 'questanswer_1doc', label: 'questanswer_1doc（主评测）' },
-                  { value: 'questanswer_2docs', label: 'questanswer_2docs' },
-                  { value: 'questanswer_3docs', label: 'questanswer_3docs' },
-                ]}
-              />
-            </Form.Item>
-          </Col>
-          <Col xs={24} md={8}>
-            <Form.Item
-              label="评测问题数"
-              name="sampleSize"
-              extra="建议 30–100"
-            >
-              <Input type="number" min={1} max={2000} />
-            </Form.Item>
-          </Col>
-          <Col xs={24} md={8}>
-            <Form.Item
-              label="干扰文档数"
-              name="distractorCount"
-              extra="防止小库虚高满分；建议 ≥200"
-            >
-              <Input type="number" min={0} max={5000} />
-            </Form.Item>
-          </Col>
-          <Col xs={24} md={16}>
-            <Form.Item label="数据集路径（可选）" name="sourcePath">
-              <Input placeholder="默认 split_merged.json；可填绝对路径" />
-            </Form.Item>
-          </Col>
-          <Col xs={24} md={12}>
-            <Form.Item
-              name="indexDocuments"
-              valuePropName="checked"
-              extra="索引在后台排队，导入请求会很快返回；可到「测试库 → 文档」查看索引状态。"
-            >
-              <Checkbox>导入后后台建立索引（推荐）</Checkbox>
-            </Form.Item>
-          </Col>
-          <Col xs={24} md={12}>
-            <Form.Item name="createEvalCases" valuePropName="checked">
-              <Checkbox>同时创建回答评估用例</Checkbox>
-            </Form.Item>
-          </Col>
         </Row>
+
+        <Collapse
+          ghost
+          style={{ marginBottom: 12 }}
+          items={[
+            {
+              key: 'import-advanced',
+              label: '高级导入选项',
+              children: (
+                <Row gutter={[16, 0]}>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      label="数据集路径（可选）"
+                      name="sourcePath"
+                      extra="默认使用服务端配置的 split_merged.json"
+                    >
+                      <Input placeholder="可填绝对路径；通常留空" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={6}>
+                    <Form.Item name="indexDocuments" valuePropName="checked">
+                      <Checkbox>导入后后台建索引</Checkbox>
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={6}>
+                    <Form.Item name="createEvalCases" valuePropName="checked">
+                      <Checkbox>同时创建回答用例</Checkbox>
+                    </Form.Item>
+                  </Col>
+                </Row>
+              ),
+            },
+          ]}
+        />
+
         {importMutation.isPending ? (
           <Alert
             type="info"
             showIcon
             style={{ marginBottom: 12 }}
             title="正在导入…"
-            description="正在写入测试库与评估用例。若勾选了索引，索引会在后台继续，不会卡住本页。"
+            description="写入测试库与评估用例；索引会在后台继续，不会卡住本页。"
           />
         ) : null}
         <Button
@@ -372,7 +381,7 @@ function CrudImportSection() {
             showIcon
             style={{ marginTop: 12 }}
             title={importMutation.error.message}
-            description="若提示超时，请把采样条数降到 20–30，或取消勾选索引后先导入、再在文档页逐个/批量重索引。"
+            description="超时可把问题数降到 20–30，或取消索引后先导入。"
           />
         ) : null}
         {importMutation.isSuccess ? (
@@ -380,10 +389,10 @@ function CrudImportSection() {
             type={importMutation.data.warning ? 'warning' : 'success'}
             showIcon
             style={{ marginTop: 12 }}
-            title={`导入完成：评测问 +${importMutation.data.retrievalItemsCreated}，文档 +${importMutation.data.documentsCreated}（干扰 ${importMutation.data.distractorDocumentsCreated}，复用 ${importMutation.data.documentsReused}），语料总量 ${importMutation.data.corpusDocumentCount}${importMutation.data.indexQueued ? `，后台索引排队 ${importMutation.data.indexQueued}` : ''}`}
+            title={`导入完成：评测问 +${importMutation.data.retrievalItemsCreated}，文档 +${importMutation.data.documentsCreated}（干扰 ${importMutation.data.distractorDocumentsCreated}）${importMutation.data.indexQueued ? `，后台索引 ${importMutation.data.indexQueued}` : ''}`}
             description={
               importMutation.data.warning ||
-              `目标 KB：${importMutation.data.knowledgeBaseId}。索引完成后启动 retrieval Run，查看 Hit@K / MRR。`
+              '索引完成后，在下方启动检索 Run 查看 Hit@K / MRR。'
             }
           />
         ) : null}
@@ -642,7 +651,7 @@ function RunSection({
         title: '状态',
         dataIndex: 'status',
         width: 100,
-        render: (value: string) => <Tag color={statusColor(value)}>{value}</Tag>,
+        render: (value: string) => <Tag color={statusColor(value)}>{statusLabel(value)}</Tag>,
       },
       {
         title: 'Hit@1',
@@ -715,284 +724,340 @@ function RunSection({
   )
 
   return (
-    <Card title="评估 Run（主看 Hit@K / MRR）">
-      <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-        只做检索量化：评估类型勾「检索」→ 点「随机 50/100」→ 启动。完成后看 Hit@1 / Hit@5 / Hit@10 / MRR。
-      </Typography.Paragraph>
-      <Form
-        form={form}
-        layout="vertical"
-        requiredMark={false}
-        initialValues={{
-          evalTypes: ['retrieval'],
-          caseIds: [],
-          itemIds: [],
-          strategy: 'hybrid_lightrag_bm25',
-          compareStrategies: [],
-          rerankEnabled: false,
-        }}
-        onFinish={async (values: {
-          name: string
-          evalTypes: Array<'retrieval' | 'rag_answer' | 'ragas'>
-          caseIds: string[]
-          itemIds: string[]
-          strategy: string
-          compareStrategies: string[]
-          rerankEnabled: boolean
-        }) => {
-          const evalTypes = values.evalTypes ?? []
-          const caseIds = values.caseIds ?? []
-          const itemIds = values.itemIds ?? []
-          const compareStrategies = values.compareStrategies ?? []
+    <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+      <Card title="2. 启动检索评估">
+        <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 16 }}>
+          默认只跑检索 Hit@K / MRR。点「随机 50」后启动即可；策略对比与回答评估放在高级选项。
+        </Typography.Paragraph>
+        <Form
+          form={form}
+          layout="vertical"
+          requiredMark={false}
+          initialValues={{
+            evalTypes: ['retrieval'],
+            caseIds: [],
+            itemIds: [],
+            strategy: 'hybrid_lightrag_bm25',
+            compareStrategies: [],
+            rerankEnabled: false,
+          }}
+          onFinish={async (values: {
+            name: string
+            evalTypes: Array<'retrieval' | 'rag_answer' | 'ragas'>
+            caseIds: string[]
+            itemIds: string[]
+            strategy: string
+            compareStrategies: string[]
+            rerankEnabled: boolean
+          }) => {
+            const evalTypes = values.evalTypes ?? []
+            const caseIds = values.caseIds ?? []
+            const itemIds = values.itemIds ?? []
+            const compareStrategies = values.compareStrategies ?? []
 
-          // Client-side guard with Chinese messages (backend also validates).
-          if (!evalTypes.length) {
-            throw new Error('请至少勾选一种评估类型（检索评估请勾「检索」）。')
-          }
-          if (evalTypes.includes('retrieval') && itemIds.length === 0) {
-            throw new Error(
-              '检索评估必须勾选至少一个「检索用例」。请先导入 CRUD 到测试库，再在下方勾选检索用例。',
-            )
-          }
-          if (
-            (evalTypes.includes('rag_answer') || evalTypes.includes('ragas')) &&
-            caseIds.length === 0
-          ) {
-            throw new Error(
-              '勾选「回答」或「RAGAS」时需要回答用例。若只做 Hit@K/MRR，请只勾「检索」。',
-            )
-          }
-          if (compareStrategies.length > 0 && !evalTypes.includes('retrieval')) {
-            throw new Error('多策略对比需要勾选「检索」评估类型。')
-          }
-          if (itemIds.length === 0 && caseIds.length === 0) {
-            throw new Error('请至少选择一个检索用例或回答用例。')
-          }
+            if (!evalTypes.length) {
+              throw new Error('请至少勾选一种评估类型（检索评估请勾「检索」）。')
+            }
+            if (evalTypes.includes('retrieval') && itemIds.length === 0) {
+              throw new Error(
+                '检索评估必须勾选至少一个「检索用例」。请先导入 CRUD 到测试库，再点「随机 50」。',
+              )
+            }
+            if (
+              (evalTypes.includes('rag_answer') || evalTypes.includes('ragas')) &&
+              caseIds.length === 0
+            ) {
+              throw new Error(
+                '勾选「回答」或「RAGAS」时需要回答用例。若只做 Hit@K/MRR，请只勾「检索」。',
+              )
+            }
+            if (compareStrategies.length > 0 && !evalTypes.includes('retrieval')) {
+              throw new Error('多策略对比需要勾选「检索」评估类型。')
+            }
+            if (itemIds.length === 0 && caseIds.length === 0) {
+              throw new Error('请至少选择一个检索用例或回答用例。')
+            }
 
-          const run = await create.mutateAsync({
-            name: values.name.trim(),
-            caseIds,
-            retrievalItemIds: itemIds,
-            evalTypes,
-            queryMode: 'hybrid',
-            strategy: values.strategy,
-            compareStrategies,
-            ragasEnabled: evalTypes.includes('ragas'),
-            rerankEnabled: values.rerankEnabled,
-          })
-          form.resetFields(['name'])
-          onSelectRun(run.id)
-        }}
-      >
-        <Row gutter={16}>
-          <Col xs={24} md={8}>
-            <Form.Item
-              label="Run 名称"
-              name="name"
-              rules={[{ required: true, message: '请输入名称' }]}
-            >
-              <Input placeholder="例如：Hybrid-vs-BM25-N50" />
+            const run = await create.mutateAsync({
+              name: values.name.trim(),
+              caseIds,
+              retrievalItemIds: itemIds,
+              evalTypes,
+              queryMode: 'hybrid',
+              strategy: values.strategy,
+              compareStrategies,
+              ragasEnabled: evalTypes.includes('ragas'),
+              rerankEnabled: values.rerankEnabled,
+            })
+            form.resetFields(['name'])
+            onSelectRun(run.id)
+          }}
+        >
+          <Row gutter={[16, 0]}>
+            <Col xs={24} md={10}>
+              <Form.Item
+                label="Run 名称"
+                name="name"
+                rules={[{ required: true, message: '请输入名称' }]}
+              >
+                <Input placeholder="例如：Hybrid-N50" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item label="主策略" name="strategy">
+                <Select
+                  options={[
+                    { value: 'hybrid_lightrag_bm25', label: 'Hybrid (LightRAG+BM25)' },
+                    { value: 'lightrag_only', label: 'LightRAG only' },
+                    { value: 'bm25_only', label: 'BM25 only' },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={6}>
+              <Form.Item label="抽样" style={{ marginBottom: 8 }}>
+                <Space wrap>
+                  <Button
+                    type="primary"
+                    disabled={!retrievalItems.data?.length}
+                    onClick={() => {
+                      const ids = (retrievalItems.data ?? []).map((item) => item.id)
+                      form.setFieldValue('itemIds', pickRandomIds(ids, 50))
+                    }}
+                  >
+                    随机 50
+                  </Button>
+                  <Button
+                    disabled={!retrievalItems.data?.length}
+                    onClick={() => {
+                      const ids = (retrievalItems.data ?? []).map((item) => item.id)
+                      form.setFieldValue('itemIds', pickRandomIds(ids, 100))
+                    }}
+                  >
+                    随机 100
+                  </Button>
+                </Space>
+              </Form.Item>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                已选 {selectedItemCount} / {retrievalItems.data?.length ?? 0} 条检索用例
+              </Typography.Text>
+            </Col>
+          </Row>
+
+          {/* Keep fields registered even when advanced panel is closed */}
+          <div style={{ display: 'none' }} aria-hidden>
+            <Form.Item name="itemIds">
+              <Checkbox.Group options={[]} />
             </Form.Item>
-          </Col>
-          <Col xs={24} md={8}>
-            <Form.Item label="主策略" name="strategy">
-              <Select
-                options={[
-                  { value: 'hybrid_lightrag_bm25', label: 'Hybrid (LightRAG+BM25)' },
-                  { value: 'lightrag_only', label: 'LightRAG only' },
-                  { value: 'bm25_only', label: 'BM25 only' },
-                ]}
-              />
+            <Form.Item name="caseIds">
+              <Checkbox.Group options={[]} />
             </Form.Item>
-          </Col>
-          <Col xs={24} md={8}>
-            <Form.Item
-              label="评估类型"
-              name="evalTypes"
-              extra="简历量化主指标请只勾「检索」"
-            >
+            <Form.Item name="evalTypes">
               <Checkbox.Group
                 options={[
-                  { value: 'retrieval', label: '检索（Hit@K / MRR）' },
+                  { value: 'retrieval', label: '检索' },
                   { value: 'rag_answer', label: '回答' },
                   { value: 'ragas', label: 'RAGAS' },
                 ]}
               />
             </Form.Item>
-          </Col>
-          <Col xs={24}>
-            <Form.Item
-              label="多策略对比（可选，会按每个策略重跑检索用例）"
-              name="compareStrategies"
-            >
-              <Checkbox.Group
-                options={[
-                  { value: 'hybrid_lightrag_bm25', label: 'Hybrid' },
-                  { value: 'lightrag_only', label: 'LightRAG' },
-                  { value: 'bm25_only', label: 'BM25' },
-                ]}
-              />
+            <Form.Item name="compareStrategies">
+              <Checkbox.Group options={[]} />
             </Form.Item>
-          </Col>
-          <Col xs={24}>
             <Form.Item name="rerankEnabled" valuePropName="checked">
-              <Checkbox>
-                启用本地重排（lexical fusion，非 cross-encoder；metadata 含 rerank_method）
-              </Checkbox>
+              <Checkbox />
             </Form.Item>
-          </Col>
-          <Col xs={24} md={12}>
-            <Form.Item
-              label={`回答用例（${cases.data?.length ?? 0}）`}
-              name="caseIds"
-              extra="仅当勾选「回答/RAGAS」时需要"
-            >
-              <Checkbox.Group
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  maxHeight: 128,
-                  overflow: 'auto',
-                  gap: 8,
-                }}
-                options={(cases.data ?? []).map((item) => ({
-                  value: item.id,
-                  label: item.question,
-                }))}
-              />
-            </Form.Item>
-          </Col>
-          <Col xs={24} md={12}>
-            <Form.Item
-              label={`检索用例（${retrievalItems.data?.length ?? 0}）`}
-              name="itemIds"
-              extra="Hit@K/MRR 必选。建议随机 50/100，不要全选几百条。"
-              rules={[
-                {
-                  validator: async (_, value) => {
-                    const types = form.getFieldValue('evalTypes') as string[] | undefined
-                    if (types?.includes('retrieval') && (!value || value.length === 0)) {
-                      return Promise.reject(new Error('请勾选至少一个检索用例'))
-                    }
-                    return Promise.resolve()
-                  },
-                },
-              ]}
-            >
-              <Checkbox.Group
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  maxHeight: 160,
-                  overflow: 'auto',
-                  gap: 8,
-                }}
-                options={(retrievalItems.data ?? []).map((item) => ({
-                  value: item.id,
-                  label: item.query,
-                }))}
-              />
-            </Form.Item>
-            <Space wrap style={{ marginBottom: 12 }}>
-              <Button
-                size="small"
-                type="primary"
-                disabled={!retrievalItems.data?.length}
-                onClick={() => {
-                  const ids = (retrievalItems.data ?? []).map((item) => item.id)
-                  form.setFieldValue('itemIds', pickRandomIds(ids, 50))
-                }}
-              >
-                随机 50
-              </Button>
-              <Button
-                size="small"
-                type="primary"
-                disabled={!retrievalItems.data?.length}
-                onClick={() => {
-                  const ids = (retrievalItems.data ?? []).map((item) => item.id)
-                  form.setFieldValue('itemIds', pickRandomIds(ids, 100))
-                }}
-              >
-                随机 100
-              </Button>
-              <Space.Compact>
-                <Input
-                  size="small"
-                  type="number"
-                  min={1}
-                  placeholder="自定义 N"
-                  style={{ width: 96 }}
-                  value={customSampleSize}
-                  onChange={(event) => setCustomSampleSize(event.target.value)}
-                />
-                <Button
-                  size="small"
-                  disabled={!retrievalItems.data?.length}
-                  onClick={() => {
-                    const n = Math.max(1, Number(customSampleSize) || 0)
-                    if (!n) return
-                    const ids = (retrievalItems.data ?? []).map((item) => item.id)
-                    form.setFieldValue('itemIds', pickRandomIds(ids, n))
-                  }}
-                >
-                  随机 N
-                </Button>
-              </Space.Compact>
-              <Button
-                size="small"
-                disabled={!retrievalItems.data?.length}
-                onClick={() =>
-                  form.setFieldValue(
-                    'itemIds',
-                    (retrievalItems.data ?? []).map((item) => item.id),
-                  )
-                }
-              >
-                全选
-              </Button>
-              <Button size="small" onClick={() => form.setFieldValue('itemIds', [])}>
-                清空
-              </Button>
-              <Typography.Text type="secondary">
-                已选 {selectedItemCount} 条
-              </Typography.Text>
-            </Space>
-          </Col>
-        </Row>
-        <Button
-          type="primary"
-          htmlType="submit"
-          autoInsertSpace={false}
-          loading={create.isPending}
-        >
-          启动评估
-        </Button>
-        {create.isError ? (
-          <Alert
-            type="error"
-            showIcon
-            style={{ marginTop: 12 }}
-            title={create.error.message}
-            description="若只做检索量化：评估类型仅勾「检索」，并至少勾选一个检索用例。"
-          />
-        ) : null}
-      </Form>
+          </div>
 
-      <Table
-        style={{ marginTop: 16 }}
-        rowKey="id"
-        loading={runs.isPending}
-        columns={columns}
-        dataSource={runs.data?.items ?? []}
-        pagination={false}
-        locale={{ emptyText: <Empty description="暂无评估 Run" /> }}
-      />
+          <Collapse
+            ghost
+            style={{ marginBottom: 12 }}
+            items={[
+              {
+                key: 'run-advanced',
+                label: '高级选项（策略对比 / 回答评估 / 精选用例）',
+                children: (
+                  <Row gutter={[16, 8]}>
+                    <Col xs={24}>
+                      <Form.Item
+                        label="评估类型"
+                        name="evalTypes"
+                        extra="简历量化主指标请只勾「检索」"
+                      >
+                        <Checkbox.Group
+                          options={[
+                            { value: 'retrieval', label: '检索（Hit@K / MRR）' },
+                            { value: 'rag_answer', label: '回答' },
+                            { value: 'ragas', label: 'RAGAS' },
+                          ]}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24}>
+                      <Form.Item
+                        label="多策略对比"
+                        name="compareStrategies"
+                        extra="会按每个策略重跑检索用例，耗时成倍增加"
+                      >
+                        <Checkbox.Group
+                          options={[
+                            { value: 'hybrid_lightrag_bm25', label: 'Hybrid' },
+                            { value: 'lightrag_only', label: 'LightRAG' },
+                            { value: 'bm25_only', label: 'BM25' },
+                          ]}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24}>
+                      <Form.Item name="rerankEnabled" valuePropName="checked">
+                        <Checkbox>
+                          启用本地重排（lexical fusion，非 cross-encoder）
+                        </Checkbox>
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        label={`回答用例（${cases.data?.length ?? 0}）`}
+                        name="caseIds"
+                        extra="仅「回答 / RAGAS」需要"
+                      >
+                        <Checkbox.Group
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            maxHeight: 120,
+                            overflow: 'auto',
+                            gap: 6,
+                          }}
+                          options={(cases.data ?? []).map((item) => ({
+                            value: item.id,
+                            label: item.question,
+                          }))}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        label={`检索用例（${retrievalItems.data?.length ?? 0}）`}
+                        name="itemIds"
+                        extra="建议用上方随机按钮，不要全选几百条"
+                      >
+                        <Checkbox.Group
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            maxHeight: 140,
+                            overflow: 'auto',
+                            gap: 6,
+                          }}
+                          options={(retrievalItems.data ?? []).map((item) => ({
+                            value: item.id,
+                            label: item.query,
+                          }))}
+                        />
+                      </Form.Item>
+                      <Space wrap>
+                        <Space.Compact>
+                          <Input
+                            size="small"
+                            type="number"
+                            min={1}
+                            placeholder="N"
+                            style={{ width: 72 }}
+                            value={customSampleSize}
+                            onChange={(event) => setCustomSampleSize(event.target.value)}
+                          />
+                          <Button
+                            size="small"
+                            disabled={!retrievalItems.data?.length}
+                            onClick={() => {
+                              const n = Math.max(1, Number(customSampleSize) || 0)
+                              if (!n) return
+                              const ids = (retrievalItems.data ?? []).map((item) => item.id)
+                              form.setFieldValue('itemIds', pickRandomIds(ids, n))
+                            }}
+                          >
+                            随机 N
+                          </Button>
+                        </Space.Compact>
+                        <Button
+                          size="small"
+                          disabled={!retrievalItems.data?.length}
+                          onClick={() =>
+                            form.setFieldValue(
+                              'itemIds',
+                              (retrievalItems.data ?? []).map((item) => item.id),
+                            )
+                          }
+                        >
+                          全选
+                        </Button>
+                        <Button size="small" onClick={() => form.setFieldValue('itemIds', [])}>
+                          清空
+                        </Button>
+                      </Space>
+                    </Col>
+                  </Row>
+                ),
+              },
+            ]}
+          />
+
+          <Space wrap>
+            <Button
+              type="primary"
+              htmlType="submit"
+              autoInsertSpace={false}
+              loading={create.isPending}
+              disabled={selectedItemCount === 0 && !(cases.data?.length)}
+            >
+              启动评估
+            </Button>
+            {selectedItemCount === 0 ? (
+              <Typography.Text type="secondary">
+                请先点「随机 50」选择检索用例
+              </Typography.Text>
+            ) : (
+              <Typography.Text type="secondary">
+                将用 {selectedItemCount} 条检索用例启动
+              </Typography.Text>
+            )}
+          </Space>
+          {create.isError ? (
+            <Alert
+              type="error"
+              showIcon
+              style={{ marginTop: 12 }}
+              title={create.error.message}
+              description="若只做检索量化：评估类型仅勾「检索」，并至少随机选一批检索用例。"
+            />
+          ) : null}
+        </Form>
+      </Card>
+
+      <Card
+        title="评估历史"
+        extra={
+          <Typography.Text type="secondary">
+            共 {runs.data?.total ?? runs.data?.items?.length ?? 0} 次
+          </Typography.Text>
+        }
+        styles={{ body: { paddingTop: 8 } }}
+      >
+        <Table
+          rowKey="id"
+          loading={runs.isPending}
+          columns={columns}
+          dataSource={runs.data?.items ?? []}
+          pagination={false}
+          locale={{ emptyText: <Empty description="暂无评估 Run，先导入语料再启动" /> }}
+        />
+      </Card>
 
       {selectedRunId ? (
         <RunDetail id={selectedRunId} onClose={() => onSelectRun('')} />
       ) : null}
-    </Card>
+    </Space>
   )
 }
 
@@ -1115,7 +1180,7 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
       }
     >
       <Space wrap style={{ marginBottom: 8 }}>
-        <Tag color={statusColor(run.status)}>{run.status}</Tag>
+        <Tag color={statusColor(run.status)}>{statusLabel(run.status)}</Tag>
         <Tag color="blue">主策略：{strategyInfo.primary}</Tag>
         {strategyInfo.compare.map((item) => (
           <Tag key={item}>对比：{item}</Tag>

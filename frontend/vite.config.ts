@@ -44,14 +44,15 @@ export default defineConfig({
   },
   server: {
     host: '127.0.0.1',
-    port: 5173,
-    strictPort: true,
+    // Prefer PORT from the preview harness / host env; fall back to 5173.
+    port: Number(process.env.PORT || 5173),
+    strictPort: false,
     proxy: backendProxy,
   },
   preview: {
     host: '127.0.0.1',
-    port: 4173,
-    strictPort: true,
+    port: Number(process.env.PORT || 4173),
+    strictPort: false,
     proxy: backendProxy,
   },
   build: {

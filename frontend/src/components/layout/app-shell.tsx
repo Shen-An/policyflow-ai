@@ -260,7 +260,7 @@ export function AppShell() {
           if (broken) setCollapsed(true)
         }}
         style={{
-          background: gradients.sider,
+          background: '#ffffff',
           borderRight: `1px solid ${palette.sidebarBorder}`,
         }}
       >
@@ -288,7 +288,7 @@ export function AppShell() {
               placeItems: 'center',
               fontWeight: 700,
               flexShrink: 0,
-              boxShadow: '0 8px 18px -10px rgba(13,143,106,0.28)',
+              boxShadow: '0 8px 18px -12px rgba(18,163,122,0.28)',
             }}
           >
             P
@@ -310,7 +310,12 @@ export function AppShell() {
           defaultOpenKeys={openKeys}
           items={items}
           onClick={({ key }) => navigate(key)}
-          style={{ borderInlineEnd: 0, marginTop: 8, background: 'transparent' }}
+          style={{
+            borderInlineEnd: 0,
+            marginTop: 10,
+            paddingInline: 4,
+            background: 'transparent',
+          }}
         />
       </Sider>
 
@@ -330,25 +335,28 @@ export function AppShell() {
         ) : null}
 
         <Header style={{ justifyContent: 'space-between' }}>
-          <Space size={16}>
+          <Space size={12}>
             <Button
               type="text"
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
               onClick={() => setCollapsed((value) => !value)}
-              style={{ color: palette.primaryHover }}
+              style={{ color: palette.textSecondary }}
               aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
             />
             <div>
-              <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
-                PolicyFlow AI
-              </Typography.Text>
-              <Typography.Title level={5} style={{ margin: 0, color: palette.text }}>
+              <Typography.Title
+                level={5}
+                style={{ margin: 0, color: palette.text, fontWeight: 650 }}
+              >
                 {titleFor(location.pathname)}
               </Typography.Title>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                PolicyFlow AI · 企业制度助手
+              </Typography.Text>
             </div>
           </Space>
 
-          <Space size={12}>
+          <Space size={10}>
             <div style={{ textAlign: 'right', lineHeight: 1.3, maxWidth: 180 }}>
               <div style={{ fontWeight: 600, color: palette.text }}>{user?.displayName}</div>
               <Tooltip title={roleText}>
@@ -360,7 +368,7 @@ export function AppShell() {
             <Avatar
               style={{
                 background: gradients.brandMark,
-                boxShadow: '0 6px 14px -8px rgba(13,143,106,0.28)',
+                boxShadow: '0 6px 14px -10px rgba(18,163,122,0.28)',
               }}
             >
               {(user?.displayName ?? 'U').slice(0, 1)}

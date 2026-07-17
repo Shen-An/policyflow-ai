@@ -3,10 +3,12 @@ import {
   Button,
   Card,
   Collapse,
+  DatePicker,
   Descriptions,
   Empty,
   Input,
   Modal,
+  Select,
   Space,
   Table,
   Tag,
@@ -14,16 +16,72 @@ import {
   message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { useState } from 'react'
+import dayjs from 'dayjs'
+import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { AuditLog } from '../../api/audit'
 import { Alert } from '../../components/feedback/alert'
 import { LoadingState } from '../../components/feedback/state-views'
 import { useAuditLogQuery, useAuditLogsQuery } from './queries'
 
+const { RangePicker } = DatePicker
+
 function positiveInt(value: string | null, fallback: number): number {
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+const actionLabel: Record<string, string> = {
+  'document.index_requested': '请求索引文档',
+  'document.upload': '上传文档',
+  'document.delete': '删除文档',
+  'document.reindex': '重新索引',
+  'knowledge_base.create': '创建知识库',
+  'knowledge_base.delete': '删除知识库',
+  'knowledge_base.update': '更新知识库',
+  'knowledge_base.view': '查看知识库',
+  'mcp.server.create': '创建 MCP',
+  'mcp.server.update': '更新 MCP',
+  'mcp.server.health_check': 'MCP 健康检查',
+  'skill.run': '运行 Skill',
+  'skill.enable': '启用 Skill',
+  'skill.disable': '禁用 Skill',
+  'query_feedback.create': '提交问答反馈',
+  'demo.seed': '演示数据初始化',
+  'user.create': '创建用户',
+  'user.update_roles': '修改用户角色',
+  'eval.run.create': '创建评估 Run',
+  'eval.run.delete': '删除评估 Run',
+  'faq.approve': '审核通过 FAQ',
+  'faq.reject': '驳回 FAQ',
+}
+
+const targetTypeLabel: Record<string, string> = {
+  knowledge_document: '知识文档',
+  knowledge_base: '知识库',
+  mcp_server: 'MCP 服务',
+  skill: 'Skill',
+  demo: '演示数据',
+  ai_query_log: '问答日志',
+  user: '用户',
+  eval_run: '评估 Run',
+  faq_draft: 'FAQ 草稿',
+  draft: '草稿',
+}
+
+function labelAction(value: string): string {
+  return actionLabel[value] ?? value
+}
+
+function labelTargetType(value: string): string {
+  return targetTypeLabel[value] ?? value
+}
+
+function actionColor(value: string): string {
+  if (value.includes('delete') || value.includes('disable')) return 'error'
+  if (value.includes('create') || value.includes('upload') || value.includes('enable')) return 'success'
+  if (value.includes('health') || value.includes('index') || value.includes('run')) return 'processing'
+  return 'default'
 }
 
 export function AuditPage() {
@@ -50,102 +108,158 @@ export function AuditPage() {
     setSearchParams(next, { replace: true })
   }
 
+  function clearFilters() {
+    const next = new URLSearchParams()
+    next.set('page', '1')
+    setSearchParams(next, { replace: true })
+  }
+
+  const actionOptions = useMemo(
+    () =>
+      Object.entries(actionLabel).map(([value, label]) => ({
+        value,
+        label: `${label}（${value}）`,
+      })),
+    [],
+  )
+  const targetOptions = useMemo(
+    () =>
+      Object.entries(targetTypeLabel).map(([value, label]) => ({
+        value,
+        label: `${label}（${value}）`,
+      })),
+    [],
+  )
+
+  const rangeValue =
+    filters.createdFrom || filters.createdTo
+      ? ([
+          filters.createdFrom ? dayjs(filters.createdFrom) : null,
+          filters.createdTo ? dayjs(filters.createdTo) : null,
+        ] as [dayjs.Dayjs | null, dayjs.Dayjs | null])
+      : null
+
   const columns: ColumnsType<AuditLog> = [
     {
       title: '时间',
       dataIndex: 'createdAt',
-      width: 180,
+      width: 170,
       render: (value: string) =>
         new Intl.DateTimeFormat('zh-CN', {
-          dateStyle: 'short',
-          timeStyle: 'medium',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
         }).format(new Date(value)),
     },
     {
       title: '操作者',
       key: 'actor',
+      width: 120,
       render: (_, item) => item.actor?.displayName ?? item.actorId ?? '系统',
     },
     {
       title: '动作',
       dataIndex: 'action',
-      render: (value: string) => <Typography.Text strong>{value}</Typography.Text>,
+      render: (value: string) => <Tag color={actionColor(value)}>{labelAction(value)}</Tag>,
     },
     {
       title: '目标',
       key: 'target',
       render: (_, item) => (
         <div>
-          <div>{item.targetType}</div>
-          <Tag>{item.targetId ?? '—'}</Tag>
+          <div style={{ fontWeight: 500 }}>{labelTargetType(item.targetType)}</div>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }} code>
+            {(item.targetId ?? '—').slice(0, 8)}
+            {(item.targetId ?? '').length > 8 ? '…' : ''}
+          </Typography.Text>
         </div>
       ),
     },
     {
       title: 'IP',
       dataIndex: 'ipAddress',
+      width: 120,
       render: (value?: string | null) => value ?? '—',
     },
     {
-      title: '详情',
+      title: '操作',
       key: 'actions',
-      width: 100,
+      width: 90,
       render: (_, item) => (
-        <Button size="small" icon={<SearchOutlined />} onClick={() => setSelectedId(item.id)}>
-          查看
+        <Button type="link" size="small" icon={<SearchOutlined />} onClick={() => setSelectedId(item.id)}>
+          详情
         </Button>
       ),
     },
   ]
+
+  const hasFilters = Boolean(
+    filters.action || filters.targetType || filters.actorId || filters.createdFrom || filters.createdTo,
+  )
 
   return (
     <div>
       <div className="page-header">
         <div>
           <h2>审计日志</h2>
-          <p>仅系统管理员可访问；敏感字段由后端递归脱敏。</p>
+          <p>系统关键操作记录；敏感字段由后端递归脱敏，仅管理员可查看。</p>
         </div>
       </div>
 
-      <Card style={{ marginBottom: 16 }}>
-        <Space wrap>
-          <Input
+      <div className="pf-filter-bar" style={{ marginBottom: 16, justifyContent: 'space-between' }}>
+        <Space wrap size={10}>
+          <Select
             allowClear
-            placeholder="动作"
-            value={filters.action ?? ''}
-            onChange={(event) => setFilter('action', event.target.value)}
-            style={{ width: 160 }}
+            showSearch
+            optionFilterProp="label"
+            placeholder="全部动作"
+            style={{ width: 220 }}
+            value={filters.action}
+            options={actionOptions}
+            onChange={(value) => setFilter('action', value ?? '')}
+          />
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            placeholder="全部目标类型"
+            style={{ width: 200 }}
+            value={filters.targetType}
+            options={targetOptions}
+            onChange={(value) => setFilter('target_type', value ?? '')}
           />
           <Input
             allowClear
-            placeholder="目标类型"
-            value={filters.targetType ?? ''}
-            onChange={(event) => setFilter('target_type', event.target.value)}
-            style={{ width: 160 }}
-          />
-          <Input
-            allowClear
-            placeholder="操作者 ID"
+            placeholder="操作者 ID（可选）"
             value={filters.actorId ?? ''}
             onChange={(event) => setFilter('actor_id', event.target.value)}
             style={{ width: 180 }}
           />
-          <Input
-            type="datetime-local"
-            value={filters.createdFrom ?? ''}
-            onChange={(event) => setFilter('created_from', event.target.value)}
-            style={{ width: 220 }}
-          />
-          <Input
-            type="datetime-local"
-            value={filters.createdTo ?? ''}
-            onChange={(event) => setFilter('created_to', event.target.value)}
-            style={{ width: 220 }}
+          <RangePicker
+            showTime
+            style={{ width: 360 }}
+            value={rangeValue}
+            onChange={(values) => {
+              const next = new URLSearchParams(searchParams)
+              if (values?.[0]) next.set('created_from', values[0].toISOString())
+              else next.delete('created_from')
+              if (values?.[1]) next.set('created_to', values[1].toISOString())
+              else next.delete('created_to')
+              next.set('page', '1')
+              setSearchParams(next, { replace: true })
+            }}
           />
         </Space>
-      </Card>
+        {hasFilters ? (
+          <Button type="link" onClick={clearFilters}>
+            清空筛选
+          </Button>
+        ) : null}
+      </div>
 
-      <Card>
+      <Card styles={{ body: { paddingTop: 8 } }}>
         {query.isError ? (
           <Alert
             tone="danger"
@@ -201,14 +315,22 @@ function AuditDetailModal({ id, onClose }: { id: string; onClose: () => void }) 
       ) : query.data ? (
         <Space orientation="vertical" size={16} style={{ width: '100%' }}>
           <Descriptions bordered size="small" column={2}>
-            <Descriptions.Item label="动作">{query.data.action}</Descriptions.Item>
+            <Descriptions.Item label="动作">
+              <Tag color={actionColor(query.data.action)}>{labelAction(query.data.action)}</Tag>
+            </Descriptions.Item>
             <Descriptions.Item label="操作者">
               {query.data.actor?.displayName ?? '系统'}
             </Descriptions.Item>
-            <Descriptions.Item label="目标">
-              {query.data.targetType} / {query.data.targetId ?? '—'}
+            <Descriptions.Item label="目标类型">
+              {labelTargetType(query.data.targetType)}
+            </Descriptions.Item>
+            <Descriptions.Item label="目标 ID">
+              <Typography.Text code>{query.data.targetId ?? '—'}</Typography.Text>
             </Descriptions.Item>
             <Descriptions.Item label="IP">{query.data.ipAddress ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="时间">
+              {new Date(query.data.createdAt).toLocaleString('zh-CN')}
+            </Descriptions.Item>
             <Descriptions.Item label="Request ID" span={2}>
               <Space>
                 <Typography.Text code>{query.data.requestId ?? '无'}</Typography.Text>
@@ -232,9 +354,19 @@ function AuditDetailModal({ id, onClose }: { id: string; onClose: () => void }) 
             items={[
               {
                 key: 'detail',
-                label: '脱敏详情',
+                label: '脱敏详情（JSON）',
                 children: (
-                  <pre style={{ margin: 0, maxHeight: 320, overflow: 'auto' }}>
+                  <pre
+                    style={{
+                      margin: 0,
+                      maxHeight: 320,
+                      overflow: 'auto',
+                      background: 'var(--color-surface-muted)',
+                      padding: 12,
+                      borderRadius: 10,
+                      fontSize: 12,
+                    }}
+                  >
                     {JSON.stringify(query.data.detail, null, 2)}
                   </pre>
                 ),

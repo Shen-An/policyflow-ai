@@ -3,20 +3,21 @@ import {
   App,
   Button,
   Card,
-  ConfigProvider,
   Empty,
   Input,
+  Popover,
   Select,
   Space,
   Table,
   Tag,
-  Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { MemoryItem } from '../../api/memory'
 import { LoadingState } from '../../components/feedback/state-views'
+import { MarkdownContent } from '../../components/markdown/markdown-content'
+import { confirmAction } from '../../lib/confirm'
 import { useDeleteMemoryMutation, useMemoriesQuery } from './queries'
 
 const typeOptions = [
@@ -50,7 +51,7 @@ function formatTime(value: string): string {
 }
 
 export function MemoryPage() {
-  const { message, modal } = App.useApp()
+  const { message } = App.useApp()
   const [searchParams, setSearchParams] = useSearchParams()
   const page = positiveInt(searchParams.get('page'), 1)
   const pageSize = Math.min(positiveInt(searchParams.get('page_size'), 20), 100)
@@ -85,9 +86,21 @@ export function MemoryPage() {
         title: '内容',
         dataIndex: 'content',
         render: (value: string) => (
-          <Typography.Paragraph ellipsis={{ rows: 2, tooltip: value }} style={{ marginBottom: 0 }}>
-            {value}
-          </Typography.Paragraph>
+          <Popover
+            placement="leftTop"
+            trigger="hover"
+            mouseEnterDelay={0.25}
+            overlayStyle={{ maxWidth: 520 }}
+            content={
+              <div className="memory-content-popover">
+                <MarkdownContent content={value} />
+              </div>
+            }
+          >
+            <div className="memory-content-cell">
+              <MarkdownContent content={value} />
+            </div>
+          </Popover>
         ),
       },
       {
@@ -126,7 +139,7 @@ export function MemoryPage() {
             icon={<DeleteOutlined />}
             loading={deleteMutation.isPending && deleteMutation.variables === record.id}
             onClick={() => {
-              modal.confirm({
+              confirmAction({
                 title: '删除这条记忆？',
                 content: '删除后无法恢复，后续问答将不再使用该记忆。',
                 okText: '删除',
@@ -149,76 +162,72 @@ export function MemoryPage() {
         ),
       },
     ],
-    [deleteMutation, message, modal],
+    [deleteMutation, message],
   )
 
   return (
-    <ConfigProvider theme={{ token: { motion: false } }}>
-      <div>
-        <div className="page-header">
-          <div>
-            <h2>我的记忆</h2>
-            <p>查看助手为你保留的偏好、实体与长期事件。制度事实仍以知识库检索为准。</p>
-          </div>
-          <Space>
-            <Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>
-              刷新
-            </Button>
-          </Space>
+    <div>
+      <div className="page-header">
+        <div>
+          <h2>我的记忆</h2>
+          <p>查看助手为你保留的偏好、实体与长期事件。制度事实仍以知识库检索为准。</p>
         </div>
-
-        <Card size="small" style={{ marginBottom: 16 }}>
-          <Space wrap>
-            <Select
-              aria-label="记忆类型"
-              style={{ width: 160 }}
-              value={memoryType}
-              options={typeOptions}
-              onChange={(value) => updateParams({ memory_type: value || null, page: '1' })}
-            />
-            <Input.Search
-              allowClear
-              placeholder="按内容搜索"
-              style={{ width: 260 }}
-              value={keywordDraft}
-              onChange={(event) => setKeywordDraft(event.target.value)}
-              onSearch={(value) => {
-                setKeywordDraft(value)
-                updateParams({ keyword: value.trim() || null, page: '1' })
-              }}
-            />
-          </Space>
-        </Card>
-
-        {query.isLoading ? (
-          <LoadingState message="正在加载记忆…" />
-        ) : query.isError ? (
-          <Card>
-            <Empty description={query.error instanceof Error ? query.error.message : '加载失败'} />
-          </Card>
-        ) : (
-          <Card styles={{ body: { padding: 0 } }}>
-            <Table<MemoryItem>
-              rowKey="id"
-              columns={columns}
-              dataSource={query.data?.items ?? []}
-              locale={{ emptyText: <Empty description="暂无记忆" /> }}
-              pagination={{
-                current: page,
-                pageSize,
-                total: query.data?.total ?? 0,
-                showSizeChanger: true,
-                pageSizeOptions: ['10', '20', '50'],
-                onChange: (nextPage, nextPageSize) =>
-                  updateParams({
-                    page: String(nextPage),
-                    page_size: String(nextPageSize),
-                  }),
-              }}
-            />
-          </Card>
-        )}
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>
+            刷新
+          </Button>
+        </Space>
       </div>
-    </ConfigProvider>
+
+      <div className="pf-filter-bar" style={{ marginBottom: 16 }}>
+        <Select
+          aria-label="记忆类型"
+          style={{ width: 160 }}
+          value={memoryType}
+          options={typeOptions}
+          onChange={(value) => updateParams({ memory_type: value || null, page: '1' })}
+        />
+        <Input.Search
+          allowClear
+          placeholder="按内容搜索"
+          style={{ width: 260 }}
+          value={keywordDraft}
+          onChange={(event) => setKeywordDraft(event.target.value)}
+          onSearch={(value) => {
+            setKeywordDraft(value)
+            updateParams({ keyword: value.trim() || null, page: '1' })
+          }}
+        />
+      </div>
+
+      {query.isLoading ? (
+        <LoadingState message="正在加载记忆…" />
+      ) : query.isError ? (
+        <Card>
+          <Empty description={query.error instanceof Error ? query.error.message : '加载失败'} />
+        </Card>
+      ) : (
+        <Card styles={{ body: { padding: 0 } }}>
+          <Table<MemoryItem>
+            rowKey="id"
+            columns={columns}
+            dataSource={query.data?.items ?? []}
+            locale={{ emptyText: <Empty description="暂无记忆" /> }}
+            pagination={{
+              current: page,
+              pageSize,
+              total: query.data?.total ?? 0,
+              showSizeChanger: true,
+              pageSizeOptions: ['10', '20', '50'],
+              onChange: (nextPage, nextPageSize) =>
+                updateParams({
+                  page: String(nextPage),
+                  page_size: String(nextPageSize),
+                }),
+            }}
+          />
+        </Card>
+      )}
+    </div>
   )
 }

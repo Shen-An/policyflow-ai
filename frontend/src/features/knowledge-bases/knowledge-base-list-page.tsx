@@ -92,25 +92,23 @@ export function KnowledgeBaseListPage() {
         ) : null}
       </div>
 
-      <Card styles={{ body: { paddingBottom: 8 } }} style={{ marginBottom: 16 }}>
-        <div className="page-toolbar" style={{ justifyContent: 'space-between', marginBottom: 0 }}>
-          <Input
-            allowClear
-            prefix={<SearchOutlined />}
-            placeholder="搜索名称、编码或描述"
-            value={searchParams.get('keyword') ?? ''}
-            onChange={(event) => updateSearch(event.target.value)}
-            style={{ width: 320, maxWidth: '100%' }}
-            aria-label="搜索知识库"
-          />
-          {query.data ? (
-            <Typography.Text type="secondary">
-              共 {filtered.length} 个
-              {query.isFetching && !query.isPending ? '，正在刷新…' : ''}
-            </Typography.Text>
-          ) : null}
-        </div>
-      </Card>
+      <div className="pf-filter-bar" style={{ marginBottom: 16, justifyContent: 'space-between' }}>
+        <Input
+          allowClear
+          prefix={<SearchOutlined />}
+          placeholder="搜索名称、编码或描述"
+          value={searchParams.get('keyword') ?? ''}
+          onChange={(event) => updateSearch(event.target.value)}
+          style={{ width: 320, maxWidth: '100%' }}
+          aria-label="搜索知识库"
+        />
+        {query.data ? (
+          <Typography.Text type="secondary">
+            共 {filtered.length} 个
+            {query.isFetching && !query.isPending ? '，正在刷新…' : ''}
+          </Typography.Text>
+        ) : null}
+      </div>
 
       {query.isPending ? (
         <LoadingState message="正在加载知识库…" />
@@ -202,6 +200,10 @@ function KnowledgeBaseCard({ knowledgeBase }: { knowledgeBase: KnowledgeBase }) 
   const canManage = knowledgeBase.permission === 'admin'
   const isEvalTest = knowledgeBase.code === 'eval_test'
   const statusText = statusLabel[knowledgeBase.status] ?? knowledgeBase.status
+  const modeText =
+    queryModeLabel[knowledgeBase.defaultQueryMode] ?? knowledgeBase.defaultQueryMode
+  const accent = isEvalTest ? palette.warning : palette.primary
+  const accentSoft = isEvalTest ? `${palette.warning}14` : `${palette.primary}12`
 
   function handleDelete() {
     confirmAction({
@@ -220,44 +222,20 @@ function KnowledgeBaseCard({ knowledgeBase }: { knowledgeBase: KnowledgeBase }) 
   }
 
   return (
-    <Card
-      hoverable
-      className="kb-card"
-      styles={{ body: { display: 'flex', flexDirection: 'column', gap: 14, minHeight: 220 } }}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 0 }}>
-          <div
-            className="kb-card__icon"
-            style={{
-              width: 42,
-              height: 42,
-              borderRadius: 12,
-              display: 'grid',
-              placeItems: 'center',
-              flexShrink: 0,
-              background: isEvalTest ? `${palette.warning}14` : `${palette.primary}14`,
-              color: isEvalTest ? palette.warning : palette.primary,
-              fontSize: 18,
-            }}
-          >
+    <Card hoverable className={`kb-card${isEvalTest ? ' kb-card--eval' : ''}`}>
+      <div className="kb-card__top">
+        <div className="kb-card__identity">
+          <div className="kb-card__icon" style={{ background: accentSoft, color: accent }}>
             <BookOutlined aria-hidden />
           </div>
-          <div style={{ minWidth: 0 }}>
-            <Typography.Title level={5} style={{ margin: 0 }} ellipsis={{ tooltip: knowledgeBase.name }}>
-              <Link
-                to={`/knowledge-bases/${knowledgeBase.id}`}
-                style={{ color: 'inherit', textDecoration: 'none' }}
-              >
-                {knowledgeBase.name}
-              </Link>
-            </Typography.Title>
-            <Typography.Text type="secondary" code style={{ fontSize: 12 }}>
-              {knowledgeBase.code}
-            </Typography.Text>
+          <div className="kb-card__title-block">
+            <Link to={`/knowledge-bases/${knowledgeBase.id}`} className="kb-card__title">
+              {knowledgeBase.name}
+            </Link>
+            <div className="kb-card__code">{knowledgeBase.code}</div>
           </div>
         </div>
-        <Space size={4} wrap style={{ justifyContent: 'flex-end' }}>
+        <Space size={6} wrap className="kb-card__tags">
           <Tag color={permissionColor[knowledgeBase.permission]}>
             {permissionLabel[knowledgeBase.permission]}
           </Tag>
@@ -268,66 +246,41 @@ function KnowledgeBaseCard({ knowledgeBase }: { knowledgeBase: KnowledgeBase }) 
       <Typography.Paragraph
         type="secondary"
         ellipsis={{ rows: 2, tooltip: knowledgeBase.description || undefined }}
-        style={{ marginBottom: 0, minHeight: 44 }}
+        className="kb-card__desc"
       >
-        {knowledgeBase.description || '暂无描述'}
+        {knowledgeBase.description || (isEvalTest ? '评估专用测试库，CRUD / Hit@K 导入默认进入此库。' : '暂无描述')}
       </Typography.Paragraph>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 10,
-          marginTop: 'auto',
-        }}
-      >
-        <div className="kb-card__stat">
-          <div className="kb-card__stat-label">
-            <FileTextOutlined aria-hidden /> 文档
-          </div>
-          <div className="kb-card__stat-value">{knowledgeBase.documentCount}</div>
+      <div className="kb-card__meta">
+        <div className="kb-card__meta-item">
+          <FileTextOutlined aria-hidden className="kb-card__meta-icon" />
+          <span className="kb-card__meta-label">文档</span>
+          <span className="kb-card__meta-value">{knowledgeBase.documentCount}</span>
         </div>
-        <div className="kb-card__stat">
-          <div className="kb-card__stat-label">检索模式</div>
-          <div className="kb-card__stat-value" style={{ fontSize: 14 }}>
-            {queryModeLabel[knowledgeBase.defaultQueryMode] ?? knowledgeBase.defaultQueryMode}
-          </div>
+        <div className="kb-card__meta-divider" aria-hidden />
+        <div className="kb-card__meta-item">
+          <span className="kb-card__meta-label">检索</span>
+          <span className="kb-card__meta-value kb-card__meta-value--mode">{modeText}</span>
         </div>
       </div>
 
-      {isEvalTest ? (
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          评估专用「测试库」，CRUD / Hit@K 导入默认进入此库。
-        </Typography.Text>
-      ) : null}
-
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 8,
-          paddingTop: 4,
-          borderTop: '1px solid var(--color-border-secondary)',
-        }}
-      >
-        <Button type="link" style={{ paddingInline: 0 }}>
-          <Link to={`/knowledge-bases/${knowledgeBase.id}`}>查看详情</Link>
-        </Button>
+      <div className="kb-card__footer">
+        <Link to={`/knowledge-bases/${knowledgeBase.id}`} className="kb-card__link">
+          查看详情
+        </Link>
         {canManage ? (
           <Button
-            type="link"
+            type="text"
             danger
+            size="small"
+            icon={<DeleteOutlined aria-hidden />}
             loading={deleteMutation.isPending}
             onClick={handleDelete}
           >
-            <DeleteOutlined aria-hidden />
             删除
           </Button>
         ) : (
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            只读访问
-          </Typography.Text>
+          <span className="kb-card__readonly">只读</span>
         )}
       </div>
     </Card>

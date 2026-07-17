@@ -120,23 +120,23 @@ export function UsersPage() {
         </Button>
       </div>
 
-      <Card>
-        <div className="page-toolbar" style={{ justifyContent: 'space-between' }}>
-          <Input
-            allowClear
-            prefix={<SearchOutlined />}
-            placeholder="搜索用户名、邮箱或显示名"
-            value={keywordInput}
-            onChange={(event) => setKeywordInput(event.target.value)}
-            style={{ width: 320, maxWidth: '100%' }}
-            aria-label="搜索用户"
-          />
-          <Typography.Text type="secondary">
-            共 {query.data?.total ?? 0} 位用户
-            {query.isFetching && !query.isPending ? '，正在刷新…' : ''}
-          </Typography.Text>
-        </div>
+      <div className="pf-filter-bar" style={{ marginBottom: 16, justifyContent: 'space-between' }}>
+        <Input
+          allowClear
+          prefix={<SearchOutlined />}
+          placeholder="搜索用户名、邮箱或显示名"
+          value={keywordInput}
+          onChange={(event) => setKeywordInput(event.target.value)}
+          style={{ width: 320, maxWidth: '100%' }}
+          aria-label="搜索用户"
+        />
+        <Typography.Text type="secondary">
+          共 {query.data?.total ?? 0} 位用户
+          {query.isFetching && !query.isPending ? '，正在刷新…' : ''}
+        </Typography.Text>
+      </div>
 
+      <Card styles={{ body: { paddingTop: 8 } }}>
         {query.isError ? (
           <ErrorState
             error={query.error}
