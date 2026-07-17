@@ -12,6 +12,35 @@ export type Citation = {
   score: number | null
 }
 
+export type PlanStepStatus = 'pending' | 'running' | 'success' | 'skipped' | 'error'
+
+export type PlanStep = {
+  id: string
+  title: string
+  kind?: string
+  query?: string | null
+  skillHint?: string | null
+  toolHints?: string[]
+  dependsOn?: string[]
+  status: PlanStepStatus | string
+  message?: string
+}
+
+export type ChatPlanEvent = {
+  complexity: 'simple' | 'multi_step' | string
+  planSource?: 'none' | 'user' | 'router' | string
+  steps: PlanStep[]
+  waves?: string[][]
+  parallelUsed?: boolean
+  executor?: string
+}
+
+export type ChatPlanStepEvent = {
+  id: string
+  status: PlanStepStatus | string
+  message?: string
+}
+
 export type RouterResult = {
   domain: string
   taskType: string
@@ -19,6 +48,9 @@ export type RouterResult = {
   needSkill?: boolean
   toolHints?: string[]
   rewriteQuery?: string | null
+  complexity?: 'simple' | 'multi_step' | string
+  planSteps?: PlanStep[]
+  planSource?: 'none' | 'user' | 'router' | string
 }
 
 export type ComplianceResult = {
@@ -151,6 +183,18 @@ type CitationRaw = {
   score: number | null
 }
 
+type PlanStepRaw = {
+  id: string
+  title: string
+  kind?: string
+  query?: string | null
+  skill_hint?: string | null
+  tool_hints?: string[]
+  depends_on?: string[]
+  status?: string
+  message?: string
+}
+
 type RouterResultRaw = {
   domain: string
   task_type: string
@@ -158,6 +202,9 @@ type RouterResultRaw = {
   need_skill?: boolean
   tool_hints?: string[]
   rewrite_query?: string | null
+  complexity?: string
+  plan_steps?: PlanStepRaw[]
+  plan_source?: string
 }
 
 type ComplianceRaw = { passed: boolean; warnings: string[] }
@@ -216,6 +263,20 @@ function toCitation(raw: CitationRaw): Citation {
   }
 }
 
+function toPlanStep(raw: PlanStepRaw): PlanStep {
+  return {
+    id: raw.id,
+    title: raw.title,
+    kind: raw.kind,
+    query: raw.query,
+    skillHint: raw.skill_hint,
+    toolHints: raw.tool_hints,
+    dependsOn: raw.depends_on,
+    status: raw.status ?? 'pending',
+    message: raw.message,
+  }
+}
+
 function toRouterResult(raw: RouterResultRaw): RouterResult {
   return {
     domain: raw.domain,
@@ -224,6 +285,9 @@ function toRouterResult(raw: RouterResultRaw): RouterResult {
     needSkill: raw.need_skill,
     toolHints: raw.tool_hints,
     rewriteQuery: raw.rewrite_query,
+    complexity: raw.complexity,
+    planSteps: (raw.plan_steps ?? []).map(toPlanStep),
+    planSource: raw.plan_source,
   }
 }
 
@@ -339,6 +403,8 @@ export type ChatStageEvent = {
 
 export type ChatStreamHandlers = {
   onStage?: (event: ChatStageEvent) => void
+  onPlan?: (plan: ChatPlanEvent) => void
+  onPlanStep?: (step: ChatPlanStepEvent) => void
   onDiagnosticsPartial?: (partial: Partial<TurnDiagnostics>) => void
   onDiagnostics?: (diagnostics: TurnDiagnostics) => void
   signal?: AbortSignal
@@ -389,9 +455,10 @@ function mergeDiagnosticsPartial(
     const order = [
       'MemoryLoad',
       'RouterAgent',
+      'Plan',
       'RetrievalAgent',
-      'AnswerAgent',
       'SkillAgent',
+      'AnswerAgent',
       'ComplianceAgent',
       'MemoryWriteback',
     ]
@@ -470,62 +537,90 @@ export async function sendChatStream(
     let finalResult: ChatResult | null = null
     let liveDiagnostics: TurnDiagnostics = { memories: [], tools: [], commands: [] }
 
+    const handleSsePart = (part: string) => {
+      for (const evt of parseSseChunk(part)) {
+        let payload: Record<string, unknown> = {}
+        try {
+          payload = JSON.parse(evt.data) as Record<string, unknown>
+        } catch {
+          continue
+        }
+        if (evt.event === 'stage') {
+          handlers.onStage?.({
+            stage: String(payload.stage ?? ''),
+            status: String(payload.status ?? ''),
+            message: String(payload.message ?? ''),
+          })
+        } else if (evt.event === 'plan') {
+          const stepsRaw = Array.isArray(payload.steps)
+            ? (payload.steps as PlanStepRaw[])
+            : []
+          handlers.onPlan?.({
+            complexity: String(payload.complexity ?? 'simple'),
+            planSource: payload.plan_source
+              ? String(payload.plan_source)
+              : undefined,
+            steps: stepsRaw.map(toPlanStep),
+            waves: Array.isArray(payload.waves)
+              ? (payload.waves as string[][])
+              : undefined,
+            parallelUsed: Boolean(payload.parallel_used),
+            executor: payload.executor ? String(payload.executor) : undefined,
+          })
+        } else if (evt.event === 'plan_step') {
+          handlers.onPlanStep?.({
+            id: String(payload.id ?? ''),
+            status: String(payload.status ?? 'pending'),
+            message: payload.message ? String(payload.message) : undefined,
+          })
+        } else if (evt.event === 'diagnostics_partial') {
+          liveDiagnostics = mergeDiagnosticsPartial(
+            liveDiagnostics,
+            payload as TurnDiagnosticsRaw,
+          )
+          handlers.onDiagnosticsPartial?.(liveDiagnostics)
+        } else if (evt.event === 'diagnostics') {
+          liveDiagnostics = toDiagnostics(payload as TurnDiagnosticsRaw)
+          handlers.onDiagnostics?.(liveDiagnostics)
+        } else if (evt.event === 'final') {
+          finalResult = mapChatResult(
+            payload as {
+              conversation_id: string
+              message_id: string
+              query_log_id: string
+              answer: string
+              citations: CitationRaw[]
+              confidence_score: number
+              query_mode: string
+              router_result: RouterResultRaw
+              suggested_skills: Array<{ name: string; description: string }>
+              compliance: ComplianceRaw
+              diagnostics?: TurnDiagnosticsRaw | null
+            },
+          )
+        } else if (evt.event === 'error') {
+          throw new AppError({
+            kind: 'server',
+            code: String(payload.code ?? 'CHAT_STREAM_ERROR'),
+            message: String(payload.message ?? '流式问答失败'),
+            status: Number(payload.status_code ?? 500),
+            retryable: true,
+          })
+        }
+      }
+    }
+
     while (true) {
       const { done, value } = await reader.read()
-      if (done) break
+      if (done) {
+        buffer += decoder.decode()
+        if (buffer.trim()) handleSsePart(buffer)
+        break
+      }
       buffer += decoder.decode(value, { stream: true })
       const parts = buffer.split('\n\n')
       buffer = parts.pop() ?? ''
-      for (const part of parts) {
-        for (const evt of parseSseChunk(part)) {
-          let payload: Record<string, unknown> = {}
-          try {
-            payload = JSON.parse(evt.data) as Record<string, unknown>
-          } catch {
-            continue
-          }
-          if (evt.event === 'stage') {
-            handlers.onStage?.({
-              stage: String(payload.stage ?? ''),
-              status: String(payload.status ?? ''),
-              message: String(payload.message ?? ''),
-            })
-          } else if (evt.event === 'diagnostics_partial') {
-            liveDiagnostics = mergeDiagnosticsPartial(
-              liveDiagnostics,
-              payload as TurnDiagnosticsRaw,
-            )
-            handlers.onDiagnosticsPartial?.(liveDiagnostics)
-          } else if (evt.event === 'diagnostics') {
-            liveDiagnostics = toDiagnostics(payload as TurnDiagnosticsRaw)
-            handlers.onDiagnostics?.(liveDiagnostics)
-          } else if (evt.event === 'final') {
-            finalResult = mapChatResult(
-              payload as {
-                conversation_id: string
-                message_id: string
-                query_log_id: string
-                answer: string
-                citations: CitationRaw[]
-                confidence_score: number
-                query_mode: string
-                router_result: RouterResultRaw
-                suggested_skills: Array<{ name: string; description: string }>
-                compliance: ComplianceRaw
-                diagnostics?: TurnDiagnosticsRaw | null
-              },
-            )
-          } else if (evt.event === 'error') {
-            throw new AppError({
-              kind: 'server',
-              code: String(payload.code ?? 'CHAT_STREAM_ERROR'),
-              message: String(payload.message ?? '流式问答失败'),
-              status: Number(payload.status_code ?? 500),
-              retryable: true,
-            })
-          }
-        }
-      }
+      for (const part of parts) handleSsePart(part)
     }
 
     if (!finalResult) {
