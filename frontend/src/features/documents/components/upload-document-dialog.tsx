@@ -1,5 +1,5 @@
+import { UploadSimple, X } from '@phosphor-icons/react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Upload, X } from 'lucide-react'
 import { useState } from 'react'
 import { AppError } from '../../../api/errors'
 import { Button } from '../../../components/ui/button'
@@ -74,7 +74,7 @@ export function UploadDocumentDialog({
             aria-label="关闭对话框"
             className="absolute right-[var(--space-4)] top-[var(--space-4)] inline-flex size-9 items-center justify-center rounded-md hover:bg-slate-100"
           >
-            <X aria-hidden="true" className="size-5" />
+            <X size={16} weight="regular" className="size-5" aria-hidden="true" />
           </Dialog.Close>
 
           {error ? (
@@ -92,8 +92,7 @@ export function UploadDocumentDialog({
                   const selected = event.target.files?.[0] ?? null
                   setFile(selected)
                   setError(selected ? validateDocumentFile(selected) : null)
-                }}
-              />
+                }} />
             </label>
             <label className="block text-sm font-semibold">
               标题（可选）
@@ -101,8 +100,7 @@ export function UploadDocumentDialog({
                 value={title}
                 maxLength={255}
                 onChange={(event) => setTitle(event.target.value)}
-                className="mt-[var(--space-2)] min-h-10 w-full rounded-md border border-[var(--color-border)] px-[var(--space-3)] font-normal"
-              />
+                className="mt-[var(--space-2)] min-h-10 w-full rounded-md border border-[var(--color-border)] px-[var(--space-3)] font-normal" />
             </label>
           </div>
 
@@ -115,7 +113,7 @@ export function UploadDocumentDialog({
               取消
             </Button>
             <Button onClick={submit} disabled={mutation.isPending || Boolean(file && error)}>
-              <Upload aria-hidden="true" className="size-4" />
+              <UploadSimple size={16} weight="duotone" className="size-4" aria-hidden="true" />
               {mutation.isPending ? '正在上传…' : '上传文档'}
             </Button>
           </div>

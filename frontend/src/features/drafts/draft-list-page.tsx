@@ -1,4 +1,4 @@
-import { FileTextOutlined, PlusOutlined } from '@ant-design/icons'
+import { FileText, Plus } from '@phosphor-icons/react'
 import {
   Button,
   Card,
@@ -115,7 +115,7 @@ export function DraftListPage() {
         <div className="page-toolbar page-toolbar--split">
           <p className="page-lede">草稿仅在确认后变为只读，不会自动提交到外部系统。</p>
           <Button type="primary" onClick={() => setCreateOpen(true)}>
-            <PlusOutlined aria-hidden />
+            <Plus size={16} weight="regular" aria-hidden />
             创建草稿
           </Button>
         </div>
@@ -133,8 +133,7 @@ export function DraftListPage() {
               { value: 'confirmed', label: '已确认' },
               { value: 'discarded', label: '已丢弃' },
               { value: 'exported', label: '已导出' },
-            ]}
-          />
+            ]} />
           <Select
             aria-label="类型"
             allowClear
@@ -142,8 +141,7 @@ export function DraftListPage() {
             style={{ width: 140 }}
             value={draftType || undefined}
             onChange={(value) => updateParams({ draft_type: value || null, page: '1' })}
-            options={draftTypes}
-          />
+            options={draftTypes} />
         </div>
 
         <Card className="pf-table-card" styles={{ body: { padding: '4px 8px 8px' } }}>
@@ -154,8 +152,7 @@ export function DraftListPage() {
               error={query.error}
               onRetry={() => void query.refetch()}
               title="草稿列表加载失败"
-              minH="min-h-48"
-            />
+              minH="min-h-48" />
           ) : (
             <Table
               size="middle"
@@ -165,7 +162,7 @@ export function DraftListPage() {
               locale={{
                 emptyText: (
                   <EmptyState
-                    icon={<FileTextOutlined style={{ fontSize: 18 }} />}
+                    icon={<FileText size={16} weight="duotone" style={{fontSize: 18}} />}
                     title={status || draftType ? '没有符合条件的草稿' : '还没有草稿'}
                     hint={
                       status || draftType
@@ -174,12 +171,11 @@ export function DraftListPage() {
                     }
                     action={
                       <Button type="primary" size="small" onClick={() => setCreateOpen(true)}>
-                        <PlusOutlined aria-hidden />
+                        <Plus size={16} weight="regular" aria-hidden />
                         创建草稿
                       </Button>
                     }
-                    minH="min-h-48"
-                  />
+                    minH="min-h-48" />
                 ),
               }}
               pagination={{
@@ -189,8 +185,7 @@ export function DraftListPage() {
                 showSizeChanger: false,
                 showTotal: (total) => `共 ${total} 份`,
                 onChange: (nextPage) => updateParams({ page: String(nextPage) }),
-              }}
-            />
+              }} />
           )}
         </Card>
 

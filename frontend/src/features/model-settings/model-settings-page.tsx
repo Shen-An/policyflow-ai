@@ -1,9 +1,4 @@
-import {
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  CloudServerOutlined,
-  KeyOutlined,
-} from '@ant-design/icons'
+import { CheckCircle, Cloud, Key, XCircle } from '@phosphor-icons/react'
 import {
   Alert,
   Button,
@@ -89,10 +84,9 @@ function TestResult({
     <Alert
       type={passed ? 'success' : 'error'}
       showIcon
-      icon={passed ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+      icon={passed ? <CheckCircle size={16} weight="duotone" /> : <XCircle size={16} weight="duotone" />}
       title={passed ? '连接成功' : '连接失败'}
-      description={`${result.message}${result.dimension ? `（维度 ${result.dimension}）` : ''}`}
-    />
+      description={`${result.message}${result.dimension ? `（维度 ${result.dimension}）` : ''}`} />
   )
 }
 
@@ -158,8 +152,7 @@ function ProviderForm({
               options={[
                 { value: 'openai_chat_completions', label: 'OpenAI Chat Completions' },
                 { value: 'openai_responses', label: 'OpenAI Responses API' },
-              ]}
-            />
+              ]} />
           </Form.Item>
         ) : (
           <Form.Item name="apiStyle" hidden>
@@ -188,8 +181,7 @@ function ProviderForm({
                   capability === 'chat' && apiStyle === 'openai_responses'
                     ? 'https://provider.example.com/v1/responses'
                     : 'https://provider.example.com/v1'
-                }
-              />
+                } />
             </Form.Item>
           </Col>
           <Col xs={24} md={12}>
@@ -199,15 +191,14 @@ function ProviderForm({
                 options={[
                   { value: 'bearer', label: 'Bearer API Key' },
                   { value: 'none', label: '无鉴权（本地模型）' },
-                ]}
-              />
+                ]} />
             </Form.Item>
           </Col>
           <Col xs={24} md={12}>
             <Form.Item
               label={
                 <Space>
-                  <KeyOutlined />
+                  <Key size={16} weight="duotone" />
                   API Key
                 </Space>
               }
@@ -218,8 +209,7 @@ function ProviderForm({
                 disabled={authMode === 'none'}
                 placeholder={
                   provider?.apiKeyConfigured ? '已配置；留空保持不变' : '输入 API Key'
-                }
-              />
+                } />
             </Form.Item>
           </Col>
         </Row>
@@ -259,8 +249,7 @@ function ProviderForm({
                       { value: 'none', label: '不发送（标准 OpenAI）' },
                       { value: 'query', label: 'query（问题/搜索词）' },
                       { value: 'passage', label: 'passage（文档内容）' },
-                    ]}
-                  />
+                    ]} />
                 </Form.Item>
               </Col>
             </>
@@ -334,8 +323,7 @@ export function ModelSettingsPage() {
           <Button size="small" onClick={() => void query.refetch()}>
             重试
           </Button>
-        }
-      />
+        } />
     )
   }
 
@@ -357,7 +345,7 @@ export function ModelSettingsPage() {
               flexShrink: 0,
             }}
           >
-            <CloudServerOutlined />
+            <Cloud size={16} weight="duotone" />
           </div>
           <p className="page-lede" style={{ margin: 0 }}>
             Chat 与 Embedding 使用完全独立的服务配置，可以分别接入不同公司。
@@ -372,8 +360,7 @@ export function ModelSettingsPage() {
             capability="chat"
             title="Chat 服务"
             description="用于制度问答、摘要和 Agent 生成。"
-            provider={query.data.chat}
-          />
+            provider={query.data.chat} />
         </Col>
         <Col xs={24} xl={12}>
           <ProviderForm
@@ -381,8 +368,7 @@ export function ModelSettingsPage() {
             capability="embedding"
             title="Embedding 服务"
             description="用于向量化和 Embedding 连通性验证。"
-            provider={query.data.embedding}
-          />
+            provider={query.data.embedding} />
         </Col>
       </Row>
 
@@ -390,8 +376,7 @@ export function ModelSettingsPage() {
         type="warning"
         showIcon
         style={{ marginTop: 16 }}
-        title="若检索由独立 LightRAG 服务执行，LightRAG 服务端的 Embedding 配置也需要与这里保持一致。"
-      />
+        title="若检索由独立 LightRAG 服务执行，LightRAG 服务端的 Embedding 配置也需要与这里保持一致。" />
     </div>
   )
 }

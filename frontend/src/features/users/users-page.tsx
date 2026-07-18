@@ -1,4 +1,4 @@
-import { PlusOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons'
+import { MagnifyingGlass, Plus, Users } from '@phosphor-icons/react'
 import { Button, Card, Input, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useEffect, useMemo, useState } from 'react'
@@ -112,7 +112,7 @@ export function UsersPage() {
     <div>
       <div className="page-toolbar page-toolbar--split">
         <p className="page-lede">查看组织用户、创建账户并维护角色。删除、禁用和密码重置不在当前范围。</p>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+        <Button type="primary" icon={<Plus size={16} weight="regular" />} onClick={() => setCreateOpen(true)}>
           创建用户
         </Button>
       </div>
@@ -120,13 +120,12 @@ export function UsersPage() {
       <div className="pf-filter-bar" style={{ marginBottom: 12, justifyContent: 'space-between' }}>
         <Input
           allowClear
-          prefix={<SearchOutlined />}
+          prefix={<MagnifyingGlass size={16} weight="regular" />}
           placeholder="搜索用户名、邮箱或显示名"
           value={keywordInput}
           onChange={(event) => setKeywordInput(event.target.value)}
           style={{ width: 320, maxWidth: '100%' }}
-          aria-label="搜索用户"
-        />
+          aria-label="搜索用户" />
         <Typography.Text type="secondary">
           共 {query.data?.total ?? 0} 位用户
           {query.isFetching && !query.isPending ? '，正在刷新…' : ''}
@@ -139,8 +138,7 @@ export function UsersPage() {
             error={query.error}
             onRetry={() => void query.refetch()}
             title="用户列表加载失败"
-            requestId={query.error instanceof AppError ? query.error.requestId : undefined}
-          />
+            requestId={query.error instanceof AppError ? query.error.requestId : undefined} />
         ) : (
           <Table
             size="middle"
@@ -151,17 +149,16 @@ export function UsersPage() {
             locale={{
               emptyText: (
                 <EmptyState
-                  icon={<TeamOutlined style={{ fontSize: 18 }} />}
+                  icon={<Users size={16} weight="duotone" style={{fontSize: 18}} />}
                   title={keyword ? '没有匹配的用户' : '还没有用户'}
                   hint={keyword ? '试试更换关键词，或清空搜索。' : '创建账户后可分配角色。'}
                   action={
                     <Button type="primary" size="small" onClick={() => setCreateOpen(true)}>
-                      <PlusOutlined aria-hidden />
+                      <Plus size={16} weight="regular" aria-hidden />
                       创建用户
                     </Button>
                   }
-                  minH="min-h-48"
-                />
+                  minH="min-h-48" />
               ),
             }}
             pagination={{
@@ -175,8 +172,7 @@ export function UsersPage() {
                 next.set('page', String(nextPage))
                 setSearchParams(next)
               },
-            }}
-          />
+            }} />
         )}
       </Card>
 
@@ -188,8 +184,7 @@ export function UsersPage() {
           open
           onOpenChange={(open) => {
             if (!open) setEditingUser(null)
-          }}
-        />
+          }} />
       ) : null}
     </div>
   )

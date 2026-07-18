@@ -1,5 +1,5 @@
+import { ArrowClockwise } from '@phosphor-icons/react'
 import type { ReactNode } from 'react'
-import { RefreshCw } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { Button } from '../ui/button'
 import { Alert } from './alert'
@@ -25,7 +25,7 @@ export function LoadingState({
       )}
       role="status"
     >
-      <RefreshCw aria-hidden="true" className="size-5 animate-spin motion-reduce:animate-none" />
+      <ArrowClockwise size={16} weight="duotone" className="animate-spin size-5 motion-reduce:animate-none" aria-hidden="true" />
       <span>{message}</span>
     </div>
   )

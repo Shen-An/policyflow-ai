@@ -1,7 +1,4 @@
-import {
-  ApiOutlined,
-  WarningOutlined,
-} from '@ant-design/icons'
+import { Plugs, Warning } from '@phosphor-icons/react'
 import {
   Alert,
   Button,
@@ -64,11 +61,10 @@ export function IntegrationsPage() {
       <Alert
         type="warning"
         showIcon
-        icon={<WarningOutlined />}
+        icon={<Warning size={16} weight="duotone" />}
         style={{ marginBottom: 16 }}
         title="MCP 集成说明"
-        description="stdio/http 会真实 initialize + tools/list/call；mock 仅走内置安全适配器且响应带 status=mock。Secret 不会由 API 明文回显。"
-      />
+        description="stdio/http 会真实 initialize + tools/list/call；mock 仅走内置安全适配器且响应带 status=mock。Secret 不会由 API 明文回显。" />
 
       {query.isPending ? (
         <Card>
@@ -84,20 +80,18 @@ export function IntegrationsPage() {
             <Button size="small" onClick={() => void query.refetch()}>
               重新加载
             </Button>
-          }
-        />
+          } />
       ) : query.data.length === 0 ? (
         <Card>
           <Empty
-            image={<ApiOutlined className="pf-muted-icon" style={{ fontSize: 40 }} />}
+            image={<Plugs size={16} weight="duotone" className="pf-muted-icon" style={{fontSize: 40}} />}
             description={
               <span>
                 尚未配置 MCP 集成
                 <br />
                 <Typography.Text type="secondary">可先创建一个 Mock 集成进行安全联调。</Typography.Text>
               </span>
-            }
-          />
+            } />
         </Card>
       ) : (
         <Row gutter={[16, 16]}>
@@ -154,8 +148,7 @@ export function IntegrationsPage() {
                       server.lastErrorCode
                         ? `${server.lastErrorCode}：${server.lastErrorMessage}`
                         : server.lastErrorMessage
-                    }
-                  />
+                    } />
                 ) : null}
                 <details className="pf-surface-muted" style={{ marginTop: 12 }}>
                   <summary style={{ cursor: 'pointer', padding: 12, fontWeight: 600 }}>
@@ -200,8 +193,7 @@ export function IntegrationsPage() {
           type="error"
           showIcon
           style={{ marginTop: 16 }}
-          title={`健康检查失败：${health.error.message}`}
-        />
+          title={`健康检查失败：${health.error.message}`} />
       ) : null}
       {health.data ? (
         <Alert
@@ -209,8 +201,7 @@ export function IntegrationsPage() {
           showIcon
           style={{ marginTop: 16 }}
           title="健康检查完成"
-          description={`状态：${health.data.healthStatus}，发现 ${health.data.tools.length} 个工具。`}
-        />
+          description={`状态：${health.data.healthStatus}，发现 ${health.data.tools.length} 个工具。`} />
       ) : null}
 
       <MCPServerDialog open={createOpen} onOpenChange={setCreateOpen} />
@@ -221,8 +212,7 @@ export function IntegrationsPage() {
           server={editing}
           onOpenChange={(open) => {
             if (!open) setEditing(null)
-          }}
-        />
+          }} />
       ) : null}
     </div>
   )
@@ -384,8 +374,7 @@ function MCPServerDialog({
           <Input
             aria-label="名称"
             value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
+            onChange={(event) => setName(event.target.value)} />
         </Form.Item>
         <Form.Item label="集成模式" required>
           <select
@@ -413,8 +402,7 @@ function MCPServerDialog({
               aria-label="Endpoint"
               placeholder="https://mcp.example.com/api"
               value={endpoint}
-              onChange={(event) => setEndpoint(event.target.value)}
-            />
+              onChange={(event) => setEndpoint(event.target.value)} />
           </Form.Item>
         ) : null}
         {integrationMode === 'stdio' || server?.commandConfigured ? (
@@ -428,8 +416,7 @@ function MCPServerDialog({
               }
               autoComplete="new-password"
               value={command}
-              onChange={(event) => setCommand(event.target.value)}
-            />
+              onChange={(event) => setCommand(event.target.value)} />
           </Form.Item>
         ) : null}
         <Form.Item
@@ -440,8 +427,7 @@ function MCPServerDialog({
             spellCheck={false}
             style={{ fontFamily: 'monospace', fontSize: 12 }}
             value={configText}
-            onChange={(event) => setConfigText(event.target.value)}
-          />
+            onChange={(event) => setConfigText(event.target.value)} />
         </Form.Item>
         {server ? (
           <details style={{ marginBottom: 16, border: '1px solid var(--color-border-secondary)', borderRadius: 8 }}>

@@ -1,4 +1,4 @@
-import { BugOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Bug, Trash } from '@phosphor-icons/react'
 import {
   Alert,
   Button,
@@ -199,8 +199,7 @@ export function EvaluationPage() {
             if (id) next.set('run_id', id)
             else next.delete('run_id')
             setSearchParams(next)
-          }}
-        />
+          }} />
         <Collapse
           ghost
           items={[
@@ -214,8 +213,7 @@ export function EvaluationPage() {
               label: '高级：单次检索调试（通常不用）',
               children: <RetrievalDebugSection />,
             },
-          ]}
-        />
+          ]} />
       </Space>
     </div>
   )
@@ -298,8 +296,7 @@ function CrudImportSection() {
                   { value: 'questanswer_1doc', label: '1doc（主评测）' },
                   { value: 'questanswer_2docs', label: '2docs' },
                   { value: 'questanswer_3docs', label: '3docs' },
-                ]}
-              />
+                ]} />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12} md={6}>
@@ -313,8 +310,7 @@ function CrudImportSection() {
                     kb.code === 'eval_test' || kb.name === '测试库'
                       ? `${kb.name}（推荐）`
                       : `${kb.name}（${kb.code}）`,
-                }))}
-              />
+                }))} />
             </Form.Item>
           </Col>
         </Row>
@@ -350,8 +346,7 @@ function CrudImportSection() {
                 </Row>
               ),
             },
-          ]}
-        />
+          ]} />
 
         {importMutation.isPending ? (
           <Alert
@@ -359,8 +354,7 @@ function CrudImportSection() {
             showIcon
             style={{ marginBottom: 12 }}
             title="正在导入…"
-            description="写入测试库与评估用例；索引会在后台继续，不会卡住本页。"
-          />
+            description="写入测试库与评估用例；索引会在后台继续，不会卡住本页。" />
         ) : null}
         <Button
           type="primary"
@@ -376,8 +370,7 @@ function CrudImportSection() {
             showIcon
             style={{ marginTop: 12 }}
             title={importMutation.error.message}
-            description="超时可把问题数降到 20–30，或取消索引后先导入。"
-          />
+            description="超时可把问题数降到 20–30，或取消索引后先导入。" />
         ) : null}
         {importMutation.isSuccess ? (
           <Alert
@@ -388,8 +381,7 @@ function CrudImportSection() {
             description={
               importMutation.data.warning ||
               '索引完成后，在下方启动检索 Run 查看 Hit@K / MRR。'
-            }
-          />
+            } />
         ) : null}
       </Form>
     </Card>
@@ -471,8 +463,7 @@ function DatasetSection() {
                   type="error"
                   showIcon
                   style={{ marginTop: 12 }}
-                  title={createCase.error.message}
-                />
+                  title={createCase.error.message} />
               ) : null}
             </Form>
           </Card>
@@ -520,8 +511,7 @@ function DatasetSection() {
                   options={(knowledgeBases.data ?? []).map((kb) => ({
                     value: kb.id,
                     label: kb.name,
-                  }))}
-                />
+                  }))} />
               </Form.Item>
               <Form.Item label="关联回答用例" name="evalCaseId">
                 <Select
@@ -530,8 +520,7 @@ function DatasetSection() {
                   options={(cases.data ?? []).map((item) => ({
                     value: item.id,
                     label: item.question,
-                  }))}
-                />
+                  }))} />
               </Form.Item>
               <Form.Item label="相关文档 ID（逗号分隔，可空）" name="relevantDocuments">
                 <Input />
@@ -549,8 +538,7 @@ function DatasetSection() {
                   type="error"
                   showIcon
                   style={{ marginTop: 12 }}
-                  title={createItem.error.message}
-                />
+                  title={createItem.error.message} />
               ) : null}
             </Form>
           </Card>
@@ -598,8 +586,7 @@ function DatasetSection() {
               </Row>
             ),
           },
-        ]}
-      />
+        ]} />
     </div>
   )
 }
@@ -693,7 +680,7 @@ function RunSection({
               danger
               autoInsertSpace={false}
               loading={deleteRun.isPending}
-              icon={<DeleteOutlined />}
+              icon={<Trash size={16} weight="duotone" />}
               onClick={() => {
                 confirmAction({
                   title: `物理删除 Run「${run.name}」？`,
@@ -805,8 +792,7 @@ function RunSection({
                     { value: 'hybrid_lightrag_bm25', label: 'Hybrid (LightRAG+BM25)' },
                     { value: 'lightrag_only', label: 'LightRAG only' },
                     { value: 'bm25_only', label: 'BM25 only' },
-                  ]}
-                />
+                  ]} />
               </Form.Item>
             </Col>
             <Col xs={24} md={6}>
@@ -853,8 +839,7 @@ function RunSection({
                   { value: 'retrieval', label: '检索' },
                   { value: 'rag_answer', label: '回答' },
                   { value: 'ragas', label: 'RAGAS' },
-                ]}
-              />
+                ]} />
             </Form.Item>
             <Form.Item name="compareStrategies">
               <Checkbox.Group options={[]} />
@@ -884,8 +869,7 @@ function RunSection({
                             { value: 'retrieval', label: '检索（Hit@K / MRR）' },
                             { value: 'rag_answer', label: '回答' },
                             { value: 'ragas', label: 'RAGAS' },
-                          ]}
-                        />
+                          ]} />
                       </Form.Item>
                     </Col>
                     <Col xs={24}>
@@ -899,8 +883,7 @@ function RunSection({
                             { value: 'hybrid_lightrag_bm25', label: 'Hybrid' },
                             { value: 'lightrag_only', label: 'LightRAG' },
                             { value: 'bm25_only', label: 'BM25' },
-                          ]}
-                        />
+                          ]} />
                       </Form.Item>
                     </Col>
                     <Col xs={24}>
@@ -927,8 +910,7 @@ function RunSection({
                           options={(cases.data ?? []).map((item) => ({
                             value: item.id,
                             label: item.question,
-                          }))}
-                        />
+                          }))} />
                       </Form.Item>
                     </Col>
                     <Col xs={24} md={12}>
@@ -948,8 +930,7 @@ function RunSection({
                           options={(retrievalItems.data ?? []).map((item) => ({
                             value: item.id,
                             label: item.query,
-                          }))}
-                        />
+                          }))} />
                       </Form.Item>
                       <Space wrap>
                         <Space.Compact>
@@ -960,8 +941,7 @@ function RunSection({
                             placeholder="N"
                             style={{ width: 72 }}
                             value={customSampleSize}
-                            onChange={(event) => setCustomSampleSize(event.target.value)}
-                          />
+                            onChange={(event) => setCustomSampleSize(event.target.value)} />
                           <Button
                             size="small"
                             disabled={!retrievalItems.data?.length}
@@ -995,8 +975,7 @@ function RunSection({
                   </Row>
                 ),
               },
-            ]}
-          />
+            ]} />
 
           <Space wrap>
             <Button
@@ -1024,8 +1003,7 @@ function RunSection({
               showIcon
               style={{ marginTop: 12 }}
               title={create.error.message}
-              description="若只做检索量化：评估类型仅勾「检索」，并至少随机选一批检索用例。"
-            />
+              description="若只做检索量化：评估类型仅勾「检索」，并至少随机选一批检索用例。" />
           ) : null}
         </Form>
       </Card>
@@ -1045,8 +1023,7 @@ function RunSection({
           columns={columns}
           dataSource={runs.data?.items ?? []}
           pagination={false}
-          locale={{ emptyText: <Empty description="暂无评估 Run，先导入语料再启动" /> }}
-        />
+          locale={{ emptyText: <Empty description="暂无评估 Run，先导入语料再启动" /> }} />
       </Card>
 
       {selectedRunId ? (
@@ -1219,8 +1196,7 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
                 N 为准。
               </div>
             </>
-          }
-        />
+          } />
       ) : null}
 
       <Alert
@@ -1243,8 +1219,7 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
               <div style={{ marginTop: 6, color: '#64748b' }}>范围：{scopeLabel}</div>
             ) : null}
           </>
-        }
-      />
+        } />
 
       {perfectScore ? (
         <Alert
@@ -1252,8 +1227,7 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
           showIcon
           style={{ marginBottom: 12 }}
           title="满分结果可信度警告"
-          description="Hit@K/MRR 全是 100% 通常意味着语料太小或干扰文档不足（1 文档金标几乎必然排第一）。请重新导入：评测问 50 + 干扰文档 ≥200，并等索引完成后再跑。不要把这种满分直接写进简历。"
-        />
+          description="Hit@K/MRR 全是 100% 通常意味着语料太小或干扰文档不足（1 文档金标几乎必然排第一）。请重新导入：评测问 50 + 干扰文档 ≥200，并等索引完成后再跑。不要把这种满分直接写进简历。" />
       ) : null}
 
       {collapsedHits ? (
@@ -1290,8 +1264,7 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
                 </div>
               ) : null}
             </>
-          }
-        />
+          } />
       ) : null}
 
       <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
@@ -1310,8 +1283,7 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
             <Statistic
               title="Hit@10"
               value={formatRate(core.hit10)}
-              valueStyle={{ color: palette.primary }}
-            />
+              valueStyle={{ color: palette.primary }} />
           </Card>
         </Col>
         <Col xs={12} sm={8} md={6} lg={4}>
@@ -1330,8 +1302,7 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
               <Statistic
                 title="Hit@3（补充）"
                 value={formatRate(core.hit3)}
-                valueStyle={{ color: '#64748b' }}
-              />
+                valueStyle={{ color: '#64748b' }} />
             </Card>
           </Col>
         ) : null}
@@ -1372,8 +1343,7 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
                 dataIndex: 'mrr',
                 render: (value) => formatMrr(value),
               },
-            ]}
-          />
+            ]} />
         </Card>
       ) : null}
 
@@ -1399,8 +1369,7 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
               </pre>
             ),
           },
-        ]}
-      />
+        ]} />
 
       <Collapse
         style={{ marginTop: 16 }}
@@ -1424,8 +1393,7 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
                 </Space>
               ),
           },
-        ]}
-      />
+        ]} />
     </Card>
   )
 }
@@ -1525,7 +1493,7 @@ function RetrievalDebugSection() {
     <Card
       title={
         <Space>
-          <BugOutlined />
+          <Bug size={16} weight="duotone" />
           检索调试
         </Space>
       }
@@ -1559,8 +1527,7 @@ function RetrievalDebugSection() {
             options={(knowledgeBases.data ?? []).map((kb) => ({
               value: kb.id,
               label: kb.name,
-            }))}
-          />
+            }))} />
         </Form.Item>
         <Form.Item>
           <Button
@@ -1585,8 +1552,7 @@ function RetrievalDebugSection() {
           columns={columns}
           dataSource={mutation.data.items}
           pagination={false}
-          size="small"
-        />
+          size="small" />
       ) : null}
     </Card>
   )

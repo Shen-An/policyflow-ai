@@ -1,19 +1,4 @@
-import {
-  AuditOutlined,
-  BookOutlined,
-  ClusterOutlined,
-  FileTextOutlined,
-  FormOutlined,
-  LogoutOutlined,
-  MenuFoldOutlined,
-  MenuUnfoldOutlined,
-  MessageOutlined,
-  DatabaseOutlined,
-  SettingOutlined,
-  TeamOutlined,
-  ToolOutlined,
-  WifiOutlined,
-} from '@ant-design/icons'
+import { BookOpen, ChatCircle, ClipboardText, Database, FileText, GearSix, List, NotePencil, SidebarSimple, SignOut, SquaresFour, Users, WifiHigh, Wrench } from '@phosphor-icons/react'
 import { Avatar, Button, Layout, Menu, Space, Tooltip, Typography } from 'antd'
 import type { MenuProps } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
@@ -23,8 +8,9 @@ import { hasAnyRole } from '../../auth/permissions'
 import { clearReturnTo } from '../../auth/auth-storage'
 import { useAuth } from '../../auth/use-auth'
 import { formatRoles } from '../../lib/labels'
-import { gradients, palette } from '../../styles/palette'
+import { gradients } from '../../styles/palette'
 import { PageTransition } from '../feedback/page-transition'
+import { ThemeToggle } from './theme-toggle'
 
 const { Header, Sider, Content } = Layout
 
@@ -157,7 +143,7 @@ export function AppShell() {
   const items: MenuProps['items'] = [
     {
       key: '/',
-      icon: <ClusterOutlined />,
+      icon: <SquaresFour size={16} weight="duotone" />,
       label: '工作台',
     },
     ...(canChat || canUseDrafts || canUseMemory
@@ -168,13 +154,13 @@ export function AppShell() {
             type: 'group' as const,
             children: [
               canChat
-                ? { key: '/chat', icon: <MessageOutlined />, label: '制度问答' }
+                ? { key: '/chat', icon: <ChatCircle size={16} weight="duotone" />, label: '制度问答' }
                 : null,
               canUseDrafts
-                ? { key: '/drafts', icon: <FormOutlined />, label: '我的草稿' }
+                ? { key: '/drafts', icon: <NotePencil size={16} weight="duotone" />, label: '我的草稿' }
                 : null,
               canUseMemory
-                ? { key: '/memory', icon: <DatabaseOutlined />, label: '我的记忆' }
+                ? { key: '/memory', icon: <Database size={16} weight="duotone" />, label: '我的记忆' }
                 : null,
             ].filter(Boolean),
           },
@@ -188,10 +174,10 @@ export function AppShell() {
             type: 'group' as const,
             children: [
               canBrowseKnowledgeBases
-                ? { key: '/knowledge-bases', icon: <BookOutlined />, label: '知识库' }
+                ? { key: '/knowledge-bases', icon: <BookOpen size={16} weight="duotone" />, label: '知识库' }
                 : null,
               canReviewFAQ
-                ? { key: '/faq-review', icon: <FileTextOutlined />, label: 'FAQ 审核' }
+                ? { key: '/faq-review', icon: <FileText size={16} weight="duotone" />, label: 'FAQ 审核' }
                 : null,
             ].filter(Boolean),
           },
@@ -205,10 +191,10 @@ export function AppShell() {
             type: 'group' as const,
             children: [
               canEvaluate
-                ? { key: '/evaluation', icon: <ToolOutlined />, label: '评估中心' }
+                ? { key: '/evaluation', icon: <Wrench size={16} weight="duotone" />, label: '评估中心' }
                 : null,
               canViewAudit
-                ? { key: '/admin/audit', icon: <AuditOutlined />, label: '审计日志' }
+                ? { key: '/admin/audit', icon: <ClipboardText size={16} weight="duotone" />, label: '审计日志' }
                 : null,
             ].filter(Boolean),
           },
@@ -222,18 +208,18 @@ export function AppShell() {
             type: 'group' as const,
             children: [
               canManageUsers
-                ? { key: '/admin/users', icon: <TeamOutlined />, label: '用户管理' }
+                ? { key: '/admin/users', icon: <Users size={16} weight="duotone" />, label: '用户管理' }
                 : null,
               canManageSkills
-                ? { key: '/admin/skills', icon: <ToolOutlined />, label: 'Skill 管理' }
+                ? { key: '/admin/skills', icon: <Wrench size={16} weight="duotone" />, label: 'Skill 管理' }
                 : null,
               canManageIntegrations
-                ? { key: '/admin/integrations', icon: <ClusterOutlined />, label: 'MCP 集成' }
+                ? { key: '/admin/integrations', icon: <SquaresFour size={16} weight="duotone" />, label: 'MCP 集成' }
                 : null,
               canManageModelSettings
                 ? {
                     key: '/admin/model-settings',
-                    icon: <SettingOutlined />,
+                    icon: <GearSix size={16} weight="duotone" />,
                     label: '模型设置',
                   }
                 : null,
@@ -264,8 +250,8 @@ export function AppShell() {
           if (broken) setCollapsed(true)
         }}
         style={{
-          background: '#ffffff',
-          borderRight: `1px solid ${palette.sidebarBorder}`,
+          background: 'var(--color-sidebar-bg)',
+          borderRight: '1px solid var(--color-sidebar-border)',
         }}
       >
         <Link
@@ -276,8 +262,8 @@ export function AppShell() {
             gap: 12,
             height: 56,
             padding: collapsed ? '0 16px' : '0 18px',
-            borderBottom: `1px solid ${palette.sidebarBorder}`,
-            color: palette.text,
+            borderBottom: '1px solid var(--color-sidebar-border)',
+            color: 'var(--color-text-primary)',
             textDecoration: 'none',
           }}
         >
@@ -287,7 +273,7 @@ export function AppShell() {
               height: 30,
               borderRadius: 9,
               background: gradients.brandMark,
-              color: palette.textOnPrimary,
+              color: '#ffffff',
               display: 'grid',
               placeItems: 'center',
               fontWeight: 700,
@@ -304,13 +290,19 @@ export function AppShell() {
                 style={{
                   fontWeight: 650,
                   lineHeight: 1.2,
-                  color: palette.text,
+                  color: 'var(--color-text-primary)',
                   letterSpacing: '-0.02em',
                 }}
               >
                 PolicyFlow
               </div>
-              <div style={{ fontSize: 11, color: palette.sidebarTextMuted, marginTop: 2 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: 'var(--color-sidebar-text-muted)',
+                  marginTop: 2,
+                }}
+              >
                 企业制度助手
               </div>
             </div>
@@ -329,22 +321,21 @@ export function AppShell() {
             marginTop: 8,
             paddingInline: 4,
             background: 'transparent',
-          }}
-        />
+          }} />
       </Sider>
 
       <Layout style={{ background: 'transparent', minWidth: 0 }}>
         {!online ? (
           <div
             style={{
-              background: palette.warningSoft,
-              color: palette.warning,
+              background: 'var(--color-warning-50)',
+              color: 'var(--color-warning)',
               padding: '8px 16px',
               textAlign: 'center',
               fontSize: 13,
             }}
           >
-            <WifiOutlined /> 网络已断开，现有内容将保留，恢复后可重试。
+            <WifiHigh size={16} weight="duotone" aria-hidden /> 网络已断开，现有内容将保留，恢复后可重试。
           </div>
         ) : null}
 
@@ -352,15 +343,20 @@ export function AppShell() {
           <Space size={8}>
             <Button
               type="text"
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              icon={
+                collapsed ? (
+                  <List size={16} weight="regular" aria-hidden />
+                ) : (
+                  <SidebarSimple size={16} weight="regular" aria-hidden />
+                )
+              }
               onClick={() => setCollapsed((value) => !value)}
-              style={{ color: palette.textSecondary }}
-              aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
-            />
+              style={{ color: 'var(--color-text-secondary)' }}
+              aria-label={collapsed ? '展开侧栏' : '收起侧栏'} />
             <Typography.Text
               style={{
                 margin: 0,
-                color: palette.text,
+                color: 'var(--color-text-primary)',
                 fontWeight: 600,
                 fontSize: 15,
                 letterSpacing: '-0.01em',
@@ -371,8 +367,15 @@ export function AppShell() {
           </Space>
 
           <Space size={8}>
+            <ThemeToggle />
             <div style={{ textAlign: 'right', lineHeight: 1.25, maxWidth: 160 }}>
-              <div style={{ fontWeight: 600, color: palette.text, fontSize: 13 }}>
+              <div
+                style={{
+                  fontWeight: 600,
+                  color: 'var(--color-text-primary)',
+                  fontSize: 13,
+                }}
+              >
                 {user?.displayName}
               </div>
               <Tooltip title={roleText}>
@@ -387,11 +390,17 @@ export function AppShell() {
                 background: gradients.brandMark,
                 fontSize: 13,
                 fontWeight: 600,
+                color: '#ffffff',
               }}
             >
               {(user?.displayName ?? 'U').slice(0, 1)}
             </Avatar>
-            <Button type="text" icon={<LogoutOutlined />} onClick={logout} aria-label="退出登录">
+            <Button
+              type="text"
+              icon={<SignOut size={16} weight="duotone" aria-hidden />}
+              onClick={logout}
+              aria-label="退出登录"
+            >
               退出
             </Button>
           </Space>

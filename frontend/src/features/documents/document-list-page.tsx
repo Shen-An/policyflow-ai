@@ -1,4 +1,4 @@
-import { DeleteOutlined, EyeOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
+import { ArrowClockwise, Eye, Trash, UploadSimple } from '@phosphor-icons/react'
 import {
   Alert,
   Button,
@@ -112,7 +112,7 @@ export function DocumentListPage() {
             type="link"
             onClick={() => setSelectedDocumentId(document.id)}
           >
-            <EyeOutlined aria-hidden />
+            <Eye size={16} weight="duotone" aria-hidden />
             查看
           </Button>
           {writable ? (
@@ -121,8 +121,7 @@ export function DocumentListPage() {
               <DeleteDocumentButton
                 knowledgeBaseId={knowledgeBase.id}
                 documentId={document.id}
-                title={document.title}
-              />
+                title={document.title} />
             </>
           ) : null}
         </Space>
@@ -150,7 +149,7 @@ export function DocumentListPage() {
         </div>
         {writable ? (
           <Button type="primary" onClick={() => setUploadOpen(true)}>
-            <UploadOutlined aria-hidden />
+            <UploadSimple size={16} weight="duotone" aria-hidden />
             上传文档
           </Button>
         ) : (
@@ -168,8 +167,7 @@ export function DocumentListPage() {
           showIcon
           message="文档列表加载失败"
           description={query.error.message}
-          action={<Button onClick={() => void query.refetch()}>重新加载</Button>}
-        />
+          action={<Button onClick={() => void query.refetch()}>重新加载</Button>} />
       ) : (
         <Table
           rowKey="id"
@@ -192,8 +190,7 @@ export function DocumentListPage() {
                       </div>
                     ) : null}
                   </div>
-                }
-              />
+                } />
             ),
           }}
           pagination={{
@@ -207,23 +204,20 @@ export function DocumentListPage() {
               next.set('page', String(nextPage))
               setSearchParams(next)
             },
-          }}
-        />
+          }} />
       )}
 
       <UploadDocumentDialog
         open={uploadOpen}
         onOpenChange={setUploadOpen}
-        knowledgeBaseId={knowledgeBase.id}
-      />
+        knowledgeBaseId={knowledgeBase.id} />
 
       <DocumentDetailDrawer
         documentId={selectedDocumentId}
         knowledgeBaseName={knowledgeBase.name}
         writable={writable}
         knowledgeBaseId={knowledgeBase.id}
-        onClose={() => setSelectedDocumentId('')}
-      />
+        onClose={() => setSelectedDocumentId('')} />
     </div>
   )
 }
@@ -262,7 +256,7 @@ function ReindexButton({
         void mutation.mutateAsync(documentId)
       }}
     >
-      <ReloadOutlined aria-hidden />
+      <ArrowClockwise size={16} weight="duotone" aria-hidden />
       重新索引
     </Button>
   )
@@ -299,7 +293,7 @@ function DeleteDocumentButton({
         })
       }}
     >
-      <DeleteOutlined aria-hidden />
+      <Trash size={16} weight="duotone" aria-hidden />
       删除
     </Button>
   )
@@ -341,7 +335,7 @@ function DocumentDetailDrawer({
               loading={reindex.isPending}
               onClick={() => void reindex.mutateAsync(documentId)}
             >
-              <ReloadOutlined aria-hidden />
+              <ArrowClockwise size={16} weight="duotone" aria-hidden />
               重新索引
             </Button>
             <Button
@@ -363,7 +357,7 @@ function DocumentDetailDrawer({
                 })
               }}
             >
-              <DeleteOutlined aria-hidden />
+              <Trash size={16} weight="duotone" aria-hidden />
               删除
             </Button>
           </Space>
@@ -380,8 +374,7 @@ function DocumentDetailDrawer({
           showIcon
           message="文档详情加载失败"
           description={query.error.message}
-          action={<Button onClick={() => void query.refetch()}>重试</Button>}
-        />
+          action={<Button onClick={() => void query.refetch()}>重试</Button>} />
       ) : query.data ? (
         <Space orientation="vertical" size={16} style={{ width: '100%' }}>
           <Descriptions bordered size="small" column={2}>
@@ -394,8 +387,7 @@ function DocumentDetailDrawer({
                   <Input
                     value={titleDraft}
                     onChange={(event) => setTitleDraft(event.target.value)}
-                    maxLength={255}
-                  />
+                    maxLength={255} />
                   <Button
                     type="primary"
                     loading={updateMutation.isPending}

@@ -1,10 +1,4 @@
-import {
-  BookOutlined,
-  DeleteOutlined,
-  FileTextOutlined,
-  PlusOutlined,
-  SearchOutlined,
-} from '@ant-design/icons'
+import { BookOpen, FileText, MagnifyingGlass, Plus, Trash } from '@phosphor-icons/react'
 import {
   Button,
   Card,
@@ -83,7 +77,7 @@ export function KnowledgeBaseListPage() {
         <p className="page-lede">浏览授权范围内的制度库，管理文档与检索配置。</p>
         {canCreate ? (
           <Button type="primary" onClick={() => setCreateOpen(true)}>
-            <PlusOutlined aria-hidden />
+            <Plus size={16} weight="regular" aria-hidden />
             创建知识库
           </Button>
         ) : null}
@@ -92,13 +86,12 @@ export function KnowledgeBaseListPage() {
       <div className="pf-filter-bar" style={{ marginBottom: 12, justifyContent: 'space-between' }}>
         <Input
           allowClear
-          prefix={<SearchOutlined />}
+          prefix={<MagnifyingGlass size={16} weight="regular" />}
           placeholder="搜索名称、编码或描述"
           value={searchParams.get('keyword') ?? ''}
           onChange={(event) => updateSearch(event.target.value)}
           style={{ width: 320, maxWidth: '100%' }}
-          aria-label="搜索知识库"
-        />
+          aria-label="搜索知识库" />
         {query.data ? (
           <Typography.Text type="secondary">
             共 {filtered.length} 个
@@ -147,7 +140,7 @@ export function KnowledgeBaseListPage() {
           >
             {!keyword && canCreate ? (
               <Button type="primary" onClick={() => setCreateOpen(true)}>
-                <PlusOutlined aria-hidden />
+                <Plus size={16} weight="regular" aria-hidden />
                 创建知识库
               </Button>
             ) : null}
@@ -223,7 +216,7 @@ function KnowledgeBaseCard({ knowledgeBase }: { knowledgeBase: KnowledgeBase }) 
       <div className="kb-card__top">
         <div className="kb-card__identity">
           <div className="kb-card__icon" style={{ background: accentSoft, color: accent }}>
-            <BookOutlined aria-hidden />
+            <BookOpen size={16} weight="duotone" aria-hidden />
           </div>
           <div className="kb-card__title-block">
             <Link to={`/knowledge-bases/${knowledgeBase.id}`} className="kb-card__title">
@@ -250,7 +243,7 @@ function KnowledgeBaseCard({ knowledgeBase }: { knowledgeBase: KnowledgeBase }) 
 
       <div className="kb-card__meta">
         <div className="kb-card__meta-item">
-          <FileTextOutlined aria-hidden className="kb-card__meta-icon" />
+          <FileText size={16} weight="duotone" className="kb-card__meta-icon" aria-hidden />
           <span className="kb-card__meta-label">文档</span>
           <span className="kb-card__meta-value">{knowledgeBase.documentCount}</span>
         </div>
@@ -270,7 +263,7 @@ function KnowledgeBaseCard({ knowledgeBase }: { knowledgeBase: KnowledgeBase }) 
             type="text"
             danger
             size="small"
-            icon={<DeleteOutlined aria-hidden />}
+            icon={<Trash size={16} weight="duotone" aria-hidden />}
             loading={deleteMutation.isPending}
             onClick={handleDelete}
           >

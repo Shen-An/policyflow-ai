@@ -1,8 +1,4 @@
-import {
-  ArrowLeftOutlined,
-  FileTextOutlined,
-  InfoCircleOutlined,
-} from '@ant-design/icons'
+import { ArrowLeft, FileText, Info } from '@phosphor-icons/react'
 import { Button, Card, Space, Tabs, Tag, Typography } from 'antd'
 import { Link, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ErrorState, LoadingState } from '../../components/feedback/state-views'
@@ -27,8 +23,7 @@ export function KnowledgeBaseDetailPage() {
       <ErrorState
         error={query.error}
         onRetry={() => void query.refetch()}
-        title="知识库详情加载失败"
-      />
+        title="知识库详情加载失败" />
     )
   }
 
@@ -42,7 +37,7 @@ export function KnowledgeBaseDetailPage() {
         <div style={{ minWidth: 0 }}>
           <Button
             type="link"
-            icon={<ArrowLeftOutlined />}
+            icon={<ArrowLeft size={16} weight="regular" />}
             style={{ paddingInline: 0, height: 'auto', marginBottom: 6 }}
             onClick={() => navigate('/knowledge-bases')}
           >
@@ -61,7 +56,7 @@ export function KnowledgeBaseDetailPage() {
               检索 · {queryModeLabel[knowledgeBase.defaultQueryMode] ?? knowledgeBase.defaultQueryMode}
             </Tag>
             <Tag>
-              <FileTextOutlined aria-hidden style={{ marginRight: 4 }} />
+              <FileText size={16} weight="duotone" aria-hidden style={{marginRight: 4}} />
               {knowledgeBase.documentCount} 份文档
             </Tag>
           </Space>
@@ -92,7 +87,7 @@ export function KnowledgeBaseDetailPage() {
               key: 'overview',
               label: (
                 <span>
-                  <InfoCircleOutlined /> 概览
+                  <Info size={16} weight="duotone" /> 概览
                 </span>
               ),
             },
@@ -100,12 +95,11 @@ export function KnowledgeBaseDetailPage() {
               key: 'documents',
               label: (
                 <span>
-                  <FileTextOutlined /> 文档
+                  <FileText size={16} weight="duotone" /> 文档
                 </span>
               ),
             },
-          ]}
-        />
+          ]} />
         <Outlet context={{ knowledgeBase }} />
       </Card>
     </div>
