@@ -47,12 +47,9 @@ function formatDate(value: string): string {
 export function SkillsPage() {
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h2>Skill 管理</h2>
-          <p>管理已登记 Skill，并查看经过后端递归脱敏的 Tool 调用日志。</p>
-        </div>
-      </div>
+      <p className="page-lede" style={{ marginBottom: 14 }}>
+        管理已登记 Skill，并查看经过后端递归脱敏的 Tool 调用日志。
+      </p>
       <Space orientation="vertical" size={16} style={{ width: '100%' }}>
         <SkillRegistry />
         <ToolLogSection />

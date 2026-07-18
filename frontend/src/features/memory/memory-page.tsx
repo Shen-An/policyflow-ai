@@ -167,11 +167,8 @@ export function MemoryPage() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h2>我的记忆</h2>
-          <p>查看助手为你保留的偏好、实体与长期事件。制度事实仍以知识库检索为准。</p>
-        </div>
+      <div className="page-toolbar page-toolbar--split">
+        <p className="page-lede">查看助手为你保留的偏好、实体与长期事件。制度事实仍以知识库检索为准。</p>
         <Space>
           <Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>
             刷新
@@ -179,7 +176,7 @@ export function MemoryPage() {
         </Space>
       </div>
 
-      <div className="pf-filter-bar" style={{ marginBottom: 16 }}>
+      <div className="pf-filter-bar" style={{ marginBottom: 12 }}>
         <Select
           aria-label="记忆类型"
           style={{ width: 160 }}
@@ -207,8 +204,9 @@ export function MemoryPage() {
           <Empty description={query.error instanceof Error ? query.error.message : '加载失败'} />
         </Card>
       ) : (
-        <Card styles={{ body: { padding: 0 } }}>
+        <Card className="pf-table-card" styles={{ body: { padding: 0 } }}>
           <Table<MemoryItem>
+            size="middle"
             rowKey="id"
             columns={columns}
             dataSource={query.data?.items ?? []}

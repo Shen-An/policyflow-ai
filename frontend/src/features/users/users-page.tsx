@@ -110,17 +110,14 @@ export function UsersPage() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h2>用户管理</h2>
-          <p>查看组织用户、创建账户并维护角色。删除、禁用和密码重置不在当前范围。</p>
-        </div>
+      <div className="page-toolbar page-toolbar--split">
+        <p className="page-lede">查看组织用户、创建账户并维护角色。删除、禁用和密码重置不在当前范围。</p>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
           创建用户
         </Button>
       </div>
 
-      <div className="pf-filter-bar" style={{ marginBottom: 16, justifyContent: 'space-between' }}>
+      <div className="pf-filter-bar" style={{ marginBottom: 12, justifyContent: 'space-between' }}>
         <Input
           allowClear
           prefix={<SearchOutlined />}
@@ -136,7 +133,7 @@ export function UsersPage() {
         </Typography.Text>
       </div>
 
-      <Card styles={{ body: { paddingTop: 8 } }}>
+      <Card className="pf-table-card" styles={{ body: { padding: '4px 8px 8px' } }}>
         {query.isError ? (
           <ErrorState
             error={query.error}
@@ -146,6 +143,7 @@ export function UsersPage() {
           />
         ) : (
           <Table
+            size="middle"
             rowKey="id"
             loading={query.isPending}
             columns={columns}

@@ -1,72 +1,73 @@
 /** Single source of truth for PolicyFlow brand colors.
- *  Visual direction: soft mint admin console (reference: pale canvas,
- *  pure white floating work surface, light sidebar, green accent only).
+ *  Direction: cool-gray admin console, white work surfaces,
+ *  restrained teal accent — less mint wash, less soft-toy green.
  */
 
 export const palette = {
-  /* restrained teal-green accent */
-  primary: '#12a37a',
-  primaryHover: '#0d8f6a',
-  primaryActive: '#0b7a5a',
+  /* restrained teal accent */
+  primary: '#0f9a74',
+  primaryHover: '#0d8665',
+  primaryActive: '#0a7054',
   primarySoft: '#eef8f3',
-  primarySoftStrong: '#d9f0e5',
-  primaryBorder: '#b7dfcc',
-  primaryDeep: '#0a5c44',
+  primarySoftStrong: '#d8f0e4',
+  primaryBorder: '#b4dfcb',
+  primaryDeep: '#0a523d',
 
-  success: '#16a34a',
-  warning: '#d97706',
-  warningSoft: '#fffbeb',
-  warningBorder: '#fde68a',
+  success: '#15803d',
+  warning: '#c2410c',
+  warningSoft: '#fff7ed',
+  warningBorder: '#fed7aa',
   danger: '#dc2626',
-  info: '#0284c7',
+  info: '#0369a1',
 
-  /* near-neutral ink */
-  text: '#1f2933',
-  textSecondary: '#5b6770',
-  textTertiary: '#8b959e',
+  /* cooler near-neutral ink */
+  text: '#18212b',
+  textSecondary: '#5a6570',
+  textTertiary: '#8a949e',
   textOnPrimary: '#ffffff',
 
-  /* soft mint-gray canvas — barely tinted, airy */
-  bgLayout: '#eef3f1',
-  bgSoft: '#e6eeea',
+  /* cool gray canvas */
+  bgLayout: '#f3f5f4',
+  bgSoft: '#e9eeec',
   bgContainer: '#ffffff',
   bgElevated: '#ffffff',
-  bgMuted: '#f5f8f6',
-  bgInput: '#f7faf8',
-  bgTableHover: '#f3f8f5',
+  bgMuted: '#f6f8f7',
+  bgInput: '#f7f9f8',
+  bgTableHover: '#f3f7f5',
 
-  /* borders almost gray */
-  border: '#dce4df',
-  borderSecondary: '#e8eeeb',
-  borderStrong: '#c5d0ca',
+  /* borders */
+  border: '#dde3df',
+  borderSecondary: '#e8edeb',
+  borderStrong: '#c4cdc8',
 
-  /* Light sidebar — pure white with mint selection */
+  /* Light sidebar */
   sidebarBg: '#ffffff',
-  sidebarBgSoft: '#f7faf8',
-  sidebarHover: '#f0f7f3',
-  sidebarText: '#334155',
-  sidebarTextMuted: '#94a3b8',
-  sidebarBorder: '#eef2f0',
-  sidebarActiveBg: '#e8f7f0',
-  sidebarActiveText: '#0a5c44',
+  sidebarBgSoft: '#f7f9f8',
+  sidebarHover: '#f3f7f5',
+  sidebarText: '#3d4854',
+  sidebarTextMuted: '#8b959e',
+  sidebarBorder: '#eef1ef',
+  sidebarActiveBg: '#e8f5ef',
+  sidebarActiveText: '#0a523d',
 
+  /* secondary accents — use sparingly; prefer primary + neutrals */
   accentTeal: '#0f766e',
-  accentBlue: '#0284c7',
-  accentPurple: '#7c3aed',
-  accentAmber: '#d97706',
+  accentBlue: '#0369a1',
+  accentPurple: '#6d28d9',
+  accentAmber: '#c2410c',
 } as const
 
 export type Palette = typeof palette
 
 export const gradients = {
-  page: '#eef3f1',
+  page: '#f3f5f4',
   login:
-    'radial-gradient(circle at top left, rgba(18,163,122,0.08), transparent 45%), radial-gradient(circle at bottom right, rgba(2,132,199,0.04), transparent 40%), linear-gradient(180deg, #eef3f1 0%, #f5f8f6 100%)',
-  brandMark: 'linear-gradient(135deg, #34c493, #12a37a 55%, #0d8f6a)',
+    'radial-gradient(circle at 12% 18%, rgba(15,154,116,0.07), transparent 42%), radial-gradient(circle at 88% 82%, rgba(3,105,161,0.04), transparent 38%), linear-gradient(180deg, #f3f5f4 0%, #eef2f0 100%)',
+  brandMark: 'linear-gradient(145deg, #1fb888 0%, #0f9a74 52%, #0d8665 100%)',
   sider: '#ffffff',
   card: '#ffffff',
   cardHead: 'transparent',
-  pageHeader: '#ffffff',
-  noEvidenceCard: 'linear-gradient(180deg, #fffbeb 0%, #ffffff 42%)',
-  documentContent: 'linear-gradient(180deg, #ffffff 0%, #f7faf8 100%)',
+  pageHeader: 'transparent',
+  noEvidenceCard: 'linear-gradient(180deg, #fff7ed 0%, #ffffff 48%)',
+  documentContent: 'linear-gradient(180deg, #ffffff 0%, #f6f8f7 100%)',
 } as const

@@ -172,7 +172,7 @@ export function WorkspacePage() {
           title: '我的草稿',
           desc: '查看正在编辑的政策草案，继续写作或确认发布。',
           href: '/drafts',
-          color: palette.accentTeal,
+          color: palette.primaryDeep,
           icon: <FileTextOutlined />,
         }
       : null,
@@ -181,7 +181,7 @@ export function WorkspacePage() {
           title: '知识库管理',
           desc: '浏览和维护授权知识库，管理文档与标签。',
           href: '/knowledge-bases',
-          color: palette.accentBlue,
+          color: palette.accentTeal,
           icon: <BookOutlined />,
         }
       : null,
@@ -190,7 +190,7 @@ export function WorkspacePage() {
           title: '评估中心',
           desc: '导入测试语料，查看 Hit@K / MRR 检索指标。',
           href: '/evaluation',
-          color: palette.accentPurple,
+          color: palette.textSecondary,
           icon: <BarChartOutlined />,
         }
       : null,
@@ -209,7 +209,7 @@ export function WorkspacePage() {
           value: kbCount ?? 0,
           suffix: '授权',
           icon: <BookOutlined />,
-          chip: '#e8f8f0',
+          chip: palette.primarySoft,
           ink: palette.primary,
           loading: knowledgeBases.isPending,
         }
@@ -220,8 +220,8 @@ export function WorkspacePage() {
           value: conversationTotal ?? 0,
           suffix: '会话',
           icon: <MessageOutlined />,
-          chip: '#e0f2fe',
-          ink: palette.accentBlue,
+          chip: '#eef2f1',
+          ink: palette.textSecondary,
           loading: conversations.isPending,
         }
       : null,
@@ -234,8 +234,8 @@ export function WorkspacePage() {
               ? `${draftPending} 待确认`
               : '份',
           icon: <FileTextOutlined />,
-          chip: '#fef3c7',
-          ink: palette.accentAmber,
+          chip: palette.warningSoft,
+          ink: palette.warning,
           loading: drafts.isPending,
         }
       : null,
@@ -245,8 +245,8 @@ export function WorkspacePage() {
           value: evalTotal ?? 0,
           suffix: '份',
           icon: <BarChartOutlined />,
-          chip: '#ede9fe',
-          ink: palette.accentPurple,
+          chip: '#eef2f1',
+          ink: palette.primaryDeep,
           loading: evalRuns.isPending,
         }
       : null,
@@ -262,15 +262,12 @@ export function WorkspacePage() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h2>工作台</h2>
-          <p>
-            {greeting}
-            {user?.displayName ? `，${user.displayName}` : ''}
-            ，这里是你的 PolicyFlow AI 总览。
-          </p>
-        </div>
+      <div className="page-toolbar page-toolbar--split">
+        <p className="page-lede">
+          {greeting}
+          {user?.displayName ? `，${user.displayName}` : ''}
+          ，这里是你的工作总览。
+        </p>
         {healthStatus === 'checking' ? (
           <Tag icon={<LoadingOutlined />} color="processing">
             检查服务中

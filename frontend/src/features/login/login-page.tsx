@@ -65,24 +65,30 @@ export function LoginPage() {
           <div style={{ textAlign: 'center', marginBottom: 24 }}>
             <div
               style={{
-                width: 52,
-                height: 52,
+                width: 48,
+                height: 48,
                 margin: '0 auto',
-                borderRadius: 14,
+                borderRadius: 12,
                 background: gradients.brandMark,
                 color: palette.textOnPrimary,
                 display: 'grid',
                 placeItems: 'center',
                 fontWeight: 700,
-                fontSize: 22,
-                boxShadow: '0 14px 34px rgba(13,143,106,0.18)',
+                fontSize: 20,
+                boxShadow: '0 12px 28px -16px rgba(15,154,116,0.35)',
               }}
             >
               P
             </div>
             <Typography.Title
               level={3}
-              style={{ marginTop: 16, marginBottom: 4, color: palette.text }}
+              style={{
+                marginTop: 16,
+                marginBottom: 4,
+                color: palette.text,
+                letterSpacing: '-0.03em',
+                fontWeight: 650,
+              }}
             >
               PolicyFlow AI
             </Typography.Title>
@@ -93,14 +99,14 @@ export function LoginPage() {
             title="登录账户"
             styles={{
               header: {
-                borderBottom: `1px solid ${palette.primarySoft}`,
+                borderBottom: `1px solid ${palette.borderSecondary}`,
                 background: gradients.cardHead,
               },
             }}
             style={{
-              boxShadow: '0 18px 48px rgba(31,41,51,0.08), 0 8px 20px rgba(31,41,51,0.04)',
+              boxShadow: '0 18px 48px rgba(24,33,43,0.08), 0 8px 20px rgba(24,33,43,0.04)',
               border: `1px solid ${palette.borderSecondary}`,
-              borderRadius: 18,
+              borderRadius: 14,
             }}
           >
             {summary ? (

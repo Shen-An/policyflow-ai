@@ -31,8 +31,12 @@ const { Header, Sider, Content } = Layout
 const COLLAPSE_STORAGE_KEY = 'policyflow.shell.sider-collapsed'
 
 function titleFor(pathname: string): string {
+  if (pathname.startsWith('/knowledge-bases/') && pathname !== '/knowledge-bases') {
+    return '知识库详情'
+  }
   if (pathname.startsWith('/knowledge-bases')) return '知识库'
   if (pathname.startsWith('/chat')) return '制度问答'
+  if (pathname.startsWith('/drafts/') && pathname !== '/drafts') return '草稿详情'
   if (pathname.startsWith('/drafts')) return '我的草稿'
   if (pathname.startsWith('/memory')) return '我的记忆'
   if (pathname.startsWith('/faq-review')) return 'FAQ 审核'
@@ -244,14 +248,14 @@ export function AppShell() {
   return (
     <Layout
       className={collapsed ? 'pf-shell pf-shell--collapsed' : 'pf-shell'}
-      style={{ minHeight: '100vh', background: 'transparent' }}
+      style={{ minHeight: '100dvh', background: 'transparent' }}
     >
       <Sider
         collapsible
         collapsed={collapsed}
         trigger={null}
-        width={232}
-        collapsedWidth={isMobile ? 0 : 72}
+        width={236}
+        collapsedWidth={isMobile ? 0 : 68}
         theme="light"
         breakpoint="md"
         onBreakpoint={(broken) => {
@@ -270,8 +274,8 @@ export function AppShell() {
             display: 'flex',
             alignItems: 'center',
             gap: 12,
-            height: 64,
-            padding: collapsed ? '0 16px' : '0 20px',
+            height: 56,
+            padding: collapsed ? '0 16px' : '0 18px',
             borderBottom: `1px solid ${palette.sidebarBorder}`,
             color: palette.text,
             textDecoration: 'none',
@@ -279,26 +283,36 @@ export function AppShell() {
         >
           <div
             style={{
-              width: 34,
-              height: 34,
-              borderRadius: 12,
+              width: 30,
+              height: 30,
+              borderRadius: 9,
               background: gradients.brandMark,
               color: palette.textOnPrimary,
               display: 'grid',
               placeItems: 'center',
               fontWeight: 700,
+              fontSize: 14,
               flexShrink: 0,
-              boxShadow: '0 8px 18px -12px rgba(18,163,122,0.28)',
+              boxShadow: '0 6px 14px -10px rgba(15,154,116,0.35)',
             }}
           >
             P
           </div>
           {!collapsed ? (
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 650, lineHeight: 1.2, color: palette.text }}>
-                PolicyFlow AI
+              <div
+                style={{
+                  fontWeight: 650,
+                  lineHeight: 1.2,
+                  color: palette.text,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                PolicyFlow
               </div>
-              <div style={{ fontSize: 12, color: palette.sidebarTextMuted }}>企业制度助手</div>
+              <div style={{ fontSize: 11, color: palette.sidebarTextMuted, marginTop: 2 }}>
+                企业制度助手
+              </div>
             </div>
           ) : null}
         </Link>
@@ -312,14 +326,14 @@ export function AppShell() {
           onClick={({ key }) => navigate(key)}
           style={{
             borderInlineEnd: 0,
-            marginTop: 10,
+            marginTop: 8,
             paddingInline: 4,
             background: 'transparent',
           }}
         />
       </Sider>
 
-      <Layout style={{ background: 'transparent' }}>
+      <Layout style={{ background: 'transparent', minWidth: 0 }}>
         {!online ? (
           <div
             style={{
@@ -335,7 +349,7 @@ export function AppShell() {
         ) : null}
 
         <Header style={{ justifyContent: 'space-between' }}>
-          <Space size={12}>
+          <Space size={8}>
             <Button
               type="text"
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
@@ -343,46 +357,52 @@ export function AppShell() {
               style={{ color: palette.textSecondary }}
               aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
             />
-            <div>
-              <Typography.Title
-                level={5}
-                style={{ margin: 0, color: palette.text, fontWeight: 650 }}
-              >
-                {titleFor(location.pathname)}
-              </Typography.Title>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                PolicyFlow AI · 企业制度助手
-              </Typography.Text>
-            </div>
+            <Typography.Text
+              style={{
+                margin: 0,
+                color: palette.text,
+                fontWeight: 600,
+                fontSize: 15,
+                letterSpacing: '-0.01em',
+              }}
+            >
+              {titleFor(location.pathname)}
+            </Typography.Text>
           </Space>
 
-          <Space size={10}>
-            <div style={{ textAlign: 'right', lineHeight: 1.3, maxWidth: 180 }}>
-              <div style={{ fontWeight: 600, color: palette.text }}>{user?.displayName}</div>
+          <Space size={8}>
+            <div style={{ textAlign: 'right', lineHeight: 1.25, maxWidth: 160 }}>
+              <div style={{ fontWeight: 600, color: palette.text, fontSize: 13 }}>
+                {user?.displayName}
+              </div>
               <Tooltip title={roleText}>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>
+                <Typography.Text type="secondary" style={{ fontSize: 11 }} ellipsis>
                   {roleText}
                 </Typography.Text>
               </Tooltip>
             </div>
             <Avatar
+              size={32}
               style={{
                 background: gradients.brandMark,
-                boxShadow: '0 6px 14px -10px rgba(18,163,122,0.28)',
+                fontSize: 13,
+                fontWeight: 600,
               }}
             >
               {(user?.displayName ?? 'U').slice(0, 1)}
             </Avatar>
-            <Button icon={<LogoutOutlined />} onClick={logout}>
+            <Button type="text" icon={<LogoutOutlined />} onClick={logout} aria-label="退出登录">
               退出
             </Button>
           </Space>
         </Header>
 
         <Content>
-          <PageTransition>
-            <Outlet />
-          </PageTransition>
+          <div className="pf-content-frame">
+            <PageTransition>
+              <Outlet />
+            </PageTransition>
+          </div>
         </Content>
       </Layout>
 
