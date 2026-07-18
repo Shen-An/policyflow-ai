@@ -142,6 +142,7 @@ class EvalRunner:
             knowledge_bases,
             retrieval_request,
             enable_skill=False,
+            hitl=False,  # eval auto-picks recommended ToT option; never pause
         )
         answer = pipeline_result.answer_result.answer
         answer_lower = answer.lower()
