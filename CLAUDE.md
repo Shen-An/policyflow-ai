@@ -52,6 +52,9 @@ uvicorn backend.app.main:app --reload
 
 ### 记忆 / 多轮 Chat（2026-07 起）
 - 四层记忆：L0=`messages`；L1=最近 K 轮 + `conversations.summary` 滚动摘要；L2=`memory_items` 事件向量摘要；L3=entity upsert。记忆**非权威**，不能覆盖本轮 RAG 证据；偏好禁止写入制度条款措辞。
+- 冷热是 **prompt 装配**（hot 近窗 / warm 摘要+固定偏好实体 / cold→selected top-k 召回），**不是**独立冷热存储；窗外 raw 仍在 L0。
+- LTM 召回排序：`relevance × (0.55 + 0.35·importance + 0.10·recency) + access_boost`（本地公式；`MEMORY_RANK_DECAY_LAMBDA` 可调）。`salience` 同时用于 writeback 阈值与 importance。
+- 低 salience `conversation_fact` 默认 TTL（`MEMORY_CONVERSATION_FACT_TTL_DAYS`）；STM 卸载事件更短 TTL；preference/entity 长期有效。
 - 管理面：`GET/DELETE /api/memory` + 前端 `/memory`（仅本人）。
 - 交互优先 `POST /api/chat/stream`（SSE 阶段：记忆加载 / query rewrite / 检索 / 回答 / writeback）；`POST /api/chat` 保留给非流式。
 - 短跟进句（如「给我模板」）必须结合历史做 **query rewrite**，避免检索丢主题。
@@ -73,6 +76,7 @@ uvicorn backend.app.main:app --reload
 - `docs/04-ai-pipeline-rag-eval-design.md` — AI/RAG/Eval 设计
 - `docs/08-de-toy-multiagent-skill-eval-strategy.md` — **去玩具化 / 多智能体落点 / Skill·Tool·MCP 诚实实现 / CRUD Eval（Hit@K·MRR）总策略**（实现以此为准；§10 落地状态）
 - `docs/09-interview-demo-script.md` — 面试演示脚本
+- `docs/interview/` — **面试知识库**（总目录 + 分章：架构/RAG/记忆/Eval/诚实边界/Q&A）
 - `backend/app/services/memory_service.py` / `memory_extractor.py` / `memory_window.py` / `query_rewrite.py` — 记忆与多轮检索
 - `backend/app/api/routes_chat.py` / `routes_memory.py` — Chat SSE 与记忆管理 API
 - `frontend/src/features/chat/` / `frontend/src/features/memory/` — 聊天与「我的记忆」UI

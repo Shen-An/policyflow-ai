@@ -109,6 +109,7 @@ pytest tests/test_phase2_rag_chat.py tests/test_phase3_skill_draft_mcp_memory.py
 3. claim–evidence 当前是词重叠规则门，不是 LLM-as-judge 全文事实验证  
 4. 8 万全文可扩展，但面试默认 Demo-S 采样  
 5. in-process LightRAG 分数可能是 rank decay（`score_is_synthetic=true`）
+6. 多层记忆：**非权威**；salience/时间衰减只影响回忆优先级，不能当制度依据；冷热是 prompt 装配，不是独立冷存；preference 禁止政策事实
 
 ---
 

@@ -264,16 +264,23 @@ class AnswerAgent:
         sections: list[str] = [f"问题：{question}"]
         if working_set is not None:
             if working_set.rolling_summary:
-                sections.append(f"会话摘要（非权威）：{working_set.rolling_summary}")
+                sections.append(
+                    "温区·会话摘要（非权威，装配策略非物理冷存）："
+                    f"{working_set.rolling_summary}"
+                )
             history_text = format_history_for_prompt(working_set.history)
             if history_text:
-                sections.append(f"最近对话（非权威）：\n{history_text}")
+                sections.append(f"热区·最近对话（非权威）：\n{history_text}")
             fixed_text = format_memories_for_prompt(working_set.fixed_memories)
             if fixed_text:
-                sections.append(f"用户固定偏好/实体（非权威）：\n{fixed_text}")
+                sections.append(f"温区·用户固定偏好/实体（非权威）：\n{fixed_text}")
             recalled_text = format_memories_for_prompt(working_set.recalled_memories)
             if recalled_text:
-                sections.append(f"按需召回记忆（非权威）：\n{recalled_text}")
+                sections.append(
+                    "冷区召回记忆（非权威；salience/时间只影响回忆优先级，"
+                    "不可覆盖本轮制度证据）：\n"
+                    f"{recalled_text}"
+                )
             sections.append(
                 "任务提示：优先承接最近对话主题；若用户要模板/清单，"
                 "请基于证据整理可填写结构，不要因证据未出现“模板”一词而拒答。"

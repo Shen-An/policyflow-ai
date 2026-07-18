@@ -162,7 +162,65 @@ def _keyword_score(query: str, content: str) -> float:
     return hits / len(tokens)
 
 
-def search_memories(
+def _clamp01(value: float) -> float:
+    return max(0.0, min(float(value), 1.0))
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def memory_rank_score(
+    item: MemoryItem,
+    *,
+    query: str,
+    query_embedding: list[float] | None = None,
+    now: datetime | None = None,
+    decay_lambda: float = 0.08,
+    access_boost_cap: float = 0.15,
+) -> float:
+    """Fuse relevance, importance, recency, and access heat into one rank score.
+
+    final = relevance * (0.55 + 0.35 * importance + 0.10 * recency) + access_boost
+    Score is request-scoped only — never persisted to the row.
+    """
+    vector_score = 0.0
+    if query_embedding and item.embedding:
+        vector_score = cosine_similarity(query_embedding, item.embedding)
+    keyword = _keyword_score(query, item.content)
+    relevance = max(vector_score, keyword * 0.85)
+    if relevance <= 0.0:
+        return 0.0
+
+    meta = item.meta_json or {}
+    confidence = _clamp01(item.confidence if item.confidence is not None else 0.5)
+    raw_salience = meta.get("salience")
+    try:
+        salience = _clamp01(float(raw_salience)) if raw_salience is not None else confidence
+    except (TypeError, ValueError):
+        salience = confidence
+    importance = _clamp01(0.5 * confidence + 0.5 * salience)
+
+    clock = _as_utc(now) or datetime.now(UTC)
+    anchor = _as_utc(item.updated_at) or _as_utc(item.created_at) or clock
+    age_hours = max(0.0, (clock - anchor).total_seconds() / 3600.0)
+    lam = max(0.0, float(decay_lambda))
+    recency = math.exp(-lam * age_hours / 24.0)
+
+    try:
+        access_count = max(0, int(meta.get("access_count") or 0))
+    except (TypeError, ValueError):
+        access_count = 0
+    access_boost = min(max(0.0, float(access_boost_cap)), math.log1p(access_count) * 0.03)
+
+    return relevance * (0.55 + 0.35 * importance + 0.10 * recency) + access_boost
+
+
+def search_memories_scored(
     session: Session,
     *,
     owner_specs: list[tuple[str, str]],
@@ -170,11 +228,14 @@ def search_memories(
     query_embedding: list[float] | None = None,
     memory_types: Iterable[str] | None = None,
     top_k: int = 5,
-) -> list[MemoryItem]:
-    """Search memories by cosine similarity, with keyword fallback."""
+    now: datetime | None = None,
+    decay_lambda: float = 0.08,
+    access_boost_cap: float = 0.15,
+) -> list[tuple[float, MemoryItem]]:
+    """Search memories and return (rank_score, item) pairs, highest first."""
     if top_k <= 0 or not owner_specs:
         return []
-    now = datetime.now(UTC)
+    clock = _as_utc(now) or datetime.now(UTC)
     types = list(memory_types) if memory_types is not None else list(SEARCHABLE_TYPES)
     candidates: list[MemoryItem] = []
     for owner_type, owner_id in owner_specs:
@@ -185,20 +246,50 @@ def search_memories(
         if types:
             statement = statement.where(col(MemoryItem.memory_type).in_(types))
         for item in session.exec(statement).all():
-            if _is_active(item, now):
+            if _is_active(item, clock):
                 candidates.append(item)
 
     scored: list[tuple[float, MemoryItem]] = []
     for item in candidates:
-        vector_score = 0.0
-        if query_embedding and item.embedding:
-            vector_score = cosine_similarity(query_embedding, item.embedding)
-        keyword = _keyword_score(query, item.content)
-        score = max(vector_score, keyword * 0.85)
+        score = memory_rank_score(
+            item,
+            query=query,
+            query_embedding=query_embedding,
+            now=clock,
+            decay_lambda=decay_lambda,
+            access_boost_cap=access_boost_cap,
+        )
         if score > 0:
             scored.append((score, item))
     scored.sort(key=lambda pair: (pair[0], pair[1].confidence), reverse=True)
-    return [item for _, item in scored[:top_k]]
+    return scored[:top_k]
+
+
+def search_memories(
+    session: Session,
+    *,
+    owner_specs: list[tuple[str, str]],
+    query: str,
+    query_embedding: list[float] | None = None,
+    memory_types: Iterable[str] | None = None,
+    top_k: int = 5,
+    now: datetime | None = None,
+    decay_lambda: float = 0.08,
+    access_boost_cap: float = 0.15,
+) -> list[MemoryItem]:
+    """Search memories by fused relevance / importance / recency ranking."""
+    scored = search_memories_scored(
+        session,
+        owner_specs=owner_specs,
+        query=query,
+        query_embedding=query_embedding,
+        memory_types=memory_types,
+        top_k=top_k,
+        now=now,
+        decay_lambda=decay_lambda,
+        access_boost_cap=access_boost_cap,
+    )
+    return [item for _, item in scored]
 
 
 def touch_access(session: Session, items: Iterable[MemoryItem]) -> None:
