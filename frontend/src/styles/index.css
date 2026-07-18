@@ -1658,6 +1658,79 @@ textarea {
   }
 }
 
+.chat-thinking__options {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.chat-thinking__options-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-thinking__option-list {
+  display: grid;
+  gap: 10px;
+}
+
+.chat-thinking__option-card {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border-secondary);
+  background: var(--color-surface);
+  display: grid;
+  gap: 6px;
+}
+
+.chat-thinking__option-card--recommended {
+  border-color: color-mix(in srgb, #d4a017 45%, var(--color-border-secondary));
+  background: color-mix(in srgb, #d4a017 8%, var(--color-surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, #d4a017 18%, transparent);
+}
+
+.chat-thinking__option-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-thinking__option-tradeoffs {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.chat-thinking__option-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.chat-thinking__option-steps li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.chat-thinking__option-actions {
+  margin-top: 4px;
+}
+
+.chat-thinking__options-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .chat-feedback {
   margin-top: 14px;
   padding-top: 12px;
