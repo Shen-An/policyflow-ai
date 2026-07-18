@@ -13,6 +13,9 @@ export type Citation = {
 }
 
 export type PlanStepStatus = 'pending' | 'running' | 'success' | 'skipped' | 'error'
+export type Difficulty = 'simple' | 'multi_step' | 'branched' | string
+export type ReasoningMode = 'cot_direct' | 'cot_steps' | 'tot_select' | string
+export type TurnStatus = 'completed' | 'awaiting_plan_selection' | 'cancelled' | string
 
 export type PlanStep = {
   id: string
@@ -26,9 +29,20 @@ export type PlanStep = {
   message?: string
 }
 
+export type PlanOption = {
+  id: string
+  title: string
+  summary: string
+  tradeoffs: string[]
+  steps: PlanStep[]
+  recommended: boolean
+}
+
 export type ChatPlanEvent = {
   complexity: 'simple' | 'multi_step' | string
-  planSource?: 'none' | 'user' | 'router' | string
+  difficulty?: Difficulty
+  reasoningMode?: ReasoningMode
+  planSource?: 'none' | 'user' | 'router' | 'user_selected' | string
   steps: PlanStep[]
   waves?: string[][]
   parallelUsed?: boolean
@@ -41,6 +55,13 @@ export type ChatPlanStepEvent = {
   message?: string
 }
 
+export type ChatPlanOptionsEvent = {
+  difficulty?: Difficulty
+  reasoningMode?: ReasoningMode
+  options: PlanOption[]
+  recommendedOptionId?: string | null
+}
+
 export type RouterResult = {
   domain: string
   taskType: string
@@ -49,8 +70,11 @@ export type RouterResult = {
   toolHints?: string[]
   rewriteQuery?: string | null
   complexity?: 'simple' | 'multi_step' | string
+  difficulty?: Difficulty
+  reasoningMode?: ReasoningMode
   planSteps?: PlanStep[]
-  planSource?: 'none' | 'user' | 'router' | string
+  planOptions?: PlanOption[]
+  planSource?: 'none' | 'user' | 'router' | 'user_selected' | string
 }
 
 export type ComplianceResult = {
@@ -98,6 +122,11 @@ export type AssistantMetadata = {
   suggestedSkills: Array<{ name: string; description: string }>
   compliance: ComplianceResult | null
   diagnostics: TurnDiagnostics
+  turnStatus?: TurnStatus | null
+  reasoningMode?: ReasoningMode | null
+  planOptions?: PlanOption[]
+  pendingPlan?: Record<string, unknown>
+  selectedOptionId?: string | null
 }
 
 export type ConversationMessage = {
@@ -148,13 +177,19 @@ export type ChatResult = {
   suggestedSkills: Array<{ name: string; description: string }>
   compliance: ComplianceResult
   diagnostics: TurnDiagnostics
+  status: TurnStatus
+  reasoningMode: ReasoningMode
+  planOptions: PlanOption[]
+  awaitingMessageId?: string | null
 }
 
 export type SendChatInput = {
   conversationId?: string
-  question: string
+  question?: string
   knowledgeBaseIds: string[]
   queryMode: QueryMode
+  selectedOptionId?: string
+  cancelPendingPlan?: boolean
 }
 
 export type FeedbackRating =
@@ -195,6 +230,15 @@ type PlanStepRaw = {
   message?: string
 }
 
+type PlanOptionRaw = {
+  id: string
+  title: string
+  summary?: string
+  tradeoffs?: string[]
+  steps?: PlanStepRaw[]
+  recommended?: boolean
+}
+
 type RouterResultRaw = {
   domain: string
   task_type: string
@@ -203,7 +247,10 @@ type RouterResultRaw = {
   tool_hints?: string[]
   rewrite_query?: string | null
   complexity?: string
+  difficulty?: string
+  reasoning_mode?: string
   plan_steps?: PlanStepRaw[]
+  plan_options?: PlanOptionRaw[]
   plan_source?: string
 }
 
@@ -249,6 +296,11 @@ type AssistantMetadataRaw = {
   suggested_skills: Array<{ name: string; description: string }>
   compliance: ComplianceRaw | null
   diagnostics?: TurnDiagnosticsRaw | null
+  turn_status?: string | null
+  reasoning_mode?: string | null
+  plan_options?: PlanOptionRaw[]
+  pending_plan?: Record<string, unknown>
+  selected_option_id?: string | null
 }
 
 function toCitation(raw: CitationRaw): Citation {
@@ -277,6 +329,17 @@ function toPlanStep(raw: PlanStepRaw): PlanStep {
   }
 }
 
+function toPlanOption(raw: PlanOptionRaw): PlanOption {
+  return {
+    id: raw.id,
+    title: raw.title,
+    summary: raw.summary ?? '',
+    tradeoffs: raw.tradeoffs ?? [],
+    steps: (raw.steps ?? []).map(toPlanStep),
+    recommended: Boolean(raw.recommended),
+  }
+}
+
 function toRouterResult(raw: RouterResultRaw): RouterResult {
   return {
     domain: raw.domain,
@@ -286,7 +349,10 @@ function toRouterResult(raw: RouterResultRaw): RouterResult {
     toolHints: raw.tool_hints,
     rewriteQuery: raw.rewrite_query,
     complexity: raw.complexity,
+    difficulty: raw.difficulty,
+    reasoningMode: raw.reasoning_mode,
     planSteps: (raw.plan_steps ?? []).map(toPlanStep),
+    planOptions: (raw.plan_options ?? []).map(toPlanOption),
     planSource: raw.plan_source,
   }
 }
@@ -332,6 +398,11 @@ function toMetadata(raw: AssistantMetadataRaw): AssistantMetadata {
     suggestedSkills: raw.suggested_skills ?? [],
     compliance: raw.compliance ? toCompliance(raw.compliance) : null,
     diagnostics: toDiagnostics(raw.diagnostics),
+    turnStatus: raw.turn_status ?? null,
+    reasoningMode: raw.reasoning_mode ?? null,
+    planOptions: (raw.plan_options ?? []).map(toPlanOption),
+    pendingPlan: raw.pending_plan ?? {},
+    selectedOptionId: raw.selected_option_id ?? null,
   }
 }
 
@@ -341,56 +412,75 @@ const CHAT_REQUEST_TIMEOUT_MS = 180_000
 function mapChatResult(raw: {
   conversation_id: string
   message_id: string
-  query_log_id: string
-  answer: string
-  citations: CitationRaw[]
-  confidence_score: number
-  query_mode: string
+  query_log_id?: string
+  answer?: string
+  citations?: CitationRaw[]
+  confidence_score?: number
+  query_mode?: string
   router_result: RouterResultRaw
-  suggested_skills: Array<{ name: string; description: string }>
-  compliance: ComplianceRaw
+  suggested_skills?: Array<{ name: string; description: string }>
+  compliance?: ComplianceRaw
   diagnostics?: TurnDiagnosticsRaw | null
+  status?: string
+  reasoning_mode?: string
+  plan_options?: PlanOptionRaw[]
+  awaiting_message_id?: string | null
 }): ChatResult {
   return {
     conversationId: raw.conversation_id,
     messageId: raw.message_id,
-    queryLogId: raw.query_log_id,
-    answer: raw.answer,
-    citations: raw.citations.map(toCitation),
-    confidenceScore: raw.confidence_score,
-    queryMode: raw.query_mode,
+    queryLogId: raw.query_log_id ?? '',
+    answer: raw.answer ?? '',
+    citations: (raw.citations ?? []).map(toCitation),
+    confidenceScore: raw.confidence_score ?? 0,
+    queryMode: raw.query_mode ?? 'hybrid',
     routerResult: toRouterResult(raw.router_result),
-    suggestedSkills: raw.suggested_skills,
-    compliance: toCompliance(raw.compliance),
+    suggestedSkills: raw.suggested_skills ?? [],
+    compliance: toCompliance(raw.compliance ?? { passed: true, warnings: [] }),
     diagnostics: toDiagnostics(raw.diagnostics),
+    status: raw.status ?? 'completed',
+    reasoningMode: raw.reasoning_mode ?? raw.router_result?.reasoning_mode ?? 'cot_direct',
+    planOptions: (raw.plan_options ?? raw.router_result?.plan_options ?? []).map(toPlanOption),
+    awaitingMessageId: raw.awaiting_message_id ?? null,
   }
+}
+
+function buildChatRequestBody(input: SendChatInput): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    conversation_id: input.conversationId ?? null,
+    knowledge_base_ids: input.knowledgeBaseIds,
+    enable_skill: true,
+    retrieval_strategy: 'hybrid_lightrag_bm25',
+    query_mode: input.queryMode,
+    top_k: 5,
+  }
+  if (input.question !== undefined) body.question = input.question
+  if (input.selectedOptionId) body.selected_option_id = input.selectedOptionId
+  if (input.cancelPendingPlan) body.cancel_pending_plan = true
+  return body
 }
 
 export async function sendChat(input: SendChatInput): Promise<ChatResult> {
   const raw = await apiClient.request<{
     conversation_id: string
     message_id: string
-    query_log_id: string
-    answer: string
-    citations: CitationRaw[]
-    confidence_score: number
-    query_mode: string
+    query_log_id?: string
+    answer?: string
+    citations?: CitationRaw[]
+    confidence_score?: number
+    query_mode?: string
     router_result: RouterResultRaw
-    suggested_skills: Array<{ name: string; description: string }>
-    compliance: ComplianceRaw
+    suggested_skills?: Array<{ name: string; description: string }>
+    compliance?: ComplianceRaw
     diagnostics?: TurnDiagnosticsRaw | null
+    status?: string
+    reasoning_mode?: string
+    plan_options?: PlanOptionRaw[]
+    awaiting_message_id?: string | null
   }>('/api/chat', {
     method: 'POST',
     timeoutMs: CHAT_REQUEST_TIMEOUT_MS,
-    body: JSON.stringify({
-      conversation_id: input.conversationId ?? null,
-      question: input.question,
-      knowledge_base_ids: input.knowledgeBaseIds,
-      enable_skill: true,
-      retrieval_strategy: 'hybrid_lightrag_bm25',
-      query_mode: input.queryMode,
-      top_k: 5,
-    }),
+    body: JSON.stringify(buildChatRequestBody(input)),
   })
   return mapChatResult(raw)
 }
@@ -405,6 +495,7 @@ export type ChatStreamHandlers = {
   onStage?: (event: ChatStageEvent) => void
   onPlan?: (plan: ChatPlanEvent) => void
   onPlanStep?: (step: ChatPlanStepEvent) => void
+  onPlanOptions?: (event: ChatPlanOptionsEvent) => void
   onDiagnosticsPartial?: (partial: Partial<TurnDiagnostics>) => void
   onDiagnostics?: (diagnostics: TurnDiagnostics) => void
   signal?: AbortSignal
@@ -493,15 +584,7 @@ export async function sendChatStream(
     const response = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        conversation_id: input.conversationId ?? null,
-        question: input.question,
-        knowledge_base_ids: input.knowledgeBaseIds,
-        enable_skill: true,
-        retrieval_strategy: 'hybrid_lightrag_bm25',
-        query_mode: input.queryMode,
-        top_k: 5,
-      }),
+      body: JSON.stringify(buildChatRequestBody(input)),
       signal: controller.signal,
     })
 
@@ -557,6 +640,12 @@ export async function sendChatStream(
             : []
           handlers.onPlan?.({
             complexity: String(payload.complexity ?? 'simple'),
+            difficulty: payload.difficulty
+              ? String(payload.difficulty)
+              : undefined,
+            reasoningMode: payload.reasoning_mode
+              ? String(payload.reasoning_mode)
+              : undefined,
             planSource: payload.plan_source
               ? String(payload.plan_source)
               : undefined,
@@ -573,6 +662,23 @@ export async function sendChatStream(
             status: String(payload.status ?? 'pending'),
             message: payload.message ? String(payload.message) : undefined,
           })
+        } else if (evt.event === 'plan_options') {
+          const optionsRaw = Array.isArray(payload.options)
+            ? (payload.options as PlanOptionRaw[])
+            : []
+          const options = optionsRaw.map(toPlanOption)
+          handlers.onPlanOptions?.({
+            difficulty: payload.difficulty
+              ? String(payload.difficulty)
+              : undefined,
+            reasoningMode: payload.reasoning_mode
+              ? String(payload.reasoning_mode)
+              : 'tot_select',
+            options,
+            recommendedOptionId: payload.recommended_option_id
+              ? String(payload.recommended_option_id)
+              : options.find((item) => item.recommended)?.id ?? null,
+          })
         } else if (evt.event === 'diagnostics_partial') {
           liveDiagnostics = mergeDiagnosticsPartial(
             liveDiagnostics,
@@ -583,19 +689,24 @@ export async function sendChatStream(
           liveDiagnostics = toDiagnostics(payload as TurnDiagnosticsRaw)
           handlers.onDiagnostics?.(liveDiagnostics)
         } else if (evt.event === 'final') {
+          // awaiting_plan_selection is a successful dual-request pause, not incomplete.
           finalResult = mapChatResult(
             payload as {
               conversation_id: string
               message_id: string
-              query_log_id: string
-              answer: string
-              citations: CitationRaw[]
-              confidence_score: number
-              query_mode: string
+              query_log_id?: string
+              answer?: string
+              citations?: CitationRaw[]
+              confidence_score?: number
+              query_mode?: string
               router_result: RouterResultRaw
-              suggested_skills: Array<{ name: string; description: string }>
-              compliance: ComplianceRaw
+              suggested_skills?: Array<{ name: string; description: string }>
+              compliance?: ComplianceRaw
               diagnostics?: TurnDiagnosticsRaw | null
+              status?: string
+              reasoning_mode?: string
+              plan_options?: PlanOptionRaw[]
+              awaiting_message_id?: string | null
             },
           )
         } else if (evt.event === 'error') {

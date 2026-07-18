@@ -18,13 +18,16 @@ import { useNavigate, useParams } from 'react-router-dom'
 import type {
   AssistantMetadata,
   ChatPlanEvent,
+  ChatPlanOptionsEvent,
   ChatResult,
   ChatStageEvent,
   CommandTrace,
   ConversationMessage,
   ConversationSummary,
   FeedbackRating,
+  PlanOption,
   PlanStep,
+  ReasoningMode,
   ToolCallTrace,
   TurnDiagnostics,
   UsedMemoryItem,
@@ -53,6 +56,11 @@ const emptyMetadata: AssistantMetadata = {
   suggestedSkills: [],
   compliance: null,
   diagnostics: { memories: [], tools: [], commands: [] },
+  turnStatus: null,
+  reasoningMode: null,
+  planOptions: [],
+  pendingPlan: {},
+  selectedOptionId: null,
 }
 
 function resultMessage(result: ChatResult): ConversationMessage {
@@ -63,13 +71,18 @@ function resultMessage(result: ChatResult): ConversationMessage {
     createdAt: new Date().toISOString(),
     metadata: {
       citations: result.citations,
-      queryLogId: result.queryLogId,
+      queryLogId: result.queryLogId || null,
       confidenceScore: result.confidenceScore,
       queryMode: result.queryMode,
       routerResult: result.routerResult,
       suggestedSkills: result.suggestedSkills,
       compliance: result.compliance,
       diagnostics: result.diagnostics,
+      turnStatus: result.status,
+      reasoningMode: result.reasoningMode,
+      planOptions: result.planOptions,
+      pendingPlan: {},
+      selectedOptionId: null,
     },
   }
 }
@@ -135,6 +148,8 @@ export function ChatPage() {
     tools: [],
     commands: [],
   })
+  const [pendingPlanChoice, setPendingPlanChoice] = useState<ChatPlanOptionsEvent | null>(null)
+  const [selectingOptionId, setSelectingOptionId] = useState<string | null>(null)
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
@@ -145,7 +160,34 @@ export function ChatPage() {
     setThinkingStages([])
     setThinkingPlan(null)
     setThinkingDiagnostics({ memories: [], tools: [], commands: [] })
+    setPendingPlanChoice(null)
+    setSelectingOptionId(null)
   }, [conversationId])
+
+  // Rehydrate ToT picker from durable assistant stub metadata when reopening a conversation.
+  useEffect(() => {
+    const historyMessages = conversation.data?.messages ?? []
+    if (!historyMessages.length) return
+    const awaiting = [...historyMessages]
+      .reverse()
+      .find(
+        (item) =>
+          item.role === 'assistant' &&
+          item.metadata.turnStatus === 'awaiting_plan_selection' &&
+          (item.metadata.planOptions?.length ?? 0) > 0,
+      )
+    if (!awaiting) {
+      setPendingPlanChoice(null)
+      return
+    }
+    const options = awaiting.metadata.planOptions ?? []
+    setPendingPlanChoice({
+      difficulty: awaiting.metadata.routerResult?.difficulty ?? 'branched',
+      reasoningMode: awaiting.metadata.reasoningMode ?? 'tot_select',
+      options,
+      recommendedOptionId: options.find((item) => item.recommended)?.id ?? null,
+    })
+  }, [conversation.data?.id, conversation.data?.messages])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -176,7 +218,57 @@ export function ChatPage() {
     sendMutation.isPending,
     thinkingStages.length,
     thinkingPlan?.steps.length,
+    pendingPlanChoice?.options.length,
   ])
+
+  function clearThinkingState() {
+    setThinkingStages([])
+    setThinkingPlan(null)
+    setThinkingDiagnostics({ memories: [], tools: [], commands: [] })
+  }
+
+  function applyStreamHandlers() {
+    return {
+      onStage: (event: ChatStageEvent) => {
+        setThinkingStages((current) => {
+          const next = [...current]
+          const index = next.findIndex((item) => item.stage === event.stage)
+          if (index >= 0) next[index] = event
+          else next.push(event)
+          return next
+        })
+      },
+      onPlan: (plan: ChatPlanEvent) => {
+        setThinkingPlan(plan)
+      },
+      onPlanStep: (step: { id: string; status: string; message?: string }) => {
+        setThinkingPlan((current) => {
+          if (!current) return current
+          return {
+            ...current,
+            steps: current.steps.map((item) =>
+              item.id === step.id
+                ? {
+                    ...item,
+                    status: step.status,
+                    message: step.message ?? item.message,
+                  }
+                : item,
+            ),
+          }
+        })
+      },
+      onPlanOptions: (event: ChatPlanOptionsEvent) => {
+        setPendingPlanChoice(event)
+      },
+      onDiagnosticsPartial: (partial: Partial<TurnDiagnostics>) => {
+        setThinkingDiagnostics(partial as TurnDiagnostics)
+      },
+      onDiagnostics: (diagnostics: TurnDiagnostics) => {
+        setThinkingDiagnostics(diagnostics)
+      },
+    }
+  }
 
   async function handleCopy(content: string) {
     try {
@@ -221,65 +313,119 @@ export function ChatPage() {
     }
     setQuestion('')
     setFailedQuestion(null)
-    setThinkingStages([])
-    setThinkingPlan(null)
-    setThinkingDiagnostics({ memories: [], tools: [], commands: [] })
+    setPendingPlanChoice(null)
+    clearThinkingState()
     try {
       const result = await sendMutation.mutateAsync({
         conversationId: conversationId || undefined,
         question: normalized,
         knowledgeBaseIds: selectedKnowledgeBases,
         queryMode,
-        streamHandlers: {
-          onStage: (event) => {
-            setThinkingStages((current) => {
-              const next = [...current]
-              const index = next.findIndex((item) => item.stage === event.stage)
-              if (index >= 0) next[index] = event
-              else next.push(event)
-              return next
-            })
-          },
-          onPlan: (plan) => {
-            setThinkingPlan(plan)
-          },
-          onPlanStep: (step) => {
-            setThinkingPlan((current) => {
-              if (!current) return current
-              return {
-                ...current,
-                steps: current.steps.map((item) =>
-                  item.id === step.id
-                    ? {
-                        ...item,
-                        status: step.status,
-                        message: step.message ?? item.message,
-                      }
-                    : item,
-                ),
-              }
-            })
-          },
-          onDiagnosticsPartial: (partial) => {
-            setThinkingDiagnostics(partial as TurnDiagnostics)
-          },
-          onDiagnostics: (diagnostics) => {
-            setThinkingDiagnostics(diagnostics)
-          },
-        },
+        streamHandlers: applyStreamHandlers(),
       })
-      setThinkingStages([])
-      setThinkingPlan(null)
-      setThinkingDiagnostics({ memories: [], tools: [], commands: [] })
-      setMessages((current) => [...current, resultMessage(result)])
+      clearThinkingState()
+      if (result.status === 'awaiting_plan_selection') {
+        setPendingPlanChoice({
+          difficulty: result.routerResult.difficulty ?? 'branched',
+          reasoningMode: result.reasoningMode || 'tot_select',
+          options: result.planOptions,
+          recommendedOptionId:
+            result.planOptions.find((item) => item.recommended)?.id ?? null,
+        })
+        setMessages((current) => {
+          const base = current.length > 0 ? current : conversation.data?.messages ?? []
+          const withoutStub = base.filter((item) => item.id !== result.messageId)
+          return [...withoutStub, resultMessage(result)]
+        })
+      } else {
+        setPendingPlanChoice(null)
+        setMessages((current) => {
+          const base = current.length > 0 ? current : conversation.data?.messages ?? []
+          // Replace awaiting stub if present (normal complete after selection uses same path).
+          const withoutStub = base.filter((item) => item.id !== result.messageId)
+          return [...withoutStub, resultMessage(result)]
+        })
+      }
       if (!conversationId) {
         navigate(`/chat/${result.conversationId}`, { replace: true })
       }
     } catch {
       setFailedQuestion(normalized)
-      setThinkingStages([])
-      setThinkingPlan(null)
-      setThinkingDiagnostics({ memories: [], tools: [], commands: [] })
+      clearThinkingState()
+    }
+  }
+
+  async function selectPlanOption(optionId: string) {
+    if (!conversationId || sendMutation.isPending) return
+    setSelectingOptionId(optionId)
+    setFailedQuestion(null)
+    clearThinkingState()
+    // Seed plan checklist from chosen option so UI shows CoT/ToT execute immediately.
+    const chosen = pendingPlanChoice?.options.find((item) => item.id === optionId)
+    if (chosen) {
+      setThinkingPlan({
+        complexity: 'multi_step',
+        difficulty: 'branched',
+        reasoningMode: 'tot_select',
+        planSource: 'user_selected',
+        steps: chosen.steps.map((step) => ({ ...step, status: step.status || 'pending' })),
+      })
+    }
+    try {
+      const result = await sendMutation.mutateAsync({
+        conversationId,
+        knowledgeBaseIds: selectedKnowledgeBases,
+        queryMode,
+        selectedOptionId: optionId,
+        streamHandlers: applyStreamHandlers(),
+      })
+      clearThinkingState()
+      setPendingPlanChoice(null)
+      setMessages((current) => {
+        const base = current.length > 0 ? current : conversation.data?.messages ?? []
+        const withoutStub = base.filter(
+          (item) =>
+            !(
+              item.role === 'assistant' &&
+              item.metadata.turnStatus === 'awaiting_plan_selection'
+            ) && item.id !== result.messageId,
+        )
+        return [...withoutStub, resultMessage(result)]
+      })
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '路径执行失败')
+      clearThinkingState()
+    } finally {
+      setSelectingOptionId(null)
+    }
+  }
+
+  async function cancelPendingPlan() {
+    if (!conversationId || sendMutation.isPending) return
+    try {
+      const result = await sendMutation.mutateAsync({
+        conversationId,
+        knowledgeBaseIds: selectedKnowledgeBases,
+        queryMode,
+        cancelPendingPlan: true,
+        streamHandlers: applyStreamHandlers(),
+      })
+      setPendingPlanChoice(null)
+      clearThinkingState()
+      setMessages((current) => {
+        const base = current.length > 0 ? current : conversation.data?.messages ?? []
+        const withoutStub = base.filter(
+          (item) =>
+            !(
+              item.role === 'assistant' &&
+              item.metadata.turnStatus === 'awaiting_plan_selection'
+            ) && item.id !== result.messageId,
+        )
+        return [...withoutStub, resultMessage(result)]
+      })
+      message.success('已取消路径选择')
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '取消失败')
     }
   }
 
@@ -558,7 +704,21 @@ export function ChatPage() {
                       item.role === 'user'
                         ? () => handleEditQuestion(item.content)
                         : undefined
-                    } />
+                    }
+                    onSelectPlanOption={
+                      item.role === 'assistant' &&
+                      item.metadata.turnStatus === 'awaiting_plan_selection'
+                        ? (optionId) => void selectPlanOption(optionId)
+                        : undefined
+                    }
+                    onCancelPendingPlan={
+                      item.role === 'assistant' &&
+                      item.metadata.turnStatus === 'awaiting_plan_selection'
+                        ? () => void cancelPendingPlan()
+                        : undefined
+                    }
+                    selectingOptionId={selectingOptionId}
+                    selectionDisabled={sendMutation.isPending} />
                 ))
               )}
 
@@ -573,7 +733,11 @@ export function ChatPage() {
                         <Lightning size={16} weight="duotone" className="chat-thinking__pulse" style={{color: palette.primary}} aria-hidden />
                         <span>思考中</span>
                         {(() => {
-                          const mode = describeExecutionMode(thinkingPlan)
+                          const mode = describeExecutionMode(
+                            thinkingPlan,
+                            selectingOptionId ? 'tot_select' : pendingPlanChoice?.reasoningMode,
+                            Boolean(selectingOptionId),
+                          )
                           return (
                             <Tag color={mode.color} title={mode.detail}>
                               {mode.label}
@@ -585,7 +749,51 @@ export function ChatPage() {
                     <ThinkingStreamPanel
                       stages={thinkingStages}
                       plan={thinkingPlan}
-                      diagnostics={thinkingDiagnostics} />
+                      diagnostics={thinkingDiagnostics}
+                      reasoningMode={
+                        selectingOptionId
+                          ? 'tot_select'
+                          : pendingPlanChoice?.reasoningMode
+                      }
+                      executingSelection={Boolean(selectingOptionId)} />
+                  </article>
+                </div>
+              ) : null}
+
+              {/* Sticky picker only when history/local messages do not already embed the awaiting stub. */}
+              {!sendMutation.isPending &&
+              pendingPlanChoice &&
+              pendingPlanChoice.options.length > 0 &&
+              !visibleMessages.some(
+                (item) =>
+                  item.role === 'assistant' &&
+                  item.metadata.turnStatus === 'awaiting_plan_selection' &&
+                  (item.metadata.planOptions?.length ?? 0) > 0,
+              ) ? (
+                <div className="chat-row chat-row--assistant">
+                  <article
+                    aria-label="选择执行路径"
+                    className="chat-bubble chat-bubble--assistant chat-bubble--thinking"
+                  >
+                    <div className="chat-bubble__title">
+                      <Space size={8} wrap>
+                        <Lightning size={16} weight="duotone" style={{ color: palette.primary }} aria-hidden />
+                        <span>ToT 选路</span>
+                        <Tag
+                          color="gold"
+                          title="多候选计划 + 用户选路，非搜索式学术 ToT"
+                        >
+                          ToT 选路·待选择
+                        </Tag>
+                      </Space>
+                    </div>
+                    <PlanOptionPicker
+                      options={pendingPlanChoice.options}
+                      recommendedOptionId={pendingPlanChoice.recommendedOptionId}
+                      loadingOptionId={selectingOptionId}
+                      disabled={sendMutation.isPending}
+                      onSelect={(optionId) => void selectPlanOption(optionId)}
+                      onCancel={() => void cancelPendingPlan()} />
                   </article>
                 </div>
               ) : null}
@@ -795,10 +1003,18 @@ function MessageCard({
   message,
   onCopy,
   onEditQuestion,
+  onSelectPlanOption,
+  onCancelPendingPlan,
+  selectingOptionId,
+  selectionDisabled,
 }: {
   message: ConversationMessage
   onCopy: () => void
   onEditQuestion?: () => void
+  onSelectPlanOption?: (optionId: string) => void
+  onCancelPendingPlan?: () => void
+  selectingOptionId?: string | null
+  selectionDisabled?: boolean
 }) {
   if (message.role === 'user') {
     return (
@@ -832,21 +1048,37 @@ function MessageCard({
     )
   }
 
+  const isAwaiting =
+    message.metadata.turnStatus === 'awaiting_plan_selection' &&
+    (message.metadata.planOptions?.length ?? 0) > 0
   const noEvidence =
+    !isAwaiting &&
     message.metadata.citations.length === 0 &&
     (message.metadata.confidenceScore === 0 ||
       message.metadata.compliance?.warnings?.includes('NO_RELIABLE_EVIDENCE') === true)
+  const reasoningBadge = describeReasoningBadge(
+    message.metadata.reasoningMode,
+    message.metadata.routerResult?.difficulty,
+    message.metadata.turnStatus,
+  )
 
   return (
     <div className="chat-row chat-row--assistant">
       <article
-        aria-label="PolicyFlow 回答"
-        className={`chat-bubble chat-bubble--assistant${noEvidence ? ' chat-bubble--warning' : ''}`}
+        aria-label={isAwaiting ? '选择执行路径' : 'PolicyFlow 回答'}
+        className={`chat-bubble chat-bubble--assistant${noEvidence ? ' chat-bubble--warning' : ''}${
+          isAwaiting ? ' chat-bubble--thinking' : ''
+        }`}
       >
         <div className="chat-bubble__title">
           <Space size={8} wrap>
             <Lightning size={16} weight="duotone" style={{color: noEvidence ? palette.warning : palette.primary}} aria-hidden />
-            <span>PolicyFlow 回答</span>
+            <span>{isAwaiting ? 'ToT 选路' : 'PolicyFlow 回答'}</span>
+            {reasoningBadge ? (
+              <Tag color={reasoningBadge.color} title={reasoningBadge.detail}>
+                {reasoningBadge.label}
+              </Tag>
+            ) : null}
             {noEvidence ? <Tag color="warning">模型参考 · 不可信</Tag> : null}
           </Space>
         </div>
@@ -865,29 +1097,45 @@ function MessageCard({
           className="chat-bubble__content chat-bubble__content--assistant"
           content={message.content} />
 
-        {noEvidence ? null : <CitationList citations={message.metadata.citations} />}
+        {isAwaiting && onSelectPlanOption ? (
+          <PlanOptionPicker
+            options={message.metadata.planOptions ?? []}
+            recommendedOptionId={
+              message.metadata.planOptions?.find((item) => item.recommended)?.id ?? null
+            }
+            loadingOptionId={selectingOptionId ?? null}
+            disabled={Boolean(selectionDisabled)}
+            onSelect={onSelectPlanOption}
+            onCancel={onCancelPendingPlan} />
+        ) : null}
 
-        <TurnDiagnosticsPanel diagnostics={message.metadata.diagnostics} />
+        {noEvidence || isAwaiting ? null : <CitationList citations={message.metadata.citations} />}
 
-        <Space wrap style={{ marginTop: 12 }}>
-          {noEvidence ? (
-            <Tag color="orange">可信度 0% · 需人工判断</Tag>
-          ) : message.metadata.confidenceScore !== null ? (
-            <Tag>可信度 {Math.round(message.metadata.confidenceScore * 100)}%</Tag>
-          ) : null}
-          {message.metadata.queryMode ? (
-            <Tag color="blue">
-              {queryModeLabels[message.metadata.queryMode] ?? message.metadata.queryMode}
-            </Tag>
-          ) : null}
-          {message.metadata.compliance?.passed ? (
-            <Tag icon={<CheckCircle size={16} weight="duotone" />} color="success">
-              合规通过
-            </Tag>
-          ) : null}
-        </Space>
+        {!isAwaiting ? (
+          <TurnDiagnosticsPanel diagnostics={message.metadata.diagnostics} />
+        ) : null}
 
-        {message.metadata.suggestedSkills.length > 0 ? (
+        {!isAwaiting ? (
+          <Space wrap style={{ marginTop: 12 }}>
+            {noEvidence ? (
+              <Tag color="orange">可信度 0% · 需人工判断</Tag>
+            ) : message.metadata.confidenceScore !== null ? (
+              <Tag>可信度 {Math.round(message.metadata.confidenceScore * 100)}%</Tag>
+            ) : null}
+            {message.metadata.queryMode ? (
+              <Tag color="blue">
+                {queryModeLabels[message.metadata.queryMode] ?? message.metadata.queryMode}
+              </Tag>
+            ) : null}
+            {message.metadata.compliance?.passed ? (
+              <Tag icon={<CheckCircle size={16} weight="duotone" />} color="success">
+                合规通过
+              </Tag>
+            ) : null}
+          </Space>
+        ) : null}
+
+        {!isAwaiting && message.metadata.suggestedSkills.length > 0 ? (
           <div className="chat-bubble__skills">
             <div className="chat-bubble__skills-title">建议能力</div>
             {message.metadata.suggestedSkills.map((skill) => (
@@ -898,16 +1146,16 @@ function MessageCard({
           </div>
         ) : null}
 
-        {message.metadata.queryLogId ? (
+        {!isAwaiting && message.metadata.queryLogId ? (
           <FeedbackActions queryLogId={message.metadata.queryLogId} />
-        ) : (
+        ) : !isAwaiting ? (
           <Typography.Text
             type="secondary"
             style={{ display: 'block', marginTop: 12, fontSize: 12 }}
           >
             当前回答缺少反馈标识，暂不能评价。
           </Typography.Text>
-        )}
+        ) : null}
 
         <div className="chat-bubble__actions chat-bubble__actions--footer">
           <Button
@@ -977,12 +1225,82 @@ function prettyJson(value: Record<string, unknown>): string {
   }
 }
 
-function describeExecutionMode(plan: ChatPlanEvent | null): {
+function describeReasoningBadge(
+  reasoningMode?: ReasoningMode | null,
+  difficulty?: string | null,
+  turnStatus?: string | null,
+): { label: string; color: string; detail: string } | null {
+  if (turnStatus === 'awaiting_plan_selection' || reasoningMode === 'tot_select') {
+    return {
+      label: turnStatus === 'awaiting_plan_selection' ? 'ToT 选路·待选择' : 'ToT 选路',
+      color: 'gold',
+      detail: '多候选计划 + 用户选路，非搜索式学术 ToT',
+    }
+  }
+  if (reasoningMode === 'cot_steps' || difficulty === 'multi_step') {
+    return {
+      label: 'CoT 分步',
+      color: 'processing',
+      detail: '单链分步计划（Plan-and-Execute）',
+    }
+  }
+  if (reasoningMode === 'cot_direct' || difficulty === 'simple') {
+    return {
+      label: 'CoT 直答',
+      color: 'default',
+      detail: '简单问答直答路径',
+    }
+  }
+  return null
+}
+
+function describeExecutionMode(
+  plan: ChatPlanEvent | null,
+  reasoningMode?: ReasoningMode | null,
+  executingSelection = false,
+): {
   label: string
   color: string
   detail: string
 } {
+  const mode = reasoningMode || plan?.reasoningMode
+  const difficulty = plan?.difficulty
+
+  if (executingSelection || (mode === 'tot_select' && plan?.planSource === 'user_selected')) {
+    const steps = plan?.steps ?? []
+    const waves =
+      plan?.waves && plan.waves.length > 0 ? plan.waves : inferWavesFromSteps(steps)
+    const hasParallelWave = waves.some((wave) => wave.length > 1)
+    if (hasParallelWave || plan?.parallelUsed) {
+      return {
+        label: 'ToT 选路·并行执行',
+        color: 'gold',
+        detail: '用户已选路径，按依赖波次并行执行（非学术 ToT 搜索）',
+      }
+    }
+    return {
+      label: 'ToT 选路·执行中',
+      color: 'gold',
+      detail: '用户已选路径，按选定步骤执行（非学术 ToT 搜索）',
+    }
+  }
+
+  if (mode === 'tot_select' || difficulty === 'branched') {
+    return {
+      label: 'ToT 选路·待选择',
+      color: 'gold',
+      detail: '多候选计划 + 用户选路，非搜索式学术 ToT',
+    }
+  }
+
   if (!plan || !plan.steps?.length) {
+    if (mode === 'cot_direct') {
+      return {
+        label: 'CoT 直答',
+        color: 'default',
+        detail: '简单问答直答路径',
+      }
+    }
     return {
       label: '流式阶段',
       color: 'processing',
@@ -1007,7 +1325,7 @@ function describeExecutionMode(plan: ChatPlanEvent | null): {
       concurrentRunning ? running.length : 1,
     )
     return {
-      label: concurrentRunning ? '并行执行中' : '计划并行',
+      label: concurrentRunning ? 'CoT 分步·并行中' : 'CoT 分步·并行',
       color: 'blue',
       detail:
         parallelWaveSize > 1
@@ -1016,17 +1334,17 @@ function describeExecutionMode(plan: ChatPlanEvent | null): {
     }
   }
 
-  if (isL2 || plan.complexity === 'multi_step') {
+  if (isL2 || plan.complexity === 'multi_step' || mode === 'cot_steps') {
     return {
-      label: isL2 ? '分步执行' : '计划串行',
+      label: 'CoT 分步',
       color: 'processing',
       detail: `按依赖顺序执行 ${steps.length} 步`,
     }
   }
 
   return {
-    label: '流式阶段',
-    color: 'processing',
+    label: 'CoT 直答',
+    color: 'default',
     detail: '记忆 → 路由 → 检索 → 回答',
   }
 }
@@ -1070,20 +1388,122 @@ function planStatusColor(status: string): string {
   return 'default'
 }
 
+function PlanOptionPicker({
+  options,
+  recommendedOptionId,
+  loadingOptionId,
+  disabled,
+  onSelect,
+  onCancel,
+}: {
+  options: PlanOption[]
+  recommendedOptionId?: string | null
+  loadingOptionId?: string | null
+  disabled?: boolean
+  onSelect: (optionId: string) => void
+  onCancel?: () => void
+}) {
+  if (!options.length) return null
+  return (
+    <div className="chat-thinking__options" aria-label="候选执行路径">
+      <div className="chat-thinking__options-title">
+        <strong>请选择一条执行路径</strong>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          多候选计划 + 用户选路（非搜索式学术 ToT）
+        </Typography.Text>
+      </div>
+      <div className="chat-thinking__option-list">
+        {options.map((option) => {
+          const recommended =
+            option.recommended || option.id === recommendedOptionId
+          return (
+            <div
+              key={option.id}
+              className={`chat-thinking__option-card${
+                recommended ? ' chat-thinking__option-card--recommended' : ''
+              }`}
+            >
+              <div className="chat-thinking__option-head">
+                <strong>{option.title}</strong>
+                {recommended ? <Tag color="gold">推荐</Tag> : null}
+                <Tag>{option.steps.length} 步</Tag>
+              </div>
+              {option.summary ? (
+                <Typography.Paragraph
+                  type="secondary"
+                  style={{ marginBottom: 8, fontSize: 13 }}
+                >
+                  {option.summary}
+                </Typography.Paragraph>
+              ) : null}
+              {option.tradeoffs.length > 0 ? (
+                <ul className="chat-thinking__option-tradeoffs">
+                  {option.tradeoffs.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              ) : null}
+              {option.steps.length > 0 ? (
+                <ol className="chat-thinking__option-steps">
+                  {option.steps.map((step, index) => (
+                    <li key={step.id}>
+                      <span className="chat-thinking__plan-index">{index + 1}</span>
+                      <span>{step.title}</span>
+                      {step.kind ? <Tag>{step.kind}</Tag> : null}
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
+              <div className="chat-thinking__option-actions">
+                <Button
+                  type={recommended ? 'primary' : 'default'}
+                  size="small"
+                  loading={loadingOptionId === option.id}
+                  disabled={Boolean(disabled) || Boolean(loadingOptionId)}
+                  onClick={() => onSelect(option.id)}
+                >
+                  选择此路径
+                </Button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {onCancel ? (
+        <div className="chat-thinking__options-footer">
+          <Button
+            type="text"
+            size="small"
+            danger
+            disabled={Boolean(disabled) || Boolean(loadingOptionId)}
+            onClick={onCancel}
+          >
+            取消选路
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function ThinkingStreamPanel({
   stages,
   plan,
   diagnostics,
+  reasoningMode,
+  executingSelection = false,
 }: {
   stages: ChatStageEvent[]
   plan: ChatPlanEvent | null
   diagnostics: TurnDiagnostics
+  reasoningMode?: ReasoningMode | null
+  executingSelection?: boolean
 }) {
   const memoryCount = diagnostics.memories.length
   const toolCount = diagnostics.tools.length
   const commandCount = Math.max(diagnostics.commands.length, stages.length)
   const planSteps = plan?.steps ?? []
-  const mode = describeExecutionMode(plan)
+  const mode = describeExecutionMode(plan, reasoningMode, executingSelection)
   const waves =
     plan?.waves && plan.waves.length > 0
       ? plan.waves
@@ -1108,7 +1528,7 @@ function ThinkingStreamPanel({
             {plan?.planSource ? ` · ${plan.planSource}` : ''}
           </Tag>
         ) : null}
-        <Tag color={mode.color}>{mode.label}</Tag>
+        <Tag color={mode.color} title={mode.detail}>{mode.label}</Tag>
       </div>
 
       {planSteps.length > 0 ? (
