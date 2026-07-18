@@ -1,8 +1,7 @@
-import { PlusOutlined } from '@ant-design/icons'
+import { FileTextOutlined, PlusOutlined } from '@ant-design/icons'
 import {
   Button,
   Card,
-  Empty,
   Form,
   Input,
   Modal,
@@ -11,7 +10,7 @@ import {
   Tag,
   Typography,
 } from 'antd'
-import { LoadingState } from '../../components/feedback/state-views'
+import { EmptyState, ErrorState, LoadingState } from '../../components/feedback/state-views'
 import type { ColumnsType } from 'antd/es/table'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
@@ -150,6 +149,13 @@ export function DraftListPage() {
         <Card className="pf-table-card" styles={{ body: { padding: '4px 8px 8px' } }}>
           {query.isPending ? (
             <LoadingState message="正在加载草稿…" minH="min-h-48" />
+          ) : query.isError ? (
+            <ErrorState
+              error={query.error}
+              onRetry={() => void query.refetch()}
+              title="草稿列表加载失败"
+              minH="min-h-48"
+            />
           ) : (
             <Table
               size="middle"
@@ -158,12 +164,21 @@ export function DraftListPage() {
               dataSource={query.data?.items ?? []}
               locale={{
                 emptyText: (
-                  <Empty
-                    description={
-                      query.isError
-                        ? query.error.message
-                        : '还没有符合条件的草稿'
+                  <EmptyState
+                    icon={<FileTextOutlined style={{ fontSize: 18 }} />}
+                    title={status || draftType ? '没有符合条件的草稿' : '还没有草稿'}
+                    hint={
+                      status || draftType
+                        ? '试试清空筛选，或新建一份草稿。'
+                        : '创建草稿后可继续编辑，确认后变为只读。'
                     }
+                    action={
+                      <Button type="primary" size="small" onClick={() => setCreateOpen(true)}>
+                        <PlusOutlined aria-hidden />
+                        创建草稿
+                      </Button>
+                    }
+                    minH="min-h-48"
                   />
                 ),
               }}

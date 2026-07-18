@@ -1,11 +1,10 @@
-import { CopyOutlined, SearchOutlined } from '@ant-design/icons'
+import { AuditOutlined, CopyOutlined, SearchOutlined } from '@ant-design/icons'
 import {
   Button,
   Card,
   Collapse,
   DatePicker,
   Descriptions,
-  Empty,
   Input,
   Modal,
   Select,
@@ -21,7 +20,7 @@ import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { AuditLog } from '../../api/audit'
 import { Alert } from '../../components/feedback/alert'
-import { LoadingState } from '../../components/feedback/state-views'
+import { EmptyState, ErrorState, LoadingState } from '../../components/feedback/state-views'
 import { useAuditLogQuery, useAuditLogsQuery } from './queries'
 
 const { RangePicker } = DatePicker
@@ -258,13 +257,12 @@ export function AuditPage() {
 
       <Card className="pf-table-card" styles={{ body: { padding: '4px 8px 8px' } }}>
         {query.isError ? (
-          <Alert
-            tone="danger"
+          <ErrorState
+            error={query.error}
+            onRetry={() => void query.refetch()}
             title="审计日志加载失败"
-            action={<Button onClick={() => void query.refetch()}>重新加载</Button>}
-          >
-            <p>{query.error.message}</p>
-          </Alert>
+            minH="min-h-48"
+          />
         ) : (
           <Table
             size="middle"
@@ -272,7 +270,16 @@ export function AuditPage() {
             loading={query.isPending}
             columns={columns}
             dataSource={query.data?.items ?? []}
-            locale={{ emptyText: <Empty description="没有符合条件的审计记录" /> }}
+            locale={{
+              emptyText: (
+                <EmptyState
+                  icon={<AuditOutlined style={{ fontSize: 18 }} />}
+                  title="没有符合条件的审计记录"
+                  hint="调整动作、目标类型或时间范围后再试。"
+                  minH="min-h-48"
+                />
+              ),
+            }}
             pagination={{
               current: page,
               pageSize,
