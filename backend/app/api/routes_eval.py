@@ -14,6 +14,8 @@ from backend.app.db.models import User
 from backend.app.schemas.eval import (
     EvalCaseCreate,
     EvalCaseRead,
+    EvalCleanupRequest,
+    EvalCleanupResult,
     EvalRunCreate,
     EvalRunListResponse,
     EvalRunRead,
@@ -28,6 +30,7 @@ from backend.app.services.eval_dataset_import import (
     import_crud_dataset,
 )
 from backend.app.services.eval_service import (
+    cleanup_eval_dataset,
     create_eval_case,
     create_eval_run,
     create_retrieval_item,
@@ -85,6 +88,19 @@ def get_retrieval_items(
     enabled: bool | None = None,
 ) -> list[RetrievalEvalItemRead]:
     return list_retrieval_items(session, enabled)
+
+
+@router.post(
+    "/datasets/cleanup",
+    response_model=EvalCleanupResult,
+)
+def post_eval_cleanup(
+    session: SessionDep,
+    _: EvalAdmin,
+    data: EvalCleanupRequest | None = None,
+) -> EvalCleanupResult:
+    """Delete stale gold items, disable non-eval_test items, purge soft-deleted docs."""
+    return cleanup_eval_dataset(session, data)
 
 
 @router.post(

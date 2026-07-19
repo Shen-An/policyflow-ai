@@ -27,6 +27,7 @@ import { palette } from '../../styles/palette'
 import { useKnowledgeBasesQuery } from '../knowledge-bases/queries'
 import { confirmAction } from '../../lib/confirm'
 import {
+  useCleanupEvalDatasetMutation,
   useCreateEvalCaseMutation,
   useCreateEvalRunMutation,
   useCreateRetrievalItemMutation,
@@ -222,6 +223,7 @@ export function EvaluationPage() {
 function CrudImportSection() {
   const knowledgeBases = useKnowledgeBasesQuery()
   const importMutation = useImportCrudDatasetMutation()
+  const cleanupMutation = useCleanupEvalDatasetMutation()
   const [form] = Form.useForm()
 
   const evalTestKb = (knowledgeBases.data ?? []).find(
@@ -238,6 +240,7 @@ function CrudImportSection() {
     <Card title="1. 导入测试语料">
       <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 16 }}>
         导入到专用「测试库」(code=eval_test)，避免污染业务库。建议先 50 问 + 干扰文档 ≥200；索引在后台排队。
+        跑 Run 前若 scope 混入业务库或出现 stale gold，先点「清理脏用例」。
       </Typography.Paragraph>
       <Form
         form={form}
@@ -356,14 +359,37 @@ function CrudImportSection() {
             title="正在导入…"
             description="写入测试库与评估用例；索引会在后台继续，不会卡住本页。" />
         ) : null}
-        <Button
-          type="primary"
-          htmlType="submit"
-          autoInsertSpace={false}
-          loading={importMutation.isPending}
-        >
-          {importMutation.isPending ? '导入中…' : '导入到测试库'}
-        </Button>
+        <Space wrap>
+          <Button
+            type="primary"
+            htmlType="submit"
+            autoInsertSpace={false}
+            loading={importMutation.isPending}
+          >
+            {importMutation.isPending ? '导入中…' : '导入到测试库'}
+          </Button>
+          <Button
+            autoInsertSpace={false}
+            loading={cleanupMutation.isPending}
+            onClick={() => {
+              confirmAction({
+                title: '清理脏评测用例？',
+                content:
+                  '将删除 stale gold（金标文档已删/空）检索用例、禁用非「测试库」用例，并物理清除软删除文档。清理后请重新「随机 50」再跑 Run。',
+                okText: '清理',
+                cancelText: '取消',
+                onOk: async () => {
+                  const result = await cleanupMutation.mutateAsync({})
+                  message.success(
+                    `已清理：stale ${result.staleItemsDeleted}，禁用非测试库 ${result.nonEvalItemsDisabled}，清除文档 ${result.deletedDocumentsPurged}；可用 eval_test ${result.evalTestEnabledItems} 条`,
+                  )
+                },
+              })
+            }}
+          >
+            清理脏用例
+          </Button>
+        </Space>
         {importMutation.isError ? (
           <Alert
             type="error"
@@ -382,6 +408,25 @@ function CrudImportSection() {
               importMutation.data.warning ||
               '索引完成后，在下方启动检索 Run 查看 Hit@K / MRR。'
             } />
+        ) : null}
+        {cleanupMutation.isError ? (
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginTop: 12 }}
+            title={cleanupMutation.error.message} />
+        ) : null}
+        {cleanupMutation.isSuccess ? (
+          <Alert
+            type={
+              cleanupMutation.data.remainingStaleEnabledItems > 0
+                ? 'warning'
+                : 'success'
+            }
+            showIcon
+            style={{ marginTop: 12 }}
+            title={`清理完成：stale −${cleanupMutation.data.staleItemsDeleted}，禁用非测试库 ${cleanupMutation.data.nonEvalItemsDisabled}，回答用例禁用 ${cleanupMutation.data.evalCasesDisabled}，软删文档清除 ${cleanupMutation.data.deletedDocumentsPurged}`}
+            description={`剩余 enabled ${cleanupMutation.data.remainingEnabledItems}（其中 stale ${cleanupMutation.data.remainingStaleEnabledItems}）；健康 eval_test ${cleanupMutation.data.evalTestEnabledItems} 条，可直接随机抽样。`} />
         ) : null}
       </Form>
     </Card>
@@ -709,7 +754,7 @@ function RunSection({
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <Card title="2. 启动检索评估">
         <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 16 }}>
-          默认只跑检索 Hit@K / MRR。点「随机 50」后启动即可；策略对比与回答评估放在高级选项。
+          默认只跑检索 Hit@K / MRR。列表仅含 enabled 用例（清理后应为纯测试库）。点「随机 50」后启动即可；策略对比与回答评估放在高级选项。
         </Typography.Paragraph>
         <Form
           form={form}

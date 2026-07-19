@@ -327,12 +327,18 @@ def _purge_document_row(
         session.add(faq)
 
     # JSON references in retrieval eval items — scrub document ids.
+    # Empty-gold items become unusable (stale); delete them so random-N
+    # sampling cannot pick guaranteed misses after document purge.
     eval_items = session.exec(select(RetrievalEvalItem)).all()
     for item in eval_items:
         relevant = list(item.relevant_document_ids or [])
         if document_id not in relevant:
             continue
-        item.relevant_document_ids = [value for value in relevant if value != document_id]
+        remaining = [value for value in relevant if value != document_id]
+        if not remaining:
+            session.delete(item)
+            continue
+        item.relevant_document_ids = remaining
         session.add(item)
 
     session.delete(document)

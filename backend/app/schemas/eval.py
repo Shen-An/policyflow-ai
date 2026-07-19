@@ -121,6 +121,28 @@ class EvalRunScopeSummary(BaseModel):
     label: str | None = None
 
 
+class EvalCleanupRequest(BaseModel):
+    """Hygiene pass before resume-credible Hit@K runs."""
+
+    delete_stale_items: bool = True
+    disable_non_eval_test_items: bool = True
+    purge_deleted_documents: bool = True
+    knowledge_base_code: str = Field(
+        default="eval_test",
+        description="Sandbox KB code treated as the only enabled retrieval scope",
+    )
+
+
+class EvalCleanupResult(BaseModel):
+    stale_items_deleted: int = 0
+    non_eval_items_disabled: int = 0
+    eval_cases_disabled: int = 0
+    deleted_documents_purged: int = 0
+    remaining_enabled_items: int = 0
+    remaining_stale_enabled_items: int = 0
+    eval_test_enabled_items: int = 0
+
+
 class EvalRunRead(BaseModel):
     id: str
     name: str

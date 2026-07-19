@@ -250,9 +250,64 @@ export async function createEvalCase(input: {
   }))
 }
 
-export const listRetrievalItems = async (signal?: AbortSignal) =>
-  (await apiClient.request<RetrievalRaw[]>('/api/eval/retrieval-items', { signal }))
-    .map(toRetrieval)
+export const listRetrievalItems = async (
+  signal?: AbortSignal,
+  enabled?: boolean,
+) => {
+  const search = new URLSearchParams()
+  if (enabled !== undefined) search.set('enabled', String(enabled))
+  const qs = search.toString()
+  return (
+    await apiClient.request<RetrievalRaw[]>(
+      `/api/eval/retrieval-items${qs ? `?${qs}` : ''}`,
+      { signal },
+    )
+  ).map(toRetrieval)
+}
+
+export type EvalCleanupResult = {
+  staleItemsDeleted: number
+  nonEvalItemsDisabled: number
+  evalCasesDisabled: number
+  deletedDocumentsPurged: number
+  remainingEnabledItems: number
+  remainingStaleEnabledItems: number
+  evalTestEnabledItems: number
+}
+
+export async function cleanupEvalDataset(input?: {
+  deleteStaleItems?: boolean
+  disableNonEvalTestItems?: boolean
+  purgeDeletedDocuments?: boolean
+  knowledgeBaseCode?: string
+}): Promise<EvalCleanupResult> {
+  const raw = await apiClient.request<{
+    stale_items_deleted: number
+    non_eval_items_disabled: number
+    eval_cases_disabled: number
+    deleted_documents_purged: number
+    remaining_enabled_items: number
+    remaining_stale_enabled_items: number
+    eval_test_enabled_items: number
+  }>('/api/eval/datasets/cleanup', {
+    method: 'POST',
+    body: JSON.stringify({
+      delete_stale_items: input?.deleteStaleItems ?? true,
+      disable_non_eval_test_items: input?.disableNonEvalTestItems ?? true,
+      purge_deleted_documents: input?.purgeDeletedDocuments ?? true,
+      knowledge_base_code: input?.knowledgeBaseCode ?? 'eval_test',
+    }),
+  })
+  return {
+    staleItemsDeleted: raw.stale_items_deleted,
+    nonEvalItemsDisabled: raw.non_eval_items_disabled,
+    evalCasesDisabled: raw.eval_cases_disabled,
+    deletedDocumentsPurged: raw.deleted_documents_purged,
+    remainingEnabledItems: raw.remaining_enabled_items,
+    remainingStaleEnabledItems: raw.remaining_stale_enabled_items,
+    evalTestEnabledItems: raw.eval_test_enabled_items,
+  }
+}
 
 export async function createRetrievalItem(input: {
   evalCaseId?: string

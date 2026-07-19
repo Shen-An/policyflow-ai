@@ -21,6 +21,8 @@ from backend.app.evals.eval_runner import EvalRunner
 from backend.app.schemas.eval import (
     EvalCaseCreate,
     EvalCaseRead,
+    EvalCleanupRequest,
+    EvalCleanupResult,
     EvalResultRead,
     EvalRunCreate,
     EvalRunListResponse,
@@ -112,6 +114,117 @@ def list_retrieval_items(
         RetrievalEvalItemRead.model_validate(item.model_dump())
         for item in session.exec(statement).all()
     ]
+
+
+def _document_status_map(session: Session) -> dict[str, str | None]:
+    return {
+        row.id: row.index_status
+        for row in session.exec(select(KnowledgeDocument)).all()
+    }
+
+
+def _is_stale_retrieval_item(
+    item: RetrievalEvalItem,
+    gold_status: dict[str, str | None],
+) -> bool:
+    golds = [str(value) for value in (item.relevant_document_ids or []) if value]
+    if not golds:
+        return True
+    return any(gold_status.get(document_id) in (None, "deleted") for document_id in golds)
+
+
+def cleanup_eval_dataset(
+    session: Session,
+    data: EvalCleanupRequest | None = None,
+) -> EvalCleanupResult:
+    """Delete stale gold items, disable non-sandbox items, purge soft-deleted docs.
+
+    Keeps resume eval sampling on healthy eval_test items only.
+    """
+    request = data or EvalCleanupRequest()
+    gold_status = _document_status_map(session)
+    kb_by_id = {
+        row.id: row for row in session.exec(select(KnowledgeBase)).all()
+    }
+    sandbox = next(
+        (kb for kb in kb_by_id.values() if kb.code == request.knowledge_base_code),
+        None,
+    )
+    sandbox_id = sandbox.id if sandbox is not None else None
+
+    stale_items_deleted = 0
+    non_eval_items_disabled = 0
+    eval_cases_disabled = 0
+    deleted_documents_purged = 0
+
+    items = list(session.exec(select(RetrievalEvalItem)).all())
+    for item in items:
+        if request.delete_stale_items and _is_stale_retrieval_item(item, gold_status):
+            session.delete(item)
+            stale_items_deleted += 1
+            continue
+
+        if not request.disable_non_eval_test_items or sandbox_id is None:
+            continue
+
+        item_kb_ids = [str(value) for value in (item.knowledge_base_ids or []) if value]
+        only_sandbox = item_kb_ids == [sandbox_id]
+        if only_sandbox:
+            continue
+        if item.enabled:
+            item.enabled = False
+            session.add(item)
+            non_eval_items_disabled += 1
+
+    if request.disable_non_eval_test_items and request.knowledge_base_code:
+        cases = list(session.exec(select(EvalCase)).all())
+        for case in cases:
+            if case.category == request.knowledge_base_code:
+                continue
+            if case.enabled:
+                case.enabled = False
+                session.add(case)
+                eval_cases_disabled += 1
+
+    if request.purge_deleted_documents:
+        from backend.app.services.document_service import _purge_document_row
+
+        deleted_docs = list(
+            session.exec(
+                select(KnowledgeDocument).where(KnowledgeDocument.index_status == "deleted")
+            ).all()
+        )
+        for document in deleted_docs:
+            _purge_document_row(session, document)
+            deleted_documents_purged += 1
+
+    session.commit()
+
+    gold_status = _document_status_map(session)
+    remaining = list(session.exec(select(RetrievalEvalItem)).all())
+    enabled_items = [item for item in remaining if item.enabled]
+    remaining_stale = sum(
+        1 for item in enabled_items if _is_stale_retrieval_item(item, gold_status)
+    )
+    eval_test_enabled = 0
+    if sandbox_id is not None:
+        eval_test_enabled = sum(
+            1
+            for item in enabled_items
+            if [str(value) for value in (item.knowledge_base_ids or []) if value]
+            == [sandbox_id]
+            and not _is_stale_retrieval_item(item, gold_status)
+        )
+
+    return EvalCleanupResult(
+        stale_items_deleted=stale_items_deleted,
+        non_eval_items_disabled=non_eval_items_disabled,
+        eval_cases_disabled=eval_cases_disabled,
+        deleted_documents_purged=deleted_documents_purged,
+        remaining_enabled_items=len(enabled_items),
+        remaining_stale_enabled_items=remaining_stale,
+        eval_test_enabled_items=eval_test_enabled,
+    )
 
 
 def _selected_retrieval_items(

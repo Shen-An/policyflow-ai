@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  cleanupEvalDataset,
   createEvalCase,
   createEvalRun,
   createRetrievalItem,
@@ -25,10 +26,10 @@ export const evalKeys = {
 export const useEvalCasesQuery = () =>
   useQuery({ queryKey: evalKeys.cases(), queryFn: ({ signal }) => listEvalCases(signal) })
 
-export const useRetrievalItemsQuery = () =>
+export const useRetrievalItemsQuery = (enabledOnly = true) =>
   useQuery({
-    queryKey: evalKeys.retrievalItems(),
-    queryFn: ({ signal }) => listRetrievalItems(signal),
+    queryKey: [...evalKeys.retrievalItems(), { enabledOnly }] as const,
+    queryFn: ({ signal }) => listRetrievalItems(signal, enabledOnly ? true : undefined),
   })
 
 export const useEvalRunsQuery = (page: number, pageSize: number, status: string) =>
@@ -76,6 +77,20 @@ export function useImportCrudDatasetMutation() {
         queryClient.invalidateQueries({ queryKey: evalKeys.cases() }),
         queryClient.invalidateQueries({ queryKey: evalKeys.retrievalItems() }),
         // Refresh KB list so 测试库 document counts / presence update.
+        queryClient.invalidateQueries({ queryKey: ['knowledge-bases'] }),
+      ])
+    },
+  })
+}
+
+export function useCleanupEvalDatasetMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: cleanupEvalDataset,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: evalKeys.cases() }),
+        queryClient.invalidateQueries({ queryKey: evalKeys.retrievalItems() }),
         queryClient.invalidateQueries({ queryKey: ['knowledge-bases'] }),
       ])
     },
