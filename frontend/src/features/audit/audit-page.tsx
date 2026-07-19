@@ -21,6 +21,7 @@ import { useSearchParams } from 'react-router-dom'
 import type { AuditLog } from '../../api/audit'
 import { Alert } from '../../components/feedback/alert'
 import { EmptyState, ErrorState, LoadingState } from '../../components/feedback/state-views'
+import { formatDateTime } from '../../lib/datetime'
 import { useAuditLogQuery, useAuditLogsQuery } from './queries'
 
 const { RangePicker } = DatePicker
@@ -144,13 +145,17 @@ export function AuditPage() {
       dataIndex: 'createdAt',
       width: 170,
       render: (value: string) =>
-        new Intl.DateTimeFormat('zh-CN', {
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        }).format(new Date(value)),
+        formatDateTime(
+          value,
+          {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          },
+          value,
+        ),
     },
     {
       title: '操作者',
@@ -327,7 +332,7 @@ function AuditDetailModal({ id, onClose }: { id: string; onClose: () => void }) 
             </Descriptions.Item>
             <Descriptions.Item label="IP">{query.data.ipAddress ?? '—'}</Descriptions.Item>
             <Descriptions.Item label="时间">
-              {new Date(query.data.createdAt).toLocaleString('zh-CN')}
+              {formatDateTime(query.data.createdAt, undefined, query.data.createdAt)}
             </Descriptions.Item>
             <Descriptions.Item label="Request ID" span={2}>
               <Space>

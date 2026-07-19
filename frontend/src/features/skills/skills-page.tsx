@@ -21,8 +21,9 @@ import { useSearchParams } from 'react-router-dom'
 import type { Skill } from '../../api/skills'
 import type { ToolCallLog } from '../../api/tools'
 import { LoadingState } from '../../components/feedback/state-views'
-import { skillRiskLabel, toolLogStatusLabel } from '../../lib/labels'
 import { confirmAction } from '../../lib/confirm'
+import { formatDateTime } from '../../lib/datetime'
+import { skillRiskLabel, toolLogStatusLabel } from '../../lib/labels'
 import {
   useRunSkillMutation,
   useSetSkillEnabledMutation,
@@ -38,10 +39,7 @@ function positiveInt(value: string | null, fallback: number): number {
 }
 
 function formatDate(value: string): string {
-  return new Intl.DateTimeFormat('zh-CN', {
-    dateStyle: 'short',
-    timeStyle: 'medium',
-  }).format(new Date(value))
+  return formatDateTime(value, { dateStyle: 'short', timeStyle: 'medium' }, value)
 }
 
 export function SkillsPage() {

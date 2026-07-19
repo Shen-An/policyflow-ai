@@ -17,6 +17,7 @@ import type { MemoryItem } from '../../api/memory'
 import { EmptyState, ErrorState, LoadingState } from '../../components/feedback/state-views'
 import { MarkdownContent } from '../../components/markdown/markdown-content'
 import { confirmAction } from '../../lib/confirm'
+import { formatDateTime } from '../../lib/datetime'
 import { useDeleteMemoryMutation, useMemoriesQuery } from './queries'
 
 const typeOptions = [
@@ -41,12 +42,6 @@ const typeMeta: Record<string, { label: string; color: string }> = {
 function positiveInt(value: string | null, fallback: number): number {
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback
-}
-
-function formatTime(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
 }
 
 export function MemoryPage() {
@@ -124,7 +119,7 @@ export function MemoryPage() {
         title: '更新时间',
         dataIndex: 'updatedAt',
         width: 170,
-        render: (value: string) => formatTime(value),
+        render: (value: string) => formatDateTime(value, undefined, value),
       },
       {
         title: '操作',

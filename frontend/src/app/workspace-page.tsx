@@ -16,6 +16,7 @@ import { conversationKeys } from '../features/chat/queries'
 import { draftKeys } from '../features/drafts/queries'
 import { evalKeys } from '../features/evaluation/queries'
 import { knowledgeBaseKeys } from '../features/knowledge-bases/queries'
+import { formatRelativeTime, parseApiDate } from '../lib/datetime'
 import { palette } from '../styles/palette'
 
 const { Title, Paragraph, Text } = Typography
@@ -26,23 +27,6 @@ type ActivityItem = {
   detail: string
   time: string
   href?: string
-}
-
-function formatRelativeTime(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  const diffMs = Date.now() - date.getTime()
-  const minutes = Math.floor(diffMs / 60_000)
-  if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes} 分钟前`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} 小时前`
-  const days = Math.floor(hours / 24)
-  if (days < 7) return `${days} 天前`
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date)
 }
 
 function useHealthQuery() {
@@ -138,7 +122,7 @@ export function WorkspacePage() {
     }
   }
   activityItems.sort(
-    (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
+    (a, b) => (parseApiDate(b.time)?.getTime() ?? 0) - (parseApiDate(a.time)?.getTime() ?? 0),
   )
   const recentActivity = activityItems.slice(0, 6)
 
