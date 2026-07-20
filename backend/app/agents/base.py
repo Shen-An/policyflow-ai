@@ -7,6 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from backend.app.schemas.chat import ComplianceResult, PlanOption, PlanStep, RouterResult
+from backend.app.schemas.reflection import ReflectionResult
 from backend.app.schemas.retrieval import RetrievalResult
 
 
@@ -61,6 +62,8 @@ class TurnState(BaseModel):
     suggested_skills: list[dict[str, str]] = Field(default_factory=list)
     answer_result: AnswerResult | None = None
     compliance: ComplianceResult | None = None
+    # Optional Critique→Improve closed-loop snapshot (high-stakes turns only).
+    reflection: ReflectionResult | None = None
     errors: list[TurnError] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     waves: list[list[str]] = Field(default_factory=list)
@@ -148,6 +151,7 @@ class TurnState(BaseModel):
             plan_options=list(self.plan_options),
             reasoning_mode=self.reasoning_mode,
             errors=list(self.errors),
+            reflection=self.reflection,
             turn_state=self,
         )
 
@@ -166,5 +170,7 @@ class PipelineResult(BaseModel):
     reasoning_mode: ReasoningMode = "cot_direct"
     # Centralized error ledger (also mirrored on TurnState when present).
     errors: list[TurnError] = Field(default_factory=list)
+    # Optional Critique→Improve loop result (high-stakes only; may be skipped).
+    reflection: ReflectionResult | None = None
     # Optional full blackboard snapshot for diagnostics / resume inspection.
     turn_state: TurnState | None = None

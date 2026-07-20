@@ -16,8 +16,11 @@ from starlette.responses import Response
 
 from backend.app.agents.answer_agent import AnswerAgent
 from backend.app.agents.compliance_agent import ComplianceAgent
+from backend.app.agents.critique_agent import CritiqueAgent
+from backend.app.agents.improve_agent import ImproveAgent
 from backend.app.agents.memory_agent import MemoryAgent
 from backend.app.agents.pipeline import AgentPipeline
+from backend.app.agents.reflection_loop import ReflectionLoop
 from backend.app.agents.retrieval_agent import RetrievalAgent
 from backend.app.agents.router_agent import RouterAgent
 from backend.app.agents.skill_agent import SkillAgent
@@ -103,6 +106,11 @@ def create_app(
     tool_registry.register("memory.read", memory_read_tool)
     tool_registry.register("memory.write", memory_write_tool)
     tool_registry.register("mcp.call", mcp_call_tool(mcp_manager))
+    reflection_loop = ReflectionLoop(
+        CritiqueAgent(language_model, app_settings),
+        ImproveAgent(language_model, app_settings),
+        app_settings,
+    )
     pipeline = AgentPipeline(
         RouterAgent(language_model),
         RetrievalAgent(rag_service),
@@ -110,6 +118,7 @@ def create_app(
         SkillAgent(skill_registry),
         ComplianceAgent(app_settings),
         app_settings,
+        reflection_loop=reflection_loop,
     )
     memory_agent = MemoryAgent(
         app_settings,
