@@ -36,6 +36,10 @@
 | 物理冷归档 messages | **不做**（本阶段） |
 | cross-encoder | **不做**（默认） |
 | 群聊式 multi-agent | **不做** |
+| 静态拓扑 + 中心化 Supervisor | 已做 |
+| 正式 TurnState 黑板 + errors[] | **已做**（单轮请求内；非分布式状态机） |
+| 错误集中写入（步骤/检索/Skill/合规） | **已做**（写入 ledger + diagnostics；非静默吞错） |
+| peer 消息总线 / actor 系统 | **不做** |
 | RAGAS | 可选，非主指标 |
 | 硬删知识库/文档 | 已做（含关联清理意图） |
 
