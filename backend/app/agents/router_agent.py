@@ -6,9 +6,10 @@ import json
 import re
 from typing import Any
 
+from backend.app.agents.plan_normalize import should_be_multi_step
 from backend.app.db.models import KnowledgeBase
 from backend.app.rag.protocols import LLMService
-from backend.app.schemas.chat import RouterResult
+from backend.app.schemas.chat import PlanStep, RouterResult
 
 _VALID_TASK_TYPES = {
     "knowledge_qa",
@@ -19,6 +20,8 @@ _VALID_TASK_TYPES = {
     "other",
 }
 _VALID_RISK = {"low", "medium", "high"}
+_VALID_COMPLEXITY = {"simple", "multi_step"}
+_VALID_PLAN_KINDS = {"retrieve", "skill", "answer", "tool", "verify"}
 _SKILL_TASKS = {"process_checklist", "policy_compare", "summary"}
 
 
@@ -60,14 +63,21 @@ def _heuristic_route(question: str, knowledge_bases: list[KnowledgeBase]) -> Rou
     if task_type == "draft" or any(term in lowered for term in ("草稿", "邮件")):
         tool_hints.append("draft.create")
 
-    return RouterResult(
+    provisional = RouterResult(
         domain=domain,
         task_type=task_type,
         risk_level=risk_level,
         need_skill=need_skill,
         tool_hints=sorted(set(tool_hints)),
         rewrite_query=None,
+        complexity="simple",
+        plan_steps=[],
+        plan_source="none",
     )
+    # Light complexity hint only; normalize_plan finalizes steps.
+    if should_be_multi_step(question, provisional):
+        provisional = provisional.model_copy(update={"complexity": "multi_step"})
+    return provisional
 
 
 def _parse_router_json(text: str) -> dict[str, Any] | None:
@@ -100,6 +110,50 @@ def _coerce_bool(value: Any, default: bool) -> bool:
     return default
 
 
+def _coerce_plan_steps(raw: Any) -> list[PlanStep]:
+    if not isinstance(raw, list):
+        return []
+    steps: list[PlanStep] = []
+    for idx, item in enumerate(raw, start=1):
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or item.get("name") or "").strip()
+        if not title:
+            continue
+        kind = str(item.get("kind") or item.get("type") or "retrieve").strip().lower()
+        if kind not in _VALID_PLAN_KINDS:
+            kind = "retrieve"
+        sid = str(item.get("id") or f"s{idx}").strip() or f"s{idx}"
+        query = item.get("query")
+        query_s = str(query).strip()[:4000] if isinstance(query, str) and query.strip() else None
+        skill_hint = item.get("skill_hint") or item.get("skill")
+        skill_s = (
+            str(skill_hint).strip()[:64]
+            if isinstance(skill_hint, str) and skill_hint.strip()
+            else None
+        )
+        tool_hints_raw = item.get("tool_hints") or []
+        tool_hints = (
+            [str(t).strip() for t in tool_hints_raw if str(t).strip()][:8]
+            if isinstance(tool_hints_raw, list)
+            else []
+        )
+        steps.append(
+            PlanStep(
+                id=sid[:32],
+                title=title[:120],
+                kind=kind,  # type: ignore[arg-type]
+                query=query_s,
+                skill_hint=skill_s,
+                tool_hints=tool_hints,
+                status="pending",
+            )
+        )
+        if len(steps) >= 5:
+            break
+    return steps
+
+
 class RouterAgent:
     def __init__(self, llm_service: LLMService | None = None) -> None:
         self.llm_service = llm_service
@@ -116,7 +170,10 @@ class RouterAgent:
         system = (
             "你是企业制度问答路由器。只输出 JSON："
             '{"domain": str, "task_type": str, "risk_level": str, '
-            '"need_skill": bool, "tool_hints": [str], "rewrite_query": str|null}。'
+            '"need_skill": bool, "tool_hints": [str], "rewrite_query": str|null, '
+            '"complexity": "simple"|"multi_step", '
+            '"plan_steps": [{"id": str, "title": str, "kind": str, "query": str|null, '
+            '"skill_hint": str|null, "tool_hints": [str]}]}。'
             f"domain 优先从这些知识库 code 中选：{json.dumps([k['code'] for k in kb_catalog], ensure_ascii=False)}；"
             "若不确定用 general。"
             "task_type ∈ knowledge_qa|process_checklist|policy_compare|summary|draft|other；"
@@ -124,6 +181,11 @@ class RouterAgent:
             "need_skill=true 当用户要清单/对比/摘要等业务规程。"
             "tool_hints 可含 skill.run,kb.search,draft.create,memory.read,mcp.call。"
             "rewrite_query：若原问题含指代/省略，给出更适合检索的完整查询；否则 null。"
+            "complexity=simple：单事实问答/短跟进；"
+            "complexity=multi_step：多意图、多阶段、用户已编号步骤、或需先检索再清单/对比。"
+            "multi_step 时 plan_steps 给 2-5 步，kind ∈ retrieve|skill|answer|tool|verify；"
+            "simple 时 plan_steps 必须为 []。"
+            "你不是开放式 planner：只做结构化路由，不要写长说明。"
             "不要解释。"
         )
         user = f"问题：{question}\n可用知识库：{json.dumps(kb_catalog, ensure_ascii=False)}"
@@ -165,7 +227,6 @@ class RouterAgent:
                         # If original is mostly non-CJK nonsense and rewrite is much
                         # "cleaner", discard rewrite so retrieval stays honest.
                         original_alnum = re.findall(r"[A-Za-z0-9]{3,}", question)
-                        rewrite_alnum = re.findall(r"[A-Za-z0-9]{3,}", cleaned)
                         original_cjk = re.findall(r"[一-鿿]", question)
                         looks_gibberish = (
                             len(original_cjk) < 2
@@ -187,6 +248,17 @@ class RouterAgent:
                             rewrite_query = None
                         else:
                             rewrite_query = cleaned[:4000]
+
+            complexity_raw = str(parsed.get("complexity") or fallback.complexity).strip().lower()
+            if complexity_raw not in _VALID_COMPLEXITY:
+                complexity_raw = fallback.complexity
+            plan_steps = _coerce_plan_steps(parsed.get("plan_steps"))
+            if complexity_raw == "simple":
+                plan_steps = []
+            # If model gave multi steps but labeled simple, promote.
+            if len(plan_steps) >= 2:
+                complexity_raw = "multi_step"
+
             return RouterResult(
                 domain=domain,
                 task_type=task_type,
@@ -194,6 +266,9 @@ class RouterAgent:
                 need_skill=need_skill,
                 tool_hints=sorted(set(tool_hints)),
                 rewrite_query=rewrite_query,
+                complexity=complexity_raw,  # type: ignore[arg-type]
+                plan_steps=plan_steps,
+                plan_source="router" if plan_steps else "none",
             )
         except Exception:
             return fallback

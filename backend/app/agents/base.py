@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from backend.app.schemas.chat import ComplianceResult, RouterResult
+from backend.app.schemas.chat import ComplianceResult, PlanStep, RouterResult
 from backend.app.schemas.retrieval import RetrievalResult
 
 
@@ -31,3 +31,4 @@ class PipelineResult(BaseModel):
     compliance: ComplianceResult
     suggested_skills: list[dict[str, str]] = Field(default_factory=list)
     skill_results: list[dict[str, Any]] = Field(default_factory=list)
+    plan: list[PlanStep] = Field(default_factory=list)

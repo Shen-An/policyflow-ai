@@ -58,4 +58,4 @@ A: Tool 可复用、可审计；Skill 组合证据与业务步骤。拆开后评
 A: `CHAT_TOOL_MAX_ROUNDS`（默认 3），有上限，避免无限 function calling。
 
 **Q: 有没有 planner agent？**  
-A: Router 做结构化路由，不是开放式 planner。复杂度放在可测的 stage，不放在 agent 群聊。
+A: **没有开放式 Planner Agent。** Router 做结构化路由，额外输出 `complexity` / `plan_steps`（用户已编号步骤优先，否则自动拆 2–5 步）；`plan_normalize` 是服务校验；L2 时 `PlanExecutor` 按 `depends_on` 分波执行，**独立子任务（如不同 query 的 retrieve）同波并行**，有依赖的串行；Pipeline 仍是中心化 Supervisor。主 agent 仍是 Answer（tool loop）。复杂度放在可测 stage，不放在 agent 群聊。

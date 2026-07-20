@@ -7,6 +7,7 @@ import {
   listConversations,
   renameConversation,
   sendChat,
+  sendChatStream,
   submitFeedback,
 } from './chat'
 
@@ -232,5 +233,81 @@ describe('chat API adapters', () => {
       queryLogId: 'query-1',
       rating: 'incomplete',
     })
+  })
+
+  it('parses plan and plan_step SSE events during chat stream', async () => {
+    const plans: Array<{ complexity: string; steps: Array<{ id: string }> }> = []
+    const stepUpdates: Array<{ id: string; status: string }> = []
+
+    server.use(
+      http.post('*/api/chat/stream', () => {
+        const body = [
+          'event: plan',
+          'data: {"complexity":"multi_step","plan_source":"user","steps":[{"id":"s1","title":"检索","kind":"retrieve","status":"pending"},{"id":"s2","title":"回答","kind":"answer","status":"pending"}]}',
+          '',
+          'event: plan_step',
+          'data: {"id":"s1","status":"running","message":"检索中"}',
+          '',
+          'event: plan_step',
+          'data: {"id":"s1","status":"success","message":"命中 2 条"}',
+          '',
+          'event: final',
+          `data: ${JSON.stringify({
+            conversation_id: 'conversation-1',
+            message_id: 'message-1',
+            query_log_id: 'query-1',
+            answer: 'done',
+            citations: [citation],
+            confidence_score: 0.9,
+            query_mode: 'hybrid',
+            router_result: {
+              domain: 'hr',
+              task_type: 'knowledge_qa',
+              risk_level: 'low',
+              complexity: 'multi_step',
+              plan_source: 'user',
+              plan_steps: [
+                { id: 's1', title: '检索', kind: 'retrieve', status: 'success' },
+                { id: 's2', title: '回答', kind: 'answer', status: 'success' },
+              ],
+            },
+            suggested_skills: [],
+            compliance: { passed: true, warnings: [] },
+            diagnostics: { memories: [], tools: [], commands: [] },
+          })}`,
+          '',
+        ].join('\n')
+        return new HttpResponse(body, {
+          status: 200,
+          headers: { 'Content-Type': 'text/event-stream' },
+        })
+      }),
+    )
+
+    const result = await sendChatStream(
+      {
+        question: '1. 查制度\n2. 回答',
+        knowledgeBaseIds: ['kb-1'],
+        queryMode: 'hybrid',
+      },
+      {
+        onPlan: (plan) => {
+          plans.push({ complexity: plan.complexity, steps: plan.steps })
+        },
+        onPlanStep: (step) => {
+          stepUpdates.push({ id: step.id, status: step.status })
+        },
+      },
+    )
+
+    expect(plans).toHaveLength(1)
+    expect(plans[0]?.complexity).toBe('multi_step')
+    expect(plans[0]?.steps).toHaveLength(2)
+    expect(stepUpdates).toEqual([
+      { id: 's1', status: 'running' },
+      { id: 's1', status: 'success' },
+    ])
+    expect(result.routerResult.complexity).toBe('multi_step')
+    expect(result.routerResult.planSteps?.[0]?.status).toBe('success')
   })
 })

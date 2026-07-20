@@ -109,6 +109,7 @@ def create_app(
         AnswerAgent(language_model, app_settings),
         SkillAgent(skill_registry),
         ComplianceAgent(app_settings),
+        app_settings,
     )
     memory_agent = MemoryAgent(
         app_settings,

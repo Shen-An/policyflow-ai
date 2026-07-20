@@ -29,6 +29,20 @@ class Citation(BaseModel):
     score: float | None
 
 
+class PlanStep(BaseModel):
+    """One normalized plan step for multi-step turns (not an open planner agent)."""
+
+    id: str
+    title: str
+    kind: Literal["retrieve", "skill", "answer", "tool", "verify"] = "retrieve"
+    query: str | None = None
+    skill_hint: str | None = None
+    tool_hints: list[str] = Field(default_factory=list)
+    # Empty = may run in parallel with other ready steps; filled = hard deps.
+    depends_on: list[str] = Field(default_factory=list)
+    status: Literal["pending", "running", "success", "skipped", "error"] = "pending"
+
+
 class RouterResult(BaseModel):
     domain: str
     task_type: str = "knowledge_qa"
@@ -36,6 +50,10 @@ class RouterResult(BaseModel):
     need_skill: bool = False
     tool_hints: list[str] = Field(default_factory=list)
     rewrite_query: str | None = None
+    # Structured plan fields — Router routing, not open-ended Planner Agent.
+    complexity: Literal["simple", "multi_step"] = "simple"
+    plan_steps: list[PlanStep] = Field(default_factory=list)
+    plan_source: Literal["none", "user", "router"] = "none"
 
 
 class ComplianceResult(BaseModel):

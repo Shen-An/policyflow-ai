@@ -60,6 +60,13 @@ class Settings(BaseSettings):
     # Answer agent tool-use loop bounds.
     CHAT_TOOL_MAX_ROUNDS: int = 3
     CHAT_TOOLS_ENABLED: bool = True
+    # Progressive multi-step planning (Router structured plan; not peer multi-agent).
+    CHAT_PLANNING_ENABLED: bool = True
+    CHAT_PLAN_MAX_STEPS: int = 5
+    # L2: true per-step PlanExecutor (still centralized; not peer multi-agent).
+    CHAT_PLAN_EXECUTOR: bool = True
+    # Within a ready wave, run independent steps concurrently (e.g. multi-retrieve).
+    CHAT_PLAN_PARALLEL: bool = True
 
     @property
     def log_file(self) -> Path:

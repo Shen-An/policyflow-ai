@@ -49,6 +49,7 @@ class AnswerAgent:
         tool_executor: ChatToolExecutor | None = None,
         on_event: ToolRoundCallback | None = None,
         skill_results: list[dict[str, Any]] | None = None,
+        plan_steps: list[Any] | None = None,
     ) -> AnswerResult:
         if not evidence:
             return await self._run_without_evidence(question, working_set)
@@ -62,6 +63,8 @@ class AnswerAgent:
             "不得补充证据中不存在的制度事实或硬性数值。"
             "用户偏好、会话历史与记忆只能用于理解指代、任务状态和回答风格，"
             "绝不能替代或覆盖制度证据。\n"
+            "若上游给出了本轮执行计划，仅作流程指引（覆盖用户多意图），"
+            "不能替代证据，也不能编造未执行步骤的结果。\n"
             "若上游 Skill 已产出清单/对比/摘要结构化结果，应优先将其整理为可读回答，"
             "并继续用 [1]、[2] 标注制度证据；不要丢弃 Skill 中的步骤/维度。\n"
             "若需要补充检索、生成流程清单/对比/摘要、写草稿或读写用户记忆，"
@@ -80,6 +83,7 @@ class AnswerAgent:
             context,
             working_set,
             skill_results=skill_results,
+            plan_steps=plan_steps,
         )
         answer, tool_trace = await self._complete_possibly_with_tools(
             system_prompt,
@@ -260,8 +264,26 @@ class AnswerAgent:
         evidence_block: str | None,
         working_set: MemoryWorkingSet | None,
         skill_results: list[dict[str, Any]] | None = None,
+        plan_steps: list[Any] | None = None,
     ) -> str:
         sections: list[str] = [f"问题：{question}"]
+        if plan_steps:
+            plan_lines: list[str] = []
+            for step in plan_steps:
+                if hasattr(step, "model_dump"):
+                    data = step.model_dump(mode="json")
+                elif isinstance(step, dict):
+                    data = step
+                else:
+                    continue
+                plan_lines.append(
+                    f"- [{data.get('id')}] ({data.get('kind')}) "
+                    f"{data.get('title')} · {data.get('status')}"
+                )
+            if plan_lines:
+                sections.append(
+                    "本轮执行计划（流程指引，非制度证据）：\n" + "\n".join(plan_lines)
+                )
         if working_set is not None:
             if working_set.rolling_summary:
                 sections.append(
