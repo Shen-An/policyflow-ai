@@ -8,7 +8,7 @@ from typing import Any, Literal
 from sqlmodel import Session
 
 from backend.app.agents.answer_agent import AnswerAgent
-from backend.app.agents.base import AnswerResult, MemoryWorkingSet, PipelineResult
+from backend.app.agents.base import AnswerResult, MemoryWorkingSet, PipelineResult, TurnState
 from backend.app.agents.compliance_agent import ComplianceAgent
 from backend.app.agents.grounding import estimate_answer_confidence, question_evidence_support
 from backend.app.agents.plan_branch import generate_plan_options, pick_recommended_option
@@ -138,6 +138,7 @@ class AgentPipeline:
         on_stage: StageCallback | None,
         on_event: EventCallback | None,
         used_l2: bool,
+        turn_state: TurnState | None = None,
     ) -> PipelineResult:
         if multi_step and not used_l2:
             plan_steps = await self._emit_plan_kind(
@@ -228,6 +229,14 @@ class AgentPipeline:
             "success" if compliance.passed else "warning",
             "合规通过" if compliance.passed else "存在合规告警",
         )
+        if not compliance.passed and turn_state is not None:
+            turn_state.record_error(
+                code="COMPLIANCE_WARNING",
+                message="、".join(compliance.warnings) or "存在合规告警",
+                source="ComplianceAgent",
+                severity="warning",
+                details={"warnings": list(compliance.warnings)},
+            )
         if multi_step:
             plan_steps = await self._emit_plan_kind(
                 on_event,
@@ -236,6 +245,16 @@ class AgentPipeline:
                 "success" if compliance.passed else "error",
                 "合规通过" if compliance.passed else "存在合规告警",
             )
+            if not compliance.passed and turn_state is not None:
+                for step in plan_steps:
+                    if step.kind == "verify" and step.status == "error":
+                        turn_state.record_step_outcome(
+                            step_id=step.id,
+                            kind="verify",
+                            status="error",
+                            message="存在合规告警",
+                            source="ComplianceAgent",
+                        )
             finalized: list[PlanStep] = []
             for step in plan_steps:
                 if step.status == "pending":
@@ -250,6 +269,14 @@ class AgentPipeline:
                             "message": "未单独执行（已由流水线覆盖）",
                         },
                     )
+                    if turn_state is not None:
+                        turn_state.record_step_outcome(
+                            step_id=next_step.id,
+                            kind=next_step.kind,
+                            status="skipped",
+                            message="未单独执行（已由流水线覆盖）",
+                            source="AgentPipeline",
+                        )
                 else:
                     finalized.append(step)
             plan_steps = finalized
@@ -277,6 +304,23 @@ class AgentPipeline:
                 ]
             },
         )
+        if turn_state is not None:
+            turn_state.router_result = router_result
+            turn_state.plan = plan_steps
+            turn_state.retrieval_result = retrieval_result
+            turn_state.skill_results = list(skill_results)
+            turn_state.suggested_skills = list(suggested_skills)
+            turn_state.answer_result = answer_result
+            turn_state.compliance = compliance
+            turn_state.status = "completed"
+            turn_state.used_l2 = used_l2
+            turn_state.reasoning_mode = (
+                getattr(router_result, "reasoning_mode", "cot_direct") or "cot_direct"
+            )
+            turn_state.plan_options = list(
+                getattr(router_result, "plan_options", None) or []
+            )
+            return turn_state.to_pipeline_result()
         return PipelineResult(
             router_result=router_result,
             retrieval_result=retrieval_result,
@@ -297,16 +341,30 @@ class AgentPipeline:
         self,
         router_result: RouterResult,
         plan_options: list[PlanOption],
+        *,
+        turn_state: TurnState | None = None,
+        question: str = "",
     ) -> PipelineResult:
+        updated_router = router_result.model_copy(
+            update={
+                "plan_options": plan_options,
+                "reasoning_mode": "tot_select",
+                "difficulty": "branched",
+                "complexity": "multi_step",
+            }
+        )
+        if turn_state is not None:
+            turn_state.question = question or turn_state.question
+            turn_state.router_result = updated_router
+            turn_state.plan_options = list(plan_options)
+            turn_state.reasoning_mode = "tot_select"
+            turn_state.status = "awaiting_plan_selection"
+            turn_state.retrieval_result = self._empty_retrieval()
+            turn_state.answer_result = AnswerResult(answer="", confidence_score=0.0)
+            turn_state.compliance = ComplianceResult(passed=True, warnings=[])
+            return turn_state.to_pipeline_result()
         return PipelineResult(
-            router_result=router_result.model_copy(
-                update={
-                    "plan_options": plan_options,
-                    "reasoning_mode": "tot_select",
-                    "difficulty": "branched",
-                    "complexity": "multi_step",
-                }
-            ),
+            router_result=updated_router,
             retrieval_result=self._empty_retrieval(),
             answer_result=AnswerResult(answer="", confidence_score=0.0),
             compliance=ComplianceResult(passed=True, warnings=[]),
@@ -337,6 +395,7 @@ class AgentPipeline:
         selected_router_result: RouterResult | None = None,
         # Eval / non-interactive: auto-pick recommended branch instead of pausing.
         hitl: bool = True,
+        turn_state: TurnState | None = None,
     ) -> PipelineResult:
         planning_enabled = bool(getattr(self.settings, "CHAT_PLANNING_ENABLED", True))
         max_steps = int(getattr(self.settings, "CHAT_PLAN_MAX_STEPS", 5) or 5)
@@ -346,6 +405,10 @@ class AgentPipeline:
         tot_max = int(getattr(self.settings, "CHAT_TOT_MAX_OPTIONS", 3) or 3)
         l2_enabled = bool(getattr(self.settings, "CHAT_PLAN_EXECUTOR", True))
         parallel_enabled = bool(getattr(self.settings, "CHAT_PLAN_PARALLEL", True))
+
+        state = turn_state or TurnState(question=question, status="running")
+        if not state.question:
+            state.question = question
 
         # ---------- Resume path: user-selected ToT option ----------
         if selected_plan_steps and selected_router_result is not None:
@@ -361,6 +424,10 @@ class AgentPipeline:
             plan_steps = list(selected_plan_steps)
             multi_step = bool(plan_steps)
             use_l2 = multi_step and should_use_plan_executor(plan_steps, enabled=l2_enabled)
+            state.router_result = router_result
+            state.plan = plan_steps
+            state.reasoning_mode = "tot_select"
+            state.plan_options = list(getattr(router_result, "plan_options", None) or [])
             await self._emit_stage(
                 on_stage,
                 "RouterAgent",
@@ -398,6 +465,7 @@ class AgentPipeline:
                 on_event=on_event,
                 session=session,
                 user=user,
+                turn_state=state,
             )
 
         await self._emit_stage(on_stage, "RouterAgent", "running", "正在分析问题领域与风险…")
@@ -415,6 +483,9 @@ class AgentPipeline:
         use_l2 = multi_step and should_use_plan_executor(plan_steps, enabled=l2_enabled)
         reasoning_mode = getattr(router_result, "reasoning_mode", "cot_direct") or "cot_direct"
         difficulty = getattr(router_result, "difficulty", "simple") or "simple"
+        state.router_result = router_result
+        state.plan = plan_steps
+        state.reasoning_mode = reasoning_mode  # type: ignore[assignment]
 
         await self._emit_stage(
             on_stage,
@@ -470,6 +541,9 @@ class AgentPipeline:
                     "difficulty": "branched",
                 }
             )
+            state.router_result = router_result
+            state.plan_options = list(plan_options)
+            state.reasoning_mode = "tot_select"
             await self._emit_event(
                 on_event,
                 "plan_options",
@@ -508,12 +582,22 @@ class AgentPipeline:
                 },
             )
             if hitl:
-                return self._awaiting_result(router_result, plan_options)
+                return self._awaiting_result(
+                    router_result, plan_options, turn_state=state, question=question
+                )
 
             # Non-interactive (eval): auto-pick recommended and continue.
             chosen = pick_recommended_option(plan_options)
             if chosen is None:
-                return self._awaiting_result(router_result, plan_options)
+                state.record_error(
+                    code="TOT_NO_RECOMMENDED_OPTION",
+                    message="无推荐路径可自动选用",
+                    source="PlanBranch",
+                    severity="error",
+                )
+                return self._awaiting_result(
+                    router_result, plan_options, turn_state=state, question=question
+                )
             plan_steps = list(chosen.steps)
             multi_step = bool(plan_steps)
             use_l2 = multi_step and should_use_plan_executor(plan_steps, enabled=l2_enabled)
@@ -524,6 +608,8 @@ class AgentPipeline:
                     "plan_options": plan_options,
                 }
             )
+            state.router_result = router_result
+            state.plan = plan_steps
             await self._emit_stage(
                 on_stage,
                 "PlanBranch",
@@ -548,6 +634,7 @@ class AgentPipeline:
             on_event=on_event,
             session=session,
             user=user,
+            turn_state=state,
         )
 
     async def _execute_plan(
@@ -569,7 +656,15 @@ class AgentPipeline:
         on_event: EventCallback | None,
         session: Session | None,
         user: User | None,
+        turn_state: TurnState | None = None,
     ) -> PipelineResult:
+        state = turn_state or TurnState(question=question, status="running")
+        state.router_result = router_result
+        state.plan = list(plan_steps)
+        state.reasoning_mode = (
+            getattr(router_result, "reasoning_mode", "cot_direct") or "cot_direct"
+        )  # type: ignore[assignment]
+        state.plan_options = list(getattr(router_result, "plan_options", None) or [])
 
         if multi_step:
             await self._emit_plan(
@@ -632,11 +727,15 @@ class AgentPipeline:
                     if retrieval_request is not None
                     else question
                 ),
+                turn_state=state,
             )
             plan_steps = exec_result.plan_steps
             retrieval_result = exec_result.retrieval_result
             skill_results = exec_result.skill_results
             suggested_skills = exec_result.suggested_skills
+            state.used_l2 = True
+            state.waves = list(exec_result.waves)
+            state.parallel_used = exec_result.parallel_used
             await self._emit_stage(
                 on_stage,
                 "PlanExecutor",
@@ -644,7 +743,8 @@ class AgentPipeline:
                 (
                     f"L2 完成 · waves={len(exec_result.waves)} · "
                     f"evidence={len(exec_result.evidence)} · "
-                    f"parallel={'yes' if exec_result.parallel_used else 'no'}"
+                    f"parallel={'yes' if exec_result.parallel_used else 'no'} · "
+                    f"errors={len(state.errors)}"
                 ),
             )
 
@@ -733,6 +833,7 @@ class AgentPipeline:
                 on_stage=on_stage,
                 on_event=on_event,
                 used_l2=True,
+                turn_state=state,
             )
 
         # ---------- L1 / simple path ----------
@@ -782,6 +883,13 @@ class AgentPipeline:
             )
 
         await self._emit_stage(on_stage, "RetrievalAgent", "running", "正在检索授权知识库…")
+        if effective_request is None or not knowledge_bases:
+            state.record_error(
+                code="NO_KB_FOR_RETRIEVAL",
+                message="无可用知识库检索",
+                source="RetrievalAgent",
+                severity="error",
+            )
         retrieval_result = (
             await self.retrieval_agent.run(effective_request)
             if effective_request is not None
@@ -799,6 +907,16 @@ class AgentPipeline:
                     f"（overlap={support['overlap_ratio']}），按无可靠证据处理"
                 ),
             )
+            state.record_error(
+                code="OFF_TOPIC_RETRIEVAL_DROPPED",
+                message=(
+                    f"命中 {evidence_count} 条但与原问题相关度过低"
+                    f"（overlap={support['overlap_ratio']}）"
+                ),
+                source="RetrievalAgent",
+                severity="warning",
+                details={"overlap_ratio": support.get("overlap_ratio")},
+            )
             retrieval_result = RetrievalResult(
                 evidence=[],
                 trace=retrieval_result.trace,
@@ -813,6 +931,14 @@ class AgentPipeline:
             "success" if evidence_count else "empty",
             f"命中 {evidence_count} 条证据",
         )
+        if evidence_count == 0:
+            state.record_error(
+                code="NO_RELIABLE_EVIDENCE",
+                message="未命中可靠证据",
+                source="RetrievalAgent",
+                severity="error",
+            )
+        state.retrieval_result = retrieval_result
         if multi_step:
             plan_steps = await self._emit_plan_kind(
                 on_event,
@@ -821,6 +947,16 @@ class AgentPipeline:
                 "success" if evidence_count else "error",
                 f"命中 {evidence_count} 条证据",
             )
+            if evidence_count == 0:
+                for step in plan_steps:
+                    if step.kind == "retrieve" and step.status == "error":
+                        state.record_step_outcome(
+                            step_id=step.id,
+                            kind="retrieve",
+                            status="error",
+                            message=f"命中 {evidence_count} 条证据",
+                            source="RetrievalAgent",
+                        )
         await self._emit_event(
             on_event,
             "diagnostics_partial",
@@ -917,6 +1053,19 @@ class AgentPipeline:
                 retrieval_result.evidence,
                 enable_skill,
             )
+            for item in skill_results:
+                if item.get("status") in {"error", "insufficient_evidence", "skipped"}:
+                    code = str(item.get("status") or "error").upper()
+                    severity = "error" if item.get("status") == "error" else "warning"
+                    if item.get("status") == "skipped":
+                        severity = "info"
+                    state.record_error(
+                        code=f"SKILL_{code}",
+                        message=str(item.get("error") or item.get("status") or "skill"),
+                        source="SkillAgent",
+                        severity=severity,  # type: ignore[arg-type]
+                        details={"skill": item.get("name") or item.get("skill_name")},
+                    )
         else:
             suggested_skills = await self.skill_agent.run(
                 question, router_result, enable_skill and effective_need_skill
@@ -943,6 +1092,16 @@ class AgentPipeline:
             plan_steps = await self._emit_plan_kind(
                 on_event, plan_steps, "skill", skill_step_status, skill_message
             )
+            if skill_step_status != "success":
+                for step in plan_steps:
+                    if step.kind == "skill" and step.status == skill_step_status:
+                        state.record_step_outcome(
+                            step_id=step.id,
+                            kind="skill",
+                            status=skill_step_status,
+                            message=skill_message,
+                            source="SkillAgent",
+                        )
             plan_steps = await self._emit_plan_kind(
                 on_event,
                 plan_steps,
@@ -950,6 +1109,8 @@ class AgentPipeline:
                 "success" if tool_executor is not None else "skipped",
                 "工具就绪" if tool_executor is not None else "未启用工具",
             )
+        state.skill_results = list(skill_results)
+        state.suggested_skills = list(suggested_skills)
         await self._emit_event(
             on_event,
             "diagnostics_partial",
@@ -962,6 +1123,7 @@ class AgentPipeline:
                         "output": {
                             "suggested_skills": suggested_skills,
                             "skill_results": skill_results,
+                            "errors": [e.model_dump(mode="json") for e in state.errors[-5:]],
                         },
                     }
                 ]
@@ -981,4 +1143,5 @@ class AgentPipeline:
             on_stage=on_stage,
             on_event=on_event,
             used_l2=False,
+            turn_state=state,
         )

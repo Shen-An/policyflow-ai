@@ -14,6 +14,7 @@ from typing import Any, Literal
 
 from sqlmodel import Session
 
+from backend.app.agents.base import TurnError, TurnState
 from backend.app.agents.grounding import question_evidence_support
 from backend.app.agents.retrieval_agent import RetrievalAgent
 from backend.app.agents.skill_agent import SkillAgent
@@ -41,6 +42,7 @@ class PlanExecutorResult:
     waves: list[list[str]] = field(default_factory=list)
     parallel_used: bool = False
     warnings: list[str] = field(default_factory=list)
+    errors: list[TurnError] = field(default_factory=list)
 
 
 def _evidence_key(item: Evidence) -> str:
@@ -292,6 +294,7 @@ class PlanExecutor:
         on_stage: StageCallback | None = None,
         on_event: EventCallback | None = None,
         fallback_query: str = "",
+        turn_state: TurnState | None = None,
     ) -> PlanExecutorResult:
         steps = infer_dependencies(list(plan_steps))
         waves = build_execution_waves(steps, parallel_enabled=self.parallel_enabled)
@@ -305,6 +308,8 @@ class PlanExecutor:
         total_latency = 0
         rerank_applied = False
         status_by_id: dict[str, StepStatus] = {s.id: s.status for s in steps}
+        errors: list[TurnError] = []
+        kind_by_id = {s.id: s.kind for s in steps}
 
         await self._emit_event(
             on_event,
@@ -468,9 +473,47 @@ class PlanExecutor:
                             suggested_skills.append(item)
                 total_latency += int(side.get("latency_ms") or 0)
                 rerank_applied = rerank_applied or bool(side.get("rerank_applied"))
-                warnings.extend(side.get("warnings") or [])
+                for w in side.get("warnings") or []:
+                    warnings.append(w)
+                    if turn_state is not None:
+                        turn_state.record_error(
+                            code=str(w),
+                            message=str(w),
+                            source="PlanExecutor",
+                            step_id=sid,
+                            severity="warning",
+                        )
                 steps = await self._set_step(steps, sid, st, msg, on_event)
                 status_by_id[sid] = st
+                # Centralized error ledger: non-success step outcomes always recorded.
+                if st != "success":
+                    if turn_state is not None:
+                        err = turn_state.record_step_outcome(
+                            step_id=sid,
+                            kind=str(kind_by_id.get(sid) or step.kind),
+                            status=st,
+                            message=msg,
+                            source="PlanExecutor",
+                        )
+                        if err is not None:
+                            errors.append(err)
+                    else:
+                        severity = "info" if st == "skipped" else "error"
+                        code = (
+                            f"STEP_SKIPPED_{str(kind_by_id.get(sid) or step.kind).upper()}"
+                            if st == "skipped"
+                            else f"STEP_ERROR_{str(kind_by_id.get(sid) or step.kind).upper()}"
+                        )
+                        errors.append(
+                            TurnError(
+                                code=code,
+                                message=msg or st,
+                                source="PlanExecutor",
+                                step_id=sid,
+                                severity=severity,  # type: ignore[arg-type]
+                                details={"kind": kind_by_id.get(sid) or step.kind, "status": st},
+                            )
+                        )
 
             # If a retrieve wave produced evidence, announce aggregate.
             if any(s.kind == "retrieve" for s in wave_steps):
@@ -488,6 +531,18 @@ class PlanExecutor:
             latency_ms=total_latency,
             rerank_applied=rerank_applied,
         )
+        if turn_state is not None:
+            turn_state.plan = steps
+            turn_state.retrieval_result = retrieval_result
+            turn_state.skill_results = list(skill_results)
+            turn_state.suggested_skills = list(suggested_skills)
+            turn_state.waves = waves
+            turn_state.parallel_used = parallel_used
+            turn_state.used_l2 = True
+            for w in warnings:
+                if w not in turn_state.warnings:
+                    turn_state.warnings.append(w)
+
         await self._emit_event(
             on_event,
             "diagnostics_partial",
@@ -498,7 +553,8 @@ class PlanExecutor:
                         "status": "success",
                         "summary": (
                             f"L2 完成 waves={len(waves)} evidence={len(evidence_bag)} "
-                            f"parallel={'yes' if parallel_used else 'no'}"
+                            f"parallel={'yes' if parallel_used else 'no'} "
+                            f"errors={len(errors)}"
                         ),
                         "output": {
                             "waves": waves,
@@ -506,6 +562,7 @@ class PlanExecutor:
                             "evidence_count": len(evidence_bag),
                             "skill_results": skill_results,
                             "step_status": status_by_id,
+                            "errors": [e.model_dump(mode="json") for e in errors],
                         },
                     }
                 ]
@@ -520,4 +577,5 @@ class PlanExecutor:
             waves=waves,
             parallel_used=parallel_used,
             warnings=warnings,
+            errors=errors if turn_state is None else list(turn_state.errors),
         )

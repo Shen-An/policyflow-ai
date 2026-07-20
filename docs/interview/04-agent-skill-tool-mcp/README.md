@@ -26,6 +26,7 @@ Router.need_skill / tool_hints
 | 主题 | 路径 |
 |---|---|
 | Pipeline 编排 | `backend/app/agents/pipeline.py` |
+| 共享记录 TurnState / errors | `backend/app/agents/base.py`（`TurnState`、`TurnError`、`PipelineResult.errors`） |
 | Plan normalize / branch / executor | `plan_normalize.py`、`plan_branch.py`、`plan_executor.py` |
 | Answer + tools | `backend/app/agents/answer_agent.py` |
 | Skill 执行 | `backend/app/agents/skill_agent.py`、`backend/app/skills/` |
@@ -63,3 +64,6 @@ A: **没有开放式 Planner Agent。** Router 做结构化路由，额外输出
 
 **Q: ToT 和 CoT 在你们系统里怎么区分？**  
 A: 按任务难度自动分流。简单事实问答走 CoT 直答；多意图/清单走 CoT 分步；存在多种合理执行路径（如对比策略、先 A 或先 B）才升 ToT 选路。用户已写死 1.2.3. 线性步骤不会升 ToT。Eval 不暂停，自动选 recommended。
+
+**Q: 子步骤失败写到哪里？是消息传递还是共享状态？**  
+A: **共享状态**。本轮 `TurnState` 是黑板；`record_error` / `record_step_outcome` 把 retrieve/skill/compliance 等失败写入 `errors[]`，`PipelineResult.errors` 与 diagnostics 可透出。不是 agent 之间互发错误消息。

@@ -1,8 +1,8 @@
 # 08. 去玩具化 / 多智能体 / Skill·Tool·MCP / Eval 改造总策略
 
-版本：v1.5  
-日期：2026-07-14  
-状态：**Phase 0–3 主线与加分项已基本落地**（见 §10）  
+版本：v1.6  
+日期：2026-07-20  
+状态：**Phase 0–3 主线与加分项已基本落地**（见 §10）；TurnState 错误账本已接入  
 读者：后续实现的自己 / 评审 / 面试准备  
 前置文档：[`01-architecture-design.md`](01-architecture-design.md)、[`04-ai-pipeline-rag-eval-design.md`](04-ai-pipeline-rag-eval-design.md)、[`05-development-roadmap.md`](05-development-roadmap.md)、[`09-interview-demo-script.md`](09-interview-demo-script.md)
 
@@ -528,6 +528,7 @@ CRUD import ── id 对齐 ── Hit@K 看板
 | 渐进式多步规划 L1 | **已完成** | 2026-07-20 | Router `complexity/plan_steps` + `plan_normalize` + SSE plan/plan_step + 思考中 checklist；非开放 Planner Agent |
 | 渐进式多步规划 L2 | **已完成** | 2026-07-20 | `PlanExecutor` 真按步执行；`depends_on`/waves；独立 retrieve 等 `asyncio.gather` 并行；`CHAT_PLAN_EXECUTOR`/`CHAT_PLAN_PARALLEL` |
 | 渐进式规划 L2.5 ToT 选路 | **已完成** | 2026-07-20 | `difficulty/reasoning_mode` 三档；`plan_branch` 候选；双请求 HITL；eval 自动 recommended；前端选路 UI |
+| 正式 TurnState + 错误集中写入 | **已完成** | 2026-07-20 | `TurnState`/`TurnError` 单轮黑板；L1/L2 失败写入 `errors[]`；`PipelineResult.errors` + diagnostics；非 peer 消息、非分布式状态机 |
 
 ---
 
@@ -541,3 +542,4 @@ CRUD import ── id 对齐 ── Hit@K 看板
 | v1.3 | 2026-07-20 | L1 渐进式规划：Router 结构化计划字段、plan_normalize、Pipeline 驱动与前端步骤清单 |
 | v1.4 | 2026-07-20 | L2 PlanExecutor：依赖波次、独立子任务并行、证据 bag、与 L1 共存开关 |
 | v1.5 | 2026-07-20 | L2.5 ToT 选路：difficulty 三档、候选计划、双请求 HITL、eval auto-pick、前端选路；诚实非学术 ToT |
+| v1.6 | 2026-07-20 | 正式 `TurnState` 共享记录 + `errors[]` 集中写入；PlanExecutor/Pipeline/L1 接线；diagnostics 透出；面试文档诚实边界 |

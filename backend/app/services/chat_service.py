@@ -471,7 +471,27 @@ def _build_diagnostics(
         knowledge_bases,
         has_working_set=working_set is not None,
     )
-    return TurnDiagnostics(memories=memories, tools=tools, commands=commands)
+    errors_raw = getattr(pipeline_result, "errors", None) or []
+    errors: list[dict[str, Any]] = []
+    for item in errors_raw:
+        if hasattr(item, "model_dump"):
+            errors.append(item.model_dump(mode="json"))
+        elif isinstance(item, dict):
+            errors.append(item)
+    # Surface a compact command when the ledger is non-empty (real, not decorative).
+    if errors:
+        blocking = sum(1 for e in errors if e.get("severity") == "error")
+        commands.append(
+            CommandTrace(
+                name="TurnErrors",
+                status="warning" if blocking else "info",
+                summary=f"errors={len(errors)} blocking={blocking}",
+                output={"errors": errors[:20], "count": len(errors)},
+            )
+        )
+    return TurnDiagnostics(
+        memories=memories, tools=tools, commands=commands, errors=errors
+    )
 
 
 async def send_chat_message(

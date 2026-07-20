@@ -135,6 +135,8 @@ class TurnDiagnostics(BaseModel):
     memories: list[UsedMemoryItem] = Field(default_factory=list)
     tools: list[ToolCallTrace] = Field(default_factory=list)
     commands: list[CommandTrace] = Field(default_factory=list)
+    # Centralized turn error ledger (from TurnState / PipelineResult.errors).
+    errors: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ChatResponse(BaseModel):
