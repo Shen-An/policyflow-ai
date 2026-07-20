@@ -73,6 +73,17 @@ class Settings(BaseSettings):
     CHAT_TOT_MIN_OPTIONS: int = 2
     CHAT_TOT_MAX_OPTIONS: int = 3
     CHAT_TOT_PENDING_TTL_MINUTES: int = 60
+    # Honest LLM reflection closed-loop (Critique → Improve). Not peer multi-agent.
+    # Only high-stakes turns; hard max rounds; eval off by default for cost honesty.
+    CHAT_REFLECTION_ENABLED: bool = True
+    CHAT_REFLECTION_MAX_ROUNDS: int = 2
+    CHAT_REFLECTION_IN_EVAL: bool = False
+    CHAT_REFLECTION_CONFIDENCE_THRESHOLD: float = 0.72
+    CHAT_REFLECTION_PASS_MAX_WARNINGS: int = 1
+    CHAT_REFLECTION_ON_MULTI_STEP: bool = True
+    CHAT_REFLECTION_ON_RISK: bool = True
+    CHAT_REFLECTION_ON_SKILL_SUCCESS: bool = True
+    CHAT_REFLECTION_ON_LOW_CONFIDENCE: bool = True
 
     @property
     def log_file(self) -> Path:

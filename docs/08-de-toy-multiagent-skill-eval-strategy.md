@@ -1,8 +1,8 @@
 # 08. 去玩具化 / 多智能体 / Skill·Tool·MCP / Eval 改造总策略
 
-版本：v1.6  
+版本：v1.7  
 日期：2026-07-20  
-状态：**Phase 0–3 主线与加分项已基本落地**（见 §10）；TurnState 错误账本已接入  
+状态：**Phase 0–3 主线与加分项已基本落地**（见 §10）；TurnState 错误账本已接入；可选 Critique→Improve 反思闭环已落地  
 读者：后续实现的自己 / 评审 / 面试准备  
 前置文档：[`01-architecture-design.md`](01-architecture-design.md)、[`04-ai-pipeline-rag-eval-design.md`](04-ai-pipeline-rag-eval-design.md)、[`05-development-roadmap.md`](05-development-roadmap.md)、[`09-interview-demo-script.md`](09-interview-demo-script.md)
 
@@ -136,7 +136,12 @@ frontend/src/features/evaluation/      # 评估中心页
                     └──────┬──────┘
                            ▼
                     ┌─────────────┐
-                    │  Verifier   │  规则 + 可选 LLM  ← 质量门 Agent
+                    │ReflectionLoop│  可选 · 高风险触发
+                    │ Critique→Improve │  双 prompt · max 2 轮
+                    └──────┬──────┘
+                           ▼
+                    ┌─────────────┐
+                    │  Verifier   │  规则 Compliance  ← 质量门（非 LLM）
                     └──────┬──────┘
                            ▼
                     ┌─────────────┐
@@ -154,23 +159,24 @@ frontend/src/features/evaluation/      # 评估中心页
 | Retrieval | 否 | 否 | Service | 保持；去掉 Agent 包装感 |
 | SkillExecutor | 是 | 可 | 可选 Agent | suggest-only → 真执行 |
 | Answer + Tools | 是 | 是 | 主 Agent | 单次 complete → tool loop |
-| Verifier | 规则/LLM | 否 | Agent | 几乎无 → citation/拒答门 |
+| ReflectionLoop | 是（双 prompt） | 否 | 可选质量环 | 无 → Critique→Improve · 硬轮次 · 仅高风险 |
+| Verifier / Compliance | 规则 | 否 | Gate | citation/拒答/数值/claim 词重叠门 |
 | Memory | 部分 | 否 | Service/后台 | 已较强，保留 |
-| Compliance 关键词 | — | — | 删除或合并 | 并入 Verifier |
 
 ### 3.3 面试安全表述
 
-> 不是 CrewAI 式多角色群聊。是 **Supervisor 式流水线**：Router 结构化路由，Answer 做 tool-using 主 agent，Skill/Verifier 为可选专职节点；检索与记忆是服务。可观测、可评测、可审计。
+> 不是 CrewAI 式多角色群聊。是 **Supervisor 式流水线**：Router 结构化路由，Answer 做 tool-using 主 agent，Skill/Verifier 为可选专职节点；高风险回答可走 **Critique→Improve** 双 prompt 闭环（硬轮次上限，非 peer 互评群聊）；检索与记忆是服务。可观测、可评测、可审计。
 
 ### 3.4 多智能体「加在哪」（清单）
 
 1. **Router** — 关键词 → LLM 结构化（domain, risk, task_type, need_skill, tool_hints, rewrite, **complexity, plan_steps**）  
 2. **Answer tool loop** — 最大收益的 agent 化  
 3. **SkillExecutor** — 真执行 registry  
-4. **Verifier** — citation / 无证据拒绝 / 合并 compliance  
+4. **Verifier** — citation / 无证据拒绝 / 合并 compliance（规则门）  
 5. **（可选）QueryRewrite** — 并入 Router 或独立一小步  
 6. **渐进式多步规划（L1）** — Router 输出 `complexity/plan_steps`；`plan_normalize` 服务校验/用户步骤优先；Pipeline 驱动同一流水线并 SSE `plan`/`plan_step`；**不是**开放 Planner Agent，也不是 peer multi-agent  
-7. **不要**并行六个 agent 互聊  
+7. **ReflectionLoop（可选）** — 仅高风险（multi_step/branched、risk、skill 成功清单、低置信）触发；**Critique 只找问题（6 维度 + PASS 出口）**，**Improve 只按批注改**；`CHAT_REFLECTION_MAX_ROUNDS=2` 硬停；Eval 默认关；无证据 hard refuse 永不反思  
+8. **不要**并行六个 agent 互聊  
 
 ### 3.5 渐进式规划（L1 / L2 / L2.5 落点）
 
@@ -399,7 +405,8 @@ User question
   → SkillExecutor? (real run + audit)
   → AnswerAgent
         ↺ tool loop: kb.search | skill.run | draft.* | memory.* | mcp.call
-  → Verifier (citations / refuse / warnings)
+  → ReflectionLoop? (CritiqueAgent → ImproveAgent, max 2; high-stakes only)
+  → Verifier / ComplianceAgent (rules: citations / refuse / warnings)
   → persist assistant + AIQueryLog + ToolCallLog
   → MemoryWriteback
   → SSE: stage / tool_* / diagnostics（全部真实）
@@ -529,6 +536,7 @@ CRUD import ── id 对齐 ── Hit@K 看板
 | 渐进式多步规划 L2 | **已完成** | 2026-07-20 | `PlanExecutor` 真按步执行；`depends_on`/waves；独立 retrieve 等 `asyncio.gather` 并行；`CHAT_PLAN_EXECUTOR`/`CHAT_PLAN_PARALLEL` |
 | 渐进式规划 L2.5 ToT 选路 | **已完成** | 2026-07-20 | `difficulty/reasoning_mode` 三档；`plan_branch` 候选；双请求 HITL；eval 自动 recommended；前端选路 UI |
 | 正式 TurnState + 错误集中写入 | **已完成** | 2026-07-20 | `TurnState`/`TurnError` 单轮黑板；L1/L2 失败写入 `errors[]`；`PipelineResult.errors` + diagnostics；非 peer 消息、非分布式状态机 |
+| LLM Reflection 闭环 | **已完成（基础）** | 2026-07-20 | `CritiqueAgent`+`ImproveAgent` 双 prompt；`ReflectionLoop` 硬顶 2 轮；6 维 + PASS 出口；仅高风险触发；Eval 默认关；hard refuse 永不反思；非 peer 群聊 |
 
 ---
 
@@ -543,3 +551,4 @@ CRUD import ── id 对齐 ── Hit@K 看板
 | v1.4 | 2026-07-20 | L2 PlanExecutor：依赖波次、独立子任务并行、证据 bag、与 L1 共存开关 |
 | v1.5 | 2026-07-20 | L2.5 ToT 选路：difficulty 三档、候选计划、双请求 HITL、eval auto-pick、前端选路；诚实非学术 ToT |
 | v1.6 | 2026-07-20 | 正式 `TurnState` 共享记录 + `errors[]` 集中写入；PlanExecutor/Pipeline/L1 接线；diagnostics 透出；面试文档诚实边界 |
+| v1.7 | 2026-07-20 | Critique→Improve 反思闭环：双 prompt、6 维 + PASS、硬 max_rounds=2、高风险触发、Eval 默认关；Compliance 仍为规则门 |

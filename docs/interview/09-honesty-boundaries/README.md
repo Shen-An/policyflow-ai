@@ -14,6 +14,7 @@
 8. **Eval 采样** — 默认随机 50/100；写清策略与 N；干扰文档防虚高  
 9. **Hybrid 未必显著优于 BM25** — 看任务形态，1-doc 匹配常接近  
 10. **LightRAG 分数可能 synthetic** — 别当真实相似度  
+11. **Reflection 是可选质量环** — Critique→Improve 双 prompt + 硬轮次；**不是**事实 oracle，也**不是** peer multi-agent 辩论；规则 Compliance 仍是最后一道门；Eval 默认关  
 
 ## 简历禁用词 → 替换说法
 
@@ -39,7 +40,9 @@
 | 静态拓扑 + 中心化 Supervisor | 已做 |
 | 正式 TurnState 黑板 + errors[] | **已做**（单轮请求内；非分布式状态机） |
 | 错误集中写入（步骤/检索/Skill/合规） | **已做**（写入 ledger + diagnostics；非静默吞错） |
+| Critique→Improve 反思闭环 | **已做**（高风险触发；max 2 轮；Eval 默认关；非群聊辩论） |
 | peer 消息总线 / actor 系统 | **不做** |
+| LLM-as-judge 替代 Hit@K/MRR | **不做** |
 | RAGAS | 可选，非主指标 |
 | 硬删知识库/文档 | 已做（含关联清理意图） |
 

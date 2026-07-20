@@ -19,6 +19,7 @@ from backend.app.agents.plan_normalize import (
     plan_needs_skill,
     primary_retrieve_query,
 )
+from backend.app.agents.reflection_loop import ReflectionLoop
 from backend.app.agents.retrieval_agent import RetrievalAgent
 from backend.app.agents.router_agent import RouterAgent
 from backend.app.agents.skill_agent import SkillAgent
@@ -44,6 +45,7 @@ class AgentPipeline:
         skill_agent: SkillAgent,
         compliance_agent: ComplianceAgent,
         settings: Settings | None = None,
+        reflection_loop: ReflectionLoop | None = None,
     ) -> None:
         self.router_agent = router_agent
         self.retrieval_agent = retrieval_agent
@@ -51,6 +53,7 @@ class AgentPipeline:
         self.skill_agent = skill_agent
         self.compliance_agent = compliance_agent
         self.settings = settings or get_settings()
+        self.reflection_loop = reflection_loop
 
     async def _emit_stage(
         self,
@@ -139,6 +142,7 @@ class AgentPipeline:
         on_event: EventCallback | None,
         used_l2: bool,
         turn_state: TurnState | None = None,
+        allow_reflection: bool = True,
     ) -> PipelineResult:
         if multi_step and not used_l2:
             plan_steps = await self._emit_plan_kind(
@@ -203,6 +207,25 @@ class AgentPipeline:
                 ]
             },
         )
+
+        # Optional Critique→Improve closed-loop (high-stakes only; hard max rounds).
+        if self.reflection_loop is not None and turn_state is not None:
+            turn_state.answer_result = answer_result
+        if self.reflection_loop is not None:
+            answer_result, reflection = await self.reflection_loop.run(
+                question=question,
+                answer_result=answer_result,
+                evidence=retrieval_result.evidence,
+                skill_results=skill_results,
+                router_result=router_result,
+                turn_state=turn_state,
+                on_stage=on_stage,
+                on_event=on_event,
+                allow_reflection=allow_reflection,
+            )
+            if turn_state is not None:
+                turn_state.reflection = reflection
+                turn_state.answer_result = answer_result
 
         if multi_step:
             plan_steps = await self._emit_plan_kind(
@@ -332,6 +355,7 @@ class AgentPipeline:
             status="completed",
             plan_options=list(getattr(router_result, "plan_options", None) or []),
             reasoning_mode=getattr(router_result, "reasoning_mode", "cot_direct") or "cot_direct",
+            reflection=getattr(turn_state, "reflection", None) if turn_state else None,
         )
 
     def _empty_retrieval(self) -> RetrievalResult:
@@ -395,6 +419,8 @@ class AgentPipeline:
         selected_router_result: RouterResult | None = None,
         # Eval / non-interactive: auto-pick recommended branch instead of pausing.
         hitl: bool = True,
+        # Explicit reflection gate — do NOT reuse hitl (ToT auto-pick also sets hitl=False).
+        allow_reflection: bool = True,
         turn_state: TurnState | None = None,
     ) -> PipelineResult:
         planning_enabled = bool(getattr(self.settings, "CHAT_PLANNING_ENABLED", True))
@@ -466,6 +492,7 @@ class AgentPipeline:
                 session=session,
                 user=user,
                 turn_state=state,
+                allow_reflection=allow_reflection,
             )
 
         await self._emit_stage(on_stage, "RouterAgent", "running", "正在分析问题领域与风险…")
@@ -635,6 +662,7 @@ class AgentPipeline:
             session=session,
             user=user,
             turn_state=state,
+            allow_reflection=allow_reflection,
         )
 
     async def _execute_plan(
@@ -657,6 +685,7 @@ class AgentPipeline:
         session: Session | None,
         user: User | None,
         turn_state: TurnState | None = None,
+        allow_reflection: bool = True,
     ) -> PipelineResult:
         state = turn_state or TurnState(question=question, status="running")
         state.router_result = router_result
@@ -834,6 +863,7 @@ class AgentPipeline:
                 on_event=on_event,
                 used_l2=True,
                 turn_state=state,
+                allow_reflection=allow_reflection,
             )
 
         # ---------- L1 / simple path ----------
@@ -1144,4 +1174,5 @@ class AgentPipeline:
             on_event=on_event,
             used_l2=False,
             turn_state=state,
+            allow_reflection=allow_reflection,
         )

@@ -402,6 +402,25 @@ def _build_command_traces(
             },
         )
     )
+    reflection = getattr(pipeline_result, "reflection", None)
+    if reflection is not None:
+        if reflection.triggered:
+            ref_status = "success" if reflection.stopped_reason == "pass" else "warning"
+            ref_summary = (
+                f"{reflection.stopped_reason} · rounds={len(reflection.rounds)}"
+                f" · verdict={reflection.final_verdict or '-'}"
+            )
+        else:
+            ref_status = "skipped"
+            ref_summary = f"skipped · {reflection.skipped_reason or reflection.stopped_reason}"
+        commands.append(
+            CommandTrace(
+                name="ReflectionLoop",
+                status=ref_status,
+                summary=ref_summary,
+                output=reflection.model_dump(mode="json"),
+            )
+        )
     compliance = pipeline_result.compliance
     commands.append(
         CommandTrace(

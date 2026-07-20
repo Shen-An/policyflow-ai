@@ -143,6 +143,10 @@ class EvalRunner:
             retrieval_request,
             enable_skill=False,
             hitl=False,  # eval auto-picks recommended ToT option; never pause
+            # Explicit gate: do not reuse hitl (ToT auto-pick also sets hitl=False).
+            allow_reflection=bool(
+                getattr(getattr(self.pipeline, "settings", None), "CHAT_REFLECTION_IN_EVAL", False)
+            ),
         )
         answer = pipeline_result.answer_result.answer
         answer_lower = answer.lower()
