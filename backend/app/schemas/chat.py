@@ -1,22 +1,42 @@
 """Chat API schemas."""
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from backend.app.schemas.retrieval import LightRAGQueryMode, RetrievalStrategy
+
+Difficulty = Literal["simple", "multi_step", "branched"]
+ReasoningMode = Literal["cot_direct", "cot_steps", "tot_select"]
+TurnStatus = Literal["completed", "awaiting_plan_selection", "cancelled"]
 
 
 class ChatRequest(BaseModel):
     conversation_id: str | None = None
-    question: str = Field(min_length=1, max_length=4000)
+    # Required for a new question; optional when resuming ToT selection.
+    question: str | None = Field(default=None, max_length=4000)
     knowledge_base_ids: list[str] = Field(default_factory=list)
     enable_skill: bool = True
     retrieval_strategy: RetrievalStrategy = RetrievalStrategy.HYBRID_LIGHTRAG_BM25
     query_mode: LightRAGQueryMode = LightRAGQueryMode.HYBRID
     top_k: int = Field(default=5, ge=1, le=20)
     rerank_enabled: bool = False
+    # ToT HITL: pick a previously emitted plan option (dual-request).
+    selected_option_id: str | None = None
+    cancel_pending_plan: bool = False
+
+    @model_validator(mode="after")
+    def _require_question_or_selection(self) -> Self:
+        has_selection = bool(self.selected_option_id) or bool(self.cancel_pending_plan)
+        q = (self.question or "").strip()
+        if not has_selection and not q:
+            raise ValueError("question is required unless selected_option_id or cancel_pending_plan is set")
+        if q and len(q) < 1:
+            raise ValueError("question must not be empty")
+        if self.question is not None:
+            self.question = self.question.strip()
+        return self
 
 
 class Citation(BaseModel):
@@ -43,6 +63,17 @@ class PlanStep(BaseModel):
     status: Literal["pending", "running", "success", "skipped", "error"] = "pending"
 
 
+class PlanOption(BaseModel):
+    """One candidate execution path for ToT-style selection (not academic ToT search)."""
+
+    id: str
+    title: str
+    summary: str = ""
+    tradeoffs: list[str] = Field(default_factory=list)
+    steps: list[PlanStep] = Field(default_factory=list)
+    recommended: bool = False
+
+
 class RouterResult(BaseModel):
     domain: str
     task_type: str = "knowledge_qa"
@@ -51,9 +82,14 @@ class RouterResult(BaseModel):
     tool_hints: list[str] = Field(default_factory=list)
     rewrite_query: str | None = None
     # Structured plan fields — Router routing, not open-ended Planner Agent.
+    # complexity remains simple|multi_step for backward compat (branched maps to multi_step).
     complexity: Literal["simple", "multi_step"] = "simple"
+    # difficulty is the honest three-tier signal; reasoning_mode is what we run.
+    difficulty: Difficulty = "simple"
+    reasoning_mode: ReasoningMode = "cot_direct"
     plan_steps: list[PlanStep] = Field(default_factory=list)
-    plan_source: Literal["none", "user", "router"] = "none"
+    plan_options: list[PlanOption] = Field(default_factory=list)
+    plan_source: Literal["none", "user", "router", "user_selected"] = "none"
 
 
 class ComplianceResult(BaseModel):
@@ -104,16 +140,21 @@ class TurnDiagnostics(BaseModel):
 class ChatResponse(BaseModel):
     conversation_id: str
     message_id: str
-    query_log_id: str
-    answer: str
-    citations: list[Citation]
-    confidence_score: float
-    query_mode: str
+    query_log_id: str = ""
+    answer: str = ""
+    citations: list[Citation] = Field(default_factory=list)
+    confidence_score: float = 0.0
+    query_mode: str = "hybrid"
     router_result: RouterResult
     suggested_skills: list[dict[str, str]] = Field(default_factory=list)
     draft: None = None
-    compliance: ComplianceResult
+    compliance: ComplianceResult = Field(default_factory=lambda: ComplianceResult(passed=True, warnings=[]))
     diagnostics: TurnDiagnostics = Field(default_factory=TurnDiagnostics)
+    # Dual-request ToT HITL: awaiting_plan_selection ends stream without a full answer.
+    status: TurnStatus = "completed"
+    reasoning_mode: ReasoningMode = "cot_direct"
+    plan_options: list[PlanOption] = Field(default_factory=list)
+    awaiting_message_id: str | None = None
 
 
 class AssistantMessageMetadata(BaseModel):
@@ -125,6 +166,12 @@ class AssistantMessageMetadata(BaseModel):
     suggested_skills: list[dict[str, str]] = Field(default_factory=list)
     compliance: ComplianceResult | None = None
     diagnostics: TurnDiagnostics = Field(default_factory=TurnDiagnostics)
+    # ToT HITL durable state on assistant stub messages.
+    turn_status: TurnStatus | None = None
+    reasoning_mode: ReasoningMode | None = None
+    plan_options: list[PlanOption] = Field(default_factory=list)
+    pending_plan: dict[str, Any] = Field(default_factory=dict)
+    selected_option_id: str | None = None
 
 
 class MessageRead(BaseModel):

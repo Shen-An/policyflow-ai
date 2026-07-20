@@ -5,10 +5,11 @@ from __future__ import annotations
 import re
 from typing import Any, Literal
 
-from backend.app.schemas.chat import PlanStep, RouterResult
+from backend.app.schemas.chat import PlanStep, ReasoningMode, RouterResult
 
-PlanSource = Literal["none", "user", "router"]
+PlanSource = Literal["none", "user", "router", "user_selected"]
 Complexity = Literal["simple", "multi_step"]
+Difficulty = Literal["simple", "multi_step", "branched"]
 
 _VALID_KINDS = {"retrieve", "skill", "answer", "tool", "verify"}
 _DEFAULT_MAX_STEPS = 5
@@ -25,6 +26,13 @@ _MULTI_PHASE = re.compile(
 )
 _EXPLICIT_PLAN_REQUEST = re.compile(
     r"(分步|分几步|步骤执行|请规划|制定计划|拆成|一步步|step by step|break down)",
+    re.IGNORECASE,
+)
+# Competing strategies / explicit alternatives → ToT select (branched).
+_BRANCHED_HINTS = re.compile(
+    r"(几种方案|多条路径|哪条路|可选路径|对比路径|两种做法|三种做法|"
+    r"还是先|或者先|也可以先|备选方案|多方案|选哪|"
+    r"alternative|which path|either .+ or|two approaches|multiple options)",
     re.IGNORECASE,
 )
 
@@ -67,12 +75,67 @@ def should_be_multi_step(
         return True
     if _MULTI_PHASE.search(text) and len(text) >= 16:
         return True
+    if should_be_branched(question, router_result):
+        return True
     if router_result is not None:
         if router_result.task_type in {"process_checklist", "policy_compare"} and (
             len(text) >= 24 or "对比" in text or "并且" in text or "以及" in text
         ):
             return True
     return False
+
+
+def should_be_branched(
+    question: str,
+    router_result: RouterResult | None = None,
+) -> bool:
+    """Heuristic ToT gate: competing strategies, not just multi-step."""
+    text = (question or "").strip()
+    if not text:
+        return False
+    # User already numbered a linear path — never force branch selection.
+    if len(parse_user_numbered_steps(text)) >= 2:
+        return False
+    if _BRANCHED_HINTS.search(text):
+        return True
+    if router_result is not None and getattr(router_result, "difficulty", None) == "branched":
+        return True
+    # policy_compare with multi-phase phrasing often has alternative retrieve orders.
+    if router_result is not None and router_result.task_type == "policy_compare":
+        if _MULTI_PHASE.search(text) and len(text) >= 28:
+            return True
+        if ("对比" in text or "compare" in text.lower()) and (
+            "清单" in text or "申请" in text or "流程" in text or "模板" in text
+        ):
+            return True
+    return False
+
+
+def difficulty_to_reasoning_mode(difficulty: Difficulty) -> ReasoningMode:
+    if difficulty == "branched":
+        return "tot_select"
+    if difficulty == "multi_step":
+        return "cot_steps"
+    return "cot_direct"
+
+
+def _with_mode(
+    router_result: RouterResult,
+    *,
+    complexity: Complexity,
+    difficulty: Difficulty,
+    plan_steps: list[PlanStep],
+    plan_source: PlanSource,
+) -> RouterResult:
+    return router_result.model_copy(
+        update={
+            "complexity": complexity,
+            "difficulty": difficulty,
+            "reasoning_mode": difficulty_to_reasoning_mode(difficulty),
+            "plan_steps": plan_steps,
+            "plan_source": plan_source,
+        }
+    )
 
 
 def _infer_kind(text: str) -> str:
@@ -234,31 +297,41 @@ def normalize_plan(
     *,
     enabled: bool = True,
     max_steps: int = _DEFAULT_MAX_STEPS,
+    tot_enabled: bool = True,
+    tot_auto_trigger: bool = True,
 ) -> RouterResult:
     """
     Produce a validated plan on RouterResult.
 
     Priority:
-    1. User-numbered steps → plan_source=user
+    1. User-numbered steps → multi_step + plan_source=user (never branched)
     2. Router-provided plan_steps when complexity multi_step
-    3. Heuristic multi_step → default task plan
+    3. Heuristic multi_step / branched → default task plan + difficulty
     4. Else simple / empty plan
+
+    difficulty=branched only when strategies compete and TOT is enabled;
+    complexity stays multi_step for backward-compatible clients.
     """
     max_steps = max(1, min(int(max_steps or _DEFAULT_MAX_STEPS), 10))
     if not enabled:
-        return router_result.model_copy(
-            update={"complexity": "simple", "plan_steps": [], "plan_source": "none"}
+        return _with_mode(
+            router_result,
+            complexity="simple",
+            difficulty="simple",
+            plan_steps=[],
+            plan_source="none",
         )
 
     user_steps = parse_user_numbered_steps(question, max_steps=max_steps)
     if len(user_steps) >= 2:
         steps = _ensure_answer_tail(user_steps, max_steps=max_steps)
-        return router_result.model_copy(
-            update={
-                "complexity": "multi_step",
-                "plan_steps": steps,
-                "plan_source": "user",
-            }
+        # Explicit linear path from user → CoT steps, not ToT select.
+        return _with_mode(
+            router_result,
+            complexity="multi_step",
+            difficulty="multi_step",
+            plan_steps=steps,
+            plan_source="user",
         )
 
     # Coerce router-provided steps.
@@ -272,44 +345,47 @@ def normalize_plan(
 
     router_says_multi = router_result.complexity == "multi_step" and len(coerced) >= 2
     heuristic_multi = should_be_multi_step(question, router_result)
+    branched = bool(tot_enabled and tot_auto_trigger) and (
+        getattr(router_result, "difficulty", "simple") == "branched"
+        or should_be_branched(question, router_result)
+    )
+    # If TOT disabled, never keep branched.
+    if not tot_enabled:
+        branched = False
+
+    def _multi_result(steps: list[PlanStep], source: PlanSource) -> RouterResult:
+        difficulty: Difficulty = "branched" if branched else "multi_step"
+        return _with_mode(
+            router_result,
+            complexity="multi_step",
+            difficulty=difficulty,
+            plan_steps=steps,
+            plan_source=source,
+        )
 
     if router_says_multi:
         steps = _ensure_answer_tail(coerced, max_steps=max_steps)
-        return router_result.model_copy(
-            update={
-                "complexity": "multi_step",
-                "plan_steps": steps,
-                "plan_source": "router",
-            }
-        )
+        return _multi_result(steps, "router")
 
-    if heuristic_multi:
+    if heuristic_multi or branched:
         if len(coerced) >= 2:
             steps = _ensure_answer_tail(coerced, max_steps=max_steps)
         else:
             steps = _default_plan_for_task(question, router_result)[:max_steps]
             steps = _ensure_answer_tail(steps, max_steps=max_steps)
-        return router_result.model_copy(
-            update={
-                "complexity": "multi_step",
-                "plan_steps": steps,
-                "plan_source": "router" if coerced else "router",
-            }
-        )
+        return _multi_result(steps, "router")
 
     # Single user step is still simple unless explicit plan request.
     if _EXPLICIT_PLAN_REQUEST.search(question or "") and coerced:
         steps = _ensure_answer_tail(coerced, max_steps=max_steps)
-        return router_result.model_copy(
-            update={
-                "complexity": "multi_step",
-                "plan_steps": steps,
-                "plan_source": "router",
-            }
-        )
+        return _multi_result(steps, "router")
 
-    return router_result.model_copy(
-        update={"complexity": "simple", "plan_steps": [], "plan_source": "none"}
+    return _with_mode(
+        router_result,
+        complexity="simple",
+        difficulty="simple",
+        plan_steps=[],
+        plan_source="none",
     )
 
 

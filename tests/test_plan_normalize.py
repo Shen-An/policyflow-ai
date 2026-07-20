@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from backend.app.agents.plan_normalize import (
+    difficulty_to_reasoning_mode,
     merge_plan_tool_hints,
     normalize_plan,
     parse_user_numbered_steps,
     plan_needs_skill,
     primary_retrieve_query,
+    should_be_branched,
     should_be_multi_step,
 )
 from backend.app.schemas.chat import PlanStep, RouterResult
@@ -116,3 +118,42 @@ def test_primary_retrieve_query_and_tool_hints() -> None:
     assert "kb.search" in hints
     assert "skill.run" in hints
     assert plan_needs_skill(steps, False) is True
+
+
+def test_branched_difficulty_and_reasoning_mode() -> None:
+    router = _router(
+        task_type="policy_compare",
+        need_skill=True,
+        tool_hints=["skill.run"],
+    )
+    question = "对比一线与二线差旅住宿标准，并给出报销申请清单"
+    assert should_be_branched(question, router) is True
+    result = normalize_plan(question, router, tot_enabled=True)
+    assert result.difficulty == "branched"
+    assert result.reasoning_mode == "tot_select"
+    assert result.complexity == "multi_step"
+    assert difficulty_to_reasoning_mode("branched") == "tot_select"
+
+
+def test_user_numbered_steps_not_branched() -> None:
+    router = _router(task_type="policy_compare", need_skill=True)
+    question = "1. 查制度\n2. 列清单\n3. 回答"
+    result = normalize_plan(question, router, tot_enabled=True)
+    assert result.plan_source == "user"
+    assert result.difficulty == "multi_step"
+    assert result.reasoning_mode == "cot_steps"
+    assert result.difficulty != "branched"
+
+
+def test_tot_disabled_demotes_branched() -> None:
+    router = _router(
+        task_type="policy_compare",
+        need_skill=True,
+        difficulty="branched",
+        reasoning_mode="tot_select",
+        complexity="multi_step",
+    )
+    question = "对比一线与二线差旅住宿标准，并给出报销申请清单"
+    result = normalize_plan(question, router, tot_enabled=False)
+    assert result.difficulty == "multi_step"
+    assert result.reasoning_mode == "cot_steps"

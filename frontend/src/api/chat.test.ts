@@ -309,5 +309,184 @@ describe('chat API adapters', () => {
     ])
     expect(result.routerResult.complexity).toBe('multi_step')
     expect(result.routerResult.planSteps?.[0]?.status).toBe('success')
+    expect(result.status).toBe('completed')
+  })
+
+  it('treats plan_options + awaiting_plan_selection final as successful stream pause', async () => {
+    const planOptionsEvents: Array<{ options: Array<{ id: string }> }> = []
+    let requestBody: unknown
+
+    server.use(
+      http.post('*/api/chat/stream', async ({ request }) => {
+        requestBody = await request.json()
+        const body = [
+          'event: stage',
+          'data: {"stage":"PlanBranch","status":"running","message":"生成候选路径"}',
+          '',
+          'event: plan_options',
+          `data: ${JSON.stringify({
+            difficulty: 'branched',
+            reasoning_mode: 'tot_select',
+            recommended_option_id: 'opt1',
+            options: [
+              {
+                id: 'opt1',
+                title: '串行检索',
+                summary: '先检索再清单',
+                tradeoffs: ['稳妥'],
+                recommended: true,
+                steps: [
+                  { id: 's1', title: '检索', kind: 'retrieve', status: 'pending' },
+                  { id: 's2', title: '回答', kind: 'answer', status: 'pending' },
+                ],
+              },
+              {
+                id: 'opt2',
+                title: '并行多检索',
+                summary: '拆查询并行',
+                tradeoffs: ['更快'],
+                recommended: false,
+                steps: [
+                  { id: 's1', title: '检索A', kind: 'retrieve', status: 'pending' },
+                  { id: 's2', title: '检索B', kind: 'retrieve', status: 'pending' },
+                  { id: 's3', title: '回答', kind: 'answer', status: 'pending' },
+                ],
+              },
+            ],
+          })}`,
+          '',
+          'event: final',
+          `data: ${JSON.stringify({
+            conversation_id: 'conversation-1',
+            message_id: 'message-await',
+            query_log_id: '',
+            answer: '请选择路径',
+            citations: [],
+            confidence_score: 0,
+            query_mode: 'hybrid',
+            router_result: {
+              domain: 'hr',
+              task_type: 'policy_compare',
+              risk_level: 'low',
+              complexity: 'multi_step',
+              difficulty: 'branched',
+              reasoning_mode: 'tot_select',
+              plan_source: 'router',
+              plan_steps: [],
+              plan_options: [],
+            },
+            suggested_skills: [],
+            compliance: { passed: true, warnings: [] },
+            diagnostics: { memories: [], tools: [], commands: [] },
+            status: 'awaiting_plan_selection',
+            reasoning_mode: 'tot_select',
+            plan_options: [
+              {
+                id: 'opt1',
+                title: '串行检索',
+                summary: '先检索再清单',
+                tradeoffs: ['稳妥'],
+                recommended: true,
+                steps: [
+                  { id: 's1', title: '检索', kind: 'retrieve', status: 'pending' },
+                  { id: 's2', title: '回答', kind: 'answer', status: 'pending' },
+                ],
+              },
+            ],
+            awaiting_message_id: 'message-await',
+          })}`,
+          '',
+        ].join('\n')
+        return new HttpResponse(body, {
+          status: 200,
+          headers: { 'Content-Type': 'text/event-stream' },
+        })
+      }),
+    )
+
+    const result = await sendChatStream(
+      {
+        question: '对比一线与二线差旅并给报销清单',
+        knowledgeBaseIds: ['kb-1'],
+        queryMode: 'hybrid',
+      },
+      {
+        onPlanOptions: (event) => {
+          planOptionsEvents.push({ options: event.options })
+        },
+      },
+    )
+
+    expect(requestBody).toMatchObject({
+      question: '对比一线与二线差旅并给报销清单',
+      knowledge_base_ids: ['kb-1'],
+    })
+    expect(planOptionsEvents).toHaveLength(1)
+    expect(planOptionsEvents[0]?.options).toHaveLength(2)
+    expect(result.status).toBe('awaiting_plan_selection')
+    expect(result.reasoningMode).toBe('tot_select')
+    expect(result.planOptions[0]?.id).toBe('opt1')
+    expect(result.awaitingMessageId).toBe('message-await')
+    expect(result.queryLogId).toBe('')
+  })
+
+  it('sends selected_option_id for ToT resume without requiring question', async () => {
+    let requestBody: unknown
+    server.use(
+      http.post('*/api/chat/stream', async ({ request }) => {
+        requestBody = await request.json()
+        const body = [
+          'event: final',
+          `data: ${JSON.stringify({
+            conversation_id: 'conversation-1',
+            message_id: 'message-2',
+            query_log_id: 'query-2',
+            answer: '按所选路径完成',
+            citations: [citation],
+            confidence_score: 0.88,
+            query_mode: 'hybrid',
+            router_result: {
+              domain: 'hr',
+              task_type: 'policy_compare',
+              risk_level: 'low',
+              complexity: 'multi_step',
+              difficulty: 'branched',
+              reasoning_mode: 'tot_select',
+              plan_source: 'user_selected',
+            },
+            suggested_skills: [],
+            compliance: { passed: true, warnings: [] },
+            diagnostics: { memories: [], tools: [], commands: [] },
+            status: 'completed',
+            reasoning_mode: 'tot_select',
+            plan_options: [],
+          })}`,
+          '',
+        ].join('\n')
+        return new HttpResponse(body, {
+          status: 200,
+          headers: { 'Content-Type': 'text/event-stream' },
+        })
+      }),
+    )
+
+    const result = await sendChatStream({
+      conversationId: 'conversation-1',
+      knowledgeBaseIds: ['kb-1'],
+      queryMode: 'hybrid',
+      selectedOptionId: 'opt2',
+    })
+
+    expect(requestBody).toEqual({
+      conversation_id: 'conversation-1',
+      knowledge_base_ids: ['kb-1'],
+      enable_skill: true,
+      retrieval_strategy: 'hybrid_lightrag_bm25',
+      query_mode: 'hybrid',
+      top_k: 5,
+      selected_option_id: 'opt2',
+    })
+    expect(result.status).toBe('completed')
+    expect(result.routerResult.planSource).toBe('user_selected')
   })
 })

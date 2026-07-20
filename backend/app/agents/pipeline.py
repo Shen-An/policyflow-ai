@@ -8,9 +8,10 @@ from typing import Any, Literal
 from sqlmodel import Session
 
 from backend.app.agents.answer_agent import AnswerAgent
-from backend.app.agents.base import MemoryWorkingSet, PipelineResult
+from backend.app.agents.base import AnswerResult, MemoryWorkingSet, PipelineResult
 from backend.app.agents.compliance_agent import ComplianceAgent
 from backend.app.agents.grounding import estimate_answer_confidence, question_evidence_support
+from backend.app.agents.plan_branch import generate_plan_options, pick_recommended_option
 from backend.app.agents.plan_executor import PlanExecutor, should_use_plan_executor
 from backend.app.agents.plan_normalize import (
     merge_plan_tool_hints,
@@ -23,7 +24,7 @@ from backend.app.agents.router_agent import RouterAgent
 from backend.app.agents.skill_agent import SkillAgent
 from backend.app.core.config import Settings, get_settings
 from backend.app.db.models import KnowledgeBase, User
-from backend.app.schemas.chat import PlanStep
+from backend.app.schemas.chat import ComplianceResult, PlanOption, PlanStep, RouterResult
 from backend.app.schemas.retrieval import RetrievalRequest, RetrievalResult
 from backend.app.tools.chat_tools import ChatToolExecutor
 
@@ -284,6 +285,37 @@ class AgentPipeline:
             suggested_skills=suggested_skills,
             skill_results=skill_results,
             plan=plan_steps,
+            status="completed",
+            plan_options=list(getattr(router_result, "plan_options", None) or []),
+            reasoning_mode=getattr(router_result, "reasoning_mode", "cot_direct") or "cot_direct",
+        )
+
+    def _empty_retrieval(self) -> RetrievalResult:
+        return RetrievalResult(evidence=[], trace=[], latency_ms=0)
+
+    def _awaiting_result(
+        self,
+        router_result: RouterResult,
+        plan_options: list[PlanOption],
+    ) -> PipelineResult:
+        return PipelineResult(
+            router_result=router_result.model_copy(
+                update={
+                    "plan_options": plan_options,
+                    "reasoning_mode": "tot_select",
+                    "difficulty": "branched",
+                    "complexity": "multi_step",
+                }
+            ),
+            retrieval_result=self._empty_retrieval(),
+            answer_result=AnswerResult(answer="", confidence_score=0.0),
+            compliance=ComplianceResult(passed=True, warnings=[]),
+            suggested_skills=[],
+            skill_results=[],
+            plan=[],
+            status="awaiting_plan_selection",
+            plan_options=plan_options,
+            reasoning_mode="tot_select",
         )
 
     async def run(
@@ -300,22 +332,89 @@ class AgentPipeline:
         user: User | None = None,
         tool_executor: ChatToolExecutor | None = None,
         execute_skills: bool = False,
+        # ToT dual-request: skip re-route and execute selected steps.
+        selected_plan_steps: list[PlanStep] | None = None,
+        selected_router_result: RouterResult | None = None,
+        # Eval / non-interactive: auto-pick recommended branch instead of pausing.
+        hitl: bool = True,
     ) -> PipelineResult:
-        await self._emit_stage(on_stage, "RouterAgent", "running", "正在分析问题领域与风险…")
-        router_result = await self.router_agent.run(question, knowledge_bases)
         planning_enabled = bool(getattr(self.settings, "CHAT_PLANNING_ENABLED", True))
         max_steps = int(getattr(self.settings, "CHAT_PLAN_MAX_STEPS", 5) or 5)
+        tot_enabled = bool(getattr(self.settings, "CHAT_TOT_ENABLED", True))
+        tot_auto = bool(getattr(self.settings, "CHAT_TOT_AUTO_TRIGGER", True))
+        tot_min = int(getattr(self.settings, "CHAT_TOT_MIN_OPTIONS", 2) or 2)
+        tot_max = int(getattr(self.settings, "CHAT_TOT_MAX_OPTIONS", 3) or 3)
+        l2_enabled = bool(getattr(self.settings, "CHAT_PLAN_EXECUTOR", True))
+        parallel_enabled = bool(getattr(self.settings, "CHAT_PLAN_PARALLEL", True))
+
+        # ---------- Resume path: user-selected ToT option ----------
+        if selected_plan_steps and selected_router_result is not None:
+            router_result = selected_router_result.model_copy(
+                update={
+                    "plan_steps": list(selected_plan_steps),
+                    "plan_source": "user_selected",
+                    "difficulty": "branched",
+                    "reasoning_mode": "tot_select",
+                    "complexity": "multi_step",
+                }
+            )
+            plan_steps = list(selected_plan_steps)
+            multi_step = bool(plan_steps)
+            use_l2 = multi_step and should_use_plan_executor(plan_steps, enabled=l2_enabled)
+            await self._emit_stage(
+                on_stage,
+                "RouterAgent",
+                "success",
+                f"ToT 用户选路 · steps={len(plan_steps)} · executor={'L2' if use_l2 else 'L1'}",
+            )
+            await self._emit_event(
+                on_event,
+                "diagnostics_partial",
+                {
+                    "commands": [
+                        {
+                            "name": "RouterAgent",
+                            "status": "success",
+                            "summary": f"user_selected · {len(plan_steps)} steps · tot_select",
+                            "output": router_result.model_dump(mode="json"),
+                        }
+                    ]
+                },
+            )
+            return await self._execute_plan(
+                question,
+                knowledge_bases,
+                retrieval_request,
+                router_result=router_result,
+                plan_steps=plan_steps,
+                multi_step=multi_step,
+                use_l2=use_l2,
+                parallel_enabled=parallel_enabled,
+                enable_skill=enable_skill,
+                execute_skills=execute_skills,
+                working_set=working_set,
+                tool_executor=tool_executor,
+                on_stage=on_stage,
+                on_event=on_event,
+                session=session,
+                user=user,
+            )
+
+        await self._emit_stage(on_stage, "RouterAgent", "running", "正在分析问题领域与风险…")
+        router_result = await self.router_agent.run(question, knowledge_bases)
         router_result = normalize_plan(
             question,
             router_result,
             enabled=planning_enabled,
             max_steps=max_steps,
+            tot_enabled=tot_enabled,
+            tot_auto_trigger=tot_auto,
         )
         plan_steps = list(router_result.plan_steps or [])
         multi_step = router_result.complexity == "multi_step" and bool(plan_steps)
-        l2_enabled = bool(getattr(self.settings, "CHAT_PLAN_EXECUTOR", True))
-        parallel_enabled = bool(getattr(self.settings, "CHAT_PLAN_PARALLEL", True))
         use_l2 = multi_step and should_use_plan_executor(plan_steps, enabled=l2_enabled)
+        reasoning_mode = getattr(router_result, "reasoning_mode", "cot_direct") or "cot_direct"
+        difficulty = getattr(router_result, "difficulty", "simple") or "simple"
 
         await self._emit_stage(
             on_stage,
@@ -324,7 +423,7 @@ class AgentPipeline:
             (
                 f"domain={router_result.domain}, task={router_result.task_type}, "
                 f"risk={router_result.risk_level}, need_skill={router_result.need_skill}, "
-                f"complexity={router_result.complexity}"
+                f"difficulty={difficulty}, mode={reasoning_mode}"
                 + (", plan_executor=L2" if use_l2 else "")
             ),
         )
@@ -339,14 +438,138 @@ class AgentPipeline:
                         "summary": (
                             f"domain={router_result.domain}, "
                             f"task={router_result.task_type}, risk={router_result.risk_level}, "
-                            f"need_skill={router_result.need_skill}, "
-                            f"complexity={router_result.complexity}"
+                            f"difficulty={difficulty}, mode={reasoning_mode}"
                         ),
                         "output": router_result.model_dump(mode="json"),
                     }
                 ]
             },
         )
+
+        # ---------- ToT pause: generate options, stop before retrieve ----------
+        if difficulty == "branched" and reasoning_mode == "tot_select" and tot_enabled:
+            await self._emit_stage(
+                on_stage,
+                "PlanBranch",
+                "running",
+                "生成候选执行路径供选择…",
+            )
+            llm = getattr(self.router_agent, "llm_service", None)
+            plan_options = await generate_plan_options(
+                question,
+                router_result,
+                llm_service=llm,
+                min_options=tot_min,
+                max_options=tot_max,
+                max_steps=max_steps,
+            )
+            router_result = router_result.model_copy(
+                update={
+                    "plan_options": plan_options,
+                    "reasoning_mode": "tot_select",
+                    "difficulty": "branched",
+                }
+            )
+            await self._emit_event(
+                on_event,
+                "plan_options",
+                {
+                    "difficulty": "branched",
+                    "reasoning_mode": "tot_select",
+                    "plan_source": router_result.plan_source,
+                    "options": [opt.model_dump(mode="json") for opt in plan_options],
+                    "recommended_option_id": next(
+                        (opt.id for opt in plan_options if opt.recommended),
+                        plan_options[0].id if plan_options else None,
+                    ),
+                },
+            )
+            await self._emit_stage(
+                on_stage,
+                "PlanBranch",
+                "success",
+                f"已生成 {len(plan_options)} 条候选路径，等待用户选择",
+            )
+            await self._emit_event(
+                on_event,
+                "diagnostics_partial",
+                {
+                    "commands": [
+                        {
+                            "name": "PlanBranch",
+                            "status": "success",
+                            "summary": f"ToT 选路 · {len(plan_options)} options · awaiting",
+                            "output": {
+                                "options": [o.model_dump(mode="json") for o in plan_options],
+                                "hitl": hitl,
+                            },
+                        }
+                    ]
+                },
+            )
+            if hitl:
+                return self._awaiting_result(router_result, plan_options)
+
+            # Non-interactive (eval): auto-pick recommended and continue.
+            chosen = pick_recommended_option(plan_options)
+            if chosen is None:
+                return self._awaiting_result(router_result, plan_options)
+            plan_steps = list(chosen.steps)
+            multi_step = bool(plan_steps)
+            use_l2 = multi_step and should_use_plan_executor(plan_steps, enabled=l2_enabled)
+            router_result = router_result.model_copy(
+                update={
+                    "plan_steps": plan_steps,
+                    "plan_source": "user_selected",
+                    "plan_options": plan_options,
+                }
+            )
+            await self._emit_stage(
+                on_stage,
+                "PlanBranch",
+                "success",
+                f"非交互自动选用推荐路径 {chosen.id}",
+            )
+
+        return await self._execute_plan(
+            question,
+            knowledge_bases,
+            retrieval_request,
+            router_result=router_result,
+            plan_steps=plan_steps,
+            multi_step=multi_step,
+            use_l2=use_l2,
+            parallel_enabled=parallel_enabled,
+            enable_skill=enable_skill,
+            execute_skills=execute_skills,
+            working_set=working_set,
+            tool_executor=tool_executor,
+            on_stage=on_stage,
+            on_event=on_event,
+            session=session,
+            user=user,
+        )
+
+    async def _execute_plan(
+        self,
+        question: str,
+        knowledge_bases: list[KnowledgeBase],
+        retrieval_request: RetrievalRequest | None,
+        *,
+        router_result: RouterResult,
+        plan_steps: list[PlanStep],
+        multi_step: bool,
+        use_l2: bool,
+        parallel_enabled: bool,
+        enable_skill: bool,
+        execute_skills: bool,
+        working_set: MemoryWorkingSet | None,
+        tool_executor: ChatToolExecutor | None,
+        on_stage: StageCallback | None,
+        on_event: EventCallback | None,
+        session: Session | None,
+        user: User | None,
+    ) -> PipelineResult:
 
         if multi_step:
             await self._emit_plan(

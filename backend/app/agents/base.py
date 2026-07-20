@@ -1,10 +1,10 @@
 """Shared Agent pipeline result models."""
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from backend.app.schemas.chat import ComplianceResult, PlanStep, RouterResult
+from backend.app.schemas.chat import ComplianceResult, PlanOption, PlanStep, RouterResult
 from backend.app.schemas.retrieval import RetrievalResult
 
 
@@ -32,3 +32,7 @@ class PipelineResult(BaseModel):
     suggested_skills: list[dict[str, str]] = Field(default_factory=list)
     skill_results: list[dict[str, Any]] = Field(default_factory=list)
     plan: list[PlanStep] = Field(default_factory=list)
+    # Dual-request ToT HITL: awaiting_plan_selection stops before retrieve.
+    status: Literal["completed", "awaiting_plan_selection", "cancelled"] = "completed"
+    plan_options: list[PlanOption] = Field(default_factory=list)
+    reasoning_mode: Literal["cot_direct", "cot_steps", "tot_select"] = "cot_direct"

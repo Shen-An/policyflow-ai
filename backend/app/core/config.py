@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     CHAT_PLAN_EXECUTOR: bool = True
     # Within a ready wave, run independent steps concurrently (e.g. multi-retrieve).
     CHAT_PLAN_PARALLEL: bool = True
+    # L2.5 ToT 选路: multi-candidate plans + user pick (not academic ToT search).
+    CHAT_TOT_ENABLED: bool = True
+    CHAT_TOT_AUTO_TRIGGER: bool = True
+    CHAT_TOT_MIN_OPTIONS: int = 2
+    CHAT_TOT_MAX_OPTIONS: int = 3
+    CHAT_TOT_PENDING_TTL_MINUTES: int = 60
 
     @property
     def log_file(self) -> Path:

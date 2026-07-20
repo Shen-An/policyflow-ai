@@ -1,6 +1,7 @@
 """Chat persistence and Agent Pipeline orchestration."""
 
 import json
+from datetime import datetime, timedelta, timezone
 from time import perf_counter
 from typing import Any
 
@@ -9,6 +10,7 @@ from sqlmodel import Session, col, select
 from backend.app.agents.base import MemoryWorkingSet
 from backend.app.agents.memory_agent import MemoryAgent
 from backend.app.agents.pipeline import AgentPipeline
+from backend.app.agents.plan_branch import find_option
 from backend.app.core.config import get_settings
 from backend.app.core.exceptions import ApplicationError
 from backend.app.db.models import (
@@ -30,11 +32,14 @@ from backend.app.schemas.chat import (
     ConversationRead,
     ConversationSummary,
     MessageRead,
+    PlanOption,
+    PlanStep,
+    RouterResult,
     ToolCallTrace,
     TurnDiagnostics,
     UsedMemoryItem,
 )
-from backend.app.schemas.retrieval import RetrievalRequest
+from backend.app.schemas.retrieval import LightRAGQueryMode, RetrievalRequest, RetrievalStrategy
 from backend.app.services.knowledge_base_router import select_candidate_knowledge_bases
 from backend.app.services.permission_service import get_knowledge_base_permission
 from backend.app.services.query_rewrite import expand_retrieval_query
@@ -62,7 +67,8 @@ def _conversation(
     session: Session, user: User, conversation_id: str | None, question: str
 ) -> Conversation:
     if conversation_id is None:
-        conversation = Conversation(user_id=user.id, title=question.strip()[:100])
+        title = (question or "").strip()[:100] or "新对话"
+        conversation = Conversation(user_id=user.id, title=title)
         session.add(conversation)
         session.flush()
         return conversation
@@ -73,6 +79,114 @@ def _conversation(
     if existing_conversation.user_id != user.id and "sys_admin" not in role_codes:
         raise ApplicationError("PERMISSION_DENIED", "Conversation access denied", 403)
     return existing_conversation
+
+
+def _parse_iso_utc(value: Any) -> datetime | None:
+    if not value or not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _find_awaiting_assistant_message(
+    session: Session,
+    conversation_id: str,
+) -> Message | None:
+    messages = session.exec(
+        select(Message)
+        .where(Message.conversation_id == conversation_id, Message.role == "assistant")
+        .order_by(col(Message.created_at).desc())
+    ).all()
+    for message in messages:
+        meta = message.meta_json or {}
+        if isinstance(meta, dict) and meta.get("turn_status") == "awaiting_plan_selection":
+            return message
+    return None
+
+
+def _load_pending_plan_context(
+    session: Session,
+    user: User,
+    conversation: Conversation,
+    *,
+    selected_option_id: str | None,
+    cancel: bool,
+) -> tuple[Message, dict[str, Any], list[PlanOption], RouterResult, str]:
+    """Load durable ToT pending state from the latest awaiting assistant stub."""
+    stub = _find_awaiting_assistant_message(session, conversation.id)
+    if stub is None:
+        raise ApplicationError(
+            "PENDING_PLAN_NOT_FOUND",
+            "No pending plan selection for this conversation",
+            404,
+        )
+    meta = stub.meta_json if isinstance(stub.meta_json, dict) else {}
+    pending = meta.get("pending_plan") if isinstance(meta.get("pending_plan"), dict) else {}
+    expires_at = _parse_iso_utc(pending.get("expires_at"))
+    now = datetime.now(timezone.utc)
+    if expires_at is not None and expires_at < now:
+        raise ApplicationError(
+            "PENDING_PLAN_EXPIRED",
+            "Pending plan selection has expired; please ask again",
+            410,
+        )
+
+    raw_options = meta.get("plan_options") or pending.get("options") or []
+    options: list[PlanOption] = []
+    if isinstance(raw_options, list):
+        for item in raw_options:
+            try:
+                options.append(PlanOption.model_validate(item))
+            except Exception:
+                continue
+
+    router_raw = pending.get("router_result") or meta.get("router_result") or {}
+    try:
+        router_result = RouterResult.model_validate(router_raw) if router_raw else RouterResult(domain="general")
+    except Exception:
+        router_result = RouterResult(domain="general")
+
+    question = str(pending.get("question") or "").strip()
+    if not question:
+        # Fallback: previous user message.
+        prev_user = session.exec(
+            select(Message)
+            .where(Message.conversation_id == conversation.id, Message.role == "user")
+            .order_by(col(Message.created_at).desc())
+        ).first()
+        question = (prev_user.content if prev_user else "") or ""
+
+    if cancel:
+        return stub, pending, options, router_result, question
+
+    if not selected_option_id:
+        raise ApplicationError("INVALID_PLAN_OPTION", "selected_option_id is required", 400)
+    # Already resolved?
+    if meta.get("turn_status") == "completed" and meta.get("selected_option_id") == selected_option_id:
+        raise ApplicationError(
+            "PENDING_PLAN_ALREADY_RESOLVED",
+            "This plan option was already executed",
+            409,
+        )
+    if meta.get("turn_status") not in {None, "awaiting_plan_selection"} and meta.get("selected_option_id"):
+        raise ApplicationError(
+            "PENDING_PLAN_ALREADY_RESOLVED",
+            "Pending plan was already resolved with a different option",
+            409,
+        )
+    if find_option(options, selected_option_id) is None:
+        raise ApplicationError("INVALID_PLAN_OPTION", f"Unknown plan option: {selected_option_id}", 400)
+    return stub, pending, options, router_result, question
 
 
 def _owned_conversation(session: Session, user: User, conversation_id: str) -> Conversation:
@@ -404,22 +518,142 @@ async def iter_chat_events(
     skill_registry: Any | None = None,
     rag_service: Any | None = None,
 ):
-    """Yield (event_name, payload) stages for SSE streaming via unified pipeline."""
-    from collections.abc import AsyncIterator
+    """Yield (event_name, payload) stages for SSE streaming via unified pipeline.
+
+    Dual-request ToT HITL:
+    - Request A (question): may end with status=awaiting_plan_selection + plan_options
+    - Request B (selected_option_id): execute chosen plan without new user message
+    """
     import asyncio
 
     from backend.app.tools.chat_tools import ChatToolExecutor
 
+    settings = get_settings()
     started_at = perf_counter()
     turn_started_at = utc_now()
-    conversation = _conversation(session, user, data.conversation_id, data.question)
-    user_message = Message(
-        conversation_id=conversation.id,
-        role="user",
-        content=data.question,
-    )
-    session.add(user_message)
-    session.flush()
+
+    is_selection = bool(data.selected_option_id) or bool(data.cancel_pending_plan)
+    question = (data.question or "").strip()
+
+    # ---------- Request B: cancel pending plan ----------
+    if data.cancel_pending_plan:
+        if not data.conversation_id:
+            raise ApplicationError(
+                "CONVERSATION_NOT_FOUND",
+                "conversation_id required to cancel pending plan",
+                400,
+            )
+        conversation = _conversation(session, user, data.conversation_id, question or "cancel")
+        stub, _pending, options, router_result, _q = _load_pending_plan_context(
+            session,
+            user,
+            conversation,
+            selected_option_id=None,
+            cancel=True,
+        )
+        meta = dict(stub.meta_json or {})
+        meta["turn_status"] = "cancelled"
+        meta["plan_options"] = [o.model_dump(mode="json") for o in options]
+        stub.content = "已取消路径选择。如需继续，请重新提问。"
+        stub.meta_json = meta
+        session.add(stub)
+        conversation.updated_at = utc_now()
+        session.add(conversation)
+        session.commit()
+        session.refresh(stub)
+        from backend.app.schemas.chat import ComplianceResult
+
+        response = ChatResponse(
+            conversation_id=conversation.id,
+            message_id=stub.id,
+            query_log_id="",
+            answer=stub.content,
+            citations=[],
+            confidence_score=0.0,
+            query_mode=data.query_mode.value,
+            router_result=router_result,
+            compliance=ComplianceResult(passed=True, warnings=[]),
+            status="cancelled",
+            reasoning_mode="tot_select",
+            plan_options=options,
+            awaiting_message_id=stub.id,
+        )
+        yield ("final", response.model_dump(mode="json"))
+        return
+
+    # ---------- Request B: select option and execute ----------
+    selected_plan_steps: list[PlanStep] | None = None
+    selected_router_result: RouterResult | None = None
+    resume_stub: Message | None = None
+    user_message: Message | None = None
+    pending_snapshot: dict[str, Any] = {}
+
+    if data.selected_option_id:
+        if not data.conversation_id:
+            raise ApplicationError(
+                "CONVERSATION_NOT_FOUND",
+                "conversation_id required for plan selection",
+                400,
+            )
+        conversation = _conversation(session, user, data.conversation_id, question or "select")
+        resume_stub, pending_snapshot, options, router_result, stored_question = (
+            _load_pending_plan_context(
+                session,
+                user,
+                conversation,
+                selected_option_id=data.selected_option_id,
+                cancel=False,
+            )
+        )
+        chosen = find_option(options, data.selected_option_id)
+        if chosen is None:
+            raise ApplicationError("INVALID_PLAN_OPTION", "Unknown plan option", 400)
+        question = stored_question or question
+        if not question:
+            raise ApplicationError("INVALID_PLAN_OPTION", "Pending plan has no question", 400)
+        selected_plan_steps = list(chosen.steps)
+        selected_router_result = router_result.model_copy(
+            update={
+                "plan_steps": selected_plan_steps,
+                "plan_options": options,
+                "plan_source": "user_selected",
+                "difficulty": "branched",
+                "reasoning_mode": "tot_select",
+                "complexity": "multi_step",
+            }
+        )
+        # Reuse snapshot retrieval settings when present.
+        snap = pending_snapshot.get("retrieval_snapshot") or {}
+        kb_ids = list(pending_snapshot.get("knowledge_base_ids") or data.knowledge_base_ids or [])
+        # Find original user message (last user before stub).
+        prev_users = session.exec(
+            select(Message)
+            .where(Message.conversation_id == conversation.id, Message.role == "user")
+            .order_by(col(Message.created_at).desc())
+        ).all()
+        user_message = prev_users[0] if prev_users else None
+        yield (
+            "stage",
+            {
+                "stage": "PlanBranch",
+                "status": "success",
+                "message": f"已选择路径 {chosen.id}：{chosen.title}",
+            },
+        )
+    else:
+        # ---------- Request A: new question ----------
+        if not question:
+            raise ApplicationError("VALIDATION_ERROR", "question is required", 400)
+        conversation = _conversation(session, user, data.conversation_id, question)
+        user_message = Message(
+            conversation_id=conversation.id,
+            role="user",
+            content=question,
+        )
+        session.add(user_message)
+        session.flush()
+        kb_ids = list(data.knowledge_base_ids or [])
+        snap = {}
 
     yield (
         "stage",
@@ -431,7 +665,7 @@ async def iter_chat_events(
     )
     working_set = None
     if memory_agent is not None:
-        working_set = await memory_agent.load(session, user, conversation, data.question)
+        working_set = await memory_agent.load(session, user, conversation, question)
     memory_items = _memory_items_from_working_set(working_set)
     yield (
         "stage",
@@ -465,13 +699,37 @@ async def iter_chat_events(
         },
     )
 
+    # Build retrieval request from request or pending snapshot.
+    if is_selection and snap:
+        strategy = snap.get("strategy") or data.retrieval_strategy
+        if not isinstance(strategy, RetrievalStrategy):
+            try:
+                strategy = RetrievalStrategy(str(strategy))
+            except Exception:
+                strategy = data.retrieval_strategy
+        query_mode = snap.get("query_mode") or data.query_mode
+        if not isinstance(query_mode, LightRAGQueryMode):
+            try:
+                query_mode = LightRAGQueryMode(str(query_mode))
+            except Exception:
+                query_mode = data.query_mode
+        top_k = int(snap.get("top_k") or data.top_k)
+        rerank_enabled = bool(snap.get("rerank_enabled", data.rerank_enabled))
+        requested_kb_ids = list(kb_ids or data.knowledge_base_ids or [])
+    else:
+        strategy = data.retrieval_strategy
+        query_mode = data.query_mode
+        top_k = data.top_k
+        rerank_enabled = data.rerank_enabled
+        requested_kb_ids = list(data.knowledge_base_ids or [])
+
     authorized_knowledge_bases = _authorized_knowledge_bases(
-        session, user, data.knowledge_base_ids
+        session, user, requested_kb_ids
     )
     history_for_rewrite = working_set.history if working_set is not None else []
     rolling_summary = working_set.rolling_summary if working_set is not None else ""
     retrieval_query = expand_retrieval_query(
-        data.question,
+        question,
         history=history_for_rewrite,
         rolling_summary=rolling_summary,
     )
@@ -483,16 +741,16 @@ async def iter_chat_events(
         RetrievalRequest(
             query=retrieval_query,
             knowledge_base_ids=[knowledge_base.id for knowledge_base in knowledge_bases],
-            strategy=data.retrieval_strategy,
-            top_k=data.top_k,
-            rerank_enabled=data.rerank_enabled,
-            lightrag_query_mode=data.query_mode,
+            strategy=strategy,
+            top_k=top_k,
+            rerank_enabled=rerank_enabled,
+            lightrag_query_mode=query_mode,
         )
         if knowledge_bases
         else None
     )
 
-    if retrieval_query != data.question.strip():
+    if retrieval_query != question.strip():
         yield (
             "stage",
             {
@@ -520,12 +778,12 @@ async def iter_chat_events(
             rag_service=rag_service,
             knowledge_base_ids=[kb.id for kb in knowledge_bases],
             conversation_id=conversation.id,
-            retrieval_strategy=data.retrieval_strategy,
+            retrieval_strategy=strategy,
         )
 
     pipeline_task = asyncio.create_task(
         pipeline.run(
-            data.question,
+            question,
             knowledge_bases,
             retrieval_request,
             enable_skill=data.enable_skill,
@@ -536,6 +794,9 @@ async def iter_chat_events(
             user=user,
             tool_executor=tool_executor,
             execute_skills=bool(data.enable_skill and skill_registry is not None),
+            selected_plan_steps=selected_plan_steps,
+            selected_router_result=selected_router_result,
+            hitl=True,
         )
     )
 
@@ -553,7 +814,6 @@ async def iter_chat_events(
                 break
             continue
 
-    # Drain any remaining events.
     while not event_queue.empty():
         event_name, payload = event_queue.get_nowait()
         yield (event_name, payload)
@@ -585,47 +845,155 @@ async def iter_chat_events(
     )
     yield ("diagnostics", diagnostics.model_dump(mode="json"))
 
+    turn_status = getattr(pipeline_result, "status", "completed") or "completed"
+    reasoning_mode = (
+        getattr(pipeline_result, "reasoning_mode", None)
+        or getattr(pipeline_result.router_result, "reasoning_mode", "cot_direct")
+        or "cot_direct"
+    )
+    plan_options = list(
+        getattr(pipeline_result, "plan_options", None)
+        or getattr(pipeline_result.router_result, "plan_options", None)
+        or []
+    )
+
+    # ---------- Awaiting plan selection: persist stub, no query log / writeback ----------
+    if turn_status == "awaiting_plan_selection":
+        ttl_min = int(getattr(settings, "CHAT_TOT_PENDING_TTL_MINUTES", 60) or 60)
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=max(1, ttl_min))
+        pending_plan = {
+            "question": question,
+            "router_result": pipeline_result.router_result.model_dump(mode="json"),
+            "knowledge_base_ids": [kb.id for kb in knowledge_bases],
+            "retrieval_snapshot": {
+                "strategy": strategy.value if hasattr(strategy, "value") else str(strategy),
+                "top_k": top_k,
+                "rerank_enabled": rerank_enabled,
+                "query_mode": query_mode.value if hasattr(query_mode, "value") else str(query_mode),
+            },
+            "expires_at": expires_at.isoformat(),
+            "selected_option_id": None,
+            "options": [o.model_dump(mode="json") for o in plan_options],
+        }
+        option_lines = []
+        for opt in plan_options:
+            mark = "（推荐）" if opt.recommended else ""
+            option_lines.append(f"- {opt.title}{mark}：{opt.summary or '见步骤清单'}")
+        stub_content = (
+            "本题存在多条合理执行路径，请选择一条后再继续：\n"
+            + "\n".join(option_lines)
+            + "\n\n（选择后将按该路径检索与回答；也可取消后重新提问。）"
+        )
+        assistant_message = Message(
+            conversation_id=conversation.id,
+            role="assistant",
+            content=stub_content,
+            meta_json=AssistantMessageMetadata(
+                citations=[],
+                query_log_id=None,
+                confidence_score=0.0,
+                query_mode=query_mode.value if hasattr(query_mode, "value") else str(query_mode),
+                router_result=pipeline_result.router_result,
+                suggested_skills=[],
+                compliance=pipeline_result.compliance,
+                diagnostics=diagnostics,
+                turn_status="awaiting_plan_selection",
+                reasoning_mode="tot_select",
+                plan_options=plan_options,
+                pending_plan=pending_plan,
+            ).model_dump(mode="json"),
+        )
+        session.add(assistant_message)
+        conversation.updated_at = utc_now()
+        session.add(conversation)
+        session.commit()
+        session.refresh(assistant_message)
+
+        response = ChatResponse(
+            conversation_id=conversation.id,
+            message_id=assistant_message.id,
+            query_log_id="",
+            answer=stub_content,
+            citations=[],
+            confidence_score=0.0,
+            query_mode=query_mode.value if hasattr(query_mode, "value") else str(query_mode),
+            router_result=pipeline_result.router_result,
+            compliance=pipeline_result.compliance,
+            suggested_skills=[],
+            diagnostics=diagnostics,
+            status="awaiting_plan_selection",
+            reasoning_mode="tot_select",
+            plan_options=plan_options,
+            awaiting_message_id=assistant_message.id,
+        )
+        yield ("final", response.model_dump(mode="json"))
+        return
+
+    # ---------- Completed path (normal or ToT resume) ----------
+    query_mode_value = (
+        query_mode.value if hasattr(query_mode, "value") else str(query_mode)
+    )
     query_log = AIQueryLog(
         conversation_id=conversation.id,
         user_id=user.id,
-        question=data.question,
+        question=question,
         answer=pipeline_result.answer_result.answer,
         knowledge_base_ids=[knowledge_base.id for knowledge_base in knowledge_bases],
         retrieved_sources=[
             trace.model_dump(mode="json") for trace in pipeline_result.retrieval_result.trace
         ],
         confidence_score=pipeline_result.answer_result.confidence_score,
-        query_mode=data.query_mode.value,
+        query_mode=query_mode_value,
         latency_ms=latency_ms,
     )
-    assistant_message = Message(
-        conversation_id=conversation.id,
-        role="assistant",
-        content=pipeline_result.answer_result.answer,
-        meta_json=AssistantMessageMetadata(
-            citations=citations,
-            query_log_id=query_log.id,
-            confidence_score=pipeline_result.answer_result.confidence_score,
-            query_mode=data.query_mode.value,
-            router_result=pipeline_result.router_result,
-            suggested_skills=pipeline_result.suggested_skills,
-            compliance=pipeline_result.compliance,
-            diagnostics=diagnostics,
-        ).model_dump(mode="json"),
-    )
-    session.add(assistant_message)
+
+    meta = AssistantMessageMetadata(
+        citations=citations,
+        query_log_id=query_log.id,
+        confidence_score=pipeline_result.answer_result.confidence_score,
+        query_mode=query_mode_value,
+        router_result=pipeline_result.router_result,
+        suggested_skills=pipeline_result.suggested_skills,
+        compliance=pipeline_result.compliance,
+        diagnostics=diagnostics,
+        turn_status="completed",
+        reasoning_mode=reasoning_mode,  # type: ignore[arg-type]
+        plan_options=plan_options,
+        selected_option_id=data.selected_option_id,
+        pending_plan={},
+    ).model_dump(mode="json")
+
+    if resume_stub is not None:
+        assistant_message = resume_stub
+        assistant_message.content = pipeline_result.answer_result.answer
+        assistant_message.meta_json = meta
+        session.add(assistant_message)
+    else:
+        assistant_message = Message(
+            conversation_id=conversation.id,
+            role="assistant",
+            content=pipeline_result.answer_result.answer,
+            meta_json=meta,
+        )
+        session.add(assistant_message)
+
     conversation.updated_at = utc_now()
     session.add(query_log)
     session.add(conversation)
     session.commit()
     session.refresh(assistant_message)
     session.refresh(query_log)
-    session.refresh(user_message)
+    if user_message is not None:
+        session.refresh(user_message)
 
     yield (
         "stage",
         {"stage": "MemoryWriteback", "status": "running", "message": "正在回写有价值记忆…"},
     )
+    source_ids = []
+    if user_message is not None:
+        source_ids.append(user_message.id)
+    source_ids.append(assistant_message.id)
     if memory_agent is not None:
         try:
             session.refresh(conversation)
@@ -633,9 +1001,9 @@ async def iter_chat_events(
                 session,
                 user,
                 conversation,
-                data.question,
+                question,
                 pipeline_result.answer_result.answer,
-                source_message_ids=[user_message.id, assistant_message.id],
+                source_message_ids=source_ids,
             )
             yield (
                 "stage",
@@ -662,10 +1030,10 @@ async def iter_chat_events(
                 },
             )
     else:
-        MemoryAgent(settings=get_settings()).run(
+        MemoryAgent(settings=settings).run(
             session,
             conversation.id,
-            data.question,
+            question,
             pipeline_result.answer_result.answer,
         )
         yield (
@@ -684,11 +1052,15 @@ async def iter_chat_events(
         answer=pipeline_result.answer_result.answer,
         citations=citations,
         confidence_score=pipeline_result.answer_result.confidence_score,
-        query_mode=data.query_mode.value,
+        query_mode=query_mode_value,
         router_result=pipeline_result.router_result,
         compliance=pipeline_result.compliance,
         suggested_skills=pipeline_result.suggested_skills,
         diagnostics=diagnostics,
+        status="completed",
+        reasoning_mode=reasoning_mode,  # type: ignore[arg-type]
+        plan_options=plan_options,
+        awaiting_message_id=None,
     )
     yield ("final", response.model_dump(mode="json"))
 

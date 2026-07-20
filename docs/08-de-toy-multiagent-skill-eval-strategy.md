@@ -1,6 +1,6 @@
 # 08. 去玩具化 / 多智能体 / Skill·Tool·MCP / Eval 改造总策略
 
-版本：v1.1  
+版本：v1.5  
 日期：2026-07-14  
 状态：**Phase 0–3 主线与加分项已基本落地**（见 §10）  
 读者：后续实现的自己 / 评审 / 面试准备  
@@ -172,28 +172,63 @@ frontend/src/features/evaluation/      # 评估中心页
 6. **渐进式多步规划（L1）** — Router 输出 `complexity/plan_steps`；`plan_normalize` 服务校验/用户步骤优先；Pipeline 驱动同一流水线并 SSE `plan`/`plan_step`；**不是**开放 Planner Agent，也不是 peer multi-agent  
 7. **不要**并行六个 agent 互聊  
 
-### 3.5 渐进式规划（L1 / L2 落点）
+### 3.5 渐进式规划（L1 / L2 / L2.5 落点）
 
 | 层级 | 行为 | 状态 |
 |---|---|---|
 | L0 单路径 | Router → Retrieval → Skill? → Answer | 已有 |
 | **L1 Router 计划** | 简单题 simple；复杂题/用户编号步骤 → plan checklist；同流水线解释执行 | **已落地** |
 | **L2 PlanExecutor** | 按步真执行；`depends_on` 推断；**独立子任务同波并行**（`asyncio.gather`，多 retrieve 等）；证据 bag 累积；仍中心化 | **已落地** |
+| **L2.5 ToT 选路 (HITL)** | `difficulty=branched` → 生成 2–3 条候选计划 → **用户必选** → 再 PlanExecutor；双请求不挂起 HTTP | **已落地** |
 | L3 Worker 拆分 | 瓶颈环节专才 Worker | 未做 |
 | L4 群聊 multi-agent | 禁止 | 禁止 |
+
+**难度 → 推理模式（三档，诚实命名）**
+
+| difficulty | reasoning_mode | 行为 |
+|---|---|---|
+| `simple` | `cot_direct` | CoT 直答；无/弱计划清单 |
+| `multi_step` | `cot_steps` | CoT 分步；L1/L2 单链计划 |
+| `branched` | `tot_select` | ToT 选路；多候选 + 用户选路后再执行 |
+
+> 产品 ToT = **多候选计划 + 用户选路**，**不是**学术 Tree-of-Thoughts 搜索/ beam search；仍是中心化 Supervisor + PlanExecutor，**无 peer multi-agent**。  
+> 用户已编号 `1. 2. 3.` 线性步骤 → 强制 `multi_step`，不升 `branched`。
+
+**双请求 HITL（不挂起 HTTP）**
+
+```text
+Request A  POST /api/chat/stream  { question, … }
+  Memory → Router → normalize
+  if branched + hitl:
+    generate 2–3 PlanOption
+    persist pending on assistant Message.meta_json
+    SSE: plan_options → final(status=awaiting_plan_selection) → CLOSE
+  else:
+    full execute → final(status=completed)
+
+Request B  POST /api/chat/stream  { conversation_id, selected_option_id }
+  load pending → validate option/TTL/owner
+  PlanExecutor on chosen steps (skip re-route)
+  final(status=completed); clear pending; AIQueryLog + memory writeback
+```
+
+Eval：`hitl=False` 自动选 `recommended`，从不暂停。
 
 配置：
 - `CHAT_PLANNING_ENABLED`、`CHAT_PLAN_MAX_STEPS`（默认 5）
 - `CHAT_PLAN_EXECUTOR`（L2 开关，默认 true）
 - `CHAT_PLAN_PARALLEL`（同波并行，默认 true）
+- `CHAT_TOT_ENABLED`、`CHAT_TOT_AUTO_TRIGGER`（默认 true）
+- `CHAT_TOT_MIN_OPTIONS` / `CHAT_TOT_MAX_OPTIONS`（2–3）
+- `CHAT_TOT_PENDING_TTL_MINUTES`（默认 60）
 
 并行判定（保守）：
 - 显式 `depends_on` 优先；否则 skill/tool 依赖全部 prior retrieve；answer/verify 依赖 prior 生产步
 - **不同 query 的 retrieve 互不依赖 → 同一 wave 并行**
 - 相同 query 的 retrieve 串行去重；answer/tool/verify 永不与其它步同波
 
-SSE：`plan`（含 steps / waves / parallel_used）+ `plan_step`  
-代码：`plan_normalize.py`、`plan_executor.py`、Pipeline L1/L2 分支。
+SSE：`plan` / `plan_step`（CoT 分步与 ToT 执行）+ `plan_options`（ToT 待选）  
+代码：`plan_normalize.py`、`plan_branch.py`、`plan_executor.py`、Pipeline pause/resume、`chat_service` dual-request、前端路径选择卡片。
 ---
 
 ## 4. Skill / Tool / MCP：诚实实现
@@ -492,6 +527,7 @@ CRUD import ── id 对齐 ── Hit@K 看板
 | 评估专用「测试库」隔离 | **已完成** | 2026-07-14 | code=`eval_test`；CRUD 导入默认进测试库，避免污染业务 KB |
 | 渐进式多步规划 L1 | **已完成** | 2026-07-20 | Router `complexity/plan_steps` + `plan_normalize` + SSE plan/plan_step + 思考中 checklist；非开放 Planner Agent |
 | 渐进式多步规划 L2 | **已完成** | 2026-07-20 | `PlanExecutor` 真按步执行；`depends_on`/waves；独立 retrieve 等 `asyncio.gather` 并行；`CHAT_PLAN_EXECUTOR`/`CHAT_PLAN_PARALLEL` |
+| 渐进式规划 L2.5 ToT 选路 | **已完成** | 2026-07-20 | `difficulty/reasoning_mode` 三档；`plan_branch` 候选；双请求 HITL；eval 自动 recommended；前端选路 UI |
 
 ---
 
@@ -504,3 +540,4 @@ CRUD import ── id 对齐 ── Hit@K 看板
 | v1.2 | 2026-07-14 | 本地 lexical rerank 可用；§1 增加改造后快照，避免基线表被误读为当前状态 |
 | v1.3 | 2026-07-20 | L1 渐进式规划：Router 结构化计划字段、plan_normalize、Pipeline 驱动与前端步骤清单 |
 | v1.4 | 2026-07-20 | L2 PlanExecutor：依赖波次、独立子任务并行、证据 bag、与 L1 共存开关 |
+| v1.5 | 2026-07-20 | L2.5 ToT 选路：difficulty 三档、候选计划、双请求 HITL、eval auto-pick、前端选路；诚实非学术 ToT |
