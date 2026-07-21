@@ -7,7 +7,6 @@ import {
   Input,
   Row,
   Space,
-  Tag,
   Typography,
   message,
 } from 'antd'
@@ -18,14 +17,15 @@ import { hasAnyRole } from '../../auth/permissions'
 import { useAuthState } from '../../auth/auth-store'
 import { Alert } from '../../components/feedback/alert'
 import { LoadingState } from '../../components/feedback/state-views'
+import { QuietChip } from '../../components/ui/quiet-chip'
 import { palette } from '../../styles/palette'
 import { CreateKnowledgeBaseDialog } from './components/create-knowledge-base-dialog'
 import {
-  permissionColor,
   permissionLabel,
+  permissionTone,
   queryModeLabel,
-  statusColor,
   statusLabel,
+  statusTone,
 } from './labels'
 import { useDeleteKnowledgeBaseMutation, useKnowledgeBasesQuery } from './queries'
 import { confirmAction } from '../../lib/confirm'
@@ -226,10 +226,10 @@ function KnowledgeBaseCard({ knowledgeBase }: { knowledgeBase: KnowledgeBase }) 
           </div>
         </div>
         <Space size={6} wrap className="kb-card__tags">
-          <Tag color={permissionColor[knowledgeBase.permission]}>
+          <QuietChip tone={permissionTone[knowledgeBase.permission]}>
             {permissionLabel[knowledgeBase.permission]}
-          </Tag>
-          <Tag color={statusColor[knowledgeBase.status] ?? 'default'}>{statusText}</Tag>
+          </QuietChip>
+          <QuietChip tone={statusTone[knowledgeBase.status] ?? 'neutral'}>{statusText}</QuietChip>
         </Space>
       </div>
 

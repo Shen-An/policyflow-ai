@@ -7,10 +7,10 @@ import {
   Modal,
   Select,
   Table,
-  Tag,
   Typography,
 } from 'antd'
 import { EmptyState, ErrorState, LoadingState } from '../../components/feedback/state-views'
+import { QuietChip, type ChipTone } from '../../components/ui/quiet-chip'
 import type { ColumnsType } from 'antd/es/table'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
@@ -26,11 +26,11 @@ const draftTypes: Array<{ value: DraftType; label: string }> = [
   { value: 'summary', label: '摘要' },
 ]
 
-const statusMap: Record<string, { label: string; color: string }> = {
-  draft: { label: '草稿', color: 'default' },
-  confirmed: { label: '已确认', color: 'success' },
-  discarded: { label: '已丢弃', color: 'error' },
-  exported: { label: '已导出', color: 'processing' },
+const statusMap: Record<string, { label: string; tone: ChipTone }> = {
+  draft: { label: '草稿', tone: 'neutral' },
+  confirmed: { label: '已确认', tone: 'success' },
+  discarded: { label: '已丢弃', tone: 'error' },
+  exported: { label: '已导出', tone: 'active' },
 }
 
 const typeLabel = Object.fromEntries(draftTypes.map((item) => [item.value, item.label])) as Record<
@@ -84,8 +84,8 @@ export function DraftListPage() {
         dataIndex: 'status',
         width: 120,
         render: (value: string) => {
-          const meta = statusMap[value] ?? { label: value, color: 'default' }
-          return <Tag color={meta.color}>{meta.label}</Tag>
+          const meta = statusMap[value] ?? { label: value, tone: 'neutral' as const }
+          return <QuietChip tone={meta.tone}>{meta.label}</QuietChip>
         },
       },
       {

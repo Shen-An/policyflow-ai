@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     LLM_EMBEDDING_MODEL: str | None = None
     LLM_EMBEDDING_DIM: int = 1536
     LLM_TIMEOUT_SECONDS: float = 120.0
+    # Cap concurrent chat/completions against strict providers (e.g. SenseNova 429).
+    # Hybrid LightRAG keyword extraction + multi-KB retrieve share this gate.
+    LLM_MAX_CONCURRENCY: int = 1
+    LLM_MAX_ATTEMPTS: int = 5
+    LLM_RETRY_BASE_SECONDS: float = 1.5
+    LLM_RETRY_MAX_SECONDS: float = 20.0
+    # Cap how many knowledge-base workspaces LightRAG may query in parallel.
+    LIGHTRAG_RETRIEVE_MAX_CONCURRENCY: int = 1
     # Memory system (STM/LTM/entity)
     MEMORY_STM_WINDOW_TURNS: int = 6
     MEMORY_LTM_TOP_K: int = 5

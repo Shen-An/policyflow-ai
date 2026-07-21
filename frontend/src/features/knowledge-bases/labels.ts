@@ -1,4 +1,5 @@
 import type { QueryMode, ResourcePermission } from '../../api/knowledge-bases'
+import type { ChipTone } from '../../components/ui/quiet-chip'
 
 export const permissionLabel: Record<ResourcePermission, string> = {
   read: '只读',
@@ -6,10 +7,10 @@ export const permissionLabel: Record<ResourcePermission, string> = {
   admin: '管理',
 }
 
-export const permissionColor: Record<ResourcePermission, string> = {
-  read: 'default',
-  write: 'processing',
-  admin: 'purple',
+export const permissionTone: Record<ResourcePermission, ChipTone> = {
+  read: 'neutral',
+  write: 'active',
+  admin: 'accent',
 }
 
 export const statusLabel: Record<string, string> = {
@@ -17,9 +18,9 @@ export const statusLabel: Record<string, string> = {
   disabled: '停用',
 }
 
-export const statusColor: Record<string, string> = {
+export const statusTone: Record<string, ChipTone> = {
   active: 'success',
-  disabled: 'default',
+  disabled: 'neutral',
 }
 
 export const queryModeLabel: Record<QueryMode, string> = {

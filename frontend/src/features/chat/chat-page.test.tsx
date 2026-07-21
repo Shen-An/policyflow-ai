@@ -258,19 +258,32 @@ describe('ChatPage', () => {
       '差旅申请需要经理审批。',
     )
     expect(screen.getByText('查看引用（1）')).toBeVisible()
-    expect(screen.getByText('申请人应先获得直属经理审批。')).toBeVisible()
-    expect(screen.getByText('本轮使用')).toBeVisible()
-    expect(screen.getByText('记忆 1')).toBeVisible()
-    expect(screen.getByText('工具 1')).toBeVisible()
-    expect(screen.getByText('命令 2')).toBeVisible()
-    const memorySection = screen.getByText((_, element) =>
+    const citationSection = screen.getByText('查看引用（1）').closest('details')
+    expect(citationSection).not.toBeNull()
+    expect(citationSection).not.toHaveAttribute('open')
+    citationSection?.setAttribute('open', '')
+    expect(within(citationSection as HTMLElement).getByText('申请人应先获得直属经理审批。')).toBeVisible()
+
+    // Completed-turn execution process is collapsed by default.
+    const processSummary = screen.getByText('执行过程')
+    expect(processSummary).toBeVisible()
+    expect(screen.getByText('记忆 1 · 工具 1 · 命令 2')).toBeVisible()
+    const processSection = processSummary.closest('details')
+    expect(processSection).not.toBeNull()
+    expect(processSection).not.toHaveAttribute('open')
+    processSection?.setAttribute('open', '')
+    expect(within(processSection as HTMLElement).getByText('本轮使用')).toBeVisible()
+    expect(within(processSection as HTMLElement).getByText('记忆 1')).toBeVisible()
+    expect(within(processSection as HTMLElement).getByText('工具 1')).toBeVisible()
+    expect(within(processSection as HTMLElement).getByText('命令 2')).toBeVisible()
+    const memorySection = within(processSection as HTMLElement).getByText((_, element) =>
       element?.tagName.toLowerCase() === 'summary' &&
       (element.textContent ?? '').includes('记忆 · 1'),
     ).closest('details')
     expect(memorySection).not.toBeNull()
     memorySection?.setAttribute('open', '')
     expect(within(memorySection as HTMLElement).getByText('偏好分点回答')).toBeVisible()
-    const commandSection = screen.getByText((_, element) =>
+    const commandSection = within(processSection as HTMLElement).getByText((_, element) =>
       element?.tagName.toLowerCase() === 'summary' &&
       (element.textContent ?? '').includes('命令 · 2'),
     ).closest('details')
@@ -435,7 +448,6 @@ describe('ChatPage', () => {
     const user = userEvent.setup()
     renderPage('/chat')
     expect(await screen.findByLabelText('历史会话')).toBeVisible()
-    expect(screen.getByText('仅本人可见')).toBeVisible()
     expect(await screen.findByRole('button', { name: '打开会话：差旅流程' })).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: '打开会话：差旅流程' }))

@@ -12,7 +12,6 @@ import {
   Row,
   Select,
   Space,
-  Tag,
   Typography,
 } from 'antd'
 import { useState } from 'react'
@@ -20,6 +19,7 @@ import { useSearchParams } from 'react-router-dom'
 import type { FAQDraft } from '../../api/faq'
 import { Alert } from '../../components/feedback/alert'
 import { LoadingState } from '../../components/feedback/state-views'
+import { QuietChip, type ChipTone } from '../../components/ui/quiet-chip'
 import { documentIndexStatusLabel } from '../../lib/labels'
 import { useDocumentStatusQuery } from '../documents/queries'
 import { useKnowledgeBasesQuery } from '../knowledge-bases/queries'
@@ -30,11 +30,11 @@ import {
   useRejectFAQMutation,
 } from './queries'
 
-const statusLabel: Record<string, { text: string; color: string }> = {
-  draft: { text: '待审核', color: 'processing' },
-  pending_review: { text: '待审核', color: 'processing' },
-  approved: { text: '已通过', color: 'success' },
-  rejected: { text: '已驳回', color: 'error' },
+const statusLabel: Record<string, { text: string; tone: ChipTone }> = {
+  draft: { text: '待审核', tone: 'active' },
+  pending_review: { text: '待审核', tone: 'active' },
+  approved: { text: '已通过', tone: 'success' },
+  rejected: { text: '已驳回', tone: 'error' },
 }
 
 export function FAQReviewPage() {
@@ -132,14 +132,14 @@ export function FAQReviewPage() {
           {query.data.map((item) => {
             const meta = statusLabel[item.status] ?? {
               text: item.status,
-              color: 'default',
+              tone: 'neutral' as const,
             }
             return (
               <Col key={item.id} xs={24} lg={12}>
                 <article>
                   <Card
                     title={item.question}
-                    extra={<Tag color={meta.color}>{meta.text}</Tag>}
+                    extra={<QuietChip tone={meta.tone}>{meta.text}</QuietChip>}
                   >
                     <Typography.Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 16 }}>
                       {item.answer}

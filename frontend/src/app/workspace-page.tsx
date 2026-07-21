@@ -1,6 +1,6 @@
 import { ArrowRight, BookOpen, ChartBar, ChatCircle, CheckCircle, CircleNotch, FileText, XCircle } from '@phosphor-icons/react'
 import { useQuery } from '@tanstack/react-query'
-import { Card, Col, Row, Space, Statistic, Tag, Typography } from 'antd'
+import { Card, Col, Row, Space, Statistic, Typography } from 'antd'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { apiClient } from '../api/client'
@@ -12,6 +12,7 @@ import { canCallApi } from '../api/readiness'
 import { hasAnyRole } from '../auth/permissions'
 import { useAuth } from '../auth/use-auth'
 import { LoadingState } from '../components/feedback/state-views'
+import { QuietChip } from '../components/ui/quiet-chip'
 import { conversationKeys } from '../features/chat/queries'
 import { draftKeys } from '../features/drafts/queries'
 import { evalKeys } from '../features/evaluation/queries'
@@ -244,17 +245,20 @@ export function WorkspacePage() {
           ，这里是你的工作总览。
         </p>
         {healthStatus === 'checking' ? (
-          <Tag icon={<CircleNotch size={16} weight="duotone" className="animate-spin" />} color="processing">
+          <QuietChip tone="active">
+            <CircleNotch size={14} weight="duotone" className="animate-spin" aria-hidden style={{ marginRight: 4 }} />
             检查服务中
-          </Tag>
+          </QuietChip>
         ) : healthStatus === 'ok' ? (
-          <Tag icon={<CheckCircle size={16} weight="duotone" />} color="success">
+          <QuietChip tone="success">
+            <CheckCircle size={14} weight="duotone" aria-hidden style={{ marginRight: 4 }} />
             服务运行正常
-          </Tag>
+          </QuietChip>
         ) : (
-          <Tag icon={<XCircle size={16} weight="duotone" />} color="error">
+          <QuietChip tone="error">
+            <XCircle size={14} weight="duotone" aria-hidden style={{ marginRight: 4 }} />
             服务异常
-          </Tag>
+          </QuietChip>
         )}
       </div>
 
@@ -392,7 +396,7 @@ export function WorkspacePage() {
                 '对回答提交反馈（有用/无用/引用错误），有助于持续优化检索质量。',
               ].map((tip, index) => (
                 <div key={tip} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <Tag color="processing">{index + 1}</Tag>
+                  <QuietChip tone="active">{index + 1}</QuietChip>
                   <Text>{tip}</Text>
                 </div>
               ))}

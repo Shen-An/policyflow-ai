@@ -12,12 +12,12 @@ import {
   Modal,
   Row,
   Space,
-  Tag,
   Typography,
 } from 'antd'
 import { useEffect, useState } from 'react'
 import type { MCPServer, MCPServerInput, MCPServerUpdate } from '../../api/mcp'
 import { LoadingState } from '../../components/feedback/state-views'
+import { QuietChip, statusTone } from '../../components/ui/quiet-chip'
 import { confirmAction } from '../../lib/confirm'
 import { formatDateTime } from '../../lib/datetime'
 import {
@@ -30,12 +30,6 @@ import {
 function formatDate(value: string | null): string {
   if (!value) return '尚未检查'
   return formatDateTime(value, { dateStyle: 'medium', timeStyle: 'medium' }, value)
-}
-
-function healthColor(status: string): string {
-  if (status === 'healthy') return 'success'
-  if (status === 'unhealthy') return 'error'
-  return 'default'
 }
 
 export function IntegrationsPage() {
@@ -99,10 +93,10 @@ export function IntegrationsPage() {
                 title={
                   <Space wrap>
                     <span>{server.name}</span>
-                    <Tag color={server.type === 'mock' ? 'purple' : 'blue'}>
+                    <QuietChip tone={server.type === 'mock' ? 'accent' : 'active'}>
                       {server.type === 'mock' ? 'MOCK' : 'EXTERNAL'}
-                    </Tag>
-                    <Tag color={healthColor(server.healthStatus)}>{server.healthStatus}</Tag>
+                    </QuietChip>
+                    <QuietChip tone={statusTone(server.healthStatus)}>{server.healthStatus}</QuietChip>
                   </Space>
                 }
                 extra={

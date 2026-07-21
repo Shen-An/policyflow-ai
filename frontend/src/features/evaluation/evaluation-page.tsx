@@ -14,7 +14,6 @@ import {
   Space,
   Statistic,
   Table,
-  Tag,
   Typography,
   message,
 } from 'antd'
@@ -23,6 +22,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { EvalResult, EvalRunScope, EvalRunSummary } from '../../api/eval'
 import { LoadingState } from '../../components/feedback/state-views'
+import { QuietChip, statusTone } from '../../components/ui/quiet-chip'
 import { confirmAction } from '../../lib/confirm'
 import { formatDateTime } from '../../lib/datetime'
 import { palette } from '../../styles/palette'
@@ -56,14 +56,6 @@ function pickRandomIds(ids: string[], count: number): string[] {
     copy[j] = tmp
   }
   return copy.slice(0, count)
-}
-
-function statusColor(value: string): string {
-  if (value === 'success' || value === 'passed') return 'success'
-  if (value === 'failed') return 'error'
-  if (value === 'skipped' || value === 'disabled') return 'default'
-  if (value === 'running' || value === 'pending') return 'processing'
-  return 'default'
 }
 
 function statusLabel(value: string): string {
@@ -679,7 +671,7 @@ function RunSection({
         title: '状态',
         dataIndex: 'status',
         width: 100,
-        render: (value: string) => <Tag color={statusColor(value)}>{statusLabel(value)}</Tag>,
+        render: (value: string) => <QuietChip tone={statusTone(value)}>{statusLabel(value)}</QuietChip>,
       },
       {
         title: 'Hit@1',
@@ -1198,27 +1190,27 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
       }
     >
       <Space wrap style={{ marginBottom: 8 }}>
-        <Tag color={statusColor(run.status)}>{statusLabel(run.status)}</Tag>
-        <Tag color="blue">主策略：{strategyInfo.primary}</Tag>
+        <QuietChip tone={statusTone(run.status)}>{statusLabel(run.status)}</QuietChip>
+        <QuietChip tone="active">主策略：{strategyInfo.primary}</QuietChip>
         {strategyInfo.compare.map((item) => (
-          <Tag key={item}>对比：{item}</Tag>
+          <QuietChip key={item}>对比：{item}</QuietChip>
         ))}
-        {strategyInfo.rerankEnabled ? <Tag>本地重排</Tag> : null}
+        {strategyInfo.rerankEnabled ? <QuietChip>本地重排</QuietChip> : null}
         {run.scope?.taskTypes.map((item) => (
-          <Tag key={`task-${item}`} color="purple">
+          <QuietChip key={`task-${item}`} tone="accent">
             {item}
-          </Tag>
+          </QuietChip>
         ))}
         {run.scope?.sources.map((item) => (
-          <Tag key={`src-${item}`}>来源：{item}</Tag>
+          <QuietChip key={`src-${item}`}>来源：{item}</QuietChip>
         ))}
         {run.scope?.knowledgeBases.map((item) => (
-          <Tag key={item.id} color="cyan">
+          <QuietChip key={item.id} tone="active">
             KB：{item.name}({item.code})
-          </Tag>
+          </QuietChip>
         ))}
         {run.scope && run.scope.staleGoldCount > 0 ? (
-          <Tag color="error">stale gold {run.scope.staleGoldCount}</Tag>
+          <QuietChip tone="error">stale gold {run.scope.staleGoldCount}</QuietChip>
         ) : null}
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Request ID：{run.requestId ?? '无'}
@@ -1460,14 +1452,16 @@ function RetrievalResultCard({ result }: { result: EvalResult }) {
           {result.question}
         </Typography.Text>
         <Space wrap>
-          <Tag color={result.passed ? 'success' : status === 'skipped' ? 'default' : 'error'}>
+          <QuietChip
+            tone={result.passed ? 'success' : status === 'skipped' ? 'neutral' : 'error'}
+          >
             {result.passed ? '命中' : status === 'skipped' ? '跳过' : '未命中'}
-          </Tag>
-          <Tag>Hit@1 {formatRate(hit1, 0)}</Tag>
-          <Tag>Hit@5 {formatRate(hit5, 0)}</Tag>
-          {hit10 !== null ? <Tag>Hit@10 {formatRate(hit10, 0)}</Tag> : null}
-          <Tag color="red">MRR {formatMrr(mrr)}</Tag>
-          {firstRank !== null ? <Tag>首个相关位次 #{firstRank}</Tag> : null}
+          </QuietChip>
+          <QuietChip>Hit@1 {formatRate(hit1, 0)}</QuietChip>
+          <QuietChip>Hit@5 {formatRate(hit5, 0)}</QuietChip>
+          {hit10 !== null ? <QuietChip>Hit@10 {formatRate(hit10, 0)}</QuietChip> : null}
+          <QuietChip tone="error">MRR {formatMrr(mrr)}</QuietChip>
+          {firstRank !== null ? <QuietChip>首个相关位次 #{firstRank}</QuietChip> : null}
         </Space>
       </div>
       {result.errorMessage ? (

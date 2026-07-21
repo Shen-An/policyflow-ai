@@ -9,20 +9,20 @@ import {
   Row,
   Select,
   Space,
-  Tag,
   Typography,
   message,
 } from 'antd'
 import { useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import type { KnowledgeBase, QueryMode } from '../../api/knowledge-bases'
+import { QuietChip } from '../../components/ui/quiet-chip'
 import {
-  permissionColor,
   permissionLabel,
+  permissionTone,
   queryModeLabel,
   queryModeOptions,
-  statusColor,
   statusLabel,
+  statusTone,
 } from './labels'
 import { confirmAction } from '../../lib/confirm'
 import {
@@ -123,12 +123,12 @@ export function KnowledgeBaseOverviewPage() {
               {knowledgeBase.description || '暂无描述'}
             </Descriptions.Item>
             <Descriptions.Item label="状态">
-              <Tag color={statusColor[knowledgeBase.status] ?? 'default'}>{statusText}</Tag>
+              <QuietChip tone={statusTone[knowledgeBase.status] ?? 'neutral'}>{statusText}</QuietChip>
             </Descriptions.Item>
             <Descriptions.Item label="资源权限">
-              <Tag color={permissionColor[knowledgeBase.permission]}>
+              <QuietChip tone={permissionTone[knowledgeBase.permission]}>
                 {permissionLabel[knowledgeBase.permission]}
-              </Tag>
+              </QuietChip>
             </Descriptions.Item>
             <Descriptions.Item label="文档数量">{knowledgeBase.documentCount}</Descriptions.Item>
             <Descriptions.Item label="默认检索模式">

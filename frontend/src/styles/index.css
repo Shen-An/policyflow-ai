@@ -1377,6 +1377,65 @@ textarea {
   color: var(--color-primary-deep);
 }
 
+.chat-bubble__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.chat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-secondary);
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.chat-chip--neutral {
+  background: #f4f6f5;
+  border-color: #e4e9e6;
+  color: #5a6570;
+}
+
+.chat-chip--active {
+  background: color-mix(in srgb, var(--color-primary) 10%, white);
+  border-color: color-mix(in srgb, var(--color-primary) 22%, var(--color-border-secondary));
+  color: var(--color-primary-deep);
+}
+
+.chat-chip--success {
+  background: #f3faf5;
+  border-color: #d7ebdd;
+  color: #166534;
+}
+
+.chat-chip--warning {
+  background: #fff8f1;
+  border-color: #f3dfc7;
+  color: #9a3412;
+}
+
+.chat-chip--error {
+  background: #fff5f5;
+  border-color: #f0d4d4;
+  color: #b91c1c;
+}
+
+.chat-chip--accent {
+  background: #fbf7ef;
+  border-color: #eadfca;
+  color: #8a6418;
+}
+
 .chat-citations {
   margin-top: 8px;
   padding: 10px 12px;
@@ -1391,11 +1450,23 @@ textarea {
   color: var(--color-text-primary);
 }
 
+.chat-citations__list {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
 .chat-citations__item {
   padding: 10px 12px;
   border-radius: 10px;
   background: var(--color-surface);
   border: 1px solid var(--color-border-secondary);
+}
+
+.chat-citations__item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .chat-citations__snippet {
@@ -1411,6 +1482,34 @@ textarea {
   color: var(--color-text-tertiary);
 }
 
+.chat-turn-trace {
+  margin-top: 12px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: 12px;
+  background: var(--color-surface-muted);
+  padding: 10px 12px;
+}
+
+.chat-turn-trace > summary {
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.chat-turn-trace__summary {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-tertiary);
+}
+
+.chat-turn-trace .chat-diagnostics {
+  margin-top: 10px;
+}
+
 .chat-diagnostics {
   margin-top: 12px;
   display: grid;
@@ -1421,7 +1520,7 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .chat-diagnostics__overview-label {
@@ -1506,8 +1605,8 @@ textarea {
 }
 
 .chat-bubble--thinking {
-  border: 1px dashed var(--color-primary-100);
-  background: linear-gradient(180deg, rgba(13, 143, 106, 0.04), transparent 60%);
+  border: 1px dashed color-mix(in srgb, var(--color-primary) 24%, var(--color-border-secondary));
+  background: linear-gradient(180deg, rgba(15, 154, 116, 0.035), transparent 70%);
 }
 
 .chat-thinking {
@@ -1515,9 +1614,67 @@ textarea {
   gap: 10px;
 }
 
-.chat-thinking__stages {
+.chat-thinking--live {
+  gap: 8px;
+}
+
+.chat-thinking__status-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.chat-thinking__status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 14%, transparent);
+  animation: chat-thinking-pulse 1.2s ease-in-out infinite;
+}
+
+.chat-thinking__status-text {
+  flex: 1 1 180px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.chat-thinking__hint {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-tertiary);
+}
+
+.chat-thinking__timeline {
   display: grid;
   gap: 8px;
+}
+
+.chat-thinking__completed {
+  border: 1px solid var(--color-border-secondary);
+  border-radius: 12px;
+  background: var(--color-surface);
+  padding: 8px 10px;
+}
+
+.chat-thinking__completed > summary {
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.chat-thinking__stages {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .chat-thinking__stage {
@@ -1525,6 +1682,11 @@ textarea {
   border-radius: 10px;
   border: 1px solid var(--color-border-secondary);
   background: var(--color-surface);
+}
+
+.chat-thinking__stage--current {
+  border-color: color-mix(in srgb, var(--color-primary) 28%, var(--color-border-secondary));
+  background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
 }
 
 .chat-thinking__stage-head {
@@ -1543,17 +1705,24 @@ textarea {
 .chat-thinking__plan {
   padding: 10px 12px;
   border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--color-primary) 22%, var(--color-border-secondary));
-  background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-primary) 16%, var(--color-border-secondary));
+  background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface));
   display: grid;
   gap: 8px;
 }
 
+.chat-thinking__plan > summary.chat-thinking__plan-title,
 .chat-thinking__plan-title {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.chat-thinking__plan > summary::-webkit-details-marker {
+  display: none;
 }
 
 .chat-thinking__plan-list {
@@ -1565,10 +1734,21 @@ textarea {
 }
 
 .chat-thinking__plan-item {
-  padding: 8px 10px;
+  padding: 0;
   border-radius: 10px;
   border: 1px solid var(--color-border-secondary);
   background: var(--color-surface);
+  overflow: hidden;
+}
+
+.chat-thinking__plan-item > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 8px 10px;
+}
+
+.chat-thinking__plan-item > summary::-webkit-details-marker {
+  display: none;
 }
 
 .chat-thinking__plan-item--running {
@@ -1576,16 +1756,16 @@ textarea {
 }
 
 .chat-thinking__plan-item--success {
-  border-color: color-mix(in srgb, #16a34a 35%, var(--color-border-secondary));
+  border-color: color-mix(in srgb, #16a34a 22%, var(--color-border-secondary));
 }
 
 .chat-thinking__plan-item--error {
-  border-color: color-mix(in srgb, #dc2626 35%, var(--color-border-secondary));
+  border-color: color-mix(in srgb, #dc2626 30%, var(--color-border-secondary));
 }
 
 .chat-thinking__plan-item--parallel {
   border-style: dashed;
-  border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border-secondary));
+  border-color: color-mix(in srgb, var(--color-primary) 36%, var(--color-border-secondary));
 }
 
 .chat-thinking__waves {
@@ -1602,9 +1782,18 @@ textarea {
   background: color-mix(in srgb, var(--color-surface) 88%, transparent);
 }
 
+.chat-thinking__wave > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.chat-thinking__wave > summary::-webkit-details-marker {
+  display: none;
+}
+
 .chat-thinking__wave--parallel {
-  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-border-secondary));
-  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-primary) 28%, var(--color-border-secondary));
+  background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
 }
 
 .chat-thinking__wave-head {
@@ -1637,7 +1826,7 @@ textarea {
 }
 
 .chat-thinking__plan-message {
-  margin-top: 4px;
+  padding: 0 10px 8px;
   font-size: 12px;
   color: var(--color-text-secondary);
 }
@@ -1686,9 +1875,9 @@ textarea {
 }
 
 .chat-thinking__option-card--recommended {
-  border-color: color-mix(in srgb, #d4a017 45%, var(--color-border-secondary));
-  background: color-mix(in srgb, #d4a017 8%, var(--color-surface));
-  box-shadow: 0 0 0 1px color-mix(in srgb, #d4a017 18%, transparent);
+  border-color: color-mix(in srgb, #c9a227 35%, var(--color-border-secondary));
+  background: color-mix(in srgb, #c9a227 6%, var(--color-surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, #c9a227 12%, transparent);
 }
 
 .chat-thinking__option-head {
@@ -1705,8 +1894,19 @@ textarea {
   color: var(--color-text-secondary);
 }
 
+.chat-thinking__option-steps-wrap {
+  border-top: 1px dashed var(--color-border-secondary);
+  padding-top: 6px;
+}
+
+.chat-thinking__option-steps-wrap > summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
 .chat-thinking__option-steps {
-  margin: 0;
+  margin: 6px 0 0;
   padding: 0;
   list-style: none;
   display: grid;
