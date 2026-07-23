@@ -13,9 +13,33 @@ from sqlmodel import Session, col, select
 
 from backend.app.core.config import Settings
 from backend.app.core.exceptions import ApplicationError
+from backend.app.core.logging import get_logger
 from backend.app.core.mcp_security import decrypt_secret
 from backend.app.db.models import ModelProvider
 from backend.app.rag.protocols import LLMCompletion, LLMMessage, ToolCallRequest
+
+logger = get_logger(__name__)
+
+_RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
+
+
+def _retry_delay_seconds(
+    response: httpx.Response | None,
+    attempt: int,
+    *,
+    base_seconds: float,
+    max_seconds: float,
+) -> float:
+    if response is not None:
+        retry_after = response.headers.get("retry-after")
+        if retry_after:
+            try:
+                return min(float(retry_after), max_seconds)
+            except ValueError:
+                pass
+    # Exponential backoff with light linear jitter so multi-KB bursts desync.
+    delay = base_seconds * (2**attempt) + 0.25 * attempt
+    return min(delay, max_seconds)
 
 
 def _responses_output_text(data: dict[str, object]) -> str:
@@ -140,10 +164,26 @@ class OpenAICompatibleLLMService:
         engine: Engine,
         settings: Settings,
         client: httpx.AsyncClient | None = None,
+        *,
+        max_concurrency: int | None = None,
+        max_attempts: int | None = None,
+        retry_base_seconds: float | None = None,
+        retry_max_seconds: float | None = None,
     ) -> None:
         self.engine = engine
         self.settings = settings
         self._client = client
+        concurrency = max(1, int(max_concurrency or settings.LLM_MAX_CONCURRENCY))
+        self._max_attempts = max(1, int(max_attempts or settings.LLM_MAX_ATTEMPTS))
+        self._retry_base_seconds = float(
+            retry_base_seconds if retry_base_seconds is not None else settings.LLM_RETRY_BASE_SECONDS
+        )
+        self._retry_max_seconds = float(
+            retry_max_seconds if retry_max_seconds is not None else settings.LLM_RETRY_MAX_SECONDS
+        )
+        # Process-wide gate so LightRAG keyword extraction + answer/tool loops
+        # cannot stampede strict providers (SenseNova 429).
+        self._request_semaphore = asyncio.Semaphore(concurrency)
 
     def _provider(self) -> ModelProvider | None:
         return get_enabled_provider(self.engine)
@@ -167,15 +207,69 @@ class OpenAICompatibleLLMService:
         client = self._client or httpx.AsyncClient(timeout=timeout)
         owns_client = self._client is None
         try:
-            response: httpx.Response | None = None
-            for attempt in range(3):
-                response = await client.post(endpoint, headers=headers, json=payload)
-                if response.status_code not in {429, 500, 502, 503, 504} or attempt == 2:
-                    break
-                retry_after = response.headers.get("retry-after")
-                delay = float(retry_after) if retry_after and retry_after.isdigit() else 2**attempt
-                await asyncio.sleep(min(delay, 10.0))
+            async with self._request_semaphore:
+                response: httpx.Response | None = None
+                last_error: Exception | None = None
+                for attempt in range(self._max_attempts):
+                    try:
+                        response = await client.post(endpoint, headers=headers, json=payload)
+                    except (
+                        httpx.ConnectError,
+                        httpx.ConnectTimeout,
+                        httpx.ReadTimeout,
+                        httpx.WriteTimeout,
+                        httpx.PoolTimeout,
+                        httpx.ProxyError,
+                        httpx.RemoteProtocolError,
+                        httpx.NetworkError,
+                        httpx.TimeoutException,
+                    ) as exc:
+                        last_error = exc
+                        if attempt >= self._max_attempts - 1:
+                            break
+                        delay = _retry_delay_seconds(
+                            None,
+                            attempt,
+                            base_seconds=self._retry_base_seconds,
+                            max_seconds=self._retry_max_seconds,
+                        )
+                        logger.warning(
+                            "LLM network error; retrying",
+                            extra={
+                                "attempt": attempt + 1,
+                                "max_attempts": self._max_attempts,
+                                "delay_seconds": delay,
+                                "error_type": type(exc).__name__,
+                            },
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+
+                    if (
+                        response.status_code not in _RETRYABLE_STATUS_CODES
+                        or attempt >= self._max_attempts - 1
+                    ):
+                        break
+                    delay = _retry_delay_seconds(
+                        response,
+                        attempt,
+                        base_seconds=self._retry_base_seconds,
+                        max_seconds=self._retry_max_seconds,
+                    )
+                    logger.warning(
+                        "LLM provider rate-limited or unavailable; retrying",
+                        extra={
+                            "attempt": attempt + 1,
+                            "max_attempts": self._max_attempts,
+                            "status_code": response.status_code,
+                            "delay_seconds": delay,
+                        },
+                    )
+                    await asyncio.sleep(delay)
+
             if response is None:
+                if last_error is not None:
+                    raise last_error
                 raise ValueError("LLM provider returned no response")
             response.raise_for_status()
             data = response.json()
@@ -183,7 +277,15 @@ class OpenAICompatibleLLMService:
                 raise ValueError("LLM response is not a JSON object")
             return data
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
-            raise ApplicationError("LLM_PROVIDER_ERROR", "LLM request failed", 502) from exc
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            message = "LLM request failed"
+            if status == 429:
+                message = (
+                    "LLM provider rate limited (429). "
+                    "Reduce concurrent knowledge bases / hybrid keyword calls, "
+                    "or switch to a higher-QPS provider."
+                )
+            raise ApplicationError("LLM_PROVIDER_ERROR", message, 502) from exc
         finally:
             if owns_client:
                 await client.aclose()

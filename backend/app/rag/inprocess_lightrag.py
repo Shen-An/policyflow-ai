@@ -41,6 +41,8 @@ class InProcessLightRAGAdapter:
         llm_service: LLMService,
         embedding_service: OpenAICompatibleEmbeddingService,
         rag_factory: Callable[..., Any] | None = None,
+        *,
+        retrieve_max_concurrency: int | None = None,
     ) -> None:
         self.engine = engine
         self.settings = settings
@@ -50,6 +52,17 @@ class InProcessLightRAGAdapter:
         self._workspaces: dict[str, _Workspace] = {}
         self._locks: dict[str, asyncio.Lock] = {}
         self._base_environment = dict(os.environ)
+        concurrency = max(
+            1,
+            int(
+                retrieve_max_concurrency
+                if retrieve_max_concurrency is not None
+                else settings.LIGHTRAG_RETRIEVE_MAX_CONCURRENCY
+            ),
+        )
+        # Multi-KB hybrid keyword extraction shares the LLM gate; keep workspace
+        # fan-out serial/small so strict providers (SenseNova) do not 429.
+        self._retrieve_semaphore = asyncio.Semaphore(concurrency)
 
     def _restore_environment(self) -> None:
         for key in set(os.environ) - set(self._base_environment):
@@ -334,11 +347,13 @@ class InProcessLightRAGAdapter:
                 for knowledge_base_id in request.knowledge_base_ids
                 if (knowledge_base := session.get(KnowledgeBase, knowledge_base_id)) is not None
             ]
+
+        async def _bounded(knowledge_base: KnowledgeBase) -> list[Evidence]:
+            async with self._retrieve_semaphore:
+                return await self._retrieve_workspace(knowledge_base, request, limit)
+
         results = await asyncio.gather(
-            *(
-                self._retrieve_workspace(knowledge_base, request, limit)
-                for knowledge_base in knowledge_bases
-            )
+            *(_bounded(knowledge_base) for knowledge_base in knowledge_bases)
         )
         merged = [item for workspace_items in results for item in workspace_items]
         merged.sort(key=lambda item: (-(item.score or 0.0), item.knowledge_base_id, item.rank))
