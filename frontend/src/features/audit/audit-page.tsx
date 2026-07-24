@@ -10,7 +10,6 @@ import {
   Select,
   Space,
   Table,
-  Tag,
   Typography,
   message,
 } from 'antd'
@@ -21,6 +20,7 @@ import { useSearchParams } from 'react-router-dom'
 import type { AuditLog } from '../../api/audit'
 import { Alert } from '../../components/feedback/alert'
 import { EmptyState, ErrorState, LoadingState } from '../../components/feedback/state-views'
+import { QuietChip, type ChipTone } from '../../components/ui/quiet-chip'
 import { formatDateTime } from '../../lib/datetime'
 import { useAuditLogQuery, useAuditLogsQuery } from './queries'
 
@@ -77,11 +77,11 @@ function labelTargetType(value: string): string {
   return targetTypeLabel[value] ?? value
 }
 
-function actionColor(value: string): string {
+function actionTone(value: string): ChipTone {
   if (value.includes('delete') || value.includes('disable')) return 'error'
   if (value.includes('create') || value.includes('upload') || value.includes('enable')) return 'success'
-  if (value.includes('health') || value.includes('index') || value.includes('run')) return 'processing'
-  return 'default'
+  if (value.includes('health') || value.includes('index') || value.includes('run')) return 'active'
+  return 'neutral'
 }
 
 export function AuditPage() {
@@ -166,7 +166,7 @@ export function AuditPage() {
     {
       title: '动作',
       dataIndex: 'action',
-      render: (value: string) => <Tag color={actionColor(value)}>{labelAction(value)}</Tag>,
+      render: (value: string) => <QuietChip tone={actionTone(value)}>{labelAction(value)}</QuietChip>,
     },
     {
       title: '目标',
@@ -319,7 +319,7 @@ function AuditDetailModal({ id, onClose }: { id: string; onClose: () => void }) 
         <Space orientation="vertical" size={16} style={{ width: '100%' }}>
           <Descriptions bordered size="small" column={2}>
             <Descriptions.Item label="动作">
-              <Tag color={actionColor(query.data.action)}>{labelAction(query.data.action)}</Tag>
+              <QuietChip tone={actionTone(query.data.action)}>{labelAction(query.data.action)}</QuietChip>
             </Descriptions.Item>
             <Descriptions.Item label="操作者">
               {query.data.actor?.displayName ?? '系统'}
