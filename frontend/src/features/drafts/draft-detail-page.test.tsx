@@ -97,7 +97,8 @@ describe('DraftDetailPage', () => {
       content: '更新后的正文',
     }))
     await user.click(screen.getByRole('button', { name: '确认草稿' }))
-    expect(await screen.findByText('当前状态为 confirmed，正文已只读。')).toBeVisible()
+    expect(await screen.findByText('当前状态为已确认，正文已只读。')).toBeVisible()
+    expect(screen.getByText('已确认')).toBeVisible()
     expect(screen.getByLabelText('正文')).toBeDisabled()
     await user.click(screen.getByRole('button', { name: '导出 Markdown' }))
     await vi.waitFor(() => expect(createObjectUrl).toHaveBeenCalledOnce())

@@ -8,7 +8,6 @@ import {
   Input,
   Modal,
   Space,
-  Tag,
   Typography,
 } from 'antd'
 import { useState } from 'react'
@@ -20,6 +19,7 @@ import {
   useParams,
 } from 'react-router-dom'
 import { ErrorState, LoadingState } from '../../components/feedback/state-views'
+import { QuietChip, type ChipTone } from '../../components/ui/quiet-chip'
 import { downloadMarkdown } from './download'
 import { confirmAction } from '../../lib/confirm'
 import {
@@ -30,11 +30,11 @@ import {
   useUpdateDraftMutation,
 } from './queries'
 
-const statusMap: Record<string, { label: string; color: string }> = {
-  draft: { label: '草稿', color: 'default' },
-  confirmed: { label: '已确认', color: 'success' },
-  discarded: { label: '已丢弃', color: 'error' },
-  exported: { label: '已导出', color: 'processing' },
+const statusMap: Record<string, { label: string; tone: ChipTone }> = {
+  draft: { label: '草稿', tone: 'neutral' },
+  confirmed: { label: '已确认', tone: 'success' },
+  discarded: { label: '已丢弃', tone: 'error' },
+  exported: { label: '已导出', tone: 'active' },
 }
 
 export function DraftDetailPage() {
@@ -79,7 +79,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
   const draft = query.data
   const statusMeta = statusMap[draft.status] ?? {
     label: draft.status,
-    color: 'default',
+    tone: 'neutral' as const,
   }
 
   async function save() {
@@ -129,7 +129,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
         <Button>
           <Link to="/drafts"><ArrowLeft size={16} weight="regular" aria-hidden /> 返回草稿</Link>
         </Button>
-        {dirty ? <Tag color="warning">有未保存修改</Tag> : null}
+        {dirty ? <QuietChip tone="warning">有未保存修改</QuietChip> : null}
       </Space>
 
       <Card
@@ -141,7 +141,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
             </Typography.Title>
           </Space>
         }
-        extra={<Tag color={statusMeta.color}>{statusMeta.label}</Tag>}
+        extra={<QuietChip tone={statusMeta.tone}>{statusMeta.label}</QuietChip>}
       >
         {!editable ? (
           <Alert
@@ -149,7 +149,7 @@ function DraftDetailScreen({ draftId }: { draftId: string }) {
             showIcon
             icon={<ShieldCheck size={16} weight="duotone" />}
             style={{ marginBottom: 16 }}
-            message={`当前状态为 ${draft.status}，正文已只读。`} />
+            message={`当前状态为${statusMeta.label}，正文已只读。`} />
         ) : null}
 
         {actionError ? (
