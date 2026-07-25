@@ -9,7 +9,6 @@ import {
   Space,
   Spin,
   Table,
-  Tag,
   Typography,
   message,
 } from 'antd'
@@ -22,6 +21,7 @@ import type {
   ResourcePermission,
 } from '../../api/knowledge-bases'
 import { LoadingState } from '../../components/feedback/state-views'
+import { QuietChip, statusTone } from '../../components/ui/quiet-chip'
 import { confirmAction } from '../../lib/confirm'
 import { formatDateTime } from '../../lib/datetime'
 import { documentIndexStatusLabel } from '../../lib/labels'
@@ -43,13 +43,6 @@ function positiveInt(value: string | null, fallback: number): number {
 
 function canWrite(permission: ResourcePermission): boolean {
   return permission === 'write' || permission === 'admin'
-}
-
-function statusColor(status: string): string {
-  if (status === 'ready' || status === 'indexed') return 'success'
-  if (status === 'failed') return 'error'
-  if (status === 'processing' || status === 'pending' || status === 'indexing') return 'processing'
-  return 'default'
 }
 
 function formatDate(value: string): string {
@@ -230,9 +223,9 @@ function DocumentStatus({
   const live = useDocumentStatusQuery(documentId, status)
   const current = live.data?.indexStatus ?? status
   return (
-    <Tag color={statusColor(current)}>
+    <QuietChip tone={statusTone(current)}>
       {documentIndexStatusLabel[current] ?? current}
-    </Tag>
+    </QuietChip>
   )
 }
 
@@ -428,7 +421,9 @@ function DocumentDetailDrawer({
             <Descriptions.Item label="文件类型">{query.data.fileType}</Descriptions.Item>
             <Descriptions.Item label="版本">v{query.data.sourceVersion}</Descriptions.Item>
             <Descriptions.Item label="索引状态">
-              <Tag color={statusColor(query.data.indexStatus)}>{query.data.indexStatus}</Tag>
+              <QuietChip tone={statusTone(query.data.indexStatus)}>
+                {documentIndexStatusLabel[query.data.indexStatus] ?? query.data.indexStatus}
+              </QuietChip>
             </Descriptions.Item>
             <Descriptions.Item label="正文长度">
               {query.data.contentLength.toLocaleString('zh-CN')} 字符

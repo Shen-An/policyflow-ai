@@ -10,10 +10,9 @@ import {
   Modal,
   Select,
   Space,
-  Tag,
   Typography,
 } from 'antd'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import type {
   AssistantMetadata,
@@ -739,9 +738,9 @@ export function ChatPage() {
                             Boolean(selectingOptionId),
                           )
                           return (
-                            <Tag color={mode.color} title={mode.detail}>
+                            <QuietChip tone={mode.tone} title={mode.detail}>
                               {mode.label}
-                            </Tag>
+                            </QuietChip>
                           )
                         })()}
                       </Space>
@@ -755,7 +754,8 @@ export function ChatPage() {
                           ? 'tot_select'
                           : pendingPlanChoice?.reasoningMode
                       }
-                      executingSelection={Boolean(selectingOptionId)} />
+                      executingSelection={Boolean(selectingOptionId)}
+                      live />
                   </article>
                 </div>
               ) : null}
@@ -779,12 +779,9 @@ export function ChatPage() {
                       <Space size={8} wrap>
                         <Lightning size={16} weight="duotone" style={{ color: palette.primary }} aria-hidden />
                         <span>ToT 选路</span>
-                        <Tag
-                          color="gold"
-                          title="多候选计划 + 用户选路，非搜索式学术 ToT"
-                        >
+                        <QuietChip tone="accent" title="多候选计划 + 用户选路，非搜索式学术 ToT">
                           ToT 选路·待选择
-                        </Tag>
+                        </QuietChip>
                       </Space>
                     </div>
                     <PlanOptionPicker
@@ -1075,11 +1072,11 @@ function MessageCard({
             <Lightning size={16} weight="duotone" style={{color: noEvidence ? palette.warning : palette.primary}} aria-hidden />
             <span>{isAwaiting ? 'ToT 选路' : 'PolicyFlow 回答'}</span>
             {reasoningBadge ? (
-              <Tag color={reasoningBadge.color} title={reasoningBadge.detail}>
+              <QuietChip tone={reasoningBadge.tone} title={reasoningBadge.detail}>
                 {reasoningBadge.label}
-              </Tag>
+              </QuietChip>
             ) : null}
-            {noEvidence ? <Tag color="warning">模型参考 · 不可信</Tag> : null}
+            {noEvidence ? <QuietChip tone="warning">模型参考 · 不可信</QuietChip> : null}
           </Space>
         </div>
 
@@ -1112,27 +1109,30 @@ function MessageCard({
         {noEvidence || isAwaiting ? null : <CitationList citations={message.metadata.citations} />}
 
         {!isAwaiting ? (
-          <TurnDiagnosticsPanel diagnostics={message.metadata.diagnostics} />
+          <CompletedTurnTrace diagnostics={message.metadata.diagnostics} />
         ) : null}
 
         {!isAwaiting ? (
-          <Space wrap style={{ marginTop: 12 }}>
+          <div className="chat-bubble__meta">
             {noEvidence ? (
-              <Tag color="orange">可信度 0% · 需人工判断</Tag>
+              <QuietChip tone="warning">可信度 0% · 需人工判断</QuietChip>
             ) : message.metadata.confidenceScore !== null ? (
-              <Tag>可信度 {Math.round(message.metadata.confidenceScore * 100)}%</Tag>
+              <QuietChip>
+                可信度 {Math.round(message.metadata.confidenceScore * 100)}%
+              </QuietChip>
             ) : null}
             {message.metadata.queryMode ? (
-              <Tag color="blue">
+              <QuietChip>
                 {queryModeLabels[message.metadata.queryMode] ?? message.metadata.queryMode}
-              </Tag>
+              </QuietChip>
             ) : null}
             {message.metadata.compliance?.passed ? (
-              <Tag icon={<CheckCircle size={16} weight="duotone" />} color="success">
+              <QuietChip tone="success">
+                <CheckCircle size={12} weight="duotone" aria-hidden />
                 合规通过
-              </Tag>
+              </QuietChip>
             ) : null}
-          </Space>
+          </div>
         ) : null}
 
         {!isAwaiting && message.metadata.suggestedSkills.length > 0 ? (
@@ -1176,27 +1176,27 @@ function MessageCard({
 function CitationList({ citations }: { citations: AssistantMetadata['citations'] }) {
   if (citations.length === 0) return null
   return (
-    <details className="chat-citations" open>
+    <details className="chat-citations">
       <summary>查看引用（{citations.length}）</summary>
-      <Space orientation="vertical" style={{ width: '100%', marginTop: 12 }}>
+      <div className="chat-citations__list">
         {citations.map((citation, index) => (
           <div
             key={`${citation.documentId ?? citation.knowledgeBaseId}-${index}`}
             className="chat-citations__item"
           >
-            <Space>
+            <div className="chat-citations__item-head">
               <BookOpen size={16} weight="duotone" className="pf-brand-icon" />
               <strong>
                 {citation.knowledgeBaseName} · {citation.documentTitle ?? '未命名文档'}
               </strong>
-            </Space>
+            </div>
             <p className="chat-citations__snippet">{citation.snippet}</p>
             {citation.chunkId ? (
               <p className="chat-citations__chunk">Chunk：{citation.chunkId}</p>
             ) : null}
           </div>
         ))}
-      </Space>
+      </div>
     </details>
   )
 }
@@ -1225,29 +1225,69 @@ function prettyJson(value: Record<string, unknown>): string {
   }
 }
 
+type ChipTone = 'neutral' | 'active' | 'success' | 'warning' | 'error' | 'accent'
+
+function QuietChip({
+  children,
+  tone = 'neutral',
+  title,
+}: {
+  children: ReactNode
+  tone?: ChipTone
+  title?: string
+}) {
+  return (
+    <span className={`chat-chip chat-chip--${tone}`} title={title}>
+      {children}
+    </span>
+  )
+}
+
+function statusTone(status: string): ChipTone {
+  if (status === 'running' || status === 'processing') return 'active'
+  if (status === 'success' || status === 'suggested') return 'success'
+  if (status === 'warning') return 'warning'
+  if (status === 'error' || status === 'failed') return 'error'
+  return 'neutral'
+}
+
+function statusLabel(status: string): string {
+  const map: Record<string, string> = {
+    pending: '待执行',
+    running: '进行中',
+    success: '完成',
+    skipped: '跳过',
+    empty: '空',
+    warning: '警告',
+    error: '失败',
+    suggested: '建议',
+  }
+  return map[status] ?? status
+}
+
 function describeReasoningBadge(
   reasoningMode?: ReasoningMode | null,
   difficulty?: string | null,
   turnStatus?: string | null,
-): { label: string; color: string; detail: string } | null {
+): { label: string; tone: ChipTone; detail: string } | null {
   if (turnStatus === 'awaiting_plan_selection' || reasoningMode === 'tot_select') {
     return {
       label: turnStatus === 'awaiting_plan_selection' ? 'ToT 选路·待选择' : 'ToT 选路',
-      color: 'gold',
+      tone: 'accent',
       detail: '多候选计划 + 用户选路，非搜索式学术 ToT',
     }
   }
   if (reasoningMode === 'cot_steps' || difficulty === 'multi_step') {
     return {
       label: 'CoT 分步',
-      color: 'processing',
+      tone: 'active',
       detail: '单链分步计划（Plan-and-Execute）',
     }
   }
   if (reasoningMode === 'cot_direct' || difficulty === 'simple') {
     return {
       label: 'CoT 直答',
-      color: 'default',
+      tone: 'neutral',
       detail: '简单问答直答路径',
     }
   }
@@ -1260,7 +1300,7 @@ function describeExecutionMode(
   executingSelection = false,
 ): {
   label: string
-  color: string
+  tone: ChipTone
   detail: string
 } {
   const mode = reasoningMode || plan?.reasoningMode
@@ -1274,13 +1314,13 @@ function describeExecutionMode(
     if (hasParallelWave || plan?.parallelUsed) {
       return {
         label: 'ToT 选路·并行执行',
-        color: 'gold',
+        tone: 'accent',
         detail: '用户已选路径，按依赖波次并行执行（非学术 ToT 搜索）',
       }
     }
     return {
       label: 'ToT 选路·执行中',
-      color: 'gold',
+      tone: 'accent',
       detail: '用户已选路径，按选定步骤执行（非学术 ToT 搜索）',
     }
   }
@@ -1288,7 +1328,7 @@ function describeExecutionMode(
   if (mode === 'tot_select' || difficulty === 'branched') {
     return {
       label: 'ToT 选路·待选择',
-      color: 'gold',
+      tone: 'accent',
       detail: '多候选计划 + 用户选路，非搜索式学术 ToT',
     }
   }
@@ -1297,13 +1337,13 @@ function describeExecutionMode(
     if (mode === 'cot_direct') {
       return {
         label: 'CoT 直答',
-        color: 'default',
+        tone: 'neutral',
         detail: '简单问答直答路径',
       }
     }
     return {
       label: '流式阶段',
-      color: 'processing',
+      tone: 'active',
       detail: '记忆 → 路由 → 检索 → 回答',
     }
   }
@@ -1326,7 +1366,7 @@ function describeExecutionMode(
     )
     return {
       label: concurrentRunning ? 'CoT 分步·并行中' : 'CoT 分步·并行',
-      color: 'blue',
+      tone: 'active',
       detail:
         parallelWaveSize > 1
           ? `独立子任务可同波并行（最大 ${parallelWaveSize} 路）`
@@ -1337,14 +1377,14 @@ function describeExecutionMode(
   if (isL2 || plan.complexity === 'multi_step' || mode === 'cot_steps') {
     return {
       label: 'CoT 分步',
-      color: 'processing',
+      tone: 'active',
       detail: `按依赖顺序执行 ${steps.length} 步`,
     }
   }
 
   return {
     label: 'CoT 直答',
-    color: 'default',
+    tone: 'neutral',
     detail: '记忆 → 路由 → 检索 → 回答',
   }
 }
@@ -1378,14 +1418,6 @@ function inferWavesFromSteps(steps: PlanStep[]): string[][] {
     }
   }
   return waves
-}
-
-function planStatusColor(status: string): string {
-  if (status === 'running') return 'processing'
-  if (status === 'success') return 'success'
-  if (status === 'error') return 'error'
-  if (status === 'skipped') return 'default'
-  return 'default'
 }
 
 function PlanOptionPicker({
@@ -1425,8 +1457,8 @@ function PlanOptionPicker({
             >
               <div className="chat-thinking__option-head">
                 <strong>{option.title}</strong>
-                {recommended ? <Tag color="gold">推荐</Tag> : null}
-                <Tag>{option.steps.length} 步</Tag>
+                {recommended ? <QuietChip tone="accent">推荐</QuietChip> : null}
+                <QuietChip>{option.steps.length} 步</QuietChip>
               </div>
               {option.summary ? (
                 <Typography.Paragraph
@@ -1444,15 +1476,18 @@ function PlanOptionPicker({
                 </ul>
               ) : null}
               {option.steps.length > 0 ? (
-                <ol className="chat-thinking__option-steps">
-                  {option.steps.map((step, index) => (
-                    <li key={step.id}>
-                      <span className="chat-thinking__plan-index">{index + 1}</span>
-                      <span>{step.title}</span>
-                      {step.kind ? <Tag>{step.kind}</Tag> : null}
-                    </li>
-                  ))}
-                </ol>
+                <details className="chat-thinking__option-steps-wrap">
+                  <summary>步骤预览 · {option.steps.length}</summary>
+                  <ol className="chat-thinking__option-steps">
+                    {option.steps.map((step, index) => (
+                      <li key={step.id}>
+                        <span className="chat-thinking__plan-index">{index + 1}</span>
+                        <span>{step.title}</span>
+                        {step.kind ? <QuietChip>{step.kind}</QuietChip> : null}
+                      </li>
+                    ))}
+                  </ol>
+                </details>
               ) : null}
               <div className="chat-thinking__option-actions">
                 <Button
@@ -1486,18 +1521,110 @@ function PlanOptionPicker({
   )
 }
 
+function PlanStepRow({
+  step,
+  index,
+  parallel = false,
+}: {
+  step: PlanStep
+  index: number
+  parallel?: boolean
+}) {
+  const isActive = step.status === 'running' || step.status === 'error'
+  const [open, setOpen] = useState(isActive)
+
+  useEffect(() => {
+    if (isActive) setOpen(true)
+    else if (step.status === 'success' || step.status === 'skipped') setOpen(false)
+  }, [isActive, step.status])
+
+  return (
+    <details
+      className={`chat-thinking__plan-item chat-thinking__plan-item--${step.status || 'pending'}${
+        parallel ? ' chat-thinking__plan-item--parallel' : ''
+      }`}
+      open={open}
+      onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
+    >
+      <summary className="chat-thinking__plan-item-head">
+        <span className="chat-thinking__plan-index">{index}</span>
+        <strong>{step.title}</strong>
+        {step.kind ? <QuietChip>{step.kind}</QuietChip> : null}
+        {parallel ? <QuietChip tone="active">并行</QuietChip> : null}
+        <QuietChip tone={statusTone(String(step.status))}>
+          {statusLabel(String(step.status))}
+        </QuietChip>
+      </summary>
+      {step.dependsOn && step.dependsOn.length > 0 ? (
+        <div className="chat-thinking__plan-message">依赖：{step.dependsOn.join(', ')}</div>
+      ) : null}
+      {step.message ? (
+        <div className="chat-thinking__plan-message">{step.message}</div>
+      ) : null}
+    </details>
+  )
+}
+
+function PlanWaveGroup({
+  waveIndex,
+  parallel,
+  parallelCount = 1,
+  waveRunning,
+  waveDone,
+  children,
+}: {
+  waveIndex: number
+  parallel: boolean
+  parallelCount?: number
+  waveRunning: boolean
+  waveDone: boolean
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(waveRunning || !waveDone)
+
+  useEffect(() => {
+    if (waveRunning) setOpen(true)
+    else if (waveDone) setOpen(false)
+  }, [waveRunning, waveDone])
+
+  return (
+    <details
+      className={
+        parallel
+          ? 'chat-thinking__wave chat-thinking__wave--parallel'
+          : 'chat-thinking__wave'
+      }
+      open={open}
+      onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
+    >
+      <summary className="chat-thinking__wave-head">
+        <span>第 {waveIndex + 1} 波</span>
+        <QuietChip tone={parallel ? 'active' : 'neutral'}>
+          {parallel ? `并行 ×${parallelCount}` : '串行'}
+        </QuietChip>
+        <QuietChip tone={waveRunning ? 'active' : waveDone ? 'success' : 'neutral'}>
+          {waveRunning ? '进行中' : waveDone ? '完成' : '待执行'}
+        </QuietChip>
+      </summary>
+      {children}
+    </details>
+  )
+}
+
 function ThinkingStreamPanel({
   stages,
   plan,
   diagnostics,
   reasoningMode,
   executingSelection = false,
+  live = false,
 }: {
   stages: ChatStageEvent[]
   plan: ChatPlanEvent | null
   diagnostics: TurnDiagnostics
   reasoningMode?: ReasoningMode | null
   executingSelection?: boolean
+  live?: boolean
 }) {
   const memoryCount = diagnostics.memories.length
   const toolCount = diagnostics.tools.length
@@ -1514,170 +1641,191 @@ function ThinkingStreamPanel({
   const parallelWaveIds = new Set(
     waves.filter((w) => w.length > 1).flatMap((w) => w),
   )
+  const visibleStages =
+    stages.length > 0
+      ? stages
+      : [{ stage: '准备中', status: 'running', message: '正在初始化本轮执行…' }]
+  const latestStage = visibleStages[visibleStages.length - 1]
+  const completedStages = visibleStages.slice(0, -1).filter((item) => item.status !== 'running')
+  const donePlanCount = planSteps.filter(
+    (step) => step.status === 'success' || step.status === 'skipped',
+  ).length
+  const runningPlan = planSteps.find((step) => step.status === 'running')
 
   return (
-    <div className="chat-thinking" aria-live="polite">
+    <div className={`chat-thinking${live ? ' chat-thinking--live' : ''}`} aria-live="polite">
+      <div className="chat-thinking__status-line">
+        <span className="chat-thinking__status-dot" aria-hidden />
+        <span className="chat-thinking__status-text">
+          {runningPlan
+            ? `正在执行：${runningPlan.title}`
+            : latestStage?.message || latestStage?.stage || '处理中…'}
+        </span>
+        <QuietChip tone={mode.tone} title={mode.detail}>
+          {mode.label}
+        </QuietChip>
+      </div>
+
       <div className="chat-diagnostics__overview">
         <span className="chat-diagnostics__overview-label">本轮使用</span>
-        <Tag color="purple">记忆 {memoryCount}</Tag>
-        <Tag color="geekblue">工具 {toolCount}</Tag>
-        <Tag color="cyan">命令 {commandCount}</Tag>
+        <QuietChip>记忆 {memoryCount}</QuietChip>
+        <QuietChip>工具 {toolCount}</QuietChip>
+        <QuietChip>命令 {commandCount}</QuietChip>
         {planSteps.length > 0 ? (
-          <Tag color="blue">
-            计划 {planSteps.length}
+          <QuietChip>
+            计划 {donePlanCount}/{planSteps.length}
             {plan?.planSource ? ` · ${plan.planSource}` : ''}
-          </Tag>
+          </QuietChip>
         ) : null}
-        <Tag color={mode.color} title={mode.detail}>{mode.label}</Tag>
       </div>
 
       {planSteps.length > 0 ? (
-        <div className="chat-thinking__plan" aria-label="执行计划">
-          <div className="chat-thinking__plan-title">
+        <details className="chat-thinking__plan" aria-label="执行计划" open>
+          <summary className="chat-thinking__plan-title">
             <strong>执行计划</strong>
-            <Tag color={mode.color}>{mode.label}</Tag>
-            {plan?.executor ? <Tag>{plan.executor}</Tag> : null}
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              {mode.detail}
-            </Typography.Text>
-          </div>
+            <QuietChip tone={mode.tone}>{mode.label}</QuietChip>
+            {plan?.executor ? <QuietChip>{plan.executor}</QuietChip> : null}
+            <span className="chat-thinking__hint">
+              {donePlanCount}/{planSteps.length} 完成 · {mode.detail}
+            </span>
+          </summary>
 
           {waves.some((w) => w.length > 1) ? (
             <div className="chat-thinking__waves" aria-label="执行波次">
               {waves.map((wave, waveIndex) => {
                 const parallel = wave.length > 1
+                const waveSteps = wave
+                  .map((id) => stepById.get(id))
+                  .filter((step): step is PlanStep => Boolean(step))
+                const waveDone = waveSteps.every(
+                  (step) => step.status === 'success' || step.status === 'skipped',
+                )
+                const waveRunning = waveSteps.some((step) => step.status === 'running')
                 return (
-                  <div
+                  <PlanWaveGroup
                     key={`wave-${waveIndex}`}
-                    className={
-                      parallel
-                        ? 'chat-thinking__wave chat-thinking__wave--parallel'
-                        : 'chat-thinking__wave'
-                    }
+                    waveIndex={waveIndex}
+                    parallel={parallel}
+                    parallelCount={wave.length}
+                    waveRunning={waveRunning}
+                    waveDone={waveDone}
                   >
-                    <div className="chat-thinking__wave-head">
-                      <span>第 {waveIndex + 1} 波</span>
-                      <Tag color={parallel ? 'blue' : 'default'}>
-                        {parallel ? `并行 ×${wave.length}` : '串行'}
-                      </Tag>
-                    </div>
-                    <ol className="chat-thinking__plan-list">
+                    <div className="chat-thinking__plan-list">
                       {wave.map((id) => {
                         const step = stepById.get(id)
                         if (!step) return null
                         const index = planSteps.findIndex((s) => s.id === id)
                         return (
-                          <li
+                          <PlanStepRow
                             key={step.id}
-                            className={`chat-thinking__plan-item chat-thinking__plan-item--${step.status || 'pending'}${
-                              parallelWaveIds.has(step.id)
-                                ? ' chat-thinking__plan-item--parallel'
-                                : ''
-                            }`}
-                          >
-                            <div className="chat-thinking__plan-item-head">
-                              <span className="chat-thinking__plan-index">
-                                {index >= 0 ? index + 1 : '·'}
-                              </span>
-                              <strong>{step.title}</strong>
-                              {step.kind ? <Tag>{step.kind}</Tag> : null}
-                              {parallel ? <Tag color="blue">∥</Tag> : null}
-                              <Tag color={planStatusColor(String(step.status))}>
-                                {step.status}
-                              </Tag>
-                            </div>
-                            {step.dependsOn && step.dependsOn.length > 0 ? (
-                              <div className="chat-thinking__plan-message">
-                                依赖：{step.dependsOn.join(', ')}
-                              </div>
-                            ) : null}
-                            {step.message ? (
-                              <div className="chat-thinking__plan-message">
-                                {step.message}
-                              </div>
-                            ) : null}
-                          </li>
+                            step={step}
+                            index={index >= 0 ? index + 1 : 0}
+                            parallel={parallelWaveIds.has(step.id)}
+                          />
                         )
                       })}
-                    </ol>
-                  </div>
+                    </div>
+                  </PlanWaveGroup>
                 )
               })}
             </div>
           ) : (
-            <ol className="chat-thinking__plan-list">
+            <div className="chat-thinking__plan-list">
               {planSteps.map((step: PlanStep, index: number) => (
-                <li
+                <PlanStepRow
                   key={step.id}
-                  className={`chat-thinking__plan-item chat-thinking__plan-item--${step.status || 'pending'}`}
-                >
-                  <div className="chat-thinking__plan-item-head">
-                    <span className="chat-thinking__plan-index">{index + 1}</span>
-                    <strong>{step.title}</strong>
-                    {step.kind ? <Tag>{step.kind}</Tag> : null}
-                    <Tag color={planStatusColor(String(step.status))}>{step.status}</Tag>
-                  </div>
-                  {step.dependsOn && step.dependsOn.length > 0 ? (
-                    <div className="chat-thinking__plan-message">
-                      依赖：{step.dependsOn.join(', ')}
-                    </div>
-                  ) : null}
-                  {step.message ? (
-                    <div className="chat-thinking__plan-message">{step.message}</div>
-                  ) : null}
-                </li>
+                  step={step}
+                  index={index + 1}
+                />
               ))}
-            </ol>
+            </div>
           )}
-        </div>
+        </details>
       ) : null}
 
-      <div className="chat-thinking__stages">
-        {(stages.length > 0
-          ? stages
-          : [{ stage: '准备中', status: 'running', message: '正在初始化本轮执行…' }]
-        ).map((stage) => (
-          <div key={stage.stage} className="chat-thinking__stage">
-            <div className="chat-thinking__stage-head">
-              <strong>{stage.stage}</strong>
-              <Tag
-                color={
-                  stage.status === 'running'
-                    ? 'processing'
-                    : stage.status === 'success'
-                      ? 'success'
-                      : stage.status === 'warning'
-                        ? 'warning'
-                        : stage.status === 'empty' || stage.status === 'skipped'
-                          ? 'default'
-                          : 'error'
-                }
-              >
-                {stage.status}
-              </Tag>
+      <div className="chat-thinking__timeline" aria-label="执行阶段">
+        {completedStages.length > 0 ? (
+          <details className="chat-thinking__completed">
+            <summary>
+              已完成阶段 · {completedStages.length}
+              <span className="chat-thinking__hint">
+                {completedStages
+                  .slice(-3)
+                  .map((item) => item.stage)
+                  .join(' → ')}
+              </span>
+            </summary>
+            <div className="chat-thinking__stages">
+              {completedStages.map((stage) => (
+                <div
+                  key={stage.stage}
+                  className={`chat-thinking__stage chat-thinking__stage--${stage.status}`}
+                >
+                  <div className="chat-thinking__stage-head">
+                    <strong>{stage.stage}</strong>
+                    <QuietChip tone={statusTone(stage.status)}>
+                      {statusLabel(stage.status)}
+                    </QuietChip>
+                  </div>
+                  <div className="chat-thinking__stage-message">{stage.message}</div>
+                </div>
+              ))}
             </div>
-            <div className="chat-thinking__stage-message">{stage.message}</div>
+          </details>
+        ) : null}
+
+        {latestStage ? (
+          <div
+            className={`chat-thinking__stage chat-thinking__stage--current chat-thinking__stage--${latestStage.status}`}
+          >
+            <div className="chat-thinking__stage-head">
+              <strong>{latestStage.stage}</strong>
+              <QuietChip tone={statusTone(latestStage.status)}>
+                {statusLabel(latestStage.status)}
+              </QuietChip>
+            </div>
+            <div className="chat-thinking__stage-message">{latestStage.message}</div>
           </div>
-        ))}
+        ) : null}
       </div>
 
       {memoryCount + toolCount + diagnostics.commands.length > 0 ? (
-        <TurnDiagnosticsPanel diagnostics={diagnostics} compact />
+        <TurnDiagnosticsPanel diagnostics={diagnostics} compact defaultOpen={false} />
       ) : (
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          记忆 / 工具 / 命令将在执行过程中逐步出现，可点击展开查看详情。
+          记忆 / 工具 / 命令会随步骤结果逐步写入，完成后可折叠查看。
         </Typography.Text>
       )}
     </div>
   )
 }
 
+function CompletedTurnTrace({ diagnostics }: { diagnostics?: TurnDiagnostics | null }) {
+  const data = diagnostics ?? { memories: [], tools: [], commands: [] }
+  const total = data.memories.length + data.tools.length + data.commands.length
+  if (total === 0) return null
+
+  return (
+    <details className="chat-turn-trace" aria-label="本轮执行过程">
+      <summary>
+        <span>执行过程</span>
+        <span className="chat-turn-trace__summary">
+          记忆 {data.memories.length} · 工具 {data.tools.length} · 命令 {data.commands.length}
+        </span>
+      </summary>
+      <TurnDiagnosticsPanel diagnostics={data} defaultOpen />
+    </details>
+  )
+}
+
 function TurnDiagnosticsPanel({
   diagnostics,
   compact = false,
+  defaultOpen = false,
 }: {
   diagnostics?: TurnDiagnostics | null
   compact?: boolean
+  defaultOpen?: boolean
 }) {
   const data = diagnostics ?? { memories: [], tools: [], commands: [] }
   const memoryCount = data.memories.length
@@ -1690,14 +1838,14 @@ function TurnDiagnosticsPanel({
       {compact ? null : (
         <div className="chat-diagnostics__overview">
           <span className="chat-diagnostics__overview-label">本轮使用</span>
-          <Tag color="purple">记忆 {memoryCount}</Tag>
-          <Tag color="geekblue">工具 {toolCount}</Tag>
-          <Tag color="cyan">命令 {commandCount}</Tag>
+          <QuietChip>记忆 {memoryCount}</QuietChip>
+          <QuietChip>工具 {toolCount}</QuietChip>
+          <QuietChip>命令 {commandCount}</QuietChip>
         </div>
       )}
 
       {memoryCount > 0 ? (
-        <details className="chat-diagnostics__section">
+        <details className="chat-diagnostics__section" open={defaultOpen && !compact}>
           <summary>
             记忆 · {memoryCount}
             <span className="chat-diagnostics__hint">
@@ -1716,7 +1864,7 @@ function TurnDiagnosticsPanel({
       ) : null}
 
       {toolCount > 0 ? (
-        <details className="chat-diagnostics__section">
+        <details className="chat-diagnostics__section" open={defaultOpen && !compact}>
           <summary>
             工具 · {toolCount}
             <span className="chat-diagnostics__hint">
@@ -1735,7 +1883,7 @@ function TurnDiagnosticsPanel({
       ) : null}
 
       {commandCount > 0 ? (
-        <details className="chat-diagnostics__section">
+        <details className="chat-diagnostics__section" open={defaultOpen && !compact}>
           <summary>
             命令 · {commandCount}
             <span className="chat-diagnostics__hint">
@@ -1760,7 +1908,7 @@ function MemoryDiagItem({ item }: { item: UsedMemoryItem }) {
   return (
     <div className="chat-diagnostics__item">
       <div className="chat-diagnostics__item-head">
-        <Tag color="purple">{memoryTypeLabel[item.memoryType] ?? item.memoryType}</Tag>
+        <QuietChip>{memoryTypeLabel[item.memoryType] ?? item.memoryType}</QuietChip>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           {sourceSlotLabel[item.sourceSlot] ?? item.sourceSlot}
           {item.confidence !== null ? ` · conf ${item.confidence.toFixed(2)}` : ''}
@@ -1780,9 +1928,7 @@ function ToolDiagItem({ item }: { item: ToolCallTrace }) {
     <div className="chat-diagnostics__item">
       <div className="chat-diagnostics__item-head">
         <strong>{item.toolName}</strong>
-        <Tag color={item.status === 'success' || item.status === 'suggested' ? 'blue' : 'error'}>
-          {item.status}
-        </Tag>
+        <QuietChip tone={statusTone(item.status)}>{statusLabel(item.status)}</QuietChip>
         {item.agentName ? (
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             via {item.agentName}
@@ -1820,19 +1966,7 @@ function CommandDiagItem({ item }: { item: CommandTrace }) {
     <div className="chat-diagnostics__item">
       <div className="chat-diagnostics__item-head">
         <strong>{item.name}</strong>
-        <Tag
-          color={
-            item.status === 'success'
-              ? 'success'
-              : item.status === 'warning'
-                ? 'warning'
-                : item.status === 'skipped' || item.status === 'empty'
-                  ? 'default'
-                  : 'error'
-          }
-        >
-          {item.status}
-        </Tag>
+        <QuietChip tone={statusTone(item.status)}>{statusLabel(item.status)}</QuietChip>
       </div>
       {item.summary ? <div className="chat-diagnostics__item-content">{item.summary}</div> : null}
       {hasOutput ? (
