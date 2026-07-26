@@ -69,6 +69,7 @@ uvicorn backend.app.main:app --reload
 - 要求推 GitHub 时：在 `master` 上 commit + `git push origin HEAD`（用户已授权推送）。
 
 ## 关键文件
+- `docs/10-project-summary.md` — **项目总结单页快照**（定位/架构/功能/指标/诚实边界，新读者入口）
 - `docs/05-development-roadmap.md` — 开发路线图
 - `docs/01-architecture-design.md` — 架构设计
 - `docs/02-database-design-sqlite.md` — 数据库设计
