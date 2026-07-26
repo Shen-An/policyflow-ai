@@ -1,13 +1,14 @@
 import { ArrowLeft, FileText, Info } from '@phosphor-icons/react'
-import { Button, Card, Space, Tabs, Tag, Typography } from 'antd'
+import { Button, Card, Space, Tabs, Typography } from 'antd'
 import { Link, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ErrorState, LoadingState } from '../../components/feedback/state-views'
+import { QuietChip } from '../../components/ui/quiet-chip'
 import {
-  permissionColor,
   permissionLabel,
+  permissionTone,
   queryModeLabel,
-  statusColor,
   statusLabel,
+  statusTone,
 } from './labels'
 import { useKnowledgeBaseQuery } from './queries'
 
@@ -48,17 +49,17 @@ export function KnowledgeBaseDetailPage() {
             <Typography.Text type="secondary" code>
               {knowledgeBase.code}
             </Typography.Text>
-            <Tag color={permissionColor[knowledgeBase.permission]}>
+            <QuietChip tone={permissionTone[knowledgeBase.permission]}>
               {permissionLabel[knowledgeBase.permission]}
-            </Tag>
-            <Tag color={statusColor[knowledgeBase.status] ?? 'default'}>{statusText}</Tag>
-            <Tag>
+            </QuietChip>
+            <QuietChip tone={statusTone[knowledgeBase.status] ?? 'neutral'}>{statusText}</QuietChip>
+            <QuietChip>
               检索 · {queryModeLabel[knowledgeBase.defaultQueryMode] ?? knowledgeBase.defaultQueryMode}
-            </Tag>
-            <Tag>
-              <FileText size={16} weight="duotone" aria-hidden style={{marginRight: 4}} />
+            </QuietChip>
+            <QuietChip>
+              <FileText size={16} weight="duotone" aria-hidden style={{ marginRight: 4 }} />
               {knowledgeBase.documentCount} 份文档
-            </Tag>
+            </QuietChip>
           </Space>
           {knowledgeBase.description ? (
             <Typography.Paragraph
