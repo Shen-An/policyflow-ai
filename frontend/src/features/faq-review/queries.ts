@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { selfHandledMutation } from '../../app/global-feedback'
 import { approveFAQ, listFAQDrafts, rejectFAQ } from '../../api/faq'
 
 export const faqKeys = {
@@ -18,6 +19,7 @@ export function useFAQDraftsQuery(knowledgeBaseId: string, status: string) {
 export function useApproveFAQMutation() {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: approveFAQ,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: faqKeys.all })
@@ -28,6 +30,7 @@ export function useApproveFAQMutation() {
 export function useRejectFAQMutation() {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       rejectFAQ(id, reason),
     onSuccess: async () => {

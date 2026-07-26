@@ -93,7 +93,7 @@ describe('DocumentListPage', () => {
 
     renderPage('read')
     const row = await screen.findByRole('row', { name: /员工手册/u })
-    expect(row).toHaveTextContent('failed')
+    expect(row).toHaveTextContent('失败')
     expect(screen.getByText('当前为只读权限，不能上传或重新索引。')).toBeVisible()
     expect(screen.queryByRole('button', { name: '上传文档' })).not.toBeInTheDocument()
     expect(within(row).queryByRole('button', { name: '重新索引' })).not.toBeInTheDocument()

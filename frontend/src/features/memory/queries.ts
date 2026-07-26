@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { selfHandledMutation } from '../../app/global-feedback'
 import { deleteMemory, listMemories } from '../../api/memory'
 
 export const memoryKeys = {
@@ -24,6 +25,7 @@ export function useMemoriesQuery(
 export function useDeleteMemoryMutation() {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: (memoryId: string) => deleteMemory(memoryId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: memoryKeys.lists() })

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { selfHandledMutation } from '../../app/global-feedback'
 import {
   confirmDraft,
   createDraft,
@@ -42,6 +43,7 @@ export function useDraftQuery(id: string) {
 export function useCreateDraftMutation() {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: (input: CreateDraftInput) => createDraft(input),
     onSuccess: async (draft) => {
       queryClient.setQueryData(draftKeys.detail(draft.id), draft)
@@ -53,6 +55,7 @@ export function useCreateDraftMutation() {
 export function useUpdateDraftMutation(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: (input: { title: string; content: string }) => updateDraft(id, input),
     onSuccess: async (draft) => {
       queryClient.setQueryData(draftKeys.detail(id), draft)
@@ -64,6 +67,7 @@ export function useUpdateDraftMutation(id: string) {
 function useDraftAction(id: string, action: typeof confirmDraft) {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: () => action(id),
     onSuccess: async (draft) => {
       queryClient.setQueryData(draftKeys.detail(id), draft)
@@ -77,4 +81,4 @@ export const useConfirmDraftMutation = (id: string) =>
 export const useDiscardDraftMutation = (id: string) =>
   useDraftAction(id, discardDraft)
 export const useExportDraftMutation = (id: string) =>
-  useMutation({ mutationFn: () => exportDraft(id) })
+  useMutation({ meta: selfHandledMutation, mutationFn: () => exportDraft(id) })

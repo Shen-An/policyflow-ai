@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { selfHandledMutation } from '../../app/global-feedback'
 import {
   deleteDocument,
   getDocumentDetail,
@@ -63,6 +64,7 @@ export function useDocumentDetailQuery(documentId: string, enabled = true) {
 export function useUploadDocumentMutation(knowledgeBaseId: string) {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: ({ file, title }: { file: File; title?: string }) =>
       uploadDocument(knowledgeBaseId, file, title),
     onSuccess: async () => {

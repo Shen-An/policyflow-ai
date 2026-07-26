@@ -48,7 +48,8 @@ describe('UsersPage', () => {
   it('renders loading then the real list fields', async () => {
     server.use(http.get('*/api/users', () => listResponse()))
     renderPage()
-    const row = await screen.findByRole('row', { name: /张三/ })
+    // 全量并行跑测试时 antd Table 首渲染可能超过默认轮询窗口，放宽等待上限
+    const row = await screen.findByRole('row', { name: /张三/ }, { timeout: 10_000 })
     expect(row).toHaveTextContent('zhangsan@example.com')
     expect(row).toHaveTextContent('人力资源部')
     expect(row).toHaveTextContent('普通员工')

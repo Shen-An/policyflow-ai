@@ -14,6 +14,8 @@ env/
 
 # Database
 *.db
+*.db-shm
+*.db-wal
 *.sqlite3
 *.backup-*
 
@@ -37,6 +39,10 @@ rag_workspaces/
 # Test artifacts
 playwright-report/
 test-results/
+tmp_*/
+
+# Generated reports
+docs/rehearsal-latest.json
 
 # Claude
 .claude/

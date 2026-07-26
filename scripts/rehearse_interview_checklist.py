@@ -446,7 +446,7 @@ class Rehearsal:
         )
 
     def code_pointers(self) -> None:
-        root = Path("E:/Coding/Code/Python/policyflow-ai")
+        root = Path(__file__).resolve().parents[1]
         files = [
             "backend/app/agents/pipeline.py",
             "backend/app/tools/chat_tools.py",
@@ -466,7 +466,7 @@ class Rehearsal:
             for name in failed:
                 detail = next(d for n, _, d in self.results if n == name)
                 print(f" - {name}: {detail}")
-        out = Path("E:/Coding/Code/Python/policyflow-ai/docs/rehearsal-latest.json")
+        out = Path(__file__).resolve().parents[1] / "docs" / "rehearsal-latest.json"
         out.write_text(
             json.dumps(
                 [{"name": n, "ok": ok, "detail": d} for n, ok, d in self.results],

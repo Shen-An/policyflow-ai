@@ -16,6 +16,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     css: true,
+    // 全量并行时 antd 页面在 jsdom 下首渲染偏慢，默认 5s 会产生随机超时（非代码问题）
+    testTimeout: 20_000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],

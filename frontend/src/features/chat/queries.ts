@@ -37,9 +37,13 @@ export type SendChatMutationInput = SendChatInput & {
   streamHandlers?: ChatStreamHandlers
 }
 
+// chat 页面对 mutateAsync 自行 try/catch 并提示，标记跳过全局错误弹层
+const chatHandlesOwnError = { suppressGlobalError: true } as const
+
 export function useSendChatMutation() {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: chatHandlesOwnError,
     mutationFn: ({ streamHandlers, ...input }: SendChatMutationInput) =>
       sendChatStream(input, streamHandlers),
     onSuccess: async (result) => {
@@ -58,6 +62,7 @@ export function useSendChatMutation() {
 export function useRenameConversationMutation() {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: chatHandlesOwnError,
     mutationFn: ({ conversationId, title }: { conversationId: string; title: string }) =>
       renameConversation(conversationId, title),
     onSuccess: async (result) => {
@@ -76,6 +81,7 @@ export function useRenameConversationMutation() {
 export function useDeleteConversationMutation() {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: chatHandlesOwnError,
     mutationFn: (conversationId: string) => deleteConversation(conversationId),
     onSuccess: async (_result, conversationId) => {
       queryClient.removeQueries({

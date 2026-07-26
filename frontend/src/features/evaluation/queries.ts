@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { selfHandledMutation } from '../../app/global-feedback'
 import {
   cleanupEvalDataset,
   createEvalCase,
@@ -58,6 +59,7 @@ function useCreateMutation<TInput>(
 ) {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn,
     onSuccess: async () => queryClient.invalidateQueries({ queryKey }),
   })
@@ -71,6 +73,7 @@ export const useCreateRetrievalItemMutation = () =>
 export function useImportCrudDatasetMutation() {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: importCrudDataset,
     onSuccess: async () => {
       await Promise.all([
@@ -86,6 +89,7 @@ export function useImportCrudDatasetMutation() {
 export function useCleanupEvalDatasetMutation() {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: cleanupEvalDataset,
     onSuccess: async () => {
       await Promise.all([
@@ -100,6 +104,7 @@ export function useCleanupEvalDatasetMutation() {
 export function useCreateEvalRunMutation() {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: createEvalRun,
     onSuccess: async (run) => {
       queryClient.setQueryData(evalKeys.run(run.id), run)

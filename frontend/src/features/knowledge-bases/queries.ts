@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { selfHandledMutation } from '../../app/global-feedback'
 import {
   createKnowledgeBase,
   deleteKnowledgeBase,
@@ -44,6 +45,7 @@ export function useCreateOptionsQuery(enabled: boolean) {
 export function useCreateKnowledgeBaseMutation() {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: (input: CreateKnowledgeBaseInput) => createKnowledgeBase(input),
     onSuccess: async (created) => {
       queryClient.setQueryData(knowledgeBaseKeys.detail(created.id), created)

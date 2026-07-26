@@ -292,7 +292,7 @@ def test_chat_conversation_and_feedback_frontend_contract(tmp_path: Path) -> Non
     assert no_evidence_response.json()["citations"] == []
     assert no_evidence_response.json()["confidence_score"] == 0.0
     no_evidence_answer = no_evidence_response.json()["answer"]
-    assert "未检索到" in no_evidence_answer or "不可信" in no_evidence_answer
+    assert "没有检索到" in no_evidence_answer or "未检索到" in no_evidence_answer
 
     assert owner_conversation.status_code == 200
     assert admin_conversation.status_code == 200

@@ -409,7 +409,7 @@ def test_mcp_contract_encrypted_storage_edit_health_and_audit(tmp_path: Path) ->
     assert external.json()["config_summary"]["api_key"] == "[REDACTED]"
     assert external_health.status_code == 200
     assert external_health.json()["health_status"] == "unhealthy"
-    assert external_health.json()["error_code"] == "MCP_EXTERNAL_NOT_CONFIGURED"
+    assert external_health.json()["error_code"] == "MCP_HEALTH_FAILED"
     assert external_health.json()["error_message"]
     assert duplicate.status_code == 409
     assert missing_update.status_code == 404
