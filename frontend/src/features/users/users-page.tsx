@@ -1,11 +1,12 @@
 import { MagnifyingGlass, Plus, Users } from '@phosphor-icons/react'
-import { Button, Card, Input, Space, Table, Tag, Typography } from 'antd'
+import { Button, Card, Input, Space, Table, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { UserRecord } from '../../api/users'
 import { AppError } from '../../api/errors'
 import { EmptyState, ErrorState } from '../../components/feedback/state-views'
+import { QuietChip, statusTone } from '../../components/ui/quiet-chip'
 import { formatDateTime } from '../../lib/datetime'
 import { roleLabel, userStatusLabel } from '../../lib/labels'
 import { CreateUserDialog } from './components/create-user-dialog'
@@ -73,7 +74,7 @@ export function UsersPage() {
       render: (roles: string[]) => (
         <Space size={[4, 4]} wrap>
           {roles.map((role) => (
-            <Tag key={role}>{roleLabel[role] ?? role}</Tag>
+            <QuietChip key={role}>{roleLabel[role] ?? role}</QuietChip>
           ))}
         </Space>
       ),
@@ -83,9 +84,7 @@ export function UsersPage() {
       dataIndex: 'status',
       width: 100,
       render: (status: string) => (
-        <Tag color={status === 'active' ? 'success' : 'default'}>
-          {userStatusLabel[status] ?? status}
-        </Tag>
+        <QuietChip tone={statusTone(status)}>{userStatusLabel[status] ?? status}</QuietChip>
       ),
     },
     {
