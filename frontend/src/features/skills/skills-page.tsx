@@ -11,7 +11,6 @@ import {
   Select,
   Space,
   Table,
-  Tag,
   Typography,
   message as staticMessage,
 } from 'antd'
@@ -21,6 +20,7 @@ import { useSearchParams } from 'react-router-dom'
 import type { Skill } from '../../api/skills'
 import type { ToolCallLog } from '../../api/tools'
 import { LoadingState } from '../../components/feedback/state-views'
+import { QuietChip, statusTone } from '../../components/ui/quiet-chip'
 import { confirmAction } from '../../lib/confirm'
 import { formatDateTime } from '../../lib/datetime'
 import { skillRiskLabel, toolLogStatusLabel } from '../../lib/labels'
@@ -99,9 +99,9 @@ function SkillRegistry() {
         dataIndex: 'implemented',
         width: 110,
         render: (implemented: boolean) => (
-          <Tag color={implemented ? 'blue' : 'default'}>
+          <QuietChip tone={implemented ? 'active' : 'neutral'}>
             {implemented ? '已实现' : '未实现'}
-          </Tag>
+          </QuietChip>
         ),
       },
       {
@@ -109,7 +109,7 @@ function SkillRegistry() {
         dataIndex: 'enabled',
         width: 110,
         render: (enabled: boolean) => (
-          <Tag color={enabled ? 'success' : 'error'}>{enabled ? '已启用' : '已禁用'}</Tag>
+          <QuietChip tone={enabled ? 'success' : 'error'}>{enabled ? '已启用' : '已禁用'}</QuietChip>
         ),
       },
       {
@@ -390,9 +390,7 @@ function ToolLogSection() {
       dataIndex: 'status',
       width: 100,
       render: (value: string) => (
-        <Tag color={value === 'success' ? 'success' : value === 'failed' ? 'error' : 'default'}>
-          {toolLogStatusLabel[value] ?? value}
-        </Tag>
+        <QuietChip tone={statusTone(value)}>{toolLogStatusLabel[value] ?? value}</QuietChip>
       ),
     },
     {

@@ -8,7 +8,6 @@ import {
   Select,
   Space,
   Table,
-  Tag,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useMemo, useState } from 'react'
@@ -16,6 +15,7 @@ import { useSearchParams } from 'react-router-dom'
 import type { MemoryItem } from '../../api/memory'
 import { EmptyState, ErrorState, LoadingState } from '../../components/feedback/state-views'
 import { MarkdownContent } from '../../components/markdown/markdown-content'
+import { QuietChip, type ChipTone } from '../../components/ui/quiet-chip'
 import { confirmAction } from '../../lib/confirm'
 import { formatDateTime } from '../../lib/datetime'
 import { useDeleteMemoryMutation, useMemoriesQuery } from './queries'
@@ -30,13 +30,13 @@ const typeOptions = [
   { value: 'system_note', label: '系统备注' },
 ]
 
-const typeMeta: Record<string, { label: string; color: string }> = {
-  user_preference: { label: '用户偏好', color: 'blue' },
-  long_term_event: { label: '长期事件', color: 'purple' },
-  entity: { label: '实体', color: 'cyan' },
-  conversation_summary: { label: '会话摘要', color: 'default' },
-  stm_summary: { label: '短期摘要', color: 'default' },
-  system_note: { label: '系统备注', color: 'gold' },
+const typeMeta: Record<string, { label: string; tone: ChipTone }> = {
+  user_preference: { label: '用户偏好', tone: 'active' },
+  long_term_event: { label: '长期事件', tone: 'accent' },
+  entity: { label: '实体', tone: 'active' },
+  conversation_summary: { label: '会话摘要', tone: 'neutral' },
+  stm_summary: { label: '短期摘要', tone: 'neutral' },
+  system_note: { label: '系统备注', tone: 'warning' },
 }
 
 function positiveInt(value: string | null, fallback: number): number {
@@ -72,8 +72,8 @@ export function MemoryPage() {
         dataIndex: 'memoryType',
         width: 120,
         render: (value: string) => {
-          const meta = typeMeta[value] ?? { label: value, color: 'default' }
-          return <Tag color={meta.color}>{meta.label}</Tag>
+          const meta = typeMeta[value] ?? { label: value, tone: 'neutral' as const }
+          return <QuietChip tone={meta.tone}>{meta.label}</QuietChip>
         },
       },
       {
@@ -113,7 +113,7 @@ export function MemoryPage() {
         dataIndex: 'hasEmbedding',
         width: 80,
         render: (value: boolean) =>
-          value ? <Tag color="success">已嵌入</Tag> : <Tag>无</Tag>,
+          value ? <QuietChip tone="success">已嵌入</QuietChip> : <QuietChip>无</QuietChip>,
       },
       {
         title: '更新时间',
