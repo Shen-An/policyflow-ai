@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from time import perf_counter
 from typing import Any
 
+from sqlalchemy import func
 from sqlmodel import Session, col, select
 
 from backend.app.agents.base import MemoryWorkingSet
@@ -1149,44 +1150,49 @@ def list_conversations(
     """
     safe_page = max(page, 1)
     safe_page_size = min(max(page_size, 1), 100)
-    conversations = session.exec(
-        select(Conversation)
-        .where(
-            Conversation.user_id == user.id,
-            Conversation.status != "deleted",
-        )
-        .order_by(col(Conversation.updated_at).desc())
-    ).all()
 
+    base_query = select(Conversation).where(
+        Conversation.user_id == user.id,
+        Conversation.status != "deleted",
+    )
     normalized_keyword = (keyword or "").strip().lower()
-    filtered: list[Conversation] = []
-    for conversation in conversations:
-        if not normalized_keyword:
-            filtered.append(conversation)
-            continue
-        haystacks = [conversation.title.lower()]
-        latest = session.exec(
-            select(Message)
-            .where(Message.conversation_id == conversation.id)
+    if normalized_keyword:
+        # 关键词匹配标题或最新一条消息内容（与旧 Python 过滤语义一致），下推到 SQL 避免全量加载。
+        pattern = f"%{normalized_keyword}%"
+        latest_content = (
+            select(Message.content)
+            .where(Message.conversation_id == Conversation.id)
             .order_by(col(Message.created_at).desc())
-        ).first()
-        if latest is not None:
-            haystacks.append(latest.content.lower())
-        if any(normalized_keyword in value for value in haystacks):
-            filtered.append(conversation)
+            .limit(1)
+            .scalar_subquery()
+        )
+        base_query = base_query.where(
+            func.lower(Conversation.title).like(pattern)
+            | func.lower(func.coalesce(latest_content, "")).like(pattern)
+        )
 
-    total = len(filtered)
-    start = (safe_page - 1) * safe_page_size
-    page_items = filtered[start : start + safe_page_size]
+    total = session.exec(
+        select(func.count()).select_from(base_query.subquery())
+    ).one()
+    page_items = session.exec(
+        base_query.order_by(col(Conversation.updated_at).desc())
+        .offset((safe_page - 1) * safe_page_size)
+        .limit(safe_page_size)
+    ).all()
 
     items: list[ConversationSummary] = []
     for conversation in page_items:
-        messages = session.exec(
+        message_count = session.exec(
+            select(func.count())
+            .select_from(Message)
+            .where(Message.conversation_id == conversation.id)
+        ).one()
+        last_message = session.exec(
             select(Message)
             .where(Message.conversation_id == conversation.id)
             .order_by(col(Message.created_at).desc())
-        ).all()
-        last_message = messages[0] if messages else None
+            .limit(1)
+        ).first()
         preview = None
         if last_message is not None:
             preview = " ".join(last_message.content.split())
@@ -1197,7 +1203,7 @@ def list_conversations(
                 id=conversation.id,
                 title=conversation.title,
                 status=conversation.status,
-                message_count=len(messages),
+                message_count=message_count,
                 last_message_preview=preview,
                 last_message_role=last_message.role if last_message is not None else None,
                 created_at=conversation.created_at,
