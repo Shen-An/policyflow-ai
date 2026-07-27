@@ -1,5 +1,6 @@
 """Create database tables and idempotently insert roadmap seed data."""
 
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 
 from sqlalchemy import inspect, text
@@ -465,6 +466,32 @@ def seed_initial_data(
     return summary
 
 
+def _run_backfill_once(engine: Engine, name: str, runner: Callable[[], None]) -> None:
+    """历史数据回填迁移只需执行一次；用标记表避免每次启动全表扫描。"""
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "CREATE TABLE IF NOT EXISTS app_backfill_migrations "
+                "(name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)"
+            )
+        )
+        applied = connection.execute(
+            text("SELECT 1 FROM app_backfill_migrations WHERE name = :name"),
+            {"name": name},
+        ).first()
+    if applied is not None:
+        return
+    runner()
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO app_backfill_migrations (name, applied_at) "
+                "VALUES (:name, :applied_at)"
+            ),
+            {"name": name, "applied_at": utc_now().isoformat()},
+        )
+
+
 def initialize_database(
     engine: Engine | None = None,
     settings: Settings | None = None,
@@ -472,10 +499,26 @@ def initialize_database(
     app_settings = settings or get_settings()
     database_engine = create_db_and_tables(engine)
     _apply_sqlite_column_migrations(database_engine)
-    _split_legacy_model_providers(database_engine)
-    _infer_model_provider_api_styles(database_engine)
-    _protect_existing_mcp_configuration(database_engine, app_settings)
-    _redact_existing_tool_logs(database_engine)
+    _run_backfill_once(
+        database_engine,
+        "split_legacy_model_providers",
+        lambda: _split_legacy_model_providers(database_engine),
+    )
+    _run_backfill_once(
+        database_engine,
+        "infer_model_provider_api_styles",
+        lambda: _infer_model_provider_api_styles(database_engine),
+    )
+    _run_backfill_once(
+        database_engine,
+        "protect_existing_mcp_configuration",
+        lambda: _protect_existing_mcp_configuration(database_engine, app_settings),
+    )
+    _run_backfill_once(
+        database_engine,
+        "redact_existing_tool_logs",
+        lambda: _redact_existing_tool_logs(database_engine),
+    )
     return seed_initial_data(database_engine, app_settings)
 
 
