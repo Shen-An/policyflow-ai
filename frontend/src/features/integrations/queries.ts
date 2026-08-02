@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { selfHandledMutation } from '../../app/global-feedback'
 import {
   checkMCPHealth,
   createMCPServer,
@@ -22,6 +23,7 @@ export function useMCPServersQuery() {
 export function useCreateMCPServerMutation() {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: (input: MCPServerInput) => createMCPServer(input),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: mcpKeys.all })
@@ -32,6 +34,7 @@ export function useCreateMCPServerMutation() {
 export function useUpdateMCPServerMutation() {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: ({ id, input }: { id: string; input: MCPServerUpdate }) =>
       updateMCPServer(id, input),
     onSuccess: async () => {
@@ -43,6 +46,7 @@ export function useUpdateMCPServerMutation() {
 export function useMCPHealthMutation() {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: checkMCPHealth,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: mcpKeys.all })
