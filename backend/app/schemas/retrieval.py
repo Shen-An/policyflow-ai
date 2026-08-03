@@ -1,7 +1,7 @@
 """Unified retrieval schemas and strategy enums."""
 
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -36,6 +36,9 @@ class Evidence(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+RerankerMethod = Literal["local_lexical_fusion", "cross_encoder"]
+
+
 class RetrievalRequest(BaseModel):
     query: str = Field(min_length=1, max_length=4000)
     knowledge_base_ids: list[str] = Field(min_length=1)
@@ -43,6 +46,7 @@ class RetrievalRequest(BaseModel):
     top_k: int = Field(default=5, ge=1, le=100)
     candidate_k: int | None = Field(default=None, ge=1, le=400)
     rerank_enabled: bool = False
+    reranker_method: RerankerMethod = "local_lexical_fusion"
     lightrag_query_mode: LightRAGQueryMode = LightRAGQueryMode.HYBRID
 
     @property

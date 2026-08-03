@@ -552,3 +552,10 @@ CRUD import ── id 对齐 ── Hit@K 看板
 | v1.5 | 2026-07-20 | L2.5 ToT 选路：difficulty 三档、候选计划、双请求 HITL、eval auto-pick、前端选路；诚实非学术 ToT |
 | v1.6 | 2026-07-20 | 正式 `TurnState` 共享记录 + `errors[]` 集中写入；PlanExecutor/Pipeline/L1 接线；diagnostics 透出；面试文档诚实边界 |
 | v1.7 | 2026-07-20 | Critique→Improve 反思闭环：双 prompt、6 维 + PASS、硬 max_rounds=2、高风险触发、Eval 默认关；Compliance 仍为规则门 |
+
+### Rerank implementation update (2026-08-02)
+
+The default remains `local_lexical_fusion`. An optional NVIDIA Cross-Encoder backend
+is now wired through the existing `Reranker` Protocol. It uses a three-model
+round-robin/fallback chain and records `rerank_provider` plus `rerank_model` in the
+Evidence metadata. It fails explicitly when the full chain is unavailable.

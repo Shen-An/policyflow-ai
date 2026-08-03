@@ -55,9 +55,11 @@ from backend.app.db.session import build_engine, get_engine
 from backend.app.frontend import mount_frontend
 from backend.app.mcp.manager import MCPManager
 from backend.app.rag.bm25_retriever import BM25Retriever
+from backend.app.rag.cross_encoder_rerank_service import NvidiaCrossEncoderRerankService
 from backend.app.rag.hybrid_retriever import HybridRetriever
 from backend.app.rag.inprocess_lightrag import InProcessLightRAGAdapter
 from backend.app.rag.protocols import LightRAGBackend, LLMService
+from backend.app.rag.rerank_service import RerankService
 from backend.app.services.embedding_service import OpenAICompatibleEmbeddingService
 from backend.app.services.llm_service import OpenAICompatibleLLMService
 from backend.app.services.rag_service import RAGService
@@ -74,6 +76,27 @@ from backend.app.tools.registry import ToolRegistry
 logger = get_logger(__name__)
 REQUEST_ID_PATTERN = compile_pattern(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 DEFAULT_FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
+
+def _build_rerankers(settings: Settings, engine: Engine) -> dict[str, RerankService | NvidiaCrossEncoderRerankService]:
+    models = tuple(
+        item.strip()
+        for item in settings.NVIDIA_RERANKER_MODELS.split(",")
+        if item.strip()
+    )
+    return {
+        "local_lexical_fusion": RerankService(),
+        "cross_encoder": NvidiaCrossEncoderRerankService(
+            models=models,
+            base_url=settings.NVIDIA_RERANKER_BASE_URL,
+            endpoint_template=settings.NVIDIA_RERANKER_ENDPOINT_TEMPLATE,
+            api_key_env=settings.NVIDIA_RERANKER_API_KEY_ENV,
+            timeout_seconds=settings.NVIDIA_RERANKER_TIMEOUT_SECONDS,
+            truncate=settings.NVIDIA_RERANKER_TRUNCATE,
+            engine=engine,
+            settings=settings,
+        ),
+    }
 
 
 def create_app(
@@ -97,7 +120,13 @@ def create_app(
     )
     bm25_retriever = BM25Retriever(engine)
     hybrid_retriever = HybridRetriever(adapter, bm25_retriever)
-    rag_service = RAGService(adapter, bm25=bm25_retriever, hybrid=hybrid_retriever)
+    rerankers = _build_rerankers(app_settings, engine)
+    rag_service = RAGService(
+        adapter,
+        bm25=bm25_retriever,
+        hybrid=hybrid_retriever,
+        rerankers=rerankers,
+    )
     skill_registry = SkillRegistry(language_model)
     mcp_manager = MCPManager(app_settings)
     tool_registry = ToolRegistry()
@@ -140,6 +169,10 @@ def create_app(
         close_adapter = getattr(adapter, "close", None)
         if close_adapter is not None:
             await close_adapter()
+        for reranker in {id(item): item for item in rerankers.values()}.values():
+            close_reranker = getattr(reranker, "close", None)
+            if close_reranker is not None:
+                await close_reranker()
         engine.dispose()
         logger.info("Application stopped")
 
@@ -155,6 +188,8 @@ def create_app(
     application.state.llm_service = language_model
     application.state.embedding_service = embedding_service
     application.state.rag_service = rag_service
+    application.state.rerankers = rerankers
+    application.state.reranker = rerankers["local_lexical_fusion"]
     application.state.agent_pipeline = pipeline
     application.state.memory_agent = memory_agent
     application.state.skill_registry = skill_registry

@@ -1,4 +1,4 @@
-"""Independent Chat and Embedding model settings routes."""
+"""Independent Chat, Embedding, and Reranker model settings routes."""
 
 from typing import Annotated, Literal
 
@@ -9,6 +9,8 @@ from backend.app.core.exceptions import ApplicationError
 from backend.app.core.logging import get_request_id
 from backend.app.core.permissions import require_roles
 from backend.app.db.models import User
+from backend.app.rag.cross_encoder_rerank_service import DEFAULT_NVIDIA_RERANKER_MODELS, NvidiaCrossEncoderRerankService
+from backend.app.schemas.retrieval import Evidence
 from backend.app.schemas.model_settings import (
     ModelCapabilityResult,
     ModelCatalogResponse,
@@ -36,7 +38,7 @@ def get_settings(session: SessionDep, _: SysAdminUser) -> ModelProviderSettingsR
 
 @router.put("/{capability}", response_model=ModelEndpointSettingsRead)
 def put_settings(
-    capability: Literal["chat", "embedding"],
+    capability: Literal["chat", "embedding", "reranker"],
     data: ModelEndpointSettingsUpdate,
     request: Request,
     session: SessionDep,
@@ -54,16 +56,18 @@ def put_settings(
 
 @router.get("/{capability}/models", response_model=ModelCatalogResponse)
 async def get_models(
-    capability: Literal["chat", "embedding"],
+    capability: Literal["chat", "embedding", "reranker"],
     request: Request,
     _: SysAdminUser,
 ) -> ModelCatalogResponse:
     if capability == "chat":
         service: OpenAICompatibleLLMService = request.app.state.llm_service
         models = await service.list_models()
-    else:
+    elif capability == "embedding":
         embedding_service: OpenAICompatibleEmbeddingService = request.app.state.embedding_service
         models = await embedding_service.list_models()
+    else:
+        models = list(DEFAULT_NVIDIA_RERANKER_MODELS)
     return ModelCatalogResponse(capability=capability, models=models)
 
 
@@ -79,13 +83,34 @@ async def _test_capability(
                 status="passed",
                 message=f"Chat model responded: {answer[:80]}",
             )
-        else:
+        elif capability == "embedding":
             embedding_service: OpenAICompatibleEmbeddingService = request.app.state.embedding_service
             vectors = await embedding_service.embed(["PolicyFlow connectivity test"])
             result = ModelCapabilityResult(
                 status="passed",
                 message="Embedding model returned a vector",
                 dimension=len(vectors[0]),
+            )
+        else:
+            reranker: NvidiaCrossEncoderRerankService = request.app.state.rerankers["cross_encoder"]
+            await reranker.rerank(
+                "travel lodging standard",
+                [
+                    Evidence(
+                        knowledge_base_id="settings-test",
+                        knowledge_base_name="settings-test",
+                        document_id="settings-test",
+                        document_title="Connectivity test",
+                        snippet="Travel lodging standard is 500 units per night.",
+                        retriever_type="settings_test",
+                        rank=1,
+                    )
+                ],
+                limit=1,
+            )
+            result = ModelCapabilityResult(
+                status="passed",
+                message="NVIDIA Cross-Encoder returned a relevance score",
             )
     except ApplicationError as exc:
         result = ModelCapabilityResult(
@@ -102,7 +127,7 @@ async def _test_capability(
 
 @router.post("/{capability}/test", response_model=ModelProviderTestResponse)
 async def post_test(
-    capability: Literal["chat", "embedding"],
+    capability: Literal["chat", "embedding", "reranker"],
     request: Request,
     _: SysAdminUser,
 ) -> ModelProviderTestResponse:

@@ -1091,3 +1091,15 @@ LightRAG fake client：
 10. RAGAS hook 可选，disabled/missing dependency 能区分 skipped 与 0 分；
 11. retrieval-debug 能观察 rank、retriever_type、score、rerank_score、snippet；
 12. 所有未来扩展点都有明确文件和接口位置。
+
+### 9.4 NVIDIA Cross-Encoder backend (implemented 2026-08-02)
+
+The evaluation page exposes two per-run choices: `local_lexical_fusion` (default,
+lightweight and reproducible) and `cross_encoder` (NVIDIA). The selected method is
+stored in the run snapshot and passed through `RetrievalRequest`; it is selected explicitly for each Run in the page. NVIDIA API credentials and
+endpoint/model configuration remain environment-level secrets/configuration. The
+`NvidiaCrossEncoderRerankService` rotates through the configured NVIDIA models: the
+Nemotron VL reranker, the Nemotron text reranker, and `rerank-qa-mistral-4b`. A failed
+model is skipped and the next model is attempted. If all configured models fail, the
+service raises `RERANKER_UNAVAILABLE` rather than silently pretending that lexical
+rerank was applied.

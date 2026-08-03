@@ -1,20 +1,20 @@
 import { apiClient } from './client'
 
-export type ModelCapability = 'chat' | 'embedding'
+export type ModelCapability = 'chat' | 'embedding' | 'reranker'
 export type ModelEndpointSettings = {
   id: string; capability: ModelCapability; name: string; providerType: string; baseUrl: string
-  authMode: 'bearer' | 'none' | 'environment'; apiStyle: 'openai_chat_completions' | 'openai_responses' | 'openai_embeddings'; apiKeyConfigured: boolean
+  authMode: 'bearer' | 'none' | 'environment'; apiStyle: 'openai_chat_completions' | 'openai_responses' | 'openai_embeddings' | 'nvidia_rerank'; apiKeyConfigured: boolean
   apiKeySource: 'database' | 'environment' | 'none'; model: string
   embeddingDimension: number | null; embeddingInputType: 'none' | 'query' | 'passage' | null; timeoutSeconds: number; enabled: boolean; updatedAt: string
 }
 export type ModelEndpointSettingsInput = {
-  name: string; baseUrl: string; authMode: 'bearer' | 'none'; apiStyle: 'openai_chat_completions' | 'openai_responses' | 'openai_embeddings'; apiKey?: string
+  name: string; baseUrl: string; authMode: 'bearer' | 'none'; apiStyle: 'openai_chat_completions' | 'openai_responses' | 'openai_embeddings' | 'nvidia_rerank'; apiKey?: string
   clearApiKey?: boolean; model: string; embeddingDimension?: number | null; embeddingInputType?: 'none' | 'query' | 'passage' | null
   timeoutSeconds: number; enabled: boolean
 }
 type RawSettings = {
   id: string; capability: ModelCapability; name: string; provider_type: string; base_url: string
-  auth_mode: 'bearer' | 'none' | 'environment'; api_style: 'openai_chat_completions' | 'openai_responses' | 'openai_embeddings'; api_key_configured: boolean
+  auth_mode: 'bearer' | 'none' | 'environment'; api_style: 'openai_chat_completions' | 'openai_responses' | 'openai_embeddings' | 'nvidia_rerank'; api_key_configured: boolean
   api_key_source: 'database' | 'environment' | 'none'; model: string
   embedding_dimension: number | null; embedding_input_type: 'none' | 'query' | 'passage' | null; timeout_seconds: number; enabled: boolean; updated_at: string
 }
@@ -24,9 +24,13 @@ function mapSettings(raw: RawSettings): ModelEndpointSettings {
     apiKeySource: raw.api_key_source, model: raw.model, embeddingDimension: raw.embedding_dimension, embeddingInputType: raw.embedding_input_type,
     timeoutSeconds: raw.timeout_seconds, enabled: raw.enabled, updatedAt: raw.updated_at }
 }
-export async function getModelProviderSettings(signal?: AbortSignal): Promise<{ chat: ModelEndpointSettings | null; embedding: ModelEndpointSettings | null }> {
-  const raw = await apiClient.request<{ chat: RawSettings | null; embedding: RawSettings | null }>('/api/settings/model-providers', { signal })
-  return { chat: raw.chat ? mapSettings(raw.chat) : null, embedding: raw.embedding ? mapSettings(raw.embedding) : null }
+export async function getModelProviderSettings(signal?: AbortSignal): Promise<{ chat: ModelEndpointSettings | null; embedding: ModelEndpointSettings | null; reranker: ModelEndpointSettings | null }> {
+  const raw = await apiClient.request<{ chat: RawSettings | null; embedding: RawSettings | null; reranker?: RawSettings | null }>('/api/settings/model-providers', { signal })
+  return {
+    chat: raw.chat ? mapSettings(raw.chat) : null,
+    embedding: raw.embedding ? mapSettings(raw.embedding) : null,
+    reranker: raw.reranker ? mapSettings(raw.reranker) : null,
+  }
 }
 export async function updateModelProviderSettings(capability: ModelCapability, input: ModelEndpointSettingsInput): Promise<ModelEndpointSettings> {
   const raw = await apiClient.request<RawSettings>(`/api/settings/model-providers/${capability}`, {

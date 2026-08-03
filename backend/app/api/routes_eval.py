@@ -19,6 +19,8 @@ from backend.app.schemas.eval import (
     EvalRunCreate,
     EvalRunListResponse,
     EvalRunRead,
+    RerankerOption,
+    RerankerStatus,
     RetrievalDebugRequest,
     RetrievalDebugResponse,
     RetrievalEvalItemCreate,
@@ -48,6 +50,39 @@ from backend.app.services.rag_service import RAGService
 
 router = APIRouter(prefix="/api/eval", tags=["evaluation"])
 EvalAdmin = Annotated[User, Depends(require_roles("kb_admin", "sys_admin"))]
+
+
+@router.get("/reranker-status", response_model=RerankerStatus)
+def get_reranker_status(request: Request, _: EvalAdmin) -> RerankerStatus:
+    """Expose reranker choices so each evaluation run can select its method."""
+    rerankers = request.app.state.rerankers
+    local = rerankers["local_lexical_fusion"]
+    cross_encoder = rerankers["cross_encoder"]
+    options = [
+        RerankerOption(
+            method="local_lexical_fusion",
+            label="Local lexical fusion",
+            available=bool(getattr(local, "available", True)),
+            provider="local",
+            models=[],
+        ),
+        RerankerOption(
+            method="cross_encoder",
+            label="NVIDIA Cross-Encoder",
+            available=bool(getattr(cross_encoder, "available", False)),
+            provider="nvidia",
+            models=list(getattr(cross_encoder, "models", ())),
+        ),
+    ]
+    return RerankerStatus(
+        backend="page_selectable",
+        label="页面选择",
+        method="local_lexical_fusion",
+        available=True,
+        provider="local",
+        models=[],
+        options=options,
+    )
 
 
 @router.post("/cases", response_model=EvalCaseRead, status_code=status.HTTP_201_CREATED)
@@ -153,12 +188,16 @@ async def post_eval_run(
 ) -> EvalRunRead:
     rag_service: RAGService = request.app.state.rag_service
     pipeline: AgentPipeline = request.app.state.agent_pipeline
+    reranker_method = data.retrieval_config.reranker_method
+    reranker_backend = "cross_encoder" if reranker_method == "cross_encoder" else "local"
     eval_run = create_eval_run(
         session,
         rag_service,
         user,
         data,
         getattr(request.state, "request_id", None),
+        reranker_backend=reranker_backend,
+        reranker_method=reranker_method,
     )
     background_tasks.add_task(
         execute_eval_run,

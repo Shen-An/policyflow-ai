@@ -1,4 +1,4 @@
-"""Secure independent Chat and Embedding provider settings."""
+"""Secure independent Chat, Embedding, and Reranker provider settings."""
 
 import os
 from typing import Literal, cast
@@ -17,13 +17,14 @@ from backend.app.schemas.model_settings import (
 )
 from backend.app.services.audit_service import record_audit
 
-Capability = Literal["chat", "embedding"]
+Capability = Literal["chat", "embedding", "reranker"]
 
 
 def get_capability_provider(session: Session, capability: Capability) -> ModelProvider | None:
+    provider_types = {"openai_compatible", "nvidia_rerank"} if capability == "reranker" else {"openai_compatible"}
     return session.exec(
         select(ModelProvider).where(
-            ModelProvider.provider_type == "openai_compatible",
+            ModelProvider.provider_type.in_(provider_types),
             ModelProvider.capability == capability,
         )
     ).first()
@@ -52,7 +53,13 @@ def _to_read(provider: ModelProvider) -> ModelEndpointSettingsRead:
         auth_mode=auth_mode,
         api_style=str(
             provider.config_json.get("api_style")
-            or ("openai_embeddings" if provider.capability == "embedding" else "openai_chat_completions")
+            or (
+                "openai_embeddings"
+                if provider.capability == "embedding"
+                else "nvidia_rerank"
+                if provider.capability == "reranker"
+                else "openai_chat_completions"
+            )
         ),
         api_key_configured=api_key_source != "none",
         api_key_source=api_key_source,
@@ -80,9 +87,11 @@ def _to_read(provider: ModelProvider) -> ModelEndpointSettingsRead:
 def get_model_provider_settings(session: Session) -> ModelProviderSettingsResponse:
     chat = get_capability_provider(session, "chat")
     embedding = get_capability_provider(session, "embedding")
+    reranker = get_capability_provider(session, "reranker")
     return ModelProviderSettingsResponse(
         chat=_to_read(chat) if chat else None,
         embedding=_to_read(embedding) if embedding else None,
+        reranker=_to_read(reranker) if reranker else None,
     )
 
 
@@ -98,10 +107,14 @@ def update_model_provider_settings(
     if provider is None:
         provider = ModelProvider(
             name=data.name,
-            provider_type="openai_compatible",
+            provider_type="nvidia_rerank" if capability == "reranker" else "openai_compatible",
             capability=capability,
             base_url=data.base_url,
-            api_key_env=settings.LLM_API_KEY_ENV,
+            api_key_env=(
+                settings.NVIDIA_RERANKER_API_KEY_ENV
+                if capability == "reranker"
+                else settings.LLM_API_KEY_ENV
+            ),
             default_chat_model=data.model,
         )
     if capability == "chat" and data.api_style not in {
@@ -111,9 +124,15 @@ def update_model_provider_settings(
         raise ApplicationError("MODEL_API_STYLE_INVALID", "Chat provider requires a Chat API style", 422)
     if capability == "embedding" and data.api_style != "openai_embeddings":
         raise ApplicationError("MODEL_API_STYLE_INVALID", "Embedding provider requires openai_embeddings API style", 422)
+    if capability == "reranker" and data.api_style != "nvidia_rerank":
+        raise ApplicationError("MODEL_API_STYLE_INVALID", "Reranker provider requires nvidia_rerank API style", 422)
     provider.name = data.name
+    provider.provider_type = "nvidia_rerank" if capability == "reranker" else "openai_compatible"
     provider.capability = capability
     provider.base_url = data.base_url.rstrip("/")
+    provider.api_key_env = (
+        settings.NVIDIA_RERANKER_API_KEY_ENV if capability == "reranker" else settings.LLM_API_KEY_ENV
+    )
     provider.default_chat_model = data.model
     provider.default_embedding_model = data.model if capability == "embedding" else None
     provider.enabled = data.enabled
@@ -132,6 +151,15 @@ def update_model_provider_settings(
                 ),
             }
             if capability == "embedding"
+            else {
+                "models": [
+                    item.strip()
+                    for item in settings.NVIDIA_RERANKER_MODELS.split(",")
+                    if item.strip()
+                ],
+                "truncate": settings.NVIDIA_RERANKER_TRUNCATE,
+            }
+            if capability == "reranker"
             else {}
         ),
     }

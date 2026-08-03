@@ -49,6 +49,24 @@ export type EvalRunScope = {
   label: string | null
 }
 
+export type RerankerOption = {
+  method: 'local_lexical_fusion' | 'cross_encoder'
+  label: string
+  available: boolean
+  provider: string
+  models: string[]
+}
+
+export type RerankerStatus = {
+  backend: string
+  label: string
+  method: 'local_lexical_fusion' | 'cross_encoder'
+  available: boolean
+  provider: string
+  models: string[]
+  options?: RerankerOption[]
+}
+
 export type EvalRun = {
   id: string
   name: string
@@ -227,6 +245,9 @@ function toRun(raw: EvalRunRaw): EvalRun {
   }
 }
 
+export const getRerankerStatus = async (signal?: AbortSignal): Promise<RerankerStatus> =>
+  apiClient.request<RerankerStatus>('/api/eval/reranker-status', { signal })
+
 export const listEvalCases = async (signal?: AbortSignal) =>
   (await apiClient.request<EvalCaseRaw[]>('/api/eval/cases', { signal })).map(toCase)
 
@@ -391,6 +412,7 @@ export async function createEvalRun(input: {
   compareStrategies?: string[]
   ragasEnabled?: boolean
   rerankEnabled?: boolean
+  rerankerMethod?: RerankerOption["method"]
 }): Promise<EvalRun> {
   const ragasEnabled =
     input.ragasEnabled ?? input.evalTypes.includes('ragas')
@@ -405,6 +427,7 @@ export async function createEvalRun(input: {
         strategy: input.strategy ?? 'hybrid_lightrag_bm25',
         top_k_values: [1, 3, 5, 10],
         rerank_enabled: Boolean(input.rerankEnabled),
+        reranker_method: input.rerankerMethod ?? 'local_lexical_fusion',
         query_mode: input.queryMode,
       },
       compare_strategies: input.compareStrategies ?? [],

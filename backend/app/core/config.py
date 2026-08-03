@@ -42,6 +42,16 @@ class Settings(BaseSettings):
     LLM_EMBEDDING_MODEL: str | None = None
     LLM_EMBEDDING_DIM: int = 1536
     LLM_TIMEOUT_SECONDS: float = 120.0
+    NVIDIA_RERANKER_API_KEY_ENV: str = "NVIDIA_API_KEY"
+    NVIDIA_RERANKER_BASE_URL: str = "https://ai.api.nvidia.com"
+    NVIDIA_RERANKER_ENDPOINT_TEMPLATE: str = "/v1/retrieval/{model}/reranking"
+    NVIDIA_RERANKER_MODELS: str = (
+        "nvidia/llama-nemotron-rerank-vl-1b-v2,"
+        "nvidia/llama-nemotron-rerank-1b-v2,"
+        "nvidia/rerank-qa-mistral-4b"
+    )
+    NVIDIA_RERANKER_TIMEOUT_SECONDS: float = 30.0
+    NVIDIA_RERANKER_TRUNCATE: str = "END"
     # Cap concurrent chat/completions against strict providers (e.g. SenseNova 429).
     # Hybrid LightRAG keyword extraction + multi-KB retrieve share this gate.
     LLM_MAX_CONCURRENCY: int = 1

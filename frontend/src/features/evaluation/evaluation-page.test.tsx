@@ -13,6 +13,32 @@ describe('EvaluationPage', () => {
       http.get('*/api/knowledge-bases', () => HttpResponse.json({ items: [], total: 0 })),
       http.get('*/api/eval/cases', () => HttpResponse.json([])),
       http.get('*/api/eval/retrieval-items', () => HttpResponse.json([])),
+      http.get('*/api/eval/reranker-status', () =>
+        HttpResponse.json({
+          backend: 'page_selectable',
+          label: 'page selectable',
+          method: 'local_lexical_fusion',
+          available: true,
+          provider: 'local',
+          models: [],
+          options: [
+            {
+              method: 'local_lexical_fusion',
+              label: 'Local lexical fusion (default)',
+              available: true,
+              provider: 'local',
+              models: [],
+            },
+            {
+              method: 'cross_encoder',
+              label: 'NVIDIA Cross-Encoder',
+              available: true,
+              provider: 'nvidia',
+              models: ['nvidia/llama-nemotron-rerank-1b-v2'],
+            },
+          ],
+        }),
+      ),
       http.get('*/api/eval/runs', () =>
         HttpResponse.json({
           items: [
@@ -69,10 +95,13 @@ describe('EvaluationPage', () => {
           },
           config_snapshot: {
             eval_types: ['retrieval'],
+            reranker_method: 'cross_encoder',
+            reranker_backend: 'cross_encoder',
             retrieval_config: {
               strategy: 'hybrid_lightrag_bm25',
               top_k_values: [1, 3, 5, 10],
-              rerank_enabled: false,
+              rerank_enabled: true,
+              reranker_method: 'cross_encoder',
               query_mode: 'hybrid',
             },
             compare_strategies: ['bm25_only'],
@@ -136,6 +165,8 @@ describe('EvaluationPage', () => {
     expect(screen.getAllByText(/Hit@5=90\.0%/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/Hit@10=95\.0%/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/MRR=0\.8200/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('NVIDIA Cross-Encoder').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/rerank=cross_encoder/).length).toBeGreaterThan(0)
     expect(screen.getByText(/示例写法/)).toBeVisible()
     expect(
       screen.getAllByText(/测试库\(eval_test\) · questanswer_1doc · N=20/).length,

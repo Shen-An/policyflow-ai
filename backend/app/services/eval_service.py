@@ -287,17 +287,25 @@ def create_eval_run(
     user: User,
     data: EvalRunCreate,
     request_id: str | None = None,
+    reranker_backend: str | None = None,
+    reranker_method: str | None = None,
 ) -> EvalRunRead:
     rag_service.validate_configuration(
         data.retrieval_config.strategy,
         data.retrieval_config.rerank_enabled,
+        data.retrieval_config.reranker_method,
     )
     _selected_retrieval_items(session, user, data.retrieval_item_ids)
     _selected_cases(session, user, data.case_ids)
+    config_snapshot = data.model_dump(mode="json")
+    if reranker_backend:
+        config_snapshot["reranker_backend"] = reranker_backend
+    if reranker_method:
+        config_snapshot["reranker_method"] = reranker_method
     eval_run = EvalRun(
         name=data.name,
         created_by=user.id,
-        config_snapshot=data.model_dump(mode="json"),
+        config_snapshot=config_snapshot,
         request_id=request_id,
     )
     session.add(eval_run)
@@ -313,7 +321,17 @@ async def execute_eval_run(
     run_id: str,
     data: EvalRunCreate,
 ) -> None:
-    await EvalRunner(engine, rag_service, pipeline).run(run_id, data)
+    try:
+        await EvalRunner(engine, rag_service, pipeline).run(run_id, data)
+    except Exception as exc:
+        with Session(engine) as session:
+            eval_run = session.get(EvalRun, run_id)
+            if eval_run is not None and eval_run.status not in {"success", "failed", "skipped"}:
+                eval_run.status = "failed"
+                eval_run.error_summary = str(exc)[:2000]
+                eval_run.finished_at = utc_now()
+                session.add(eval_run)
+                session.commit()
 
 
 def _run_scope_summary(
@@ -621,6 +639,7 @@ async def retrieval_debug(
             strategy=data.strategy,
             top_k=data.top_k,
             rerank_enabled=data.rerank_enabled,
+            reranker_method=data.reranker_method,
             lightrag_query_mode=data.query_mode,
         )
     )
