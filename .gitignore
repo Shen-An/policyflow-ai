@@ -27,6 +27,8 @@ env/
 # Environment
 .env
 .env.local
+session.json
+/1.py
 
 # Log
 *.log
