@@ -93,6 +93,7 @@ def default_eval_types() -> list[EvalType]:
 
 class EvalRunCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
+    knowledge_base_id: str | None = None
     case_ids: list[str] = Field(default_factory=list)
     retrieval_item_ids: list[str] = Field(default_factory=list)
     eval_types: list[EvalType] = Field(default_factory=default_eval_types, min_length=1)
@@ -169,6 +170,20 @@ class EvalCleanupResult(BaseModel):
     eval_test_enabled_items: int = 0
 
 
+class EnterpriseEvalSeedResult(BaseModel):
+    knowledge_base_id: str
+    suite: str
+    documents_created: int
+    documents_reused: int
+    retrieval_items_created: int
+    eval_cases_created: int
+    index_queued: int
+    corpus_document_count: int
+    case_count: int
+    warning: str | None = None
+    pending_index_document_ids: list[str] = Field(default_factory=list, exclude=True)
+
+
 class EvalRunRead(BaseModel):
     id: str
     name: str
@@ -176,6 +191,10 @@ class EvalRunRead(BaseModel):
     total_cases: int
     metrics: dict[str, Any]
     config_snapshot: dict[str, Any]
+    strategy: str | None = None
+    rerank_enabled: bool = False
+    reranker_method: str | None = None
+    reranker_backend: str | None = None
     created_by: str | None
     created_at: datetime
     started_at: datetime | None
@@ -191,6 +210,10 @@ class EvalRunSummary(BaseModel):
     name: str
     status: str
     total_cases: int
+    strategy: str | None = None
+    rerank_enabled: bool = False
+    reranker_method: str | None = None
+    reranker_backend: str | None = None
     created_by: str | None
     created_at: datetime
     started_at: datetime | None

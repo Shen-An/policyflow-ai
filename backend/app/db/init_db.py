@@ -89,6 +89,11 @@ KNOWLEDGE_BASE_SEEDS = (
     ("legal", "法务制度库", "法务与合规制度"),
     # Isolated sandbox for CRUD/Hit@K evaluation imports — do not mix with business KBs.
     ("eval_test", "测试库", "评估/回归专用沙箱知识库，仅放 CRUD 评测语料"),
+    (
+        "enterprise_eval_test",
+        "企业政策测试库",
+        "企业内部政策检索评测专用库，包含人工设计的制度文档和边界问题",
+    ),
 )
 
 
@@ -350,7 +355,10 @@ def seed_initial_data(
                 knowledge_bases_created += 1
             else:
                 # Revive soft-deleted seeded sandboxes (especially eval_test).
-                if knowledge_base.status == "deleted" and code == "eval_test":
+                if knowledge_base.status == "deleted" and code in {
+                    "eval_test",
+                    "enterprise_eval_test",
+                }:
                     knowledge_base.status = "active"
                     knowledge_base.name = name
                     knowledge_base.description = description

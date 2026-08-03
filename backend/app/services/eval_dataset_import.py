@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
-from sqlmodel import Session, col, select
+from sqlmodel import Session, select
 
 from backend.app.core.config import Settings, get_settings
 from backend.app.core.exceptions import ApplicationError
@@ -99,16 +99,19 @@ def _default_crud_path() -> Path:
     return Path(r"D:\Coding\Code\Github\CRUD_RAG\data\crud_split\split_merged.json")
 
 
-def ensure_eval_test_knowledge_base(
+def ensure_dedicated_eval_knowledge_base(
     session: Session,
     *,
     settings: Settings | None = None,
     actor: User | None = None,
+    code: str,
+    name: str,
+    description: str,
 ) -> KnowledgeBase:
-    """Idempotently create or revive the isolated evaluation sandbox knowledge base."""
+    """Idempotently create or revive an isolated evaluation knowledge base."""
     app_settings = settings or get_settings()
     existing = session.exec(
-        select(KnowledgeBase).where(KnowledgeBase.code == EVAL_TEST_KB_CODE)
+        select(KnowledgeBase).where(KnowledgeBase.code == code)
     ).first()
 
     admin_department = session.exec(
@@ -119,11 +122,11 @@ def ensure_eval_test_knowledge_base(
     if admin_department is None:
         raise ApplicationError(
             "DEPARTMENT_NOT_FOUND",
-            "Cannot create eval_test KB: no department available",
+            "Cannot create evaluation KB: no department available",
             500,
         )
 
-    workspace = app_settings.RAG_WORKSPACE_DIR / EVAL_TEST_KB_CODE
+    workspace = app_settings.RAG_WORKSPACE_DIR / code
     Path(workspace).mkdir(parents=True, exist_ok=True)
 
     if existing is not None:
@@ -132,11 +135,11 @@ def ensure_eval_test_knowledge_base(
         if existing.status != "active":
             existing.status = "active"
             changed = True
-        if existing.name != EVAL_TEST_KB_NAME:
-            existing.name = EVAL_TEST_KB_NAME
+        if existing.name != name:
+            existing.name = name
             changed = True
-        if existing.description != EVAL_TEST_KB_DESCRIPTION:
-            existing.description = EVAL_TEST_KB_DESCRIPTION
+        if existing.description != description:
+            existing.description = description
             changed = True
         if existing.rag_workspace != str(workspace):
             existing.rag_workspace = str(workspace)
@@ -155,10 +158,10 @@ def ensure_eval_test_knowledge_base(
         return existing
 
     knowledge_base = KnowledgeBase(
-        name=EVAL_TEST_KB_NAME,
-        code=EVAL_TEST_KB_CODE,
+        name=name,
+        code=code,
         department_id=admin_department.id,
-        description=EVAL_TEST_KB_DESCRIPTION,
+        description=description,
         rag_workspace=str(workspace),
         default_query_mode="hybrid",
         status="active",
@@ -175,6 +178,22 @@ def ensure_eval_test_knowledge_base(
     session.commit()
     session.refresh(knowledge_base)
     return knowledge_base
+
+
+def ensure_eval_test_knowledge_base(
+    session: Session,
+    *,
+    settings: Settings | None = None,
+    actor: User | None = None,
+) -> KnowledgeBase:
+    return ensure_dedicated_eval_knowledge_base(
+        session,
+        settings=settings,
+        actor=actor,
+        code=EVAL_TEST_KB_CODE,
+        name=EVAL_TEST_KB_NAME,
+        description=EVAL_TEST_KB_DESCRIPTION,
+    )
 
 
 def _ensure_eval_test_permissions(

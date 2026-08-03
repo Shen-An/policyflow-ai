@@ -13,6 +13,7 @@ import {
   listEvalRuns,
   listRetrievalItems,
   retrievalDebug,
+  seedEnterpriseEvalDataset,
 } from '../../api/eval'
 
 export const evalKeys = {
@@ -89,6 +90,21 @@ export function useImportCrudDatasetMutation() {
         queryClient.invalidateQueries({ queryKey: evalKeys.cases() }),
         queryClient.invalidateQueries({ queryKey: evalKeys.retrievalItems() }),
         // Refresh KB list so 测试库 document counts / presence update.
+        queryClient.invalidateQueries({ queryKey: ['knowledge-bases'] }),
+      ])
+    },
+  })
+}
+
+export function useSeedEnterpriseEvalDatasetMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    meta: selfHandledMutation,
+    mutationFn: seedEnterpriseEvalDataset,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: evalKeys.cases() }),
+        queryClient.invalidateQueries({ queryKey: evalKeys.retrievalItems() }),
         queryClient.invalidateQueries({ queryKey: ['knowledge-bases'] }),
       ])
     },

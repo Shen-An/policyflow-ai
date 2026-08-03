@@ -12,6 +12,7 @@ from backend.app.api.deps import SessionDep
 from backend.app.core.permissions import require_roles
 from backend.app.db.models import User
 from backend.app.schemas.eval import (
+    EnterpriseEvalSeedResult,
     EvalCaseCreate,
     EvalCaseRead,
     EvalCleanupRequest,
@@ -26,6 +27,7 @@ from backend.app.schemas.eval import (
     RetrievalEvalItemCreate,
     RetrievalEvalItemRead,
 )
+from backend.app.services.enterprise_eval_dataset import seed_enterprise_eval_dataset
 from backend.app.services.eval_dataset_import import (
     CrudImportRequest,
     CrudImportResult,
@@ -175,6 +177,38 @@ async def post_crud_import(
                 document_id,
             )
     # Exclude internal pending list from response model dump via model fields.
+    return result
+
+
+@router.post(
+    "/datasets/enterprise-seed",
+    response_model=EnterpriseEvalSeedResult,
+    status_code=status.HTTP_201_CREATED,
+)
+async def post_enterprise_eval_seed(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: EvalAdmin,
+    session: SessionDep,
+) -> EnterpriseEvalSeedResult:
+    """Create the isolated, built-in enterprise policy evaluation suite."""
+    indexer = getattr(request.app.state, "lightrag_adapter", None)
+    result = seed_enterprise_eval_dataset(
+        session,
+        user,
+        indexer=indexer,
+        settings=request.app.state.settings,
+    )
+    if indexer is not None:
+        from backend.app.services.indexing_service import process_document_index
+
+        for document_id in result.pending_index_document_ids:
+            background_tasks.add_task(
+                process_document_index,
+                request.app.state.engine,
+                indexer,
+                document_id,
+            )
     return result
 
 
