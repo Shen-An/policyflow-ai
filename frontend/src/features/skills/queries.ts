@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { selfHandledMutation } from '../../app/global-feedback'
 import { listSkills, runSkill, setSkillEnabled } from '../../api/skills'
 import { getToolLog, listToolLogs, listTools } from '../../api/tools'
 
@@ -24,6 +25,7 @@ export function useSkillsQuery() {
 export function useSetSkillEnabledMutation() {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: ({ name, enabled }: { name: string; enabled: boolean }) =>
       setSkillEnabled(name, enabled),
     onSuccess: async () => {
@@ -34,6 +36,7 @@ export function useSetSkillEnabledMutation() {
 
 export function useRunSkillMutation() {
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: ({ name, input }: { name: string; input: Record<string, unknown> }) =>
       runSkill(name, input),
   })
