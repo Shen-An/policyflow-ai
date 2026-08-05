@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { selfHandledMutation } from '../../app/global-feedback'
 import { createUser, listUsers, updateUserRoles, type CreateUserInput, type UserListParams } from '../../api/users'
 import type { RoleCode } from '../../api/auth'
 
@@ -17,6 +18,7 @@ export function useUsersQuery(params: UserListParams) {
 export function useCreateUserMutation() {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: (input: CreateUserInput) => createUser(input),
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: userKeys.all }) },
   })
@@ -25,6 +27,7 @@ export function useCreateUserMutation() {
 export function useUpdateRolesMutation() {
   const queryClient = useQueryClient()
   return useMutation({
+    meta: selfHandledMutation,
     mutationFn: ({ userId, roleCodes }: { userId: string; roleCodes: RoleCode[] }) => updateUserRoles(userId, roleCodes),
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: userKeys.all }) },
   })
