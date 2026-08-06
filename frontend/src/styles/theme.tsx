@@ -3,6 +3,7 @@ import { ThemeProvider, useTheme } from 'next-themes'
 import { App as AntdApp, ConfigProvider, theme as antdThemeAlgo } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import { useEffect, useMemo, useState } from 'react'
+import { registerGlobalMessageApi } from '../app/global-feedback'
 import { antdThemeDark, antdThemeLight } from './antd-theme'
 
 export function ThemeRoot({ children }: PropsWithChildren) {
@@ -29,9 +30,18 @@ function AntdThemeBridge({ children }: PropsWithChildren) {
 
   return (
     <ConfigProvider locale={zhCN} theme={theme} button={{ autoInsertSpace: false }}>
-      <AntdApp>{children}</AntdApp>
+      <AntdApp>
+        <GlobalFeedbackBridge />
+        {children}
+      </AntdApp>
     </ConfigProvider>
   )
+}
+
+function GlobalFeedbackBridge() {
+  const { message } = AntdApp.useApp()
+  useEffect(() => registerGlobalMessageApi(message), [message])
+  return null
 }
 
 export function useResolvedColorMode(): 'light' | 'dark' {

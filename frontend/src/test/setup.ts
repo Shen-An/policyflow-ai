@@ -1,6 +1,10 @@
 import '@testing-library/jest-dom/vitest'
+import { configure } from '@testing-library/dom'
 import { afterAll, afterEach, beforeAll, vi } from 'vitest'
 import { server } from '../mocks/server'
+
+// findBy*/waitFor 默认 1s，在并行满载的 CI/本机上不够 antd 首渲染，放宽以消除随机超时
+configure({ asyncUtilTimeout: 5_000 })
 
 // Ant Design depends on browser layout APIs that jsdom does not implement.
 class ResizeObserverMock {
