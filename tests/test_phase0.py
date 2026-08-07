@@ -38,7 +38,7 @@ def test_health_initializes_database_and_seed_data(tmp_path: Path) -> None:
     with Session(app.state.engine) as session:
         assert len(session.exec(select(Role)).all()) == 3
         assert len(session.exec(select(Department)).all()) == 5
-        assert len(session.exec(select(KnowledgeBase)).all()) == 5
+        assert len(session.exec(select(KnowledgeBase)).all()) == 6
         assert len(session.exec(select(User)).all()) == 1
 
 
@@ -51,8 +51,8 @@ def test_database_seed_is_idempotent(tmp_path: Path) -> None:
 
     assert first.roles_created == 3
     assert first.departments_created == 5
-    assert first.knowledge_bases_created == 5
-    assert first.permissions_created == 10
+    assert first.knowledge_bases_created == 6
+    assert first.permissions_created == 12
     assert first.users_created == 1
     assert second.roles_created == 0
     assert second.departments_created == 0
