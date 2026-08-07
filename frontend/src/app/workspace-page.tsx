@@ -1,6 +1,6 @@
 import { ArrowRight, BookOpen, ChartBar, ChatCircle, CheckCircle, CircleNotch, FileText, XCircle } from '@phosphor-icons/react'
 import { useQuery } from '@tanstack/react-query'
-import { Card, Col, Row, Space, Statistic, Typography } from 'antd'
+import { Card, Col, Row, Space, Typography } from 'antd'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { apiClient } from '../api/client'
@@ -18,9 +18,8 @@ import { draftKeys } from '../features/drafts/queries'
 import { evalKeys } from '../features/evaluation/queries'
 import { knowledgeBaseKeys } from '../features/knowledge-bases/queries'
 import { formatRelativeTime, parseApiDate } from '../lib/datetime'
-import { palette } from '../styles/palette'
 
-const { Title, Paragraph, Text } = Typography
+const { Text } = Typography
 
 type ActivityItem = {
   key: string
@@ -139,7 +138,6 @@ export function WorkspacePage() {
           title: '制度问答',
           desc: '向授权知识库提问，获取制度依据与引用溯源。',
           href: '/chat',
-          color: palette.primary,
           icon: <ChatCircle size={16} weight="duotone" />,
         }
       : null,
@@ -148,7 +146,6 @@ export function WorkspacePage() {
           title: '我的草稿',
           desc: '查看正在编辑的政策草案，继续写作或确认发布。',
           href: '/drafts',
-          color: palette.primaryDeep,
           icon: <FileText size={16} weight="duotone" />,
         }
       : null,
@@ -157,7 +154,6 @@ export function WorkspacePage() {
           title: '知识库管理',
           desc: '浏览和维护授权知识库，管理文档与标签。',
           href: '/knowledge-bases',
-          color: palette.accentTeal,
           icon: <BookOpen size={16} weight="duotone" />,
         }
       : null,
@@ -166,7 +162,6 @@ export function WorkspacePage() {
           title: '评估中心',
           desc: '导入测试语料，查看 Hit@K / MRR 检索指标。',
           href: '/evaluation',
-          color: palette.textSecondary,
           icon: <ChartBar size={16} weight="duotone" />,
         }
       : null,
@@ -174,7 +169,6 @@ export function WorkspacePage() {
     title: string
     desc: string
     href: string
-    color: string
     icon: ReactNode
   }>
 
@@ -185,8 +179,7 @@ export function WorkspacePage() {
           value: kbCount ?? 0,
           suffix: '授权',
           icon: <BookOpen size={16} weight="duotone" />,
-          chip: palette.primarySoft,
-          ink: palette.primary,
+          tone: 'primary',
           loading: knowledgeBases.isPending,
         }
       : null,
@@ -196,8 +189,7 @@ export function WorkspacePage() {
           value: conversationTotal ?? 0,
           suffix: '会话',
           icon: <ChatCircle size={16} weight="duotone" />,
-          chip: '#eef2f1',
-          ink: palette.textSecondary,
+          tone: 'neutral',
           loading: conversations.isPending,
         }
       : null,
@@ -210,8 +202,7 @@ export function WorkspacePage() {
               ? `${draftPending} 待确认`
               : '份',
           icon: <FileText size={16} weight="duotone" />,
-          chip: palette.warningSoft,
-          ink: palette.warning,
+          tone: 'warning',
           loading: drafts.isPending,
         }
       : null,
@@ -221,8 +212,7 @@ export function WorkspacePage() {
           value: evalTotal ?? 0,
           suffix: '份',
           icon: <ChartBar size={16} weight="duotone" />,
-          chip: '#eef2f1',
-          ink: palette.primaryDeep,
+          tone: 'deep',
           loading: evalRuns.isPending,
         }
       : null,
@@ -231,65 +221,65 @@ export function WorkspacePage() {
     value: number
     suffix: ReactNode
     icon: ReactNode
-    chip: string
-    ink: string
+    tone: 'primary' | 'neutral' | 'warning' | 'deep'
     loading: boolean
   }>
 
+  const today = new Date()
+  const dateLine = today.toLocaleDateString('zh-CN', {
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long',
+  })
+
   return (
     <div>
-      <div className="page-toolbar page-toolbar--split">
-        <p className="page-lede">
-          {greeting}
-          {user?.displayName ? `，${user.displayName}` : ''}
-          ，这里是你的工作总览。
-        </p>
-        {healthStatus === 'checking' ? (
-          <QuietChip tone="active">
-            <CircleNotch size={14} weight="duotone" className="animate-spin" aria-hidden style={{ marginRight: 4 }} />
-            检查服务中
-          </QuietChip>
-        ) : healthStatus === 'ok' ? (
-          <QuietChip tone="success">
-            <CheckCircle size={14} weight="duotone" aria-hidden style={{ marginRight: 4 }} />
-            服务运行正常
-          </QuietChip>
-        ) : (
-          <QuietChip tone="error">
-            <XCircle size={14} weight="duotone" aria-hidden style={{ marginRight: 4 }} />
-            服务异常
-          </QuietChip>
-        )}
-      </div>
+      <header className="ws-hero">
+        <div>
+          <h1 className="ws-hero__greeting">
+            {greeting}
+            {user?.displayName ? `，${user.displayName}` : ''}
+          </h1>
+          <p className="ws-hero__sub">{dateLine} · 这里是你的工作总览</p>
+        </div>
+        <div className="ws-hero__side">
+          {healthStatus === 'checking' ? (
+            <QuietChip tone="active">
+              <CircleNotch size={14} weight="duotone" className="animate-spin" aria-hidden style={{ marginRight: 4 }} />
+              检查服务中
+            </QuietChip>
+          ) : healthStatus === 'ok' ? (
+            <QuietChip tone="success">
+              <CheckCircle size={14} weight="duotone" aria-hidden style={{ marginRight: 4 }} />
+              服务运行正常
+            </QuietChip>
+          ) : (
+            <QuietChip tone="error">
+              <XCircle size={14} weight="duotone" aria-hidden style={{ marginRight: 4 }} />
+              服务异常
+            </QuietChip>
+          )}
+        </div>
+      </header>
 
       {statCards.length > 0 ? (
         <Row gutter={[16, 16]}>
           {statCards.map((item) => (
             <Col xs={24} sm={12} lg={6} key={item.title}>
-              <Card styles={{ body: { padding: 18 } }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                  <div
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 14,
-                      background: item.chip,
-                      color: item.ink,
-                      display: 'grid',
-                      placeItems: 'center',
-                      fontSize: 18,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {item.icon}
-                  </div>
+              <Card styles={{ body: { padding: '16px 18px' } }}>
+                <div className="ws-stat">
                   <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="ws-stat__label">{item.title}</div>
                     {item.loading ? (
                       <LoadingState message="加载中…" minH="min-h-0" />
                     ) : (
-                      <Statistic title={item.title} value={item.value} suffix={item.suffix} />
+                      <div className="ws-stat__value">
+                        {item.value}
+                        <span className="ws-stat__suffix">{item.suffix}</span>
+                      </div>
                     )}
                   </div>
+                  <div className={`ws-stat__icon ws-stat__icon--${item.tone}`}>{item.icon}</div>
                 </div>
               </Card>
             </Col>
@@ -299,41 +289,23 @@ export function WorkspacePage() {
 
       {shortcuts.length > 0 ? (
         <>
-          <Title level={4} style={{ marginTop: 28, marginBottom: 16 }}>
-            快捷入口
-          </Title>
+          <h2 className="section-title">快捷入口</h2>
           <Row gutter={[16, 16]}>
             {shortcuts.map((item) => (
               <Col xs={24} md={12} xl={8} key={item.href}>
-                <Link to={item.href} style={{ textDecoration: 'none' }}>
-                  <Card hoverable styles={{ body: { minHeight: 160 } }}>
-                    <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-                      <div
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 10,
-                          background: `${item.color}14`,
-                          color: item.color,
-                          display: 'grid',
-                          placeItems: 'center',
-                          fontSize: 18,
-                        }}
-                      >
-                        {item.icon}
-                      </div>
+                <Link to={item.href} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
+                  <Card hoverable style={{ height: '100%' }} styles={{ body: { height: '100%' } }}>
+                    <div className="ws-shortcut">
+                      <div className="ws-shortcut__icon">{item.icon}</div>
                       <div>
-                        <Title level={5} style={{ margin: 0 }}>
-                          {item.title}
-                        </Title>
-                        <Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 6 }}>
-                          {item.desc}
-                        </Paragraph>
+                        <h3 className="ws-shortcut__title">{item.title}</h3>
+                        <p className="ws-shortcut__desc">{item.desc}</p>
                       </div>
-                      <Text type="secondary">
-                        进入 <ArrowRight size={16} weight="regular" />
-                      </Text>
-                    </Space>
+                      <span className="ws-shortcut__cta">
+                        进入
+                        <ArrowRight size={14} weight="bold" className="ws-shortcut__arrow" aria-hidden />
+                      </span>
+                    </div>
                   </Card>
                 </Link>
               </Col>
@@ -350,39 +322,30 @@ export function WorkspacePage() {
             ) : recentActivity.length === 0 ? (
               <Text type="secondary">暂无最近活动，去制度问答或草稿里开始吧。</Text>
             ) : (
-              <Space orientation="vertical" size={0} style={{ width: '100%' }}>
-                {recentActivity.map((item, index) => (
-                  <div
-                    key={item.key}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                      padding: '12px 0',
-                      borderTop: index === 0 ? undefined : `1px solid ${palette.borderSecondary}`,
-                    }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      {item.href ? (
-                        <Link to={item.href} style={{ fontWeight: 600, color: palette.text }}>
-                          {item.action}
-                        </Link>
-                      ) : (
-                        <Text strong>{item.action}</Text>
-                      )}
-                      <div>
-                        <Text type="secondary" ellipsis>
-                          {item.detail}
-                        </Text>
+              <div className="ws-activity">
+                {recentActivity.map((item) => {
+                  const inner = (
+                    <>
+                      <div className="ws-activity__main">
+                        <span className="ws-activity__badge">
+                          <QuietChip tone="neutral">{item.action}</QuietChip>
+                        </span>
+                        <span className="ws-activity__detail">{item.detail}</span>
                       </div>
+                      <span className="ws-activity__time">{formatRelativeTime(item.time)}</span>
+                    </>
+                  )
+                  return item.href ? (
+                    <Link key={item.key} to={item.href} className="ws-activity__row">
+                      {inner}
+                    </Link>
+                  ) : (
+                    <div key={item.key} className="ws-activity__row">
+                      {inner}
                     </div>
-                    <Text type="secondary" style={{ flexShrink: 0 }}>
-                      {formatRelativeTime(item.time)}
-                    </Text>
-                  </div>
-                ))}
-              </Space>
+                  )
+                })}
+              </div>
             )}
           </Card>
         </Col>

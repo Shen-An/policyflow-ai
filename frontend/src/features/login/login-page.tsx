@@ -52,32 +52,10 @@ export function LoginPage() {
         },
       }}
     >
-      <div
-        style={{
-          minHeight: '100vh',
-          display: 'grid',
-          placeItems: 'center',
-          padding: 24,
-          background: gradients.login,
-        }}
-      >
-        <div style={{ width: '100%', maxWidth: 420 }}>
-          <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                margin: '0 auto',
-                borderRadius: 12,
-                background: gradients.brandMark,
-                color: palette.textOnPrimary,
-                display: 'grid',
-                placeItems: 'center',
-                fontWeight: 700,
-                fontSize: 20,
-                boxShadow: '0 12px 28px -16px rgba(15,154,116,0.35)',
-              }}
-            >
+      <div className="login-canvas">
+        <div className="login-panel">
+          <div className="login-brand">
+            <div className="login-brand__mark" style={{ background: gradients.brandMark }}>
               P
             </div>
             <Typography.Title
