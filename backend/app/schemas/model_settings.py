@@ -6,14 +6,14 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, SecretStr, model_validator
 
-ModelCapability = Literal["chat", "embedding"]
+ModelCapability = Literal["chat", "embedding", "reranker"]
 
 
 class ModelEndpointSettingsUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     base_url: str = Field(min_length=1, max_length=500)
     auth_mode: Literal["bearer", "none"] = "bearer"
-    api_style: Literal["openai_chat_completions", "openai_responses", "openai_embeddings"]
+    api_style: Literal["openai_chat_completions", "openai_responses", "openai_embeddings", "nvidia_rerank"]
     api_key: SecretStr | None = None
     clear_api_key: bool = False
     model: str = Field(min_length=1, max_length=100)
@@ -60,6 +60,7 @@ class ModelEndpointSettingsRead(BaseModel):
 class ModelProviderSettingsResponse(BaseModel):
     chat: ModelEndpointSettingsRead | None
     embedding: ModelEndpointSettingsRead | None
+    reranker: ModelEndpointSettingsRead | None = None
 
 
 class ModelCatalogResponse(BaseModel):
