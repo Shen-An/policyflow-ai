@@ -66,6 +66,7 @@ class EvalRunner:
                 strategy=selected_strategy,
                 top_k=max(request.retrieval_config.top_k_values),
                 rerank_enabled=request.retrieval_config.rerank_enabled,
+                reranker_method=request.retrieval_config.reranker_method,
                 lightrag_query_mode=request.retrieval_config.query_mode,
             )
         )
@@ -135,6 +136,7 @@ class EvalRunner:
             strategy=request.retrieval_config.strategy,
             top_k=max(request.retrieval_config.top_k_values),
             rerank_enabled=request.retrieval_config.rerank_enabled,
+            reranker_method=request.retrieval_config.reranker_method,
             lightrag_query_mode=request.retrieval_config.query_mode,
         )
         pipeline_result = await self.pipeline.run(

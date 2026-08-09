@@ -5,7 +5,12 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from backend.app.schemas.retrieval import LightRAGQueryMode, RetrievalStrategy, RetrievalTraceItem
+from backend.app.schemas.retrieval import (
+    LightRAGQueryMode,
+    RerankerMethod,
+    RetrievalStrategy,
+    RetrievalTraceItem,
+)
 
 
 class EvalCaseCreate(BaseModel):
@@ -45,12 +50,33 @@ class RetrievalConfig(BaseModel):
         min_length=1,
     )
     rerank_enabled: bool = False
+    reranker_method: RerankerMethod = "local_lexical_fusion"
     query_mode: LightRAGQueryMode = LightRAGQueryMode.HYBRID
 
     @field_validator("top_k_values")
     @classmethod
     def normalize_top_k_values(cls, value: list[int]) -> list[int]:
         return sorted(set(value))
+
+
+class RerankerOption(BaseModel):
+    method: RerankerMethod
+    label: str
+    available: bool
+    provider: str
+    models: list[str] = Field(default_factory=list)
+
+
+class RerankerStatus(BaseModel):
+    """Reranker choices exposed to the evaluation UI."""
+
+    backend: str
+    label: str
+    method: RerankerMethod
+    available: bool
+    provider: str
+    models: list[str] = Field(default_factory=list)
+    options: list[RerankerOption] = Field(default_factory=list)
 
 
 class RagasConfig(BaseModel):
@@ -188,6 +214,7 @@ class RetrievalDebugRequest(BaseModel):
     strategy: RetrievalStrategy = RetrievalStrategy.HYBRID_LIGHTRAG_BM25
     top_k: int = Field(default=10, ge=1, le=100)
     rerank_enabled: bool = False
+    reranker_method: RerankerMethod = "local_lexical_fusion"
     query_mode: LightRAGQueryMode = LightRAGQueryMode.HYBRID
 
 
