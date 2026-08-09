@@ -2,6 +2,7 @@
 
 import hashlib
 import re
+from collections.abc import Mapping
 from time import perf_counter
 
 from backend.app.core.exceptions import ApplicationError
@@ -13,6 +14,7 @@ from backend.app.schemas.retrieval import (
     Evidence,
     RetrievalRequest,
     RetrievalResult,
+    RerankerMethod,
     RetrievalStrategy,
     RetrievalTraceItem,
 )
@@ -33,11 +35,20 @@ class RAGService:
         bm25: Retriever | None = None,
         hybrid: Retriever | None = None,
         reranker: Reranker | None = None,
+        rerankers: Mapping[str, Reranker] | None = None,
     ) -> None:
         self.lightrag = lightrag
         self.bm25 = bm25 or BM25Retriever()
         self.hybrid = hybrid or HybridRetriever()
-        self.reranker = reranker or RerankService()
+        configured = dict(rerankers or {})
+        if reranker is not None:
+            # Legacy injection configures only the local implementation.
+            # Never alias it as Cross-Encoder: selecting cross_encoder must use
+            # the explicit NVIDIA service or fail as unavailable.
+            configured.setdefault("local_lexical_fusion", reranker)
+        configured.setdefault("local_lexical_fusion", RerankService())
+        self.rerankers = configured
+        self.reranker = self.rerankers["local_lexical_fusion"]
 
     @staticmethod
     def _identity(evidence: Evidence) -> str:
@@ -59,10 +70,22 @@ class RAGService:
             return self.hybrid
         raise ApplicationError("RETRIEVAL_CONFIGURATION_INVALID", "Unknown retrieval strategy", 422)
 
+    def _reranker(self, method: RerankerMethod) -> Reranker:
+        reranker = self.rerankers.get(method)
+        if reranker is None:
+            raise ApplicationError(
+                "RERANKER_CONFIGURATION_INVALID",
+                "Unknown reranker method",
+                422,
+                {"reranker_method": method},
+            )
+        return reranker
+
     def validate_configuration(
         self,
         strategy: RetrievalStrategy,
         rerank_enabled: bool,
+        reranker_method: RerankerMethod = "local_lexical_fusion",
     ) -> None:
         retriever = self._retriever(strategy)
         if not retriever.available:
@@ -72,12 +95,20 @@ class RAGService:
                 503,
                 {"strategy": strategy.value},
             )
-        if rerank_enabled and not self.reranker.available:
-            raise ApplicationError("RERANKER_UNAVAILABLE", "Reranker is not configured", 503)
+        selected_reranker = self._reranker(reranker_method)
+        if rerank_enabled and not selected_reranker.available:
+            raise ApplicationError(
+                "RERANKER_UNAVAILABLE",
+                "Selected reranker is not configured",
+                503,
+                {"reranker_method": reranker_method},
+            )
 
     async def retrieve(self, request: RetrievalRequest) -> RetrievalResult:
         started_at = perf_counter()
-        self.validate_configuration(request.strategy, request.rerank_enabled)
+        self.validate_configuration(
+            request.strategy, request.rerank_enabled, request.reranker_method
+        )
         retriever = self._retriever(request.strategy)
         candidates = await retriever.retrieve(request, request.resolved_candidate_k)
         query_terms = _terms(request.query)
@@ -109,7 +140,8 @@ class RAGService:
 
         rerank_applied = False
         if request.rerank_enabled:
-            deduplicated = await self.reranker.rerank(
+            reranker = self._reranker(request.reranker_method)
+            deduplicated = await reranker.rerank(
                 request.query,
                 deduplicated,
                 request.top_k,

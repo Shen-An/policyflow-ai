@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 from typing import Any
 
 import httpx
@@ -21,6 +22,81 @@ from backend.app.rag.protocols import LLMCompletion, LLMMessage, ToolCallRequest
 logger = get_logger(__name__)
 
 _RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
+
+
+_SENSITIVE_ERROR_FIELD_RE = re.compile(
+    r"(?i)([\"\']?\b(?:api[_ -]?key|authorization|bearer|token|secret|password)\b[\"\']?\s*[:=]\s*)([\"\']?)[^\s,\"\'}]+"
+)
+
+
+def _safe_provider_error_detail(response: httpx.Response | None) -> str | None:
+    """Extract a short, credential-safe message from an upstream error response."""
+
+    if response is None:
+        return None
+
+    candidate: object | None = None
+    try:
+        data = response.json()
+    except (TypeError, ValueError):
+        data = None
+
+    if isinstance(data, dict):
+        error = data.get("error")
+        if isinstance(error, dict):
+            candidate = error.get("message") or error.get("detail") or error.get("code")
+        elif isinstance(error, str):
+            candidate = error
+        if candidate is None:
+            candidate = data.get("message") or data.get("detail")
+
+    if candidate is None:
+        try:
+            candidate = response.text
+        except httpx.ResponseNotRead:
+            return None
+
+    if isinstance(candidate, dict | list):
+        candidate = json.dumps(candidate, ensure_ascii=False, separators=(",", ":"))
+    detail = re.sub(r"\s+", " ", str(candidate)).strip()
+    detail = _SENSITIVE_ERROR_FIELD_RE.sub(r"\1[redacted]", detail)
+    if len(detail) > 240:
+        detail = f"{detail[:237]}..."
+    return detail or None
+
+
+def _llm_provider_error_message(
+    exc: Exception,
+    response: httpx.Response | None,
+) -> str:
+    status = response.status_code if response is not None else getattr(
+        getattr(exc, "response", None), "status_code", None
+    )
+    detail = _safe_provider_error_detail(response)
+
+    if status == 429:
+        message = (
+            "LLM provider rate limited (429). "
+            "Reduce concurrent knowledge bases / hybrid keyword calls, "
+            "or switch to a higher-QPS provider."
+        )
+    elif status in {401, 403}:
+        message = (
+            f"LLM provider rejected the request (HTTP {status}). "
+            "Check the API key, base URL/API path, model, and API style."
+        )
+    elif status is not None and status >= 400:
+        message = f"LLM provider returned HTTP {status}"
+    elif isinstance(exc, httpx.TimeoutException):
+        message = "LLM provider request timed out"
+    elif isinstance(exc, httpx.NetworkError):
+        message = f"LLM provider network error ({type(exc).__name__})"
+    elif isinstance(exc, KeyError | IndexError | TypeError | ValueError):
+        message = "LLM provider returned an invalid response"
+    else:
+        message = "LLM request failed"
+
+    return f"{message}: {detail}" if detail else message
 
 
 def _retry_delay_seconds(
@@ -277,14 +353,7 @@ class OpenAICompatibleLLMService:
                 raise ValueError("LLM response is not a JSON object")
             return data
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
-            status = getattr(getattr(exc, "response", None), "status_code", None)
-            message = "LLM request failed"
-            if status == 429:
-                message = (
-                    "LLM provider rate limited (429). "
-                    "Reduce concurrent knowledge bases / hybrid keyword calls, "
-                    "or switch to a higher-QPS provider."
-                )
+            message = _llm_provider_error_message(exc, response)
             raise ApplicationError("LLM_PROVIDER_ERROR", message, 502) from exc
         finally:
             if owns_client:
