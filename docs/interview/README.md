@@ -1,7 +1,7 @@
 # PolicyFlow AI 面试知识库
 
-版本：v1.0  
-日期：2026-07-18  
+版本：v1.1  
+日期：2026-07-22  
 用途：把本项目**真实可讲、可指代码**的面试点集中整理；优先诚实边界，不写简历注水话术。
 
 > 配套：
@@ -23,6 +23,7 @@
 | 被问前端 / SSE / 体验 | [08-frontend-ux](08-frontend-ux/README.md) |
 | 被追问边界 / mock / 没做啥 | [09-honesty-boundaries](09-honesty-boundaries/README.md) |
 | 临场 demo + 高频 Q&A | [10-demo-qa](10-demo-qa/README.md) |
+| 场景面试题（10 道完整解答） | [11-scenario-questions](11-scenario-questions/README.md) |
 
 **原则：能指到代码或测试的才写；说不清就标「半实现 / 不做」。**
 
@@ -42,7 +43,8 @@ docs/interview/
 ├── 07-backend-engineering/            # FastAPI / SQLModel / 工程点
 ├── 08-frontend-ux/                    # 聊天 UX / SSE / 管理面
 ├── 09-honesty-boundaries/             # 必说边界与反吹牛清单
-└── 10-demo-qa/                        # 演示路径与高频追问
+├── 10-demo-qa/                        # 演示路径与高频追问
+└── 11-scenario-questions/             # 场景面试题 10 道 + 参考解答
 ```
 
 ---
