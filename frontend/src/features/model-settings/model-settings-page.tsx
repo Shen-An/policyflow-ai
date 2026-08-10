@@ -1,6 +1,7 @@
 import { CheckCircle, Cloud, Key, XCircle } from '@phosphor-icons/react'
 import {
   Alert,
+  AutoComplete,
   Button,
   Card,
   Checkbox,
@@ -27,7 +28,7 @@ type FormState = {
   name: string
   baseUrl: string
   authMode: 'bearer' | 'none'
-  apiStyle: 'openai_chat_completions' | 'openai_responses' | 'openai_embeddings'
+  apiStyle: 'openai_chat_completions' | 'openai_responses' | 'openai_embeddings' | 'nvidia_rerank'
   apiKey: string
   clearApiKey: boolean
   model: string
@@ -59,13 +60,13 @@ function initialForm(
     }
   }
   return {
-    name: capability === 'chat' ? 'chat-provider' : 'embedding-provider',
-    baseUrl: '',
+    name: capability === 'chat' ? 'chat-provider' : capability === 'embedding' ? 'embedding-provider' : 'nvidia-reranker',
+    baseUrl: capability === 'reranker' ? 'https://ai.api.nvidia.com' : '',
     authMode: 'bearer',
-    apiStyle: capability === 'chat' ? 'openai_chat_completions' : 'openai_embeddings',
+    apiStyle: capability === 'chat' ? 'openai_chat_completions' : capability === 'embedding' ? 'openai_embeddings' : 'nvidia_rerank',
     apiKey: '',
     clearApiKey: false,
-    model: '',
+    model: capability === 'reranker' ? 'nvidia/llama-nemotron-rerank-vl-1b-v2' : '',
     embeddingDimension: 1536,
     embeddingInputType: 'none',
     timeoutSeconds: 120,
@@ -178,9 +179,11 @@ function ProviderForm({
             >
               <Input
                 placeholder={
-                  capability === 'chat' && apiStyle === 'openai_responses'
-                    ? 'https://provider.example.com/v1/responses'
-                    : 'https://provider.example.com/v1'
+                  capability === 'reranker'
+                    ? 'https://ai.api.nvidia.com'
+                    : capability === 'chat' && apiStyle === 'openai_responses'
+                      ? 'https://provider.example.com/v1/responses'
+                      : 'https://provider.example.com/v1'
                 } />
             </Form.Item>
           </Col>
@@ -208,7 +211,7 @@ function ProviderForm({
                 autoComplete="new-password"
                 disabled={authMode === 'none'}
                 placeholder={
-                  provider?.apiKeyConfigured ? '已配置；留空保持不变' : '输入 API Key'
+                  provider?.apiKeyConfigured ? 'Configured; leave blank to keep' : capability === 'reranker' ? 'Enter NVIDIA API Key' : 'Enter API Key'
                 } />
             </Form.Item>
           </Col>
@@ -223,17 +226,21 @@ function ProviderForm({
         <Row gutter={16}>
           <Col xs={24} md={12}>
             <Form.Item
-              label={capability === 'chat' ? 'Chat 模型' : 'Embedding 模型'}
+              label={capability === 'chat' ? 'Chat model' : capability === 'embedding' ? 'Embedding model' : 'NVIDIA Reranker model'}
               name="model"
               rules={[{ required: true, message: '请输入模型名称' }]}
+              extra={catalog.data?.length ? '可从已拉取的模型中选择，也可以直接输入自定义模型名。' : '点击“拉取模型”后可从下拉列表选择，也可以直接输入自定义模型名。'}
             >
-              <Input list={`models-${capability}`} />
+              <AutoComplete
+                disabled={capability === 'reranker'}
+                options={catalog.data?.map((model) => ({ value: model })) ?? []}
+                showArrow
+                filterOption={(inputValue, option) =>
+                  String(option?.value ?? '').toLowerCase().includes(inputValue.toLowerCase())
+                }
+                placeholder={capability === 'reranker' ? 'Rotates through the three NVIDIA models with fallback' : 'Select or enter a model name'}
+              />
             </Form.Item>
-            <datalist id={`models-${capability}`}>
-              {catalog.data?.map((model) => (
-                <option key={model} value={model} />
-              ))}
-            </datalist>
           </Col>
           {capability === 'embedding' ? (
             <>
@@ -369,6 +376,14 @@ export function ModelSettingsPage() {
             title="Embedding 服务"
             description="用于向量化和 Embedding 连通性验证。"
             provider={query.data.embedding} />
+        </Col>
+        <Col xs={24} xl={12}>
+          <ProviderForm
+            key={query.data.reranker?.updatedAt ?? 'new-reranker'}
+            capability="reranker"
+            title="NVIDIA Cross-Encoder Reranker"
+            description="Configure and encrypt the NVIDIA API Key here for second-stage Cross-Encoder reranking."
+            provider={query.data.reranker} />
         </Col>
       </Row>
 

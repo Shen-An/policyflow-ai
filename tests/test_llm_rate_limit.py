@@ -121,3 +121,36 @@ async def test_llm_429_exhaustion_raises_provider_error(
 
     assert exc_info.value.code == "LLM_PROVIDER_ERROR"
     assert "429" in exc_info.value.message
+
+@pytest.mark.asyncio
+async def test_llm_http_error_preserves_status_and_sanitizes_upstream_detail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = _settings(tmp_path, LLM_MAX_ATTEMPTS=1)
+    engine = build_engine(settings.DATABASE_URL)
+    initialize_database(engine, settings)
+    monkeypatch.setenv("TEST_LLM_KEY", "secret")
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            403,
+            json={
+                "error": {
+                    "message": "forbidden: token=upstream-secret-value",
+                }
+            },
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    service = OpenAICompatibleLLMService(engine, settings, client)
+    with pytest.raises(ApplicationError) as exc_info:
+        await service.complete("system", "question")
+    await client.aclose()
+    engine.dispose()
+
+    assert exc_info.value.code == "LLM_PROVIDER_ERROR"
+    assert "HTTP 403" in exc_info.value.message
+    assert "forbidden" in exc_info.value.message
+    assert "upstream-secret-value" not in exc_info.value.message
+    assert "[redacted]" in exc_info.value.message
+
