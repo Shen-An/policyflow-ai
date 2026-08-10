@@ -7,6 +7,7 @@ import {
   createRetrievalItem,
   deleteEvalRun,
   getEvalRun,
+  getRerankerStatus,
   importCrudDataset,
   listEvalCases,
   listEvalRuns,
@@ -17,12 +18,20 @@ import {
 export const evalKeys = {
   all: ['evaluation'] as const,
   cases: () => [...evalKeys.all, 'cases'] as const,
+  rerankerStatus: () => [...evalKeys.all, 'reranker-status'] as const,
   retrievalItems: () => [...evalKeys.all, 'retrieval-items'] as const,
   runs: () => [...evalKeys.all, 'runs'] as const,
   runList: (page: number, pageSize: number, status: string) =>
     [...evalKeys.runs(), 'list', { page, pageSize, status }] as const,
   run: (id: string) => [...evalKeys.runs(), 'detail', id] as const,
 }
+
+export const useRerankerStatusQuery = () =>
+  useQuery({
+    queryKey: evalKeys.rerankerStatus(),
+    queryFn: ({ signal }) => getRerankerStatus(signal),
+    staleTime: 60_000,
+  })
 
 export const useEvalCasesQuery = () =>
   useQuery({ queryKey: evalKeys.cases(), queryFn: ({ signal }) => listEvalCases(signal) })
@@ -106,9 +115,9 @@ export function useCreateEvalRunMutation() {
   return useMutation({
     meta: selfHandledMutation,
     mutationFn: createEvalRun,
-    onSuccess: async (run) => {
+    onSuccess: (run) => {
       queryClient.setQueryData(evalKeys.run(run.id), run)
-      await queryClient.invalidateQueries({ queryKey: evalKeys.runs() })
+      void queryClient.invalidateQueries({ queryKey: evalKeys.runs() }).catch(() => undefined)
     },
   })
 }

@@ -20,7 +20,7 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import type { EvalResult, EvalRunScope, EvalRunSummary } from '../../api/eval'
+import type { EvalResult, EvalRunScope, EvalRunSummary, RerankerStatus } from '../../api/eval'
 import { LoadingState } from '../../components/feedback/state-views'
 import { QuietChip, statusTone } from '../../components/ui/quiet-chip'
 import { confirmAction } from '../../lib/confirm'
@@ -39,6 +39,7 @@ import {
   useImportCrudDatasetMutation,
   useRetrievalDebugMutation,
   useRetrievalItemsQuery,
+  useRerankerStatusQuery,
 } from './queries'
 
 function splitCsv(value: string) {
@@ -113,7 +114,62 @@ function strategyLabel(raw: unknown): string {
   return value
 }
 
-function extractRunStrategyInfo(configSnapshot: Record<string, unknown> | null | undefined) {
+const FALLBACK_RERANKER_STATUS: RerankerStatus = {
+  backend: 'page_selectable',
+  label: '页面选择',
+  method: 'local_lexical_fusion',
+  available: true,
+  provider: 'local',
+  models: [],
+  options: [
+    {
+      method: 'local_lexical_fusion',
+      label: 'Local lexical fusion（默认）',
+      available: true,
+      provider: 'local',
+      models: [],
+    },
+    {
+      method: 'cross_encoder',
+      label: 'NVIDIA Cross-Encoder',
+      available: false,
+      provider: 'nvidia',
+      models: [],
+    },
+  ],
+}
+
+function rerankerOptions(status: RerankerStatus | undefined) {
+  if (status?.options?.length) return status.options
+  return [
+    {
+      method: 'local_lexical_fusion' as const,
+      label: 'Local lexical fusion（默认）',
+      available: true,
+      provider: 'local',
+      models: [],
+    },
+    {
+      method: 'cross_encoder' as const,
+      label: 'NVIDIA Cross-Encoder',
+      available: status?.method === 'cross_encoder' && status.available,
+      provider: 'nvidia',
+      models: status?.models ?? [],
+    },
+  ]
+}
+
+function rerankerHelpText(status: RerankerStatus | undefined): string {
+  const crossEncoder = rerankerOptions(status).find((option) => option.method === 'cross_encoder')
+  return crossEncoder?.available
+    ? '本次评估可在页面选择 Local lexical fusion 或 NVIDIA Cross-Encoder；Cross-Encoder 使用三个 NVIDIA 模型轮换并自动故障切换。'
+    : '本次评估可在页面选择 Local lexical fusion 或 NVIDIA Cross-Encoder；但当前 NVIDIA_API_KEY 未配置，选择 Cross-Encoder 会失败。'
+}
+
+function extractRunStrategyInfo(
+  configSnapshot: Record<string, unknown> | null | undefined,
+  currentReranker: RerankerStatus = FALLBACK_RERANKER_STATUS,
+) {
   const retrievalConfig =
     configSnapshot &&
     typeof configSnapshot.retrieval_config === 'object' &&
@@ -128,14 +184,28 @@ function extractRunStrategyInfo(configSnapshot: Record<string, unknown> | null |
     .map((item) => strategyLabel(item))
     .filter((item) => item && item !== primary)
   const rerankEnabled = Boolean(retrievalConfig.rerank_enabled)
+  const snapshotMethod = String(configSnapshot?.reranker_method ?? '').trim()
+  const snapshotBackend = String(configSnapshot?.reranker_backend ?? '').trim()
+  const rerankMethod = snapshotMethod || (snapshotBackend === 'cross_encoder'
+    ? 'cross_encoder'
+    : snapshotBackend === 'local'
+      ? 'local_lexical_fusion'
+      : currentReranker.method)
+  const rerankLabel = snapshotMethod === 'cross_encoder' || snapshotBackend === 'cross_encoder'
+    ? 'NVIDIA Cross-Encoder'
+    : snapshotMethod === 'local_lexical_fusion' || snapshotBackend === 'local'
+      ? 'Local lexical fusion'
+      : currentReranker.label
+  const rerankSummary = rerankEnabled ? ` ＋${rerankLabel}` : ''
   return {
     primary,
     compare,
     rerankEnabled,
-    summary:
-      compare.length > 0
-        ? `${primary}（对比：${compare.join(' / ')}${rerankEnabled ? '；+本地重排' : ''}）`
-        : `${primary}${rerankEnabled ? ' + 本地重排' : ''}`,
+    rerankMethod: rerankEnabled ? rerankMethod : null,
+    rerankLabel: rerankEnabled ? rerankLabel : null,
+    summary: compare.length > 0
+      ? `${primary}（对比：${compare.join(' / ')}${rerankSummary}）`
+      : `${primary}${rerankSummary}`,
   }
 }
 
@@ -638,6 +708,7 @@ function RunSection({
 }) {
   const cases = useEvalCasesQuery()
   const retrievalItems = useRetrievalItemsQuery()
+  const rerankerStatus = useRerankerStatusQuery()
   const runs = useEvalRunsQuery(1, 20, '')
   const create = useCreateEvalRunMutation()
   const deleteRun = useDeleteEvalRunMutation()
@@ -760,6 +831,7 @@ function RunSection({
             strategy: 'hybrid_lightrag_bm25',
             compareStrategies: [],
             rerankEnabled: false,
+            rerankerMethod: 'local_lexical_fusion',
           }}
           onFinish={async (values: {
             name: string
@@ -769,6 +841,7 @@ function RunSection({
             strategy: string
             compareStrategies: string[]
             rerankEnabled: boolean
+            rerankerMethod: 'local_lexical_fusion' | 'cross_encoder'
           }) => {
             const evalTypes = values.evalTypes ?? []
             const caseIds = values.caseIds ?? []
@@ -808,6 +881,7 @@ function RunSection({
               compareStrategies,
               ragasEnabled: evalTypes.includes('ragas'),
               rerankEnabled: values.rerankEnabled,
+              rerankerMethod: values.rerankerMethod ?? 'local_lexical_fusion',
             })
             form.resetFields(['name'])
             onSelectRun(run.id)
@@ -863,30 +937,6 @@ function RunSection({
             </Col>
           </Row>
 
-          {/* Keep fields registered even when advanced panel is closed */}
-          <div style={{ display: 'none' }} aria-hidden>
-            <Form.Item name="itemIds">
-              <Checkbox.Group options={[]} />
-            </Form.Item>
-            <Form.Item name="caseIds">
-              <Checkbox.Group options={[]} />
-            </Form.Item>
-            <Form.Item name="evalTypes">
-              <Checkbox.Group
-                options={[
-                  { value: 'retrieval', label: '检索' },
-                  { value: 'rag_answer', label: '回答' },
-                  { value: 'ragas', label: 'RAGAS' },
-                ]} />
-            </Form.Item>
-            <Form.Item name="compareStrategies">
-              <Checkbox.Group options={[]} />
-            </Form.Item>
-            <Form.Item name="rerankEnabled" valuePropName="checked">
-              <Checkbox />
-            </Form.Item>
-          </div>
-
           <Collapse
             ghost
             style={{ marginBottom: 12 }}
@@ -926,10 +976,35 @@ function RunSection({
                     </Col>
                     <Col xs={24}>
                       <Form.Item name="rerankEnabled" valuePropName="checked">
-                        <Checkbox>
-                          启用本地重排（lexical fusion，非 cross-encoder）
-                        </Checkbox>
+                        <Checkbox>启用重排</Checkbox>
                       </Form.Item>
+                      <Form.Item noStyle shouldUpdate={(previous, current) => previous.rerankEnabled !== current.rerankEnabled}>
+                        {({ getFieldValue }) =>
+                          getFieldValue('rerankEnabled') ? (
+                            <Form.Item
+                              label="重排方式"
+                              name="rerankerMethod"
+                              extra="NVIDIA Cross-Encoder 使用三个模型轮换；未配置 NVIDIA API key 时不可用"
+                            >
+                              <Select
+                                options={rerankerOptions(rerankerStatus.data).map((option) => ({
+                                  value: option.method,
+                                  label: option.available
+                                    ? option.label
+                                    : `${option.label}（未配置）`,
+                                  disabled: !option.available,
+                                }))}
+                              />
+                            </Form.Item>
+                          ) : null
+                        }
+                      </Form.Item>
+                      <Typography.Paragraph
+                        type="secondary"
+                        style={{ marginTop: -8, marginBottom: 0, fontSize: 12 }}
+                      >
+                        {rerankerHelpText(rerankerStatus.data)}
+                      </Typography.Paragraph>
                     </Col>
                     <Col xs={24} md={12}>
                       <Form.Item
@@ -1073,6 +1148,7 @@ function RunSection({
 
 function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const query = useEvalRunQuery(id)
+  const rerankerStatus = useRerankerStatusQuery()
   const [exporting, setExporting] = useState<'json' | 'csv' | null>(null)
 
   if (query.isPending) {
@@ -1088,7 +1164,10 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
 
   const run = query.data
   const core = coreRetrievalMetrics(run.metrics)
-  const strategyInfo = extractRunStrategyInfo(run.configSnapshot)
+  const strategyInfo = extractRunStrategyInfo(
+    run.configSnapshot,
+    rerankerStatus.data ?? FALLBACK_RERANKER_STATUS,
+  )
   const strategyComparison =
     run.metrics.strategy_comparison &&
     typeof run.metrics.strategy_comparison === 'object' &&
@@ -1103,7 +1182,9 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
     core.hit10 !== null ? `Hit@10=${formatRate(core.hit10, 1)}` : null,
     core.mrr !== null ? `MRR=${formatMrr(core.mrr)}` : null,
     core.cases !== null ? `N=${core.cases}` : null,
-    strategyInfo.rerankEnabled ? 'rerank=local_lexical_fusion' : null,
+    strategyInfo.rerankEnabled && strategyInfo.rerankMethod
+      ? `rerank=${strategyInfo.rerankMethod}`
+      : null,
   ]
     .filter(Boolean)
     .join(' · ')
@@ -1195,7 +1276,9 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
         {strategyInfo.compare.map((item) => (
           <QuietChip key={item}>对比：{item}</QuietChip>
         ))}
-        {strategyInfo.rerankEnabled ? <QuietChip>本地重排</QuietChip> : null}
+        {strategyInfo.rerankEnabled && strategyInfo.rerankLabel ? (
+          <QuietChip>{strategyInfo.rerankLabel}</QuietChip>
+        ) : null}
         {run.scope?.taskTypes.map((item) => (
           <QuietChip key={`task-${item}`} tone="accent">
             {item}
