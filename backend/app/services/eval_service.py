@@ -16,6 +16,7 @@ from backend.app.db.models import (
     KnowledgeDocument,
     RetrievalEvalItem,
     User,
+    utc_now,
 )
 from backend.app.evals.eval_runner import EvalRunner
 from backend.app.schemas.eval import (
@@ -41,6 +42,8 @@ from backend.app.services.permission_service import (
     require_knowledge_base_permission,
 )
 from backend.app.services.rag_service import RAGService
+
+PROTECTED_EVALUATION_KB_CODES = {"eval_test", "enterprise_eval_test"}
 
 
 def create_eval_case(session: Session, data: EvalCaseCreate) -> EvalCaseRead:
@@ -151,6 +154,9 @@ def cleanup_eval_dataset(
         None,
     )
     sandbox_id = sandbox.id if sandbox is not None else None
+    protected_kb_ids = {
+        kb.id for kb in kb_by_id.values() if kb.code in PROTECTED_EVALUATION_KB_CODES
+    }
 
     stale_items_deleted = 0
     non_eval_items_disabled = 0
@@ -168,8 +174,8 @@ def cleanup_eval_dataset(
             continue
 
         item_kb_ids = [str(value) for value in (item.knowledge_base_ids or []) if value]
-        only_sandbox = item_kb_ids == [sandbox_id]
-        if only_sandbox:
+        only_evaluation_scope = bool(item_kb_ids) and set(item_kb_ids).issubset(protected_kb_ids)
+        if only_evaluation_scope:
             continue
         if item.enabled:
             item.enabled = False
@@ -179,7 +185,7 @@ def cleanup_eval_dataset(
     if request.disable_non_eval_test_items and request.knowledge_base_code:
         cases = list(session.exec(select(EvalCase)).all())
         for case in cases:
-            if case.category == request.knowledge_base_code:
+            if case.category in PROTECTED_EVALUATION_KB_CODES:
                 continue
             if case.enabled:
                 case.enabled = False
@@ -231,6 +237,7 @@ def _selected_retrieval_items(
     session: Session,
     user: User,
     item_ids: list[str],
+    knowledge_base_id: str | None = None,
 ) -> list[RetrievalEvalItem]:
     items = []
     for item_id in item_ids:
@@ -247,12 +254,24 @@ def _selected_retrieval_items(
                 "Retrieval evaluation item is disabled",
                 409,
             )
+        if knowledge_base_id and knowledge_base_id not in (item.knowledge_base_ids or []):
+            raise ApplicationError(
+                "EVAL_KB_SCOPE_INVALID",
+                "Retrieval evaluation item is outside the selected knowledge base",
+                422,
+                {"retrieval_item_id": item.id, "knowledge_base_id": knowledge_base_id},
+            )
         _validate_knowledge_bases(session, user, item.knowledge_base_ids)
         items.append(item)
     return items
 
 
-def _selected_cases(session: Session, user: User, case_ids: list[str]) -> list[EvalCase]:
+def _selected_cases(
+    session: Session,
+    user: User,
+    case_ids: list[str],
+    knowledge_base_id: str | None = None,
+) -> list[EvalCase]:
     cases = []
     for case_id in case_ids:
         case = session.get(EvalCase, case_id)
@@ -260,6 +279,19 @@ def _selected_cases(session: Session, user: User, case_ids: list[str]) -> list[E
             raise ApplicationError("EVAL_CASE_NOT_FOUND", "Evaluation case not found", 404)
         if not case.enabled:
             raise ApplicationError("EVAL_CASE_DISABLED", "Evaluation case is disabled", 409)
+        selected_knowledge_base = (
+            get_knowledge_base(session, knowledge_base_id) if knowledge_base_id else None
+        )
+        if (
+            selected_knowledge_base is not None
+            and case.category not in {selected_knowledge_base.code, "no_answer"}
+        ):
+            raise ApplicationError(
+                "EVAL_KB_SCOPE_INVALID",
+                "Answer evaluation case is outside the selected knowledge base",
+                422,
+                {"case_id": case.id, "knowledge_base_id": knowledge_base_id},
+            )
         if case.category == "no_answer":
             knowledge_bases = session.exec(
                 select(KnowledgeBase).where(KnowledgeBase.status == "active")
@@ -295,8 +327,16 @@ def create_eval_run(
         data.retrieval_config.rerank_enabled,
         data.retrieval_config.reranker_method,
     )
-    _selected_retrieval_items(session, user, data.retrieval_item_ids)
-    _selected_cases(session, user, data.case_ids)
+    if data.knowledge_base_id:
+        selected_knowledge_base = get_knowledge_base(session, data.knowledge_base_id)
+        require_knowledge_base_permission(session, user, selected_knowledge_base, "read")
+    _selected_retrieval_items(
+        session,
+        user,
+        data.retrieval_item_ids,
+        data.knowledge_base_id,
+    )
+    _selected_cases(session, user, data.case_ids, data.knowledge_base_id)
     config_snapshot = data.model_dump(mode="json")
     if reranker_backend:
         config_snapshot["reranker_backend"] = reranker_backend
@@ -439,6 +479,40 @@ def _run_scope_summary(
     )
 
 
+def _run_retrieval_summary(
+    config_snapshot: dict[str, Any] | None,
+) -> tuple[str | None, bool, str | None, str | None]:
+    """Expose immutable retrieval/rerank choices in list and detail APIs."""
+
+    snapshot = config_snapshot or {}
+    raw_config = snapshot.get("retrieval_config")
+    config = raw_config if isinstance(raw_config, dict) else {}
+
+    strategy_value = config.get("strategy") or snapshot.get("strategy")
+    strategy = str(strategy_value).strip() if strategy_value else None
+
+    rerank_value = config.get("rerank_enabled")
+    if rerank_value is None:
+        rerank_value = snapshot.get("rerank_enabled", False)
+    rerank_enabled = rerank_value is True or rerank_value == 1
+
+    method_value = snapshot.get("reranker_method") or config.get("reranker_method")
+    method = str(method_value).strip() if method_value else None
+    backend_value = snapshot.get("reranker_backend")
+    backend = str(backend_value).strip() if backend_value else None
+
+    if rerank_enabled and not method and backend:
+        method = {
+            "cross_encoder": "cross_encoder",
+            "local": "local_lexical_fusion",
+        }.get(backend, backend)
+    if not rerank_enabled:
+        method = None
+        backend = None
+
+    return strategy, rerank_enabled, method, backend
+
+
 def _to_eval_run_read(
     session: Session,
     eval_run: EvalRun,
@@ -449,6 +523,9 @@ def _to_eval_run_read(
         if include_results
         else []
     )
+    strategy, rerank_enabled, reranker_method, reranker_backend = _run_retrieval_summary(
+        eval_run.config_snapshot
+    )
     return EvalRunRead(
         id=eval_run.id,
         name=eval_run.name,
@@ -456,6 +533,10 @@ def _to_eval_run_read(
         total_cases=eval_run.total_cases,
         metrics=eval_run.metrics,
         config_snapshot=eval_run.config_snapshot,
+        strategy=strategy,
+        rerank_enabled=rerank_enabled,
+        reranker_method=reranker_method,
+        reranker_backend=reranker_backend,
         created_by=eval_run.created_by,
         created_at=eval_run.created_at,
         started_at=eval_run.started_at,
@@ -601,6 +682,9 @@ def list_eval_runs(
         statement = statement.where(EvalRun.created_at <= created_to)
     runs = session.exec(statement.order_by(col(EvalRun.created_at).desc())).all()
     start = (page - 1) * page_size
+    retrieval_summaries = {
+        item.id: _run_retrieval_summary(item.config_snapshot) for item in runs
+    }
     return EvalRunListResponse(
         items=[
             EvalRunSummary(
@@ -608,6 +692,10 @@ def list_eval_runs(
                 name=item.name,
                 status=item.status,
                 total_cases=item.total_cases,
+                strategy=retrieval_summaries[item.id][0],
+                rerank_enabled=retrieval_summaries[item.id][1],
+                reranker_method=retrieval_summaries[item.id][2],
+                reranker_backend=retrieval_summaries[item.id][3],
                 created_by=item.created_by,
                 created_at=item.created_at,
                 started_at=item.started_at,
