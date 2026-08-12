@@ -58,6 +58,8 @@ class TurnState(BaseModel):
     plan: list[PlanStep] = Field(default_factory=list)
     plan_options: list[PlanOption] = Field(default_factory=list)
     retrieval_result: RetrievalResult | None = None
+    retrieval_quality: dict[str, Any] = Field(default_factory=dict)
+    budget: dict[str, Any] = Field(default_factory=dict)
     skill_results: list[dict[str, Any]] = Field(default_factory=list)
     suggested_skills: list[dict[str, str]] = Field(default_factory=list)
     answer_result: AnswerResult | None = None

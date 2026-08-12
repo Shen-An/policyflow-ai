@@ -76,7 +76,7 @@ class ComplianceAgent:
                 needle = _normalize(f"{number}{unit}")
                 if needle and needle not in evidence_blob and number not in evidence_blob:
                     suspicious_numbers += 1
-            if suspicious_numbers >= 2:
+            if suspicious_numbers >= 1:
                 warnings.append("UNGROUNDED_NUMERIC_CLAIMS")
 
             # Sentence-level lexical claim support (honest non-LLM claim check).
@@ -89,9 +89,25 @@ class ComplianceAgent:
             hard_fail_codes.add("NO_RELIABLE_EVIDENCE")
             hard_fail_codes.add("SOFT_ANSWER_WITHOUT_EVIDENCE")
 
-        passed = not any(code in hard_fail_codes for code in warnings)
+        refuse_codes = {
+            "EMPTY_ANSWER",
+            "NO_RELIABLE_EVIDENCE",
+            "SOFT_ANSWER_WITHOUT_EVIDENCE",
+            "DANGLING_CITATIONS",
+        }
+        revise_codes = {
+            "MISSING_CITATION_MARKERS",
+            "UNGROUNDED_NUMERIC_CLAIMS",
+        }
+        if any(code in refuse_codes for code in warnings):
+            decision = "REFUSE"
+        elif any(code in revise_codes for code in warnings):
+            decision = "REVISE"
+        else:
+            decision = "PASS"
+        passed = decision == "PASS" and not any(code in hard_fail_codes for code in warnings)
         deduped: list[str] = []
         for item in warnings:
             if item not in deduped:
                 deduped.append(item)
-        return ComplianceResult(passed=passed, warnings=deduped)
+        return ComplianceResult(passed=passed, warnings=deduped, decision=decision)

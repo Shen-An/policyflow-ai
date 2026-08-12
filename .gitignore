@@ -39,6 +39,7 @@ uploads/
 rag_workspaces/
 
 # Test artifacts
+.pytest-tmp*/
 playwright-report/
 test-results/
 tmp_*/
