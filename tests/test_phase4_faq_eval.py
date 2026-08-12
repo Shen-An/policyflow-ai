@@ -266,6 +266,10 @@ def test_faq_approval_indexes_document_and_eval_run_is_reproducible(tmp_path: Pa
     run = completed_run_response.json()
     assert run["status"] == "success"
     assert run["config_snapshot"]["retrieval_config"]["top_k_values"] == [1, 3, 5]
+    assert run["strategy"] == "lightrag_only"
+    assert run["rerank_enabled"] is False
+    assert run["reranker_method"] is None
+    assert run["reranker_backend"] is None
     retrieval_result = next(
         result for result in run["results"] if result["retrieval_metrics"] is not None
     )
