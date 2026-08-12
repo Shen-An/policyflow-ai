@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from sqlmodel import Session
 
-from backend.app.agents.answer_agent import AnswerAgent
+from backend.app.agents.answer_agent import HARD_REFUSE_ANSWER, AnswerAgent
 from backend.app.agents.base import AnswerResult, MemoryWorkingSet, PipelineResult, TurnState
 from backend.app.agents.compliance_agent import ComplianceAgent
 from backend.app.agents.grounding import estimate_answer_confidence, question_evidence_support
@@ -23,9 +23,13 @@ from backend.app.agents.reflection_loop import ReflectionLoop
 from backend.app.agents.retrieval_agent import RetrievalAgent
 from backend.app.agents.router_agent import RouterAgent
 from backend.app.agents.skill_agent import SkillAgent
+from backend.app.agents.turn_budget import TurnBudget, current_turn_budget
 from backend.app.core.config import Settings, get_settings
+from backend.app.core.exceptions import ApplicationError
 from backend.app.db.models import KnowledgeBase, User
+from backend.app.rag.quality_gate import assess_retrieval_quality
 from backend.app.schemas.chat import ComplianceResult, PlanOption, PlanStep, RouterResult
+from backend.app.schemas.reflection import CritiqueIssue, CritiqueResult
 from backend.app.schemas.retrieval import RetrievalRequest, RetrievalResult
 from backend.app.tools.chat_tools import ChatToolExecutor
 
@@ -236,6 +240,41 @@ class AgentPipeline:
             answer_result.answer,
             retrieval_result.evidence,
         )
+        if (
+            compliance.decision == "REVISE"
+            and self.reflection_loop is not None
+            and int(getattr(self.settings, "CHAT_ANSWER_REVISE_MAX_ROUNDS", 1) or 0) > 0
+        ):
+            improve_agent = getattr(self.reflection_loop, "improve_agent", None)
+            if improve_agent is not None:
+                issues = [
+                    CritiqueIssue(
+                        id=f"V{index}",
+                        dimension=("numeric_fidelity" if code == "UNGROUNDED_NUMERIC_CLAIMS" else "citation_integrity"),
+                        severity="error",
+                        problem=code,
+                        fix_hint="删除无依据内容或补充与证据编号一致的 [n] 引用",
+                    )
+                    for index, code in enumerate(compliance.warnings, start=1)
+                    if code in {"MISSING_CITATION_MARKERS", "UNGROUNDED_NUMERIC_CLAIMS"}
+                ]
+                revised = await improve_agent.improve(
+                    question=question,
+                    answer=answer_result.answer,
+                    evidence=retrieval_result.evidence,
+                    critique=CritiqueResult(
+                        verdict="NEEDS_IMPROVEMENT",
+                        summary="答案发布门要求定向修订",
+                        issues=issues,
+                    ),
+                    skill_results=skill_results,
+                )
+                answer_result = answer_result.model_copy(update={"answer": revised})
+                compliance = await self.compliance_agent.run(
+                    answer_result.answer, retrieval_result.evidence
+                )
+        if compliance.decision == "REVISE":
+            compliance = compliance.model_copy(update={"decision": "REFUSE", "passed": False})
         answer_result = answer_result.model_copy(
             update={
                 "confidence_score": estimate_answer_confidence(
@@ -260,6 +299,18 @@ class AgentPipeline:
                 severity="warning",
                 details={"warnings": list(compliance.warnings)},
             )
+        if compliance.decision == "REFUSE" and retrieval_result.evidence:
+            # Release gate: never publish a draft that failed citation/grounding
+            # checks. The answer agent's hard refusal is evidence-free and safe.
+            answer_result = AnswerResult(answer=HARD_REFUSE_ANSWER, confidence_score=0.0)
+            if turn_state is not None:
+                turn_state.record_error(
+                    code="ANSWER_RELEASE_REFUSED",
+                    message="答案未通过引用或证据核查，已替换为安全拒答",
+                    source="ComplianceAgent",
+                    severity="error",
+                    details={"warnings": list(compliance.warnings)},
+                )
         if multi_step:
             plan_steps = await self._emit_plan_kind(
                 on_event,
@@ -336,6 +387,8 @@ class AgentPipeline:
             turn_state.answer_result = answer_result
             turn_state.compliance = compliance
             turn_state.status = "completed"
+            active_budget = current_turn_budget.get()
+            turn_state.budget = active_budget.snapshot() if active_budget else {}
             turn_state.used_l2 = used_l2
             turn_state.reasoning_mode = (
                 getattr(router_result, "reasoning_mode", "cot_direct") or "cot_direct"
@@ -400,7 +453,26 @@ class AgentPipeline:
             reasoning_mode="tot_select",
         )
 
-    async def run(
+    async def run(self, *args: Any, **kwargs: Any) -> PipelineResult:
+        """Run one turn with a request-scoped budget context."""
+        budget = kwargs.pop("budget", None)
+        active_budget = budget or TurnBudget(
+            max_llm_calls=int(getattr(self.settings, "CHAT_TURN_MAX_LLM_CALLS", 8) or 8),
+            max_retrieval_attempts=int(getattr(self.settings, "CHAT_TURN_MAX_RETRIEVAL_ATTEMPTS", 2) or 2),
+            max_tool_calls=int(getattr(self.settings, "CHAT_TURN_MAX_TOOL_CALLS", 6) or 6),
+            max_total_seconds=float(getattr(self.settings, "CHAT_TURN_TIMEOUT_SECONDS", 90.0) or 90.0),
+        )
+        token = current_turn_budget.set(active_budget)
+        try:
+            return await active_budget.wait_for(
+                self._run_impl(*args, budget=active_budget, **kwargs)
+            )
+        except TimeoutError as exc:
+            raise ApplicationError("TURN_BUDGET_EXHAUSTED", "本轮处理已达到最大耗时", 504) from exc
+        finally:
+            current_turn_budget.reset(token)
+
+    async def _run_impl(
         self,
         question: str,
         knowledge_bases: list[KnowledgeBase],
@@ -422,7 +494,11 @@ class AgentPipeline:
         # Explicit reflection gate — do NOT reuse hitl (ToT auto-pick also sets hitl=False).
         allow_reflection: bool = True,
         turn_state: TurnState | None = None,
+        budget: TurnBudget | None = None,
     ) -> PipelineResult:
+        active_budget = budget or current_turn_budget.get()
+        if active_budget is None:
+            active_budget = TurnBudget()
         planning_enabled = bool(getattr(self.settings, "CHAT_PLANNING_ENABLED", True))
         max_steps = int(getattr(self.settings, "CHAT_PLAN_MAX_STEPS", 5) or 5)
         tot_enabled = bool(getattr(self.settings, "CHAT_TOT_ENABLED", True))
@@ -433,6 +509,7 @@ class AgentPipeline:
         parallel_enabled = bool(getattr(self.settings, "CHAT_PLAN_PARALLEL", True))
 
         state = turn_state or TurnState(question=question, status="running")
+        state.budget = active_budget.snapshot()
         if not state.question:
             state.question = question
 
@@ -925,6 +1002,35 @@ class AgentPipeline:
             if effective_request is not None
             else RetrievalResult(evidence=[], trace=[], latency_ms=0)
         )
+        quality = assess_retrieval_quality(
+            question,
+            retrieval_result.evidence,
+            rewritten_query=effective_request.query if effective_request is not None else None,
+            attempt=1,
+        )
+        # A rewritten query may drift from the user's intent. Retry once with the
+        # original question before treating the turn as unsupported.
+        if quality["decision"] == "retry" and effective_request is not None:
+            original_query = (retrieval_request.query if retrieval_request is not None else question).strip()
+            if original_query and original_query != effective_request.query.strip():
+                retry_request = effective_request.model_copy(update={"query": original_query})
+                retry_result = await self.retrieval_agent.run(retry_request)
+                retry_quality = assess_retrieval_quality(
+                    question, retry_result.evidence, rewritten_query=None, attempt=2
+                )
+                retrieval_result = retry_result.model_copy(
+                    update={"warnings": list(retry_result.warnings) + ["RETRIEVAL_RETRIED"]}
+                )
+                quality = retry_quality
+            else:
+                # The original query was already used, so repeating the same
+                # retrieval would add cost without creating a new signal.
+                quality = assess_retrieval_quality(
+                    question,
+                    retrieval_result.evidence,
+                    rewritten_query=None,
+                    attempt=2,
+                )
         evidence_count = len(retrieval_result.evidence)
         support = question_evidence_support(question, retrieval_result.evidence)
         if evidence_count and not support["supported"]:
@@ -955,6 +1061,15 @@ class AgentPipeline:
                 rerank_applied=retrieval_result.rerank_applied,
             )
             evidence_count = 0
+        if quality["decision"] == "refuse" and evidence_count:
+            retrieval_result = retrieval_result.model_copy(
+                update={"evidence": [], "warnings": list(retrieval_result.warnings) + quality["reason_codes"]}
+            )
+            evidence_count = 0
+        state.warnings.extend(
+            code for code in quality["reason_codes"] if code not in state.warnings
+        )
+        state.retrieval_quality = quality
         await self._emit_stage(
             on_stage,
             "RetrievalAgent",

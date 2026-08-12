@@ -19,6 +19,7 @@ from backend.app.agents.grounding import question_evidence_support
 from backend.app.agents.retrieval_agent import RetrievalAgent
 from backend.app.agents.skill_agent import SkillAgent
 from backend.app.db.models import KnowledgeBase, User
+from backend.app.rag.quality_gate import assess_retrieval_quality
 from backend.app.schemas.chat import PlanStep, RouterResult
 from backend.app.schemas.retrieval import Evidence, RetrievalRequest, RetrievalResult
 
@@ -374,6 +375,24 @@ class PlanExecutor:
                 side["trace"] = list(result.trace)
                 evidence = list(result.evidence)
                 support = question_evidence_support(question, evidence)
+                quality = assess_retrieval_quality(
+                    question, evidence, rewritten_query=query if query != question else None, attempt=1
+                )
+                if quality["decision"] == "retry" and query != question:
+                    retry_result = await self.retrieval_agent.run(
+                        req.model_copy(update={"query": question[:4000]})
+                    )
+                    retry_quality = assess_retrieval_quality(
+                        question, retry_result.evidence, attempt=2
+                    )
+                    result = retry_result.model_copy(
+                        update={"warnings": list(retry_result.warnings) + ["RETRIEVAL_RETRIED"]}
+                    )
+                    evidence = list(result.evidence)
+                    support = question_evidence_support(question, evidence)
+                    quality = retry_quality
+                elif quality["decision"] == "retry":
+                    quality = assess_retrieval_quality(question, evidence, attempt=2)
                 if evidence and not support["supported"]:
                     side["warnings"].append("OFF_TOPIC_RETRIEVAL_DROPPED")
                     evidence = []
