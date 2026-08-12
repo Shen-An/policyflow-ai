@@ -74,6 +74,10 @@ export type EvalRun = {
   totalCases: number
   metrics: Record<string, unknown>
   configSnapshot: Record<string, unknown>
+  strategy: string | null
+  rerankEnabled: boolean
+  rerankerMethod: string | null
+  rerankerBackend: string | null
   createdBy: string | null
   createdAt: string
   startedAt: string | null
@@ -161,6 +165,10 @@ type EvalRunRaw = {
   total_cases: number
   metrics: Record<string, unknown>
   config_snapshot: Record<string, unknown>
+  strategy?: string | null
+  rerank_enabled?: boolean
+  reranker_method?: string | null
+  reranker_backend?: string | null
   created_by: string | null
   created_at: string
   started_at: string | null
@@ -227,6 +235,10 @@ function toRunSummary(raw: EvalRunSummaryRaw): EvalRunSummary {
     status: raw.status,
     totalCases: raw.total_cases,
     metrics: raw.metrics,
+    strategy: raw.strategy ?? null,
+    rerankEnabled: raw.rerank_enabled ?? false,
+    rerankerMethod: raw.reranker_method ?? null,
+    rerankerBackend: raw.reranker_backend ?? null,
     createdBy: raw.created_by,
     createdAt: raw.created_at,
     startedAt: raw.started_at,
@@ -404,6 +416,7 @@ export async function exportEvalRun(
 
 export async function createEvalRun(input: {
   name: string
+  knowledgeBaseId?: string
   caseIds: string[]
   retrievalItemIds: string[]
   evalTypes: Array<'retrieval' | 'rag_answer' | 'ragas'>
@@ -420,6 +433,7 @@ export async function createEvalRun(input: {
     method: 'POST',
     body: JSON.stringify({
       name: input.name,
+      knowledge_base_id: input.knowledgeBaseId || null,
       case_ids: input.caseIds,
       retrieval_item_ids: input.retrievalItemIds,
       eval_types: input.evalTypes,
@@ -437,6 +451,50 @@ export async function createEvalRun(input: {
       },
     }),
   }))
+}
+
+export type EnterpriseEvalSeedResult = {
+  knowledgeBaseId: string
+  suite: string
+  documentsCreated: number
+  documentsReused: number
+  retrievalItemsCreated: number
+  evalCasesCreated: number
+  indexQueued: number
+  corpusDocumentCount: number
+  caseCount: number
+  warning: string | null
+}
+
+export async function seedEnterpriseEvalDataset(): Promise<EnterpriseEvalSeedResult> {
+  const raw = await apiClient.request<{
+    knowledge_base_id: string
+    suite: string
+    documents_created: number
+    documents_reused: number
+    retrieval_items_created: number
+    eval_cases_created: number
+    index_queued: number
+    corpus_document_count: number
+    case_count: number
+    warning?: string | null
+  }>('/api/eval/datasets/enterprise-seed', {
+    method: 'POST',
+    timeoutMs: 180_000,
+    body: JSON.stringify({}),
+  })
+  return {
+    knowledgeBaseId: raw.knowledge_base_id,
+    suite: raw.suite,
+    documentsCreated: raw.documents_created,
+    documentsReused: raw.documents_reused,
+    retrievalItemsCreated: raw.retrieval_items_created,
+    evalCasesCreated: raw.eval_cases_created,
+    indexQueued: raw.index_queued,
+    corpusDocumentCount: raw.corpus_document_count,
+    caseCount: raw.case_count,
+    warning: raw.warning ?? null,
+  }
 }
 
 export type CrudImportResult = {

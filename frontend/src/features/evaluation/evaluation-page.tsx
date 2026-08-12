@@ -37,6 +37,7 @@ import {
   useEvalRunQuery,
   useEvalRunsQuery,
   useImportCrudDatasetMutation,
+  useSeedEnterpriseEvalDatasetMutation,
   useRetrievalDebugMutation,
   useRetrievalItemsQuery,
   useRerankerStatusQuery,
@@ -112,6 +113,21 @@ function strategyLabel(raw: unknown): string {
   if (value === 'lightrag_only') return 'LightRAG'
   if (value === 'bm25_only') return 'BM25'
   return value
+}
+
+function rerankerLabel(method: unknown, backend: unknown): string {
+  const normalizedMethod = String(method ?? '').trim()
+  const normalizedBackend = String(backend ?? '').trim()
+  if (normalizedMethod === 'cross_encoder' || normalizedBackend === 'cross_encoder') {
+    return 'NVIDIA Cross-Encoder'
+  }
+  if (
+    normalizedMethod === 'local_lexical_fusion' ||
+    normalizedBackend === 'local'
+  ) {
+    return 'Local lexical fusion'
+  }
+  return normalizedMethod || normalizedBackend || '已启用（方式未知）'
 }
 
 const FALLBACK_RERANKER_STATUS: RerankerStatus = {
@@ -286,13 +302,13 @@ export function EvaluationPage() {
 function CrudImportSection() {
   const knowledgeBases = useKnowledgeBasesQuery()
   const importMutation = useImportCrudDatasetMutation()
+  const enterpriseSeedMutation = useSeedEnterpriseEvalDatasetMutation()
   const cleanupMutation = useCleanupEvalDatasetMutation()
   const [form] = Form.useForm()
 
   const evalTestKb = (knowledgeBases.data ?? []).find(
     (kb) => kb.code === 'eval_test' || kb.name === '测试库',
   )
-
   useEffect(() => {
     if (evalTestKb?.id && !form.getFieldValue('knowledgeBaseId')) {
       form.setFieldValue('knowledgeBaseId', evalTestKb.id)
@@ -302,7 +318,7 @@ function CrudImportSection() {
   return (
     <Card title="1. 导入测试语料">
       <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 16 }}>
-        导入到专用「测试库」(code=eval_test)，避免污染业务库。建议先 50 问 + 干扰文档 ≥200；索引在后台排队。
+        导入到隔离评测库：CRUD 测试库（code=eval_test）或企业政策测试库（code=enterprise_eval_test），避免污染业务库。索引在后台排队。
         跑 Run 前若 scope 混入业务库或出现 stale gold，先点「清理脏用例」。
       </Typography.Paragraph>
       <Form
@@ -432,6 +448,18 @@ function CrudImportSection() {
             {importMutation.isPending ? '导入中…' : '导入到测试库'}
           </Button>
           <Button
+            loading={enterpriseSeedMutation.isPending}
+            onClick={async () => {
+              const result = await enterpriseSeedMutation.mutateAsync()
+              form.setFieldValue('knowledgeBaseId', result.knowledgeBaseId)
+              message.success(
+                `企业政策测试集已准备：${result.caseCount} 条用例、${result.corpusDocumentCount} 份制度文档，索引排队 ${result.indexQueued} 份`,
+              )
+            }}
+          >
+            准备企业政策测试集
+          </Button>
+          <Button
             autoInsertSpace={false}
             loading={cleanupMutation.isPending}
             onClick={() => {
@@ -453,6 +481,22 @@ function CrudImportSection() {
             清理脏用例
           </Button>
         </Space>
+        {enterpriseSeedMutation.isError ? (
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginTop: 12 }}
+            title={enterpriseSeedMutation.error.message}
+          />
+        ) : null}
+        {enterpriseSeedMutation.isSuccess && enterpriseSeedMutation.data.warning ? (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginTop: 12 }}
+            title={enterpriseSeedMutation.data.warning}
+          />
+        ) : null}
         {importMutation.isError ? (
           <Alert
             type="error"
@@ -708,6 +752,7 @@ function RunSection({
 }) {
   const cases = useEvalCasesQuery()
   const retrievalItems = useRetrievalItemsQuery()
+  const knowledgeBases = useKnowledgeBasesQuery()
   const rerankerStatus = useRerankerStatusQuery()
   const runs = useEvalRunsQuery(1, 20, '')
   const create = useCreateEvalRunMutation()
@@ -716,6 +761,58 @@ function RunSection({
   const [customSampleSize, setCustomSampleSize] = useState('50')
   const selectedItemCount =
     ((Form.useWatch('itemIds', form) as string[] | undefined) ?? []).length
+  const selectedKnowledgeBaseId = Form.useWatch('knowledgeBaseId', form) as string | undefined
+  const evaluationKnowledgeBases = useMemo(
+    () =>
+      (knowledgeBases.data ?? []).filter(
+        (kb) =>
+          kb.status === 'active' &&
+          (kb.code === 'eval_test' || kb.code === 'enterprise_eval_test'),
+      ),
+    [knowledgeBases.data],
+  )
+  const scopedRetrievalItems = useMemo(
+    () =>
+      (retrievalItems.data ?? []).filter(
+        (item) =>
+          !selectedKnowledgeBaseId || item.knowledgeBaseIds.includes(selectedKnowledgeBaseId),
+      ),
+    [retrievalItems.data, selectedKnowledgeBaseId],
+  )
+  const evalCaseCountByCategory = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const item of cases.data ?? []) {
+      counts.set(item.category, (counts.get(item.category) ?? 0) + 1)
+    }
+    return counts
+  }, [cases.data])
+  const scopedCases = useMemo(
+    () =>
+      (cases.data ?? []).filter(
+        (item) =>
+          !selectedKnowledgeBaseId ||
+          item.category ===
+            evaluationKnowledgeBases.find((kb) => kb.id === selectedKnowledgeBaseId)?.code,
+      ),
+    [cases.data, evaluationKnowledgeBases, selectedKnowledgeBaseId],
+  )
+
+  useEffect(() => {
+    const preferred =
+      evaluationKnowledgeBases.find((kb) => kb.code === 'enterprise_eval_test') ??
+      evaluationKnowledgeBases.find((kb) => kb.code === 'eval_test')
+    if (preferred?.id && !form.getFieldValue('knowledgeBaseId')) {
+      form.setFieldValue('knowledgeBaseId', preferred.id)
+    }
+  }, [evaluationKnowledgeBases, form])
+
+  useEffect(() => {
+    if (!selectedKnowledgeBaseId) return
+    const available = new Set(scopedRetrievalItems.map((item) => item.id))
+    const current = (form.getFieldValue('itemIds') as string[] | undefined) ?? []
+    const next = current.filter((id) => available.has(id))
+    if (next.length !== current.length) form.setFieldValue('itemIds', next)
+  }, [form, scopedRetrievalItems, selectedKnowledgeBaseId])
 
   const columns: ColumnsType<EvalRunSummary> = useMemo(
     () => [
@@ -743,6 +840,19 @@ function RunSection({
         dataIndex: 'status',
         width: 100,
         render: (value: string) => <QuietChip tone={statusTone(value)}>{statusLabel(value)}</QuietChip>,
+      },
+      {
+        title: '检索策略',
+        dataIndex: 'strategy',
+        width: 180,
+        render: (value: string | null) => strategyLabel(value),
+      },
+      {
+        title: '重排',
+        key: 'rerank',
+        width: 180,
+        render: (_, run) =>
+          run.rerankEnabled ? rerankerLabel(run.rerankerMethod, run.rerankerBackend) : '未启用',
       },
       {
         title: 'Hit@1',
@@ -828,6 +938,7 @@ function RunSection({
             evalTypes: ['retrieval'],
             caseIds: [],
             itemIds: [],
+            knowledgeBaseId: undefined,
             strategy: 'hybrid_lightrag_bm25',
             compareStrategies: [],
             rerankEnabled: false,
@@ -835,6 +946,7 @@ function RunSection({
           }}
           onFinish={async (values: {
             name: string
+            knowledgeBaseId?: string
             evalTypes: Array<'retrieval' | 'rag_answer' | 'ragas'>
             caseIds: string[]
             itemIds: string[]
@@ -847,6 +959,9 @@ function RunSection({
             const caseIds = values.caseIds ?? []
             const itemIds = values.itemIds ?? []
             const compareStrategies = values.compareStrategies ?? []
+            if (!values.knowledgeBaseId) {
+              throw new Error('请选择评测知识库')
+            }
 
             if (!evalTypes.length) {
               throw new Error('请至少勾选一种评估类型（检索评估请勾「检索」）。')
@@ -873,6 +988,7 @@ function RunSection({
 
             const run = await create.mutateAsync({
               name: values.name.trim(),
+              knowledgeBaseId: values.knowledgeBaseId,
               caseIds,
               retrievalItemIds: itemIds,
               evalTypes,
@@ -912,18 +1028,18 @@ function RunSection({
                 <Space wrap>
                   <Button
                     type="primary"
-                    disabled={!retrievalItems.data?.length}
+                    disabled={!scopedRetrievalItems.length}
                     onClick={() => {
-                      const ids = (retrievalItems.data ?? []).map((item) => item.id)
+                      const ids = scopedRetrievalItems.map((item) => item.id)
                       form.setFieldValue('itemIds', pickRandomIds(ids, 50))
                     }}
                   >
                     随机 50
                   </Button>
                   <Button
-                    disabled={!retrievalItems.data?.length}
+                    disabled={!scopedRetrievalItems.length}
                     onClick={() => {
-                      const ids = (retrievalItems.data ?? []).map((item) => item.id)
+                      const ids = scopedRetrievalItems.map((item) => item.id)
                       form.setFieldValue('itemIds', pickRandomIds(ids, 100))
                     }}
                   >
@@ -932,7 +1048,7 @@ function RunSection({
                 </Space>
               </Form.Item>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                已选 {selectedItemCount} / {retrievalItems.data?.length ?? 0} 条检索用例
+                已选 {selectedItemCount} / {scopedRetrievalItems.length} 条检索用例
               </Typography.Text>
             </Col>
           </Row>
@@ -946,6 +1062,22 @@ function RunSection({
                 label: '高级选项（策略对比 / 回答评估 / 精选用例）',
                 children: (
                   <Row gutter={[16, 8]}>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        label="评测知识库"
+                        name="knowledgeBaseId"
+                        rules={[{ required: true, message: '请选择评测知识库' }]}
+                        extra="仅显示隔离的评测库；用例、金标文档和 Run 必须属于同一库"
+                      >
+                        <Select
+                          placeholder="选择企业政策测试库或 CRUD 测试库"
+                          options={evaluationKnowledgeBases.map((kb) => ({
+                            value: kb.id,
+                            label: `${kb.name} (${kb.code}) · ${kb.documentCount} 份制度文档 · ${evalCaseCountByCategory.get(kb.code) ?? 0} 条检索用例`,
+                          }))}
+                        />
+                      </Form.Item>
+                    </Col>
                     <Col xs={24}>
                       <Form.Item
                         label="评估类型"
@@ -1020,7 +1152,7 @@ function RunSection({
                             overflow: 'auto',
                             gap: 6,
                           }}
-                          options={(cases.data ?? []).map((item) => ({
+                          options={scopedCases.map((item) => ({
                             value: item.id,
                             label: item.question,
                           }))} />
@@ -1028,7 +1160,7 @@ function RunSection({
                     </Col>
                     <Col xs={24} md={12}>
                       <Form.Item
-                        label={`检索用例（${retrievalItems.data?.length ?? 0}）`}
+                        label={`检索用例（${scopedRetrievalItems.length}）`}
                         name="itemIds"
                         extra="建议用上方随机按钮，不要全选几百条"
                       >
@@ -1040,7 +1172,7 @@ function RunSection({
                             overflow: 'auto',
                             gap: 6,
                           }}
-                          options={(retrievalItems.data ?? []).map((item) => ({
+                          options={scopedRetrievalItems.map((item) => ({
                             value: item.id,
                             label: item.query,
                           }))} />
@@ -1057,11 +1189,11 @@ function RunSection({
                             onChange={(event) => setCustomSampleSize(event.target.value)} />
                           <Button
                             size="small"
-                            disabled={!retrievalItems.data?.length}
+                            disabled={!scopedRetrievalItems.length}
                             onClick={() => {
                               const n = Math.max(1, Number(customSampleSize) || 0)
                               if (!n) return
-                              const ids = (retrievalItems.data ?? []).map((item) => item.id)
+                              const ids = scopedRetrievalItems.map((item) => item.id)
                               form.setFieldValue('itemIds', pickRandomIds(ids, n))
                             }}
                           >
@@ -1070,11 +1202,11 @@ function RunSection({
                         </Space.Compact>
                         <Button
                           size="small"
-                          disabled={!retrievalItems.data?.length}
+                          disabled={!scopedRetrievalItems.length}
                           onClick={() =>
                             form.setFieldValue(
                               'itemIds',
-                              (retrievalItems.data ?? []).map((item) => item.id),
+                              scopedRetrievalItems.map((item) => item.id),
                             )
                           }
                         >
@@ -1096,7 +1228,7 @@ function RunSection({
               htmlType="submit"
               autoInsertSpace={false}
               loading={create.isPending}
-              disabled={selectedItemCount === 0 && !(cases.data?.length)}
+              disabled={selectedItemCount === 0 && !scopedCases.length}
             >
               启动评估
             </Button>
