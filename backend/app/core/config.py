@@ -77,6 +77,12 @@ class Settings(BaseSettings):
     CHAT_HARD_REFUSE_WITHOUT_EVIDENCE: bool = True
     # Answer agent tool-use loop bounds.
     CHAT_TOOL_MAX_ROUNDS: int = 3
+    CHAT_TURN_TIMEOUT_SECONDS: float = 90.0
+    CHAT_TURN_MAX_LLM_CALLS: int = 8
+    CHAT_TURN_MAX_RETRIEVAL_ATTEMPTS: int = 2
+    CHAT_TURN_MAX_TOOL_CALLS: int = 6
+    CHAT_TOOL_DEFAULT_TIMEOUT_SECONDS: float = 20.0
+    CHAT_ANSWER_REVISE_MAX_ROUNDS: int = 1
     CHAT_TOOLS_ENABLED: bool = True
     # Progressive multi-step planning (Router structured plan; not peer multi-agent).
     CHAT_PLANNING_ENABLED: bool = True

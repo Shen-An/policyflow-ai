@@ -29,6 +29,18 @@ class _Workspace:
     rag: Any
 
 
+class _UnicodeCodepointTokenizer:
+    """Offline-safe reversible tokenizer for LightRAG chunking/token budgets."""
+
+    @staticmethod
+    def encode(content: str) -> list[int]:
+        return [ord(char) for char in content]
+
+    @staticmethod
+    def decode(tokens: list[int]) -> str:
+        return "".join(chr(token) for token in tokens)
+
+
 class InProcessLightRAGAdapter:
     """Runs the official LightRAG engine inside the PolicyFlow backend process."""
 
@@ -122,17 +134,17 @@ class InProcessLightRAGAdapter:
         return np.asarray(vectors, dtype=np.float32)
 
     @staticmethod
-    def _lightrag_api() -> tuple[Any, Any, Any, Any]:
+    def _lightrag_api() -> tuple[Any, Any, Any, Any, Any]:
         environment = dict(os.environ)
         try:
             from lightrag import LightRAG, QueryParam
             from lightrag.kg.shared_storage import initialize_pipeline_status
-            from lightrag.utils import EmbeddingFunc
+            from lightrag.utils import EmbeddingFunc, Tokenizer
         finally:
             for key in set(os.environ) - set(environment):
                 del os.environ[key]
             os.environ.update(environment)
-        return LightRAG, QueryParam, EmbeddingFunc, initialize_pipeline_status
+        return LightRAG, QueryParam, EmbeddingFunc, initialize_pipeline_status, Tokenizer
 
     async def _workspace(self, knowledge_base: KnowledgeBase) -> Any:
         chat, embedding = self._providers()
@@ -174,15 +186,23 @@ class InProcessLightRAGAdapter:
                 vectors = await embedding_service.embed(texts)
                 return np.asarray(vectors, dtype=np.float32)
 
-            lightrag_class, _, embedding_func_class, initialize_pipeline_status = (
-                self._lightrag_api()
-            )
+            (
+                lightrag_class,
+                _,
+                embedding_func_class,
+                initialize_pipeline_status,
+                tokenizer_class,
+            ) = self._lightrag_api()
             rag_factory = self.rag_factory or lightrag_class
             rag = rag_factory(
                 working_dir=str(working_dir.parent),
                 workspace=knowledge_base.code,
                 llm_model_func=llm_callback,
                 llm_model_name=chat.default_chat_model,
+                tokenizer=tokenizer_class(
+                    model_name="policyflow-unicode-codepoint",
+                    tokenizer=_UnicodeCodepointTokenizer(),
+                ),
                 embedding_func=embedding_func_class(
                     embedding_dim=embedding_dim,
                     func=embedding_callback,
@@ -253,7 +273,7 @@ class InProcessLightRAGAdapter:
     ) -> list[Evidence]:
         rag = await self._workspace(knowledge_base)
         try:
-            _, query_param_class, _, _ = self._lightrag_api()
+            _, query_param_class, _, _, _ = self._lightrag_api()
             result = await rag.aquery_data(
                 request.query,
                 query_param_class(
