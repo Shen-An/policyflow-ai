@@ -1,7 +1,7 @@
 """Chat persistence and Agent Pipeline orchestration."""
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from time import perf_counter
 from typing import Any
 
@@ -95,8 +95,8 @@ def _parse_iso_utc(value: Any) -> datetime | None:
     except ValueError:
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def _find_awaiting_assistant_message(
@@ -134,7 +134,7 @@ def _load_pending_plan_context(
     meta = stub.meta_json if isinstance(stub.meta_json, dict) else {}
     pending = meta.get("pending_plan") if isinstance(meta.get("pending_plan"), dict) else {}
     expires_at = _parse_iso_utc(pending.get("expires_at"))
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if expires_at is not None and expires_at < now:
         raise ApplicationError(
             "PENDING_PLAN_EXPIRED",
@@ -510,7 +510,15 @@ def _build_diagnostics(
             )
         )
     return TurnDiagnostics(
-        memories=memories, tools=tools, commands=commands, errors=errors
+        memories=memories,
+        tools=tools,
+        commands=commands,
+        errors=errors,
+        budget=getattr(getattr(pipeline_result, "turn_state", None), "budget", {})
+        or {},
+        retrieval_quality=getattr(getattr(pipeline_result, "turn_state", None), "retrieval_quality", {})
+        or {},
+        release_decision=getattr(pipeline_result.compliance, "decision", None),
     )
 
 
@@ -599,7 +607,11 @@ async def iter_chat_events(
         session.add(stub)
         conversation.updated_at = utc_now()
         session.add(conversation)
-        session.commit()
+        try:
+            session.commit()
+        except Exception as exc:
+            session.rollback()
+            raise ApplicationError("CHAT_PERSIST_FAILED", "保存会话结果失败", 500) from exc
         session.refresh(stub)
         from backend.app.schemas.chat import ComplianceResult
 
@@ -848,7 +860,7 @@ async def iter_chat_events(
         try:
             event_name, payload = await asyncio.wait_for(event_queue.get(), timeout=0.05)
             yield (event_name, payload)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             if pipeline_task.done() and event_queue.empty():
                 pipeline_result = await pipeline_task
                 break
@@ -900,7 +912,7 @@ async def iter_chat_events(
     # ---------- Awaiting plan selection: persist stub, no query log / writeback ----------
     if turn_status == "awaiting_plan_selection":
         ttl_min = int(getattr(settings, "CHAT_TOT_PENDING_TTL_MINUTES", 60) or 60)
-        expires_at = datetime.now(timezone.utc) + timedelta(minutes=max(1, ttl_min))
+        expires_at = datetime.now(UTC) + timedelta(minutes=max(1, ttl_min))
         pending_plan = {
             "question": question,
             "router_result": pipeline_result.router_result.model_dump(mode="json"),
@@ -1020,7 +1032,11 @@ async def iter_chat_events(
     conversation.updated_at = utc_now()
     session.add(query_log)
     session.add(conversation)
-    session.commit()
+    try:
+        session.commit()
+    except Exception as exc:
+        session.rollback()
+        raise ApplicationError("CHAT_PERSIST_FAILED", "保存会话结果失败", 500) from exc
     session.refresh(assistant_message)
     session.refresh(query_log)
     if user_message is not None:

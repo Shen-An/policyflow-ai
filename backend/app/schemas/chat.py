@@ -95,6 +95,7 @@ class RouterResult(BaseModel):
 class ComplianceResult(BaseModel):
     passed: bool
     warnings: list[str] = Field(default_factory=list)
+    decision: Literal["PASS", "REVISE", "REFUSE"] = "PASS"
 
 
 class UsedMemoryItem(BaseModel):
@@ -137,6 +138,9 @@ class TurnDiagnostics(BaseModel):
     commands: list[CommandTrace] = Field(default_factory=list)
     # Centralized turn error ledger (from TurnState / PipelineResult.errors).
     errors: list[dict[str, Any]] = Field(default_factory=list)
+    budget: dict[str, Any] = Field(default_factory=dict)
+    retrieval_quality: dict[str, Any] = Field(default_factory=dict)
+    release_decision: str | None = None
 
 
 class ChatResponse(BaseModel):
