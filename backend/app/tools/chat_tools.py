@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 from sqlmodel import Session
 
+from backend.app.agents.turn_budget import current_turn_budget, reserve_current
 from backend.app.core.exceptions import ApplicationError
 from backend.app.db.models import User
 from backend.app.schemas.retrieval import RetrievalRequest, RetrievalStrategy
@@ -254,6 +257,17 @@ class ChatToolExecutor:
     async def execute(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if name not in self.allowed_tools:
             raise ApplicationError("TOOL_NOT_ALLOWED", f"Tool is not allowed: {name}", 403)
+        reserve_current("tool")
+        arguments = dict(arguments or {})
+        arguments.setdefault(
+            "idempotency_key",
+            hashlib.sha256(
+                (
+                    f"{self.user.id}:{self.conversation_id or ''}:{name}:"
+                    f"{json.dumps(arguments, sort_keys=True, ensure_ascii=False, default=str)}"
+                ).encode()
+            ).hexdigest(),
+        )
         await self._emit(name, "running", {"arguments": arguments})
         try:
             if name == "kb.search":
@@ -297,14 +311,16 @@ class ChatToolExecutor:
         top_k = max(1, min(top_k, 10))
         # Record an audited synthetic tool log via registry only if registered;
         # otherwise run directly for honesty.
-        result = await self.rag_service.retrieve(
-            RetrievalRequest(
-                query=query,
-                knowledge_base_ids=self.knowledge_base_ids,
-                strategy=self.retrieval_strategy,
-                top_k=top_k,
-            )
+        request = RetrievalRequest(
+            query=query,
+            knowledge_base_ids=self.knowledge_base_ids,
+            strategy=self.retrieval_strategy,
+            top_k=top_k,
         )
+        reserve_current("retrieval")
+        budget = current_turn_budget.get()
+        retrieval = self.rag_service.retrieve(request)
+        result = await budget.wait_for(retrieval) if budget is not None else await retrieval
         evidence = [item.model_dump(mode="json") for item in result.evidence]
         self.evidence_payloads.extend(evidence)
         if "kb.search" in self.tool_registry.handlers:

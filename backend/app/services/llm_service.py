@@ -12,6 +12,7 @@ import httpx
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, col, select
 
+from backend.app.agents.turn_budget import reserve_current
 from backend.app.core.config import Settings
 from backend.app.core.exceptions import ApplicationError
 from backend.app.core.logging import get_logger
@@ -287,6 +288,7 @@ class OpenAICompatibleLLMService:
                 response: httpx.Response | None = None
                 last_error: Exception | None = None
                 for attempt in range(self._max_attempts):
+                    reserve_current("llm")
                     try:
                         response = await client.post(endpoint, headers=headers, json=payload)
                     except (

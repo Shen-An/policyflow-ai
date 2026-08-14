@@ -1,5 +1,6 @@
 """Audited Tool registry and executor."""
 
+import asyncio
 from time import perf_counter
 from typing import Any
 
@@ -55,6 +56,30 @@ class ToolRegistry:
         handler = self.handlers.get(name)
         if handler is None:
             raise ApplicationError("TOOL_NOT_IMPLEMENTED", "Tool handler is not implemented", 501)
+        idempotency_key = str(payload.get("idempotency_key") or "")
+        if idempotency_key:
+            prior_logs = session.exec(
+                select(ToolCallLog).where(
+                    ToolCallLog.tool_name == name,
+                    ToolCallLog.conversation_id == conversation_id,
+                    ToolCallLog.user_id == user.id,
+                )
+            ).all()
+            for prior in prior_logs:
+                if (prior.input_summary or {}).get("idempotency_key") == idempotency_key:
+                    if prior.status == "success":
+                        return ToolRunResponse(
+                            name=name,
+                            output=prior.output_summary,
+                            call_log_id=prior.id,
+                            request_id=prior.request_id,
+                        )
+                    if prior.status == "unknown":
+                        raise ApplicationError(
+                            "SIDE_EFFECT_STATUS_UNKNOWN",
+                            "相同操作的执行状态未知，请先核对后再继续",
+                            409,
+                        )
         started_at = perf_counter()
         log = ToolCallLog(
             conversation_id=conversation_id,
@@ -67,8 +92,30 @@ class ToolRegistry:
             status="success",
         )
         try:
-            output = await handler(session, user, payload)
+            timeout_seconds = max(1.0, float(tool.timeout_seconds or 30))
+            output = await asyncio.wait_for(
+                handler(session, user, payload), timeout=timeout_seconds
+            )
             log.output_summary = redact_sensitive(output)
+        except TimeoutError as exc:
+            log.status = "unknown"
+            log.error_message = "TOOL_TIMEOUT: execution status is unknown"
+            log.latency_ms = int((perf_counter() - started_at) * 1000)
+            session.add(log)
+            try:
+                session.commit()
+            except Exception as persist_exc:
+                session.rollback()
+                raise ApplicationError(
+                    "TOOL_AUDIT_PERSIST_FAILED",
+                    "Tool execution status is unknown and the audit log could not be saved",
+                    500,
+                ) from persist_exc
+            raise ApplicationError(
+                "TOOL_TIMEOUT",
+                "Tool execution timed out; external side effect status is unknown",
+                504,
+            ) from exc
         except Exception as exc:
             log.status = "failed"
             log.error_message = (
@@ -78,11 +125,23 @@ class ToolRegistry:
             )
             log.latency_ms = int((perf_counter() - started_at) * 1000)
             session.add(log)
-            session.commit()
+            try:
+                session.commit()
+            except Exception as persist_exc:
+                session.rollback()
+                raise ApplicationError(
+                    "TOOL_AUDIT_PERSIST_FAILED", "Tool audit log could not be saved", 500
+                ) from persist_exc
             raise
         log.latency_ms = int((perf_counter() - started_at) * 1000)
         session.add(log)
-        session.commit()
+        try:
+            session.commit()
+        except Exception as exc:
+            session.rollback()
+            raise ApplicationError(
+                "TOOL_AUDIT_PERSIST_FAILED", "Tool audit log could not be saved", 500
+            ) from exc
         return ToolRunResponse(
             name=name,
             output=output,
