@@ -15,6 +15,10 @@
 9. **Hybrid 未必显著优于 BM25** — 看任务形态，1-doc 匹配常接近  
 10. **LightRAG 分数可能 synthetic** — 别当真实相似度  
 11. **Reflection 是可选质量环** — Critique→Improve 双 prompt + 硬轮次；**不是**事实 oracle，也**不是** peer multi-agent 辩论；规则 Compliance 仍是最后一道门；Eval 默认关  
+12. **数据库 rollback 不能撤销外部副作用** — 邮件、日历、飞书超时后可能已经执行；应标记 `unknown`，先核对状态，再决定重试或补偿
+13. **统一兜底门已落地基础版** — 已有请求级 Turn Budget、Retrieval Quality Gate、`PASS/REVISE/REFUSE` 发布门和一次改稿复检；质量判断仍以确定性规则与轻量词重叠为主，不是完美事实核查
+14. **外部副作用恢复不是完整 Saga** — 已有幂等键、成功结果复用、超时 `unknown` 和禁止盲目重发；状态查询适配器、补偿 Tool、高风险确认仍待按真实连接器实现
+15. **进程内 LightRAG 使用离线 tokenizer** — 为避免启动时依赖 `tiktoken` CDN，适配器注入可逆 Unicode codepoint tokenizer 做切块和 token 预算；它不等同于 OpenAI BPE token 统计，实际检索指标仍以离线 Eval 为准
 
 ## 简历禁用词 → 替换说法
 
@@ -41,6 +45,15 @@
 | 正式 TurnState 黑板 + errors[] | **已做**（单轮请求内；非分布式状态机） |
 | 错误集中写入（步骤/检索/Skill/合规） | **已做**（写入 ledger + diagnostics；非静默吞错） |
 | Critique→Improve 反思闭环 | **已做**（高风险触发；max 2 轮；Eval 默认关；非群聊辩论） |
+| 请求级 Turn Budget | **已做**（LLM/检索/Tool 次数 + 整轮耗时） |
+| Retrieval Quality Gate | **已做基础版**（空证据、偏题、rewrite 漂移；最多回退原问题一次） |
+| PASS/REVISE/REFUSE 发布门 | **已做**（定向改稿一次并复检，失败则安全拒答） |
+| 外部副作用恢复 | **半实现**（幂等与 `unknown` 基础；未实现完整查询/补偿/Saga） |
+| Tool / Reflection 模块级最大轮数 | **已做** |
+| 单轮全局调用/耗时预算（Turn Budget） | **规划中，未做** |
+| Retrieval Quality Gate（accept/retry/refuse） | **规划中，未做** |
+| Answer 发布门（PASS/REVISE/REFUSE） | **规划中，未做** |
+| 外部 Tool 幂等键 / unknown 状态 / 补偿 | **规划中，未做** |
 | peer 消息总线 / actor 系统 | **不做** |
 | LLM-as-judge 替代 Hit@K/MRR | **不做** |
 | RAGAS | 可选，非主指标 |
