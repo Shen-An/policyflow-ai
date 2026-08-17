@@ -98,8 +98,8 @@ async def test_verifier_detects_dangling_citation() -> None:
     ]
     result = await agent.run("根据制度住宿标准是 500 元 [9]。", evidence)
     assert "DANGLING_CITATIONS" in result.warnings
-    # Soft warning should not fail by itself.
-    assert result.passed is True
+    assert result.decision == "REFUSE"
+    assert result.passed is False
 
 
 @pytest.mark.asyncio
