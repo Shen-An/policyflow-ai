@@ -64,7 +64,11 @@ def test_chat_and_embedding_use_independent_secure_providers(tmp_path: Path) -> 
         employee = create_employee(client, admin)
         assert client.get("/api/settings/model-providers").status_code == 401
         assert client.get("/api/settings/model-providers", headers=employee).status_code == 403
-        assert client.get("/api/settings/model-providers", headers=admin).json() == {"chat": None, "embedding": None}
+        assert client.get("/api/settings/model-providers", headers=admin).json() == {
+            "chat": None,
+            "embedding": None,
+            "reranker": None,
+        }
         chat_saved = client.put("/api/settings/model-providers/chat", headers={**admin, "X-Request-ID": "save-chat"}, json={"name": "company-a-chat", "base_url": "https://chat.company-a.com/v1/responses", "auth_mode": "bearer", "api_style": "openai_responses", "api_key": "chat-secret", "model": "chat-a", "timeout_seconds": 30, "enabled": True})
         embedding_saved = client.put("/api/settings/model-providers/embedding", headers={**admin, "X-Request-ID": "save-embedding"}, json={"name": "company-b-embedding", "base_url": "https://integrate.api.nvidia.com/v1", "auth_mode": "bearer", "api_style": "openai_embeddings", "api_key": "embedding-secret", "model": "embed-b", "embedding_dimension": 3, "embedding_input_type": "query", "timeout_seconds": 60, "enabled": True})
         settings_response = client.get("/api/settings/model-providers", headers=admin)
