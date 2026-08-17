@@ -460,7 +460,7 @@ class AgentPipeline:
             max_llm_calls=int(getattr(self.settings, "CHAT_TURN_MAX_LLM_CALLS", 8) or 8),
             max_retrieval_attempts=int(getattr(self.settings, "CHAT_TURN_MAX_RETRIEVAL_ATTEMPTS", 2) or 2),
             max_tool_calls=int(getattr(self.settings, "CHAT_TURN_MAX_TOOL_CALLS", 6) or 6),
-            max_total_seconds=float(getattr(self.settings, "CHAT_TURN_TIMEOUT_SECONDS", 90.0) or 90.0),
+            max_total_seconds=float(getattr(self.settings, "CHAT_TURN_TIMEOUT_SECONDS", 180.0) or 180.0),
         )
         token = current_turn_budget.set(active_budget)
         try:

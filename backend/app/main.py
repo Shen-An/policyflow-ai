@@ -119,7 +119,11 @@ def create_app(
         engine, app_settings, language_model, embedding_service
     )
     bm25_retriever = BM25Retriever(engine)
-    hybrid_retriever = HybridRetriever(adapter, bm25_retriever)
+    hybrid_retriever = HybridRetriever(
+        adapter,
+        bm25_retriever,
+        lightrag_timeout_seconds=app_settings.LIGHTRAG_HYBRID_TIMEOUT_SECONDS,
+    )
     rerankers = _build_rerankers(app_settings, engine)
     rag_service = RAGService(
         adapter,
