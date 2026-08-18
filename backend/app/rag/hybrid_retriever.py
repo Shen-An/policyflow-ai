@@ -4,12 +4,19 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Sequence
+from contextlib import suppress
+
+import httpx
 
 from backend.app.core.exceptions import ApplicationError
+from backend.app.core.logging import get_logger
 from backend.app.rag.protocols import Retriever
 from backend.app.schemas.retrieval import Evidence, RetrievalRequest
 
 DEFAULT_RRF_K = 60
+DEFAULT_LIGHTRAG_TIMEOUT_SECONDS = 45.0
+
+logger = get_logger(__name__)
 
 
 class HybridRetriever:
@@ -20,10 +27,12 @@ class HybridRetriever:
         lightrag: Retriever | None = None,
         bm25: Retriever | None = None,
         rrf_k: int = DEFAULT_RRF_K,
+        lightrag_timeout_seconds: float = DEFAULT_LIGHTRAG_TIMEOUT_SECONDS,
     ) -> None:
         self.lightrag = lightrag
         self.bm25 = bm25
         self.rrf_k = rrf_k
+        self.lightrag_timeout_seconds = lightrag_timeout_seconds
 
     @property
     def available(self) -> bool:
@@ -140,6 +149,65 @@ class HybridRetriever:
             for rank, (key, evidence) in enumerate(ordered[:limit], start=1)
         ]
 
+    @staticmethod
+    def _is_timeout_failure(exc: BaseException) -> bool:
+        """Recognize only explicit timeout failures through wrapped exception chains."""
+
+        pending = [exc]
+        seen: set[int] = set()
+        while pending:
+            current = pending.pop()
+            if id(current) in seen:
+                continue
+            seen.add(id(current))
+            if isinstance(current, TimeoutError):
+                return True
+            if isinstance(current, ApplicationError) and (
+                current.status_code == 504
+                or "TIMEOUT" in current.code
+            ):
+                return True
+            if isinstance(current, httpx.TimeoutException):
+                return True
+            if current.__cause__ is not None:
+                pending.append(current.__cause__)
+            if current.__context__ is not None:
+                pending.append(current.__context__)
+        return False
+
+    @staticmethod
+    async def _cancel_task(task: asyncio.Task[object]) -> None:
+        if not task.done():
+            task.cancel()
+        with suppress(asyncio.CancelledError, Exception):
+            await task
+
+    def _bm25_fallback(self, bm25_hits: Sequence[Evidence], limit: int) -> list[Evidence]:
+        """Keep local retrieval evidence auditable when LightRAG timed out."""
+
+        ordered = sorted(
+            bm25_hits,
+            key=lambda item: (item.rank, item.document_id or "", item.chunk_id or ""),
+        )
+        return [
+            item.model_copy(
+                update={
+                    "rank": rank,
+                    "retriever_type": self.name,
+                    "metadata": {
+                        **item.metadata,
+                        "fusion": "bm25_fallback",
+                        "fallback_from": "lightrag",
+                        "fallback_reason": "timeout",
+                        "source_retrievers": ["bm25"],
+                        "bm25_rank": item.rank,
+                        "bm25_score": item.score,
+                    },
+                }
+            )
+            for rank, item in enumerate(ordered[:limit], start=1)
+        ]
+
     async def retrieve(self, request: RetrievalRequest, limit: int) -> list[Evidence]:
         if not self.available:
             raise ApplicationError(
@@ -149,8 +217,33 @@ class HybridRetriever:
             )
         assert self.lightrag is not None
         assert self.bm25 is not None
-        lightrag_hits, bm25_hits = await asyncio.gather(
-            self.lightrag.retrieve(request, limit),
-            self.bm25.retrieve(request, limit),
-        )
+        lightrag_task = asyncio.create_task(self.lightrag.retrieve(request, limit))
+        bm25_task = asyncio.create_task(self.bm25.retrieve(request, limit))
+        try:
+            lightrag_hits = await asyncio.wait_for(
+                lightrag_task,
+                timeout=self.lightrag_timeout_seconds,
+            )
+        except asyncio.CancelledError:
+            await self._cancel_task(bm25_task)
+            raise
+        except Exception as exc:
+            if not self._is_timeout_failure(exc):
+                await self._cancel_task(bm25_task)
+                raise
+            logger.warning(
+                "LightRAG timed out; falling back to BM25 retrieval",
+                extra={
+                    "fallback_from": "lightrag",
+                    "fallback_reason": "timeout",
+                    "lightrag_timeout_seconds": self.lightrag_timeout_seconds,
+                },
+            )
+            bm25_hits = await bm25_task
+            return self._bm25_fallback(bm25_hits, limit)
+        try:
+            bm25_hits = await bm25_task
+        except asyncio.CancelledError:
+            await self._cancel_task(lightrag_task)
+            raise
         return self._fuse(lightrag_hits, bm25_hits, limit)

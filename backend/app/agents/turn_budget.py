@@ -17,7 +17,7 @@ class TurnBudget:
     max_llm_calls: int = 8
     max_retrieval_attempts: int = 2
     max_tool_calls: int = 6
-    max_total_seconds: float = 90.0
+    max_total_seconds: float = 180.0
     started_at: float = field(default_factory=monotonic)
     llm_calls: int = 0
     retrieval_attempts: int = 0

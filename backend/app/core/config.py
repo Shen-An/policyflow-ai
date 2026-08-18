@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     LIGHTRAG_BASE_URL: str | None = None
     LIGHTRAG_API_KEY: str | None = None
     LIGHTRAG_TIMEOUT_SECONDS: float = 180.0
+    # Hybrid reserves the remainder of the Chat turn for answer generation.
+    LIGHTRAG_HYBRID_TIMEOUT_SECONDS: float = 45.0
     LIGHTRAG_API_KEY_HEADER: str = "X-API-Key"
     LLM_PROVIDER_NAME: str = "default-openai-compatible"
     LLM_BASE_URL: str | None = None
@@ -77,7 +79,7 @@ class Settings(BaseSettings):
     CHAT_HARD_REFUSE_WITHOUT_EVIDENCE: bool = True
     # Answer agent tool-use loop bounds.
     CHAT_TOOL_MAX_ROUNDS: int = 3
-    CHAT_TURN_TIMEOUT_SECONDS: float = 90.0
+    CHAT_TURN_TIMEOUT_SECONDS: float = 180.0
     CHAT_TURN_MAX_LLM_CALLS: int = 8
     CHAT_TURN_MAX_RETRIEVAL_ATTEMPTS: int = 2
     CHAT_TURN_MAX_TOOL_CALLS: int = 6
