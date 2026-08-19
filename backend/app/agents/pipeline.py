@@ -10,7 +10,7 @@ from sqlmodel import Session
 from backend.app.agents.answer_agent import HARD_REFUSE_ANSWER, AnswerAgent
 from backend.app.agents.base import AnswerResult, MemoryWorkingSet, PipelineResult, TurnState
 from backend.app.agents.compliance_agent import ComplianceAgent
-from backend.app.agents.grounding import estimate_answer_confidence, question_evidence_support
+from backend.app.agents.grounding import estimate_answer_confidence
 from backend.app.agents.plan_branch import generate_plan_options, pick_recommended_option
 from backend.app.agents.plan_executor import PlanExecutor, should_use_plan_executor
 from backend.app.agents.plan_normalize import (
@@ -27,7 +27,7 @@ from backend.app.agents.turn_budget import TurnBudget, current_turn_budget
 from backend.app.core.config import Settings, get_settings
 from backend.app.core.exceptions import ApplicationError
 from backend.app.db.models import KnowledgeBase, User
-from backend.app.rag.quality_gate import assess_retrieval_quality
+from backend.app.rag.quality_gate import assess_retrieval_quality, off_topic_reason
 from backend.app.schemas.chat import ComplianceResult, PlanOption, PlanStep, RouterResult
 from backend.app.schemas.reflection import CritiqueIssue, CritiqueResult
 from backend.app.schemas.retrieval import RetrievalRequest, RetrievalResult
@@ -815,6 +815,7 @@ class AgentPipeline:
                 self.retrieval_agent,
                 self.skill_agent,
                 parallel_enabled=parallel_enabled,
+                settings=self.settings,
             )
             exec_result = await executor.run(
                 question,
@@ -1007,6 +1008,7 @@ class AgentPipeline:
             retrieval_result.evidence,
             rewritten_query=effective_request.query if effective_request is not None else None,
             attempt=1,
+            settings=self.settings,
         )
         # A rewritten query may drift from the user's intent. Retry once with the
         # original question before treating the turn as unsupported.
@@ -1016,7 +1018,11 @@ class AgentPipeline:
                 retry_request = effective_request.model_copy(update={"query": original_query})
                 retry_result = await self.retrieval_agent.run(retry_request)
                 retry_quality = assess_retrieval_quality(
-                    question, retry_result.evidence, rewritten_query=None, attempt=2
+                    question,
+                    retry_result.evidence,
+                    rewritten_query=None,
+                    attempt=2,
+                    settings=self.settings,
                 )
                 retrieval_result = retry_result.model_copy(
                     update={"warnings": list(retry_result.warnings) + ["RETRIEVAL_RETRIED"]}
@@ -1030,28 +1036,28 @@ class AgentPipeline:
                     retrieval_result.evidence,
                     rewritten_query=None,
                     attempt=2,
+                    settings=self.settings,
                 )
         evidence_count = len(retrieval_result.evidence)
-        support = question_evidence_support(question, retrieval_result.evidence)
-        if evidence_count and not support["supported"]:
+        if evidence_count and quality["off_topic"]:
+            dropped_reason = off_topic_reason(quality)
             await self._emit_stage(
                 on_stage,
                 "RetrievalAgent",
                 "empty",
-                (
-                    f"命中 {evidence_count} 条但与原问题相关度过低"
-                    f"（overlap={support['overlap_ratio']}），按无可靠证据处理"
-                ),
+                f"命中 {evidence_count} 条但{dropped_reason}，按无可靠证据处理",
             )
             state.record_error(
                 code="OFF_TOPIC_RETRIEVAL_DROPPED",
-                message=(
-                    f"命中 {evidence_count} 条但与原问题相关度过低"
-                    f"（overlap={support['overlap_ratio']}）"
-                ),
+                message=f"命中 {evidence_count} 条但{dropped_reason}",
                 source="RetrievalAgent",
                 severity="warning",
-                details={"overlap_ratio": support.get("overlap_ratio")},
+                details={
+                    "gate": quality.get("gate"),
+                    "top_score": quality.get("top_score"),
+                    "score_threshold": quality.get("score_threshold"),
+                    "overlap_ratio": quality.get("overlap_ratio"),
+                },
             )
             retrieval_result = RetrievalResult(
                 evidence=[],

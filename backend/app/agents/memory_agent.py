@@ -155,7 +155,7 @@ class MemoryAgent:
                             memory_type=MEMORY_TYPE_PREFERENCE,
                             content=event.summary,
                             source="summary",
-                            confidence=max(0.6, event.salience),
+                            confidence=event.salience,
                             embedding=embedding,
                             meta_json={
                                 "event_type": event.event_type,
@@ -183,7 +183,7 @@ class MemoryAgent:
                             facts=event.facts or [event.summary],
                             content=event.summary,
                             source="summary",
-                            confidence=max(0.6, event.salience),
+                            confidence=event.salience,
                             embedding=embedding,
                             extra_meta={
                                 "event_type": event.event_type,
@@ -217,7 +217,7 @@ class MemoryAgent:
                     memory_type=MEMORY_TYPE_LONG_TERM,
                     content=event.summary,
                     source="summary",
-                    confidence=max(0.5, event.salience),
+                    confidence=event.salience,
                     embedding=embedding,
                     expires_at=expires_at,
                     meta_json={
@@ -234,6 +234,9 @@ class MemoryAgent:
         await self._maybe_compress_window(session, conversation)
 
         # Thin conversation-scoped trail for audit / backward compatibility.
+        # Confidence reflects the strongest signal actually extracted this turn
+        # (low for chitchat with no events), not a fixed placeholder.
+        trail_confidence = max((event.salience for event in events), default=0.3)
         trail = write_memory(
             session,
             owner_type="conversation",
@@ -243,9 +246,10 @@ class MemoryAgent:
                 f"用户问题：{question}\n助手回答摘要：{answer[:500]}"
             ),
             source="summary",
-            confidence=0.55,
+            confidence=trail_confidence,
             meta_json={
                 "event_type": "conversation_fact",
+                "salience": trail_confidence,
                 "source_message_ids": source_message_ids or [],
                 "extracted_event_count": len(events),
             },

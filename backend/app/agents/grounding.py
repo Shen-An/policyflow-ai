@@ -11,6 +11,12 @@ _CITE_RE = re.compile(r"\[(\d+)\]")
 _SENTENCE_SPLIT = re.compile(r"(?<=[。！？!?；;])\s*|\n+")
 _TOKEN_RE = re.compile(r"[一-鿿]{2,}|[A-Za-z0-9_]{2,}")
 
+DEFAULT_MIN_OVERLAP_RATIO = 0.08
+# Only a real cross-encoder produces a comparable relevance score. Local lexical
+# fusion scores are a different scale (0-1 blend of the same lexical signal the
+# fallback already measures), so they are not used as a threshold.
+SCORE_GATE_RERANK_METHODS = frozenset({"cross_encoder"})
+
 
 def _tokens(text: str) -> set[str]:
     """Tokenize for lexical overlap.
@@ -40,7 +46,7 @@ def question_evidence_support(
     question: str,
     evidence: list[Evidence],
     *,
-    min_overlap_ratio: float = 0.08,
+    min_overlap_ratio: float = DEFAULT_MIN_OVERLAP_RATIO,
 ) -> dict[str, Any]:
     """Measure whether retrieved evidence is about the original question.
 
@@ -82,6 +88,68 @@ def question_evidence_support(
         "question_tokens": len(q_tokens),
         "long_term_hit": long_hit,
     }
+
+
+def cross_encoder_top_score(evidence: list[Evidence]) -> float | None:
+    """Best real cross-encoder relevance score in the evidence, if any.
+
+    Returns None when the retrieval path produced no cross-encoder score: rerank
+    disabled, local lexical fusion, or a synthetic rank-decay score. Those cases
+    have no thresholdable semantic signal and must use the lexical fallback.
+    """
+    scores: list[float] = []
+    for item in evidence:
+        metadata = item.metadata or {}
+        if metadata.get("rerank_method") not in SCORE_GATE_RERANK_METHODS:
+            continue
+        raw = item.rerank_score
+        if raw is None:
+            raw = metadata.get("rerank_score")
+        if raw is None:
+            continue
+        try:
+            scores.append(float(raw))
+        except (TypeError, ValueError):
+            continue
+    return max(scores) if scores else None
+
+
+def question_evidence_relevance(
+    question: str,
+    evidence: list[Evidence],
+    *,
+    min_cross_encoder_score: float | None = None,
+    min_overlap_ratio: float = DEFAULT_MIN_OVERLAP_RATIO,
+) -> dict[str, Any]:
+    """Decide whether retrieved evidence is on-topic for the original question.
+
+    Two gates, in order of trust:
+    1. cross-encoder score gate — a real query/passage relevance model score;
+    2. lexical bigram coverage — weak, used only when (1) is unavailable.
+
+    Both signals are always reported so evaluation runs can compare them.
+    """
+    lexical = question_evidence_support(
+        question, evidence, min_overlap_ratio=min_overlap_ratio
+    )
+    top_score = cross_encoder_top_score(evidence)
+    result = {
+        **lexical,
+        "lexical_supported": bool(lexical["supported"]),
+        "min_overlap_ratio": min_overlap_ratio,
+        "top_score": top_score,
+        "score_threshold": None,
+        "gate": "lexical_overlap",
+    }
+    if evidence and top_score is not None and min_cross_encoder_score is not None:
+        result.update(
+            {
+                "gate": "cross_encoder_score",
+                "score_threshold": min_cross_encoder_score,
+                "supported": top_score >= min_cross_encoder_score,
+            }
+        )
+    return result
 
 
 def citation_stats(answer: str, evidence_count: int) -> dict[str, Any]:
