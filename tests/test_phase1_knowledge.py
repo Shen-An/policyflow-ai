@@ -23,6 +23,9 @@ from backend.app.schemas.retrieval import Evidence, RetrievalRequest
 class SuccessfulIndexBackend:
     name = "lightrag"
 
+    def __init__(self) -> None:
+        self.indexed_documents: list[KnowledgeDocument] = []
+
     @property
     def available(self) -> bool:
         return True
@@ -32,7 +35,9 @@ class SuccessfulIndexBackend:
         knowledge_base: KnowledgeBase,
         document: KnowledgeDocument,
     ) -> None:
-        return None
+        self.indexed_documents.append(
+            KnowledgeDocument.model_validate(document.model_dump())
+        )
 
     async def retrieve(self, request: RetrievalRequest, limit: int) -> list[Evidence]:
         return []
@@ -162,15 +167,25 @@ def test_knowledge_acl_upload_index_and_audit_flow(tmp_path: Path) -> None:
         )
 
         uploads: list[tuple[str, bytes, str, str]] = [
-            ("policy.txt", b"TXT policy content", "text/plain", "TXT policy content"),
-            ("policy.md", b"# Markdown policy content", "text/markdown", "Markdown policy content"),
+            ("txt-policy.txt", b"TXT policy content", "text/plain", "TXT policy content"),
             (
-                "policy.docx",
+                "markdown-policy.md",
+                b"# Markdown policy content",
+                "text/markdown",
+                "Markdown policy content",
+            ),
+            (
+                "docx-policy.docx",
                 make_docx("DOCX policy content"),
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 "DOCX policy content",
             ),
-            ("policy.pdf", make_pdf("PDF policy content"), "application/pdf", "PDF policy content"),
+            (
+                "pdf-policy.pdf",
+                make_pdf("PDF policy content"),
+                "application/pdf",
+                "PDF policy content",
+            ),
         ]
         document_ids: list[str] = []
         for filename, content, media_type, _ in uploads:
@@ -241,3 +256,82 @@ def test_knowledge_acl_upload_index_and_audit_flow(tmp_path: Path) -> None:
         "document.upload",
         "document.index_requested",
     }
+
+
+def test_same_name_changed_hash_replaces_document_and_reindexes(tmp_path: Path) -> None:
+    app = build_knowledge_app(tmp_path)
+
+    with TestClient(app) as client:
+        admin_headers = headers(login(client, "admin", "test-password"))
+        knowledge_bases = client.get(
+            "/api/knowledge-bases", headers=admin_headers
+        ).json()["items"]
+        hr_id = next(item["id"] for item in knowledge_bases if item["code"] == "hr")
+
+        first_response = client.post(
+            f"/api/knowledge-bases/{hr_id}/documents",
+            headers=admin_headers,
+            files={"file": ("leave-policy.txt", b"Old leave policy", "text/plain")},
+        )
+        assert first_response.status_code == 201
+        document_id = first_response.json()["document_id"]
+
+        with Session(app.state.engine) as session:
+            first_document = session.get(KnowledgeDocument, document_id)
+            assert first_document is not None
+            first_file_path = Path(first_document.file_path)
+            assert first_document.source_version == 1
+
+        second_response = client.post(
+            f"/api/knowledge-bases/{hr_id}/documents",
+            headers=admin_headers,
+            files={"file": ("leave-policy.txt", b"New leave policy", "text/plain")},
+        )
+        assert second_response.status_code == 201
+        assert second_response.json()["document_id"] == document_id
+
+        duplicate_response = client.post(
+            f"/api/knowledge-bases/{hr_id}/documents",
+            headers=admin_headers,
+            files={"file": ("leave-policy.txt", b"New leave policy", "text/plain")},
+        )
+
+    assert duplicate_response.status_code == 409
+    assert duplicate_response.json()["error"]["code"] == "DOCUMENT_DUPLICATE"
+
+    with Session(app.state.engine) as session:
+        documents = session.exec(
+            select(KnowledgeDocument).where(
+                KnowledgeDocument.knowledge_base_id == hr_id,
+                KnowledgeDocument.title == "leave-policy",
+            )
+        ).all()
+        jobs = session.exec(
+            select(RagIndexJob).where(
+                RagIndexJob.knowledge_document_id == document_id
+            )
+        ).all()
+        audits = session.exec(
+            select(AuditLog).where(AuditLog.target_id == document_id)
+        ).all()
+
+    assert len(documents) == 1
+    updated_document = documents[0]
+    assert updated_document.id == document_id
+    assert updated_document.content_text == "New leave policy"
+    assert updated_document.source_version == 2
+    assert updated_document.index_status == "indexed"
+    assert Path(updated_document.file_path).exists()
+    assert Path(updated_document.file_path) != first_file_path
+    assert not first_file_path.exists()
+    assert [job.job_type for job in jobs] == ["insert", "reindex"]
+    assert all(job.status == "success" for job in jobs)
+    assert any(audit.action == "document.replace" for audit in audits)
+
+    indexed_documents = app.state.lightrag_adapter.indexed_documents
+    assert [document.id for document in indexed_documents] == [document_id, document_id]
+    assert [document.source_version for document in indexed_documents] == [1, 2]
+    assert [document.content_text for document in indexed_documents] == [
+        "Old leave policy",
+        "New leave policy",
+    ]

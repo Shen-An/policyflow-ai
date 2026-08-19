@@ -23,6 +23,13 @@ def _evidence(text: str = "差旅住宿标准为 500 元") -> Evidence:
     )
 
 
+def test_chat_turn_default_timeout_is_180_seconds() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.CHAT_TURN_TIMEOUT_SECONDS == 180.0
+    assert TurnBudget().max_total_seconds == 180.0
+
+
 def test_turn_budget_hard_limits_and_snapshot() -> None:
     budget = TurnBudget(max_llm_calls=1, max_retrieval_attempts=1, max_tool_calls=1)
     budget.reserve("llm")

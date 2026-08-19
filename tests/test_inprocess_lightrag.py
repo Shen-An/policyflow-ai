@@ -132,3 +132,66 @@ async def test_official_lightrag_indexes_and_queries_document(tmp_path: Path) ->
     assert evidence[0].retriever_type == "lightrag"
     assert evidence[0].snippet == "Annual leave requires manager approval."
     assert (tmp_path / "rag" / "hr" / "graph_chunk_entity_relation.graphml").exists()
+
+
+class RecordingRAG:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+
+    async def adelete_by_doc_id(self, document_id: str) -> None:
+        self.calls.append(("delete", document_id))
+
+    async def ainsert(self, content: str, *, ids: str, file_paths: str) -> None:
+        self.calls.append(("insert", ids))
+
+    async def aget_docs_by_ids(self, document_id: str) -> dict[str, dict[str, str]]:
+        return {document_id: {"status": "processed"}}
+
+
+@pytest.mark.asyncio
+async def test_insert_document_deletes_old_index_before_full_insert(tmp_path: Path) -> None:
+    settings = Settings(
+        DATABASE_URL=f"sqlite:///{(tmp_path / 'replace-order.db').as_posix()}",
+        LOG_DIR=tmp_path / "logs",
+        RAG_WORKSPACE_DIR=tmp_path / "rag",
+        BOOTSTRAP_ADMIN_PASSWORD="test-password",
+        _env_file=None,
+    )
+    engine = build_engine(settings.DATABASE_URL)
+    recording_rag = RecordingRAG()
+    adapter = InProcessLightRAGAdapter(
+        engine,
+        settings,
+        FakeGraphLLM(),
+        FakeEmbeddingService(),
+    )
+    knowledge_base = KnowledgeBase(
+        id="kb-replace",
+        name="Replace Test",
+        code="replace-test",
+        department_id="department-test",
+        rag_workspace=str(tmp_path / "rag" / "replace-test"),
+    )
+    document = KnowledgeDocument(
+        id="document-replace",
+        knowledge_base_id=knowledge_base.id,
+        title="Leave Policy",
+        file_path="leave-policy.txt",
+        file_type="txt",
+        content_text="The complete new leave policy.",
+        content_hash="new-hash",
+        source_version=2,
+        created_by="system",
+    )
+
+    async def workspace(_: KnowledgeBase) -> RecordingRAG:
+        return recording_rag
+
+    adapter._workspace = workspace  # type: ignore[method-assign]
+    await adapter.insert_document(knowledge_base, document)
+    engine.dispose()
+
+    assert recording_rag.calls == [
+        ("delete", document.id),
+        ("insert", document.id),
+    ]
