@@ -48,6 +48,9 @@ uvicorn backend.app.main:app --reload
 - 跑 Run 优先 **随机 50 / 100** 检索用例，不要无脑全选几百条（多策略会成倍变慢）。
 - 导入时索引应在**后台**排队，勿阻塞导入接口导致按钮一直转圈。
 - Hybrid 与 BM25 在 1-doc 整篇匹配任务上接近是常见现象；无区分度时不要写「Hybrid 显著更优」。
+- **负样本**（`relevance_judgement.negative=true`）**绝不进 Hit@K/MRR**；只算 `metrics["negative_gate"].gate_blocked`，按 `off_topic` / `near_miss` 拆开。`scope.label` 的 `N=` 只数正样本，负样本写 `neg=`。
+- 负样本是 gold-less 的，`cleanup_eval_dataset` 的 stale 判定必须放过它们（见 `evals/negatives.py`）。
+- 跑题门控阈值改动前先跑 `scripts/analyze_rerank_scores.py`（误拒率 + 拦截率两侧一起看）；分数门只对 `rerank_method="cross_encoder"` 生效，其余走词面覆盖率兜底。细节与标定流程见 `docs/08` §12。
 - 知识库 / 文档删除为**物理删除**（含关联与本地文件/workspace 清理意图）。
 
 ### 记忆 / 多轮 Chat（2026-07 起）

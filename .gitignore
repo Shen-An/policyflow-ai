@@ -23,6 +23,7 @@ env/
 .idea/
 .vscode/
 *.swp
+.obsidian/
 
 # Environment
 .env
@@ -40,9 +41,14 @@ rag_workspaces/
 
 # Test artifacts
 .pytest-tmp*/
+.pytest_tmp*/
 playwright-report/
 test-results/
 tmp_*/
+
+# Personal documents (keep out of the repo)
+docs/我的简历.pdf
+*.resume.pdf
 
 # Generated reports
 docs/rehearsal-latest.json
