@@ -440,6 +440,40 @@ uploads/{knowledge_base_code}/{document_id}/original.xxx
 rag_workspaces/{knowledge_base_code}/
 ```
 
+### 6.1 同名文档版本替换规则（2026-08-12）
+
+知识文档上传采用“同库同名即同一逻辑文档”的版本判定：
+
+```text
+同一个知识库 + title 完全相同
+  ├─ content_hash 相同：拒绝重复上传，不创建索引任务
+  └─ content_hash 不同：认定为后续版本
+       → 保留原 document_id
+       → source_version + 1，updated_at 更新为本次上传时间
+       → 替换数据库中的全文、hash、文件类型和本地源文件
+       → 创建 job_type=reindex 的后台任务
+       → LightRAG 按 document_id 删除全部旧索引
+       → 对新版本全文重新切块并写入索引
+```
+
+这里的“时间变化”以再次上传事件和 `updated_at` 为准；上传接口不信任客户端文件系统的修改时间。替换粒度是单篇文档，不会重建整个知识库。当前后台执行仍基于 FastAPI `BackgroundTasks`，属于 MVP 级异步任务，不等同于可恢复的生产级持久化队列。
+
+---
+
+### 6.2 Chat 单轮总耗时预算（2026-08-12）
+
+Chat 编排使用请求级 `TurnBudget` 限制整轮处理时间。默认硬预算为 **180 秒**，可通过环境变量 `CHAT_TURN_TIMEOUT_SECONDS` 覆盖。该预算覆盖同一轮中的 query rewrite、检索、工具调用、LightRAG 关键词抽取以及最终回答等全部步骤；耗尽后统一抛出 `TURN_BUDGET_EXHAUSTED`。
+
+`CHAT_TURN_TIMEOUT_SECONDS=180` 与 `LLM_TIMEOUT_SECONDS=120` 含义不同：前者是整轮 Chat 的总截止时间，后者是单次上游 LLM HTTP 请求的超时时间。当前仅提高总耗时预算，LLM、检索和工具调用次数上限仍分别保持为 8、2、6。
+
+---
+
+### 6.3 Hybrid LightRAG 超时降级（2026-08-12）
+
+Hybrid 检索并发执行 LightRAG 与本地 BM25。为避免 LightRAG 的关键词提取 LLM 消耗完整轮预算，LightRAG 分支有独立的 `LIGHTRAG_HYBRID_TIMEOUT_SECONDS` 硬截止时间，默认 **45 秒**；它不同于单次上游 HTTP 的 `LLM_TIMEOUT_SECONDS`，也不同于整轮 `CHAT_TURN_TIMEOUT_SECONDS`。
+
+只有明确的超时链路（`TimeoutError`、HTTP timeout，或状态为 504 的超时 `ApplicationError`）才触发降级：取消 LightRAG 任务，不再重试该分支，等待并使用已经并发的本地 BM25 结果。返回的 Evidence 保持 Hybrid retriever 类型，并带有 `fallback_from=lightrag`、`fallback_reason=timeout`、`source_retrievers=[bm25]` 元数据，便于 trace 审计。BM25 有证据时照常进入回答；BM25 为空时返回空 Evidence，由既有 quality gate / hard-refuse 产出 `insufficient_evidence`。认证、配置和其他非超时错误仍正常抛出，不会被静默掩盖。
+
 ---
 
 ## 7. 安全边界

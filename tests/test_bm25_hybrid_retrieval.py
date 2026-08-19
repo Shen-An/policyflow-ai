@@ -1,7 +1,9 @@
 """Unit tests for document-level BM25 and RRF hybrid retrieval."""
 
+import asyncio
 from pathlib import Path
 
+import httpx
 import pytest
 from sqlmodel import Session, select
 
@@ -45,6 +47,28 @@ class FixedRankRetriever:
 
     async def retrieve(self, request: RetrievalRequest, limit: int) -> list[Evidence]:
         return self.items[:limit]
+
+
+class BlockingRetriever(FixedRankRetriever):
+    def __init__(self, name: str, items: list[Evidence]) -> None:
+        super().__init__(name, items)
+        self.cancelled = asyncio.Event()
+
+    async def retrieve(self, request: RetrievalRequest, limit: int) -> list[Evidence]:
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.cancelled.set()
+            raise
+
+
+class FailingRetriever(FixedRankRetriever):
+    def __init__(self, error: Exception) -> None:
+        super().__init__("lightrag", [])
+        self.error = error
+
+    async def retrieve(self, request: RetrievalRequest, limit: int) -> list[Evidence]:
+        raise self.error
 
 
 @pytest.mark.asyncio
@@ -257,6 +281,106 @@ async def test_hybrid_rrf_fusion_and_availability_gate() -> None:
             limit=5,
         )
     assert error.value.code == "RETRIEVAL_STRATEGY_UNAVAILABLE"
+
+
+def _bm25_evidence() -> Evidence:
+    return Evidence(
+        knowledge_base_id="kb",
+        knowledge_base_name="KB",
+        document_id="doc-bm25",
+        snippet="BM25 evidence for the policy",
+        score=2.0,
+        retriever_type="bm25",
+        rank=3,
+    )
+
+
+@pytest.mark.asyncio
+async def test_hybrid_lightrag_timeout_falls_back_to_bm25_and_cancels_task() -> None:
+    lightrag = BlockingRetriever("lightrag", [])
+    hybrid = HybridRetriever(
+        lightrag,
+        FixedRankRetriever("bm25", [_bm25_evidence()]),
+        lightrag_timeout_seconds=0.001,
+    )
+
+    result = await hybrid.retrieve(
+        RetrievalRequest(
+            query="policy",
+            knowledge_base_ids=["kb"],
+            strategy=RetrievalStrategy.HYBRID_LIGHTRAG_BM25,
+        ),
+        limit=5,
+    )
+
+    assert lightrag.cancelled.is_set()
+    assert len(result) == 1
+    assert result[0].rank == 1
+    assert result[0].retriever_type == "hybrid_lightrag_bm25"
+    assert result[0].metadata["fallback_from"] == "lightrag"
+    assert result[0].metadata["fallback_reason"] == "timeout"
+    assert result[0].metadata["source_retrievers"] == ["bm25"]
+
+
+@pytest.mark.asyncio
+async def test_hybrid_lightrag_timeout_with_no_bm25_evidence_returns_empty_list() -> None:
+    hybrid = HybridRetriever(
+        BlockingRetriever("lightrag", []),
+        FixedRankRetriever("bm25", []),
+        lightrag_timeout_seconds=0.001,
+    )
+
+    result = await hybrid.retrieve(
+        RetrievalRequest(
+            query="policy",
+            knowledge_base_ids=["kb"],
+            strategy=RetrievalStrategy.HYBRID_LIGHTRAG_BM25,
+        ),
+        limit=5,
+    )
+
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_hybrid_non_timeout_lightrag_failure_is_not_silently_downgraded() -> None:
+    hybrid = HybridRetriever(
+        FailingRetriever(ApplicationError("LIGHTRAG_ERROR", "invalid API key", 502)),
+        FixedRankRetriever("bm25", [_bm25_evidence()]),
+        lightrag_timeout_seconds=0.1,
+    )
+
+    with pytest.raises(ApplicationError, match="invalid API key"):
+        await hybrid.retrieve(
+            RetrievalRequest(
+                query="policy",
+                knowledge_base_ids=["kb"],
+                strategy=RetrievalStrategy.HYBRID_LIGHTRAG_BM25,
+            ),
+            limit=5,
+        )
+
+
+@pytest.mark.asyncio
+async def test_hybrid_wrapped_http_timeout_falls_back_to_bm25() -> None:
+    timeout_error = ApplicationError("LIGHTRAG_ERROR", "query failed", 502)
+    timeout_error.__cause__ = httpx.ReadTimeout("upstream timed out")
+    hybrid = HybridRetriever(
+        FailingRetriever(timeout_error),
+        FixedRankRetriever("bm25", [_bm25_evidence()]),
+        lightrag_timeout_seconds=0.1,
+    )
+
+    result = await hybrid.retrieve(
+        RetrievalRequest(
+            query="policy",
+            knowledge_base_ids=["kb"],
+            strategy=RetrievalStrategy.HYBRID_LIGHTRAG_BM25,
+        ),
+        limit=5,
+    )
+
+    assert result[0].metadata["fallback_reason"] == "timeout"
 
 
 @pytest.mark.asyncio

@@ -55,6 +55,10 @@ async def upload_document(
 
     filename = upload.filename or ""
     file_type = _file_type(filename)
+    document_title = (title or Path(filename).stem).strip()
+    if not document_title or len(document_title) > 255:
+        raise ApplicationError("VALIDATION_ERROR", "Document title is invalid", 422)
+
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     content = await upload.read(max_bytes + 1)
     if len(content) > max_bytes:
@@ -66,6 +70,96 @@ async def upload_document(
         )
     content_text = load_document_text(content, file_type)
     content_hash = hashlib.sha256(content).hexdigest()
+
+    # Within one knowledge base, an exact title match identifies the same
+    # logical document. A changed hash means a new source version: retain the
+    # document id and enqueue a full document reindex. The LightRAG adapter
+    # deletes all old index data for this document id before inserting it.
+    existing_document = session.exec(
+        select(KnowledgeDocument)
+        .where(
+            KnowledgeDocument.knowledge_base_id == knowledge_base.id,
+            KnowledgeDocument.title == document_title,
+            KnowledgeDocument.index_status != "deleted",
+        )
+        .order_by(col(KnowledgeDocument.updated_at).desc())
+    ).first()
+    if existing_document is not None:
+        if existing_document.content_hash == content_hash:
+            raise ConflictError(
+                "DOCUMENT_DUPLICATE",
+                "The same document version already exists in this knowledge base",
+                {"document_id": existing_document.id},
+            )
+
+        previous_file_path = Path(existing_document.file_path)
+        previous_content_hash = existing_document.content_hash
+        previous_source_version = existing_document.source_version
+        next_source_version = previous_source_version + 1
+        storage_directory = settings.UPLOAD_DIR / knowledge_base.code
+        storage_directory.mkdir(parents=True, exist_ok=True)
+        file_path = storage_directory / (
+            f"{existing_document.id}.v{next_source_version}.{file_type}"
+        )
+        try:
+            file_path.write_bytes(content)
+        except OSError as exc:
+            raise ApplicationError(
+                "DOCUMENT_STORAGE_FAILED", "Document storage failed", 500
+            ) from exc
+
+        existing_document.file_path = str(file_path)
+        existing_document.file_type = file_type
+        existing_document.content_text = content_text
+        existing_document.content_hash = content_hash
+        existing_document.source_version = next_source_version
+        existing_document.index_status = "pending"
+        existing_document.index_error = None
+        existing_document.updated_at = utc_now()
+        job = RagIndexJob(
+            knowledge_document_id=existing_document.id,
+            job_type="reindex",
+        )
+        session.add(existing_document)
+        session.add(job)
+        record_audit(
+            session,
+            action="document.replace",
+            target_type="knowledge_document",
+            actor_id=user.id,
+            target_id=existing_document.id,
+            detail={
+                "knowledge_base_id": knowledge_base.id,
+                "title": document_title,
+                "previous_content_hash": previous_content_hash,
+                "content_hash": content_hash,
+                "previous_source_version": previous_source_version,
+                "source_version": next_source_version,
+                "index_mode": "delete_then_full_reindex",
+            },
+            ip_address=ip_address,
+        )
+        try:
+            session.commit()
+        except Exception:
+            session.rollback()
+            file_path.unlink(missing_ok=True)
+            raise
+        if previous_file_path != file_path:
+            try:
+                previous_file_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        session.refresh(existing_document)
+        session.refresh(job)
+        return DocumentUploadResponse(
+            document_id=existing_document.id,
+            title=existing_document.title,
+            file_type=existing_document.file_type,
+            index_status=existing_document.index_status,
+            index_job_id=job.id,
+        )
+
     duplicate = session.exec(
         select(KnowledgeDocument).where(
             KnowledgeDocument.knowledge_base_id == knowledge_base.id,
@@ -79,10 +173,6 @@ async def upload_document(
             "The same document content already exists in this knowledge base",
             {"document_id": duplicate.id},
         )
-
-    document_title = (title or Path(filename).stem).strip()
-    if not document_title or len(document_title) > 255:
-        raise ApplicationError("VALIDATION_ERROR", "Document title is invalid", 422)
 
     document_id = new_id()
     storage_directory = settings.UPLOAD_DIR / knowledge_base.code
