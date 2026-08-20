@@ -15,8 +15,13 @@ from backend.app.db.models import (
     RetrievalEvalItem,
     utc_now,
 )
+from backend.app.evals.negatives import negative_kind
 from backend.app.evals.ragas_runner import RagasEvaluationInput, RagasRunner
-from backend.app.evals.retrieval_metrics import calculate_retrieval_metrics
+from backend.app.evals.retrieval_metrics import (
+    calculate_negative_gate_metrics,
+    calculate_retrieval_metrics,
+)
+from backend.app.rag.quality_gate import assess_retrieval_quality
 from backend.app.schemas.eval import EvalRunCreate
 from backend.app.schemas.retrieval import RetrievalRequest
 from backend.app.services.rag_service import RAGService
@@ -37,6 +42,25 @@ def _average_numeric_metrics(metric_sets: list[dict[str, Any]]) -> dict[str, flo
         )
         for name in names
     }
+
+
+def _negative_aggregate(metric_sets: list[dict[str, Any]]) -> dict[str, Any]:
+    """Gate outcome on should-be-refused queries, kept out of Hit@K averages."""
+    aggregate: dict[str, Any] = {"count": len(metric_sets)}
+    aggregate.update(_average_numeric_metrics(metric_sets))
+    by_kind: dict[str, list[dict[str, Any]]] = {}
+    for metrics in metric_sets:
+        by_kind.setdefault(str(metrics.get("negative_kind") or "unknown"), []).append(metrics)
+    aggregate["by_kind"] = {
+        kind: {"count": len(items), **_average_numeric_metrics(items)}
+        for kind, items in sorted(by_kind.items())
+    }
+    gate_modes: dict[str, int] = {}
+    for metrics in metric_sets:
+        mode = str(metrics.get("gate_mode") or "unknown")
+        gate_modes[mode] = gate_modes.get(mode, 0) + 1
+    aggregate["gate_modes"] = gate_modes
+    return aggregate
 
 
 class EvalRunner:
@@ -70,12 +94,34 @@ class EvalRunner:
                 lightrag_query_mode=request.retrieval_config.query_mode,
             )
         )
-        metrics = calculate_retrieval_metrics(
+        # The gate is evaluated on every item: on negatives it is the measured
+        # outcome, on positives it is the false-block rate of the same threshold.
+        gate = assess_retrieval_quality(
+            item.query,
             retrieval.evidence,
-            item.relevant_document_ids,
-            item.relevant_chunk_ids,
-            request.retrieval_config.top_k_values,
+            attempt=2,
+            settings=getattr(self.pipeline, "settings", None),
         )
+        item_negative_kind = negative_kind(item.relevance_judgement)
+        if item_negative_kind is not None:
+            metrics = calculate_negative_gate_metrics(
+                retrieval.evidence, gate, negative_kind=item_negative_kind
+            )
+        else:
+            metrics = {
+                **calculate_retrieval_metrics(
+                    retrieval.evidence,
+                    item.relevant_document_ids,
+                    item.relevant_chunk_ids,
+                    request.retrieval_config.top_k_values,
+                ),
+                "gate_mode": str(gate.get("gate") or "unknown"),
+                "gate_false_block": 1.0 if gate.get("off_topic") else 0.0,
+                "lexical_false_block": 0.0 if gate.get("lexical_supported") else 1.0,
+            }
+            top_score = gate.get("top_score")
+            if isinstance(top_score, int | float):
+                metrics["gate_top_score"] = float(top_score)
         metrics = {
             **metrics,
             "strategy": str(
@@ -85,7 +131,10 @@ class EvalRunner:
             ),
         }
         status = str(metrics["status"])
-        if status == "completed":
+        if item_negative_kind is not None:
+            score = float(metrics["gate_blocked"])
+            passed = bool(metrics["gate_blocked"])
+        elif status == "completed":
             max_k = max(request.retrieval_config.top_k_values)
             score = mean(
                 [
@@ -268,6 +317,7 @@ class EvalRunner:
 
         results: list[EvalResult] = []
         retrieval_metric_sets: list[dict[str, Any]] = []
+        negative_metric_sets: list[dict[str, Any]] = []
         answer_metric_sets: list[dict[str, Any]] = []
         failed_cases = 0
         skipped_cases = 0
@@ -300,9 +350,13 @@ class EvalRunner:
                         )
                     if result.retrieval_metrics:
                         if result.type_statuses.get("retrieval") == "completed":
-                            per_strategy_sets[strategy_key].append(result.retrieval_metrics)
-                            if strategy == primary:
-                                retrieval_metric_sets.append(result.retrieval_metrics)
+                            # Negatives have no gold, so they never enter Hit@K/MRR.
+                            if result.retrieval_metrics.get("kind") == "negative":
+                                negative_metric_sets.append(result.retrieval_metrics)
+                            else:
+                                per_strategy_sets[strategy_key].append(result.retrieval_metrics)
+                                if strategy == primary:
+                                    retrieval_metric_sets.append(result.retrieval_metrics)
                         elif result.type_statuses.get("retrieval") == "skipped":
                             skipped_cases += 1
                     results.append(result)
@@ -346,6 +400,8 @@ class EvalRunner:
         }
         aggregate.update(_average_numeric_metrics(retrieval_metric_sets))
         aggregate.update(_average_numeric_metrics(answer_metric_sets))
+        if negative_metric_sets:
+            aggregate["negative_gate"] = _negative_aggregate(negative_metric_sets)
         # Rank histogram explains collapsed Hit@1==Hit@5==Hit@10 (all rank-1 or miss).
         if retrieval_metric_sets:
             rank_hist: dict[str, int] = {}
@@ -364,13 +420,21 @@ class EvalRunner:
                 comparison: dict[str, Any] = {}
                 # Rebuild per-strategy aggregates from results for honesty even if loop vars change.
                 buckets: dict[str, list[dict[str, Any]]] = {}
+                negative_buckets: dict[str, list[dict[str, Any]]] = {}
                 for result in results:
                     metrics = result.retrieval_metrics or {}
                     strategy_name = str(metrics.get("strategy") or "unknown")
                     if result.type_statuses.get("retrieval") == "completed":
-                        buckets.setdefault(strategy_name, []).append(metrics)
+                        if metrics.get("kind") == "negative":
+                            negative_buckets.setdefault(strategy_name, []).append(metrics)
+                        else:
+                            buckets.setdefault(strategy_name, []).append(metrics)
                 for strategy_name, metric_sets in buckets.items():
                     comparison[strategy_name] = _average_numeric_metrics(metric_sets)
+                for strategy_name, metric_sets in negative_buckets.items():
+                    comparison.setdefault(strategy_name, {})["negative_gate"] = (
+                        _negative_aggregate(metric_sets)
+                    )
                 aggregate["strategy_comparison"] = comparison
 
         if completed_cases:

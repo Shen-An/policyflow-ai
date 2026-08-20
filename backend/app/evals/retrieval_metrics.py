@@ -5,6 +5,39 @@ from typing import Any
 from backend.app.schemas.retrieval import Evidence
 
 
+def calculate_negative_gate_metrics(
+    retrieved: list[Evidence],
+    gate: dict[str, Any],
+    *,
+    negative_kind: str = "unknown",
+) -> dict[str, Any]:
+    """Score a should-be-refused query: did the off-topic gate block it?
+
+    Negatives have no gold document, so Hit@K/MRR are meaningless — the measured
+    outcome is `gate_blocked`. `lexical_blocked` records what the old word-overlap
+    gate alone would have done on the same passages, so a run shows both sides.
+    """
+    blocked = bool(gate.get("off_topic")) or not retrieved
+    metrics: dict[str, Any] = {
+        "status": "completed",
+        "kind": "negative",
+        "negative_kind": negative_kind,
+        "gate_mode": str(gate.get("gate") or "unknown"),
+        "gate_blocked": 1.0 if blocked else 0.0,
+        "lexical_blocked": 0.0 if gate.get("lexical_supported") else 1.0,
+        "retrieved_count": len(retrieved),
+        "overlap_ratio": float(gate.get("overlap_ratio") or 0.0),
+        "reason_codes": list(gate.get("reason_codes") or []),
+    }
+    top_score = gate.get("top_score")
+    if isinstance(top_score, int | float):
+        metrics["top_score"] = float(top_score)
+    threshold = gate.get("score_threshold")
+    if isinstance(threshold, int | float):
+        metrics["score_threshold"] = float(threshold)
+    return metrics
+
+
 def calculate_retrieval_metrics(
     retrieved: list[Evidence],
     relevant_document_ids: list[str],
