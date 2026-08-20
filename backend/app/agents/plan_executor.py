@@ -15,9 +15,9 @@ from typing import Any, Literal
 from sqlmodel import Session
 
 from backend.app.agents.base import TurnError, TurnState
-from backend.app.agents.grounding import question_evidence_support
 from backend.app.agents.retrieval_agent import RetrievalAgent
 from backend.app.agents.skill_agent import SkillAgent
+from backend.app.core.config import Settings
 from backend.app.db.models import KnowledgeBase, User
 from backend.app.rag.quality_gate import assess_retrieval_quality
 from backend.app.schemas.chat import PlanStep, RouterResult
@@ -229,10 +229,12 @@ class PlanExecutor:
         skill_agent: SkillAgent,
         *,
         parallel_enabled: bool = True,
+        settings: Settings | None = None,
     ) -> None:
         self.retrieval_agent = retrieval_agent
         self.skill_agent = skill_agent
         self.parallel_enabled = parallel_enabled
+        self.settings = settings
 
     async def _emit_event(
         self,
@@ -374,26 +376,30 @@ class PlanExecutor:
                 side["rerank_applied"] = result.rerank_applied
                 side["trace"] = list(result.trace)
                 evidence = list(result.evidence)
-                support = question_evidence_support(question, evidence)
                 quality = assess_retrieval_quality(
-                    question, evidence, rewritten_query=query if query != question else None, attempt=1
+                    question,
+                    evidence,
+                    rewritten_query=query if query != question else None,
+                    attempt=1,
+                    settings=self.settings,
                 )
                 if quality["decision"] == "retry" and query != question:
                     retry_result = await self.retrieval_agent.run(
                         req.model_copy(update={"query": question[:4000]})
                     )
                     retry_quality = assess_retrieval_quality(
-                        question, retry_result.evidence, attempt=2
+                        question, retry_result.evidence, attempt=2, settings=self.settings
                     )
                     result = retry_result.model_copy(
                         update={"warnings": list(retry_result.warnings) + ["RETRIEVAL_RETRIED"]}
                     )
                     evidence = list(result.evidence)
-                    support = question_evidence_support(question, evidence)
                     quality = retry_quality
                 elif quality["decision"] == "retry":
-                    quality = assess_retrieval_quality(question, evidence, attempt=2)
-                if evidence and not support["supported"]:
+                    quality = assess_retrieval_quality(
+                        question, evidence, attempt=2, settings=self.settings
+                    )
+                if evidence and quality["off_topic"]:
                     side["warnings"].append("OFF_TOPIC_RETRIEVAL_DROPPED")
                     evidence = []
                 side["evidence"] = evidence

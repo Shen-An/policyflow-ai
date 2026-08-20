@@ -47,11 +47,9 @@ class Settings(BaseSettings):
     NVIDIA_RERANKER_API_KEY_ENV: str = "NVIDIA_API_KEY"
     NVIDIA_RERANKER_BASE_URL: str = "https://ai.api.nvidia.com"
     NVIDIA_RERANKER_ENDPOINT_TEMPLATE: str = "/v1/retrieval/{model}/reranking"
-    NVIDIA_RERANKER_MODELS: str = (
-        "nvidia/llama-nemotron-rerank-vl-1b-v2,"
-        "nvidia/llama-nemotron-rerank-1b-v2,"
-        "nvidia/rerank-qa-mistral-4b"
-    )
+    # Keep only models that are still in service upstream. NVIDIA retired
+    # llama-nemotron-rerank-1b-v2 and rerank-qa-mistral-4b on 2026-08-25.
+    NVIDIA_RERANKER_MODELS: str = "nvidia/llama-nemotron-rerank-vl-1b-v2"
     NVIDIA_RERANKER_TIMEOUT_SECONDS: float = 30.0
     NVIDIA_RERANKER_TRUNCATE: str = "END"
     # Cap concurrent chat/completions against strict providers (e.g. SenseNova 429).
@@ -59,7 +57,7 @@ class Settings(BaseSettings):
     LLM_MAX_CONCURRENCY: int = 1
     LLM_MAX_ATTEMPTS: int = 5
     LLM_RETRY_BASE_SECONDS: float = 1.5
-    LLM_RETRY_MAX_SECONDS: float = 20.0
+    LLM_RETRY_MAX_SECONDS: float = 30.0
     # Cap how many knowledge-base workspaces LightRAG may query in parallel.
     LIGHTRAG_RETRIEVE_MAX_CONCURRENCY: int = 1
     # Memory system (STM/LTM/entity)
@@ -77,12 +75,21 @@ class Settings(BaseSettings):
     MEMORY_STM_UNLOAD_TTL_DAYS: int = 14
     # Chat grounding: refuse when retrieval returns no evidence (no soft LLM fallback).
     CHAT_HARD_REFUSE_WITHOUT_EVIDENCE: bool = True
+    # Off-topic gate. Preferred signal is the cross-encoder relevance score, which is
+    # semantic; the lexical bigram-coverage ratio is only the fallback for retrieval
+    # paths that produced no real rerank score (rerank off, or local lexical fusion).
+    # NVIDIA rerank scores are logits (observed range ≈ -25…+32), so the threshold is
+    # not a 0-1 similarity. Calibrate with scripts/analyze_rerank_scores.py against a
+    # run that includes the enterprise negative queries.
+    RETRIEVAL_GATE_CROSS_ENCODER_ENABLED: bool = True
+    RETRIEVAL_GATE_MIN_CROSS_ENCODER_SCORE: float = -8.0
+    RETRIEVAL_GATE_MIN_OVERLAP_RATIO: float = 0.08
     # Answer agent tool-use loop bounds.
     CHAT_TOOL_MAX_ROUNDS: int = 3
     CHAT_TURN_TIMEOUT_SECONDS: float = 180.0
-    CHAT_TURN_MAX_LLM_CALLS: int = 8
+    CHAT_TURN_MAX_LLM_CALLS: int = 16
     CHAT_TURN_MAX_RETRIEVAL_ATTEMPTS: int = 2
-    CHAT_TURN_MAX_TOOL_CALLS: int = 6
+    CHAT_TURN_MAX_TOOL_CALLS: int = 8
     CHAT_TOOL_DEFAULT_TIMEOUT_SECONDS: float = 20.0
     CHAT_ANSWER_REVISE_MAX_ROUNDS: int = 1
     CHAT_TOOLS_ENABLED: bool = True

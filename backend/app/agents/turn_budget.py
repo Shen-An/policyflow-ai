@@ -14,9 +14,9 @@ current_turn_budget: ContextVar[TurnBudget | None] = ContextVar("current_turn_bu
 
 @dataclass
 class TurnBudget:
-    max_llm_calls: int = 8
+    max_llm_calls: int = 16
     max_retrieval_attempts: int = 2
-    max_tool_calls: int = 6
+    max_tool_calls: int = 8
     max_total_seconds: float = 180.0
     started_at: float = field(default_factory=monotonic)
     llm_calls: int = 0
