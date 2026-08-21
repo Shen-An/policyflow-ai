@@ -144,6 +144,7 @@ class EvalRunScopeSummary(BaseModel):
     sources: list[str] = Field(default_factory=list)
     item_count: int = 0
     case_count: int = 0
+    negative_item_count: int = 0
     stale_gold_count: int = 0
     label: str | None = None
 
@@ -177,9 +178,12 @@ class EnterpriseEvalSeedResult(BaseModel):
     documents_reused: int
     retrieval_items_created: int
     eval_cases_created: int
+    negative_items_created: int = 0
+    negative_cases_created: int = 0
     index_queued: int
     corpus_document_count: int
     case_count: int
+    negative_count: int = 0
     warning: str | None = None
     pending_index_document_ids: list[str] = Field(default_factory=list, exclude=True)
 

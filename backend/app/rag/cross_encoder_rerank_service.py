@@ -21,11 +21,9 @@ from backend.app.schemas.retrieval import Evidence
 
 logger = get_logger(__name__)
 
-DEFAULT_NVIDIA_RERANKER_MODELS = (
-    "nvidia/llama-nemotron-rerank-vl-1b-v2",
-    "nvidia/llama-nemotron-rerank-1b-v2",
-    "nvidia/rerank-qa-mistral-4b",
-)
+# Only models still in service upstream. NVIDIA retired
+# llama-nemotron-rerank-1b-v2 and rerank-qa-mistral-4b on 2026-08-25.
+DEFAULT_NVIDIA_RERANKER_MODELS = ("nvidia/llama-nemotron-rerank-vl-1b-v2",)
 
 
 class NvidiaCrossEncoderRerankService:
