@@ -326,7 +326,7 @@ Phase 5 — 验收、优化与扩展  （Day 18-20）
 3. mock MCP → 真实飞书/邮箱/Jira/Confluence
 4. LightRAG 存储 → PostgreSQL / Qdrant / Neo4j
 5. BM25 轻量实现 → SQLite FTS5 / Elasticsearch / OpenSearch
-6. 增加 RerankService（bge-reranker / cross-encoder）
+6. RerankService 深化（已落地：本地 lexical fusion + 可选真实 NVIDIA cross-encoder；后续 bge-reranker / LLM rerank）
 7. 企业 SSO
 8. 前端管理后台
 9. RAG 自动评估报告

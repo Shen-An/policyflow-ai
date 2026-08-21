@@ -1,7 +1,7 @@
 # 09. 面试演示脚本（PolicyFlow AI）
 
-版本：v1.0  
-日期：2026-07-14  
+版本：v1.1  
+日期：2026-08-17  
 对应策略：[`08-de-toy-multiagent-skill-eval-strategy.md`](08-de-toy-multiagent-skill-eval-strategy.md)
 
 > 目标：10–15 分钟讲清「不是玩具壳」，并现场点出可验证证据。
@@ -47,18 +47,17 @@ Skill / Tool / MCP 分层诚实：Tool 原子可审计，Skill 业务规程，MC
 
 ### D. Eval 页（4 min）
 
-1. 评估中心 → **CRUD 数据集导入**  
-   - task=`questanswer_1doc`，采样 30–50  
-   - **目标知识库选「测试库」(code=`eval_test`)**，不要导入 HR/财务等业务库  
-   - 开启索引  
+1. 选评测库 + 备数据（业务库永不灌金标）：  
+   - **CRUD 数据集导入** → 目标库「测试库」(`eval_test`)，task=`questanswer_1doc`，随机 30–50  
+   - 或 **一键 seed 企业政策测试集** → 「企业政策测试库」(`enterprise_eval_test`)，12 篇制度 + 200 用例（sanity，非严格 benchmark）  
+   - 索引后台排队，不卡页面  
 2. 启动 Run：  
-   - 主策略 Hybrid  
-   - 对比勾选 BM25 / LightRAG  
-   - 可选 **本地重排**（lexical fusion，非 cross-encoder）  
+   - 主策略 Hybrid，对比勾 BM25 / LightRAG  
+   - **Rerank 页面选择**：默认 `local_lexical_fusion`（本地词法）/ 可选 `cross_encoder`（真 NVIDIA，需先在模型设置页配 Key；不可用直接报错、不静默降级）  
    - 可选 RAGAS  
 3. 结果看板：  
-   - MRR / Hit@K / **HitAll@K**  
-   - strategy_comparison 表  
+   - MRR / Hit@K / **HitAll@K**、strategy_comparison 表  
+   - run summary 记 `reranker_method` / `reranker_backend`，可 A/B 两种 rerank  
 4. **导出 JSON/CSV**（简历附件）
 
 ---
@@ -74,7 +73,10 @@ Skill / Tool / MCP 分层诚实：Tool 原子可审计，Skill 业务规程，MC
 | confidence 可信吗？ | 不是长度公式；由证据/引用/verifier 警告估计，见 `grounding.py` |
 | LightRAG 分数？ | in-process 可能是 rank decay，`metadata.score_is_synthetic=true` |
 | RAGAS？ | 可选；有依赖真跑，否则 proxy 并写 `metrics_source` |
-| Rerank 是模型吗？ | 默认否：`local_lexical_fusion`；metadata 可核验，不装 cross-encoder |
+| Rerank 是模型吗？ | 默认否：`local_lexical_fusion`（本地词法）；另有 opt-in 真 NVIDIA cross-encoder（`cross_encoder`），失败直接 503 不静默回退，metadata 可核验 |
+| 模型能换供应商吗？ | 模型设置页 Chat / Embedding / NVIDIA Reranker 三类独立配置，API Key 加密、可测试连接 |
+| 调用会不会失控 / 越跑越慢？ | 请求级 Turn Budget（llm=16/检索=2/tool=8/180s）+ 检索质量门（跑题回退原问题重检一次）+ PASS/REVISE/REFUSE 发布门；基础版兜底，非 Saga/熔断 |
+| 外部 Tool 超时能重发吗？ | 记 `unknown` 不自动重试，幂等键拒盲重发；DB rollback 撤不回已发出的邮件/飞书 |
 
 ---
 
@@ -104,24 +106,26 @@ pytest tests/test_phase2_rag_chat.py tests/test_phase3_skill_draft_mcp_memory.py
 
 ## 5. 诚实边界（主动说，加分）
 
-1. Rerank 默认是 **本地 lexical fusion**（`rerank_method=local_lexical_fusion`），不是 BGE/cross-encoder  
+1. Rerank **默认本地 lexical fusion**（`rerank_method=local_lexical_fusion`，词法非模型）；另有**可选真 NVIDIA cross-encoder**（opt-in、失败直接 503 不静默回退）——不是自研 BGE、不是默认在线  
 2. SQLite + JSON embedding 适合 demo，不适合超大规模向量检索  
 3. claim–evidence 当前是词重叠规则门，不是 LLM-as-judge 全文事实验证  
 4. 8 万全文可扩展，但面试默认 Demo-S 采样  
 5. in-process LightRAG 分数可能是 rank decay（`score_is_synthetic=true`）
 6. 多层记忆：**非权威**；salience/时间衰减只影响回忆优先级，不能当制度依据；冷热是 prompt 装配，不是独立冷存；preference 禁止政策事实
+7. 兜底门（Turn Budget / 检索质量门 / PASS·REVISE·REFUSE / Tool 幂等 + `unknown`）是**单体内基础版**，无补偿 Tool / Saga / 熔断
+8. 企业政策测试集是**自建 12 篇 + 全合成 + 无干扰**的领域 sanity，量化主张仍以 CRUD 为准
 
 ---
 
 ## 6. 面试前自检（你自己先跑一遍）
 
 > 最近一次自动彩排：`scripts/rehearse_interview_checklist.py`  
-> 结果快照：`docs/rehearsal-latest.json`（2026-07-14，**22/22 PASS**）
+> 结果快照：`docs/rehearsal-latest.json`（2026-07-14，**22/22 PASS**）——该快照早于 2026-08 的 rerank / 企业评测集 / 兜底门等新面，覆盖旧核心路径；讲新特性前建议重跑
 
 ### 环境
 
 - [x] `conda activate policyflow` 且服务能启动  
-- [x] 模型设置：Chat + Embedding 均可用  
+- [x] 模型设置：Chat / Embedding / NVIDIA Reranker 三类可配（Reranker 为 opt-in）  
 - [x] 至少一个知识库有已索引制度文档  
 - [x] CRUD 路径可访问：`D:\Coding\Code\Github\CRUD_RAG\data\crud_split\split_merged.json`  
 
@@ -132,12 +136,12 @@ pytest tests/test_phase2_rag_chat.py tests/test_phase3_skill_draft_mcp_memory.py
 - [x] diagnostics：无 `skill.suggest` 假 trace；可见 `ToolAllowlist` / 真实 tool  
 - [x] MCP：stdio demo health 出 `echo`/`time_now`；mock 响应含 `status=mock`  
 - [x] Eval：导入 Demo-S（30–50）→ Hybrid vs BM25 → 看板有 MRR/Hit@K  
-- [x] 可选勾本地 rerank → trace 有 `rerank_method=local_lexical_fusion`  
+- [x] 可选勾 rerank → run summary 有 `reranker_method`（`local_lexical_fusion` 或 `cross_encoder`）  
 - [x] 导出 JSON/CSV 可下载  
 
 ### 开口前再确认
 
-- [x] 不说「多智能体平台 / 真 cross-encoder / 已接飞书生产」  
+- [x] 不说「多智能体平台 / 默认在线或自研 cross-encoder / 已接飞书生产」（opt-in NVIDIA cross-encoder 可讲，须说清默认关、失败不静默回退）  
 - [x] 能指到代码：`pipeline.py`、`chat_tools.py`、`retrieval_metrics.py`、`mcp/client.py`  
 
 ### 复跑命令
@@ -160,6 +164,6 @@ python -u scripts/rehearse_interview_checklist.py
 - [ ] MCP stdio demo health + call  
 - [ ] CRUD import → Hit@K/MRR/HitAll  
 - [ ] 多策略对比表  
-- [ ] 本地 rerank metadata  
+- [ ] rerank metadata（`reranker_method`：本地 lexical / 真 NVIDIA）  
 - [ ] 导出 JSON/CSV  
 - [ ] 无证据 hard refuse  

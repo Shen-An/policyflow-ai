@@ -537,6 +537,8 @@ CRUD import ── id 对齐 ── Hit@K 看板
 | 渐进式规划 L2.5 ToT 选路 | **已完成** | 2026-07-20 | `difficulty/reasoning_mode` 三档；`plan_branch` 候选；双请求 HITL；eval 自动 recommended；前端选路 UI |
 | 正式 TurnState + 错误集中写入 | **已完成** | 2026-07-20 | `TurnState`/`TurnError` 单轮黑板；L1/L2 失败写入 `errors[]`；`PipelineResult.errors` + diagnostics；非 peer 消息、非分布式状态机 |
 | LLM Reflection 闭环 | **已完成（基础）** | 2026-07-20 | `CritiqueAgent`+`ImproveAgent` 双 prompt；`ReflectionLoop` 硬顶 2 轮；6 维 + PASS 出口；仅高风险触发；Eval 默认关；hard refuse 永不反思；非 peer 群聊 |
+| 负样本评测集 | **已完成** | 2026-08-28 | 企业套件 40 条（20 off_topic + 20 near_miss）；标记在 `relevance_judgement.negative`；不进 Hit@K/MRR，单独算 `negative_gate` |
+| 跑题门控分数化 | **已完成（诚实）** | 2026-08-28 | cross-encoder 分数优先、词面覆盖率兜底；阈值 `-8.0` 为保守默认，见 §12 标定流程 |
 
 ---
 
@@ -552,6 +554,7 @@ CRUD import ── id 对齐 ── Hit@K 看板
 | v1.5 | 2026-07-20 | L2.5 ToT 选路：difficulty 三档、候选计划、双请求 HITL、eval auto-pick、前端选路；诚实非学术 ToT |
 | v1.6 | 2026-07-20 | 正式 `TurnState` 共享记录 + `errors[]` 集中写入；PlanExecutor/Pipeline/L1 接线；diagnostics 透出；面试文档诚实边界 |
 | v1.7 | 2026-07-20 | Critique→Improve 反思闭环：双 prompt、6 维 + PASS、硬 max_rounds=2、高风险触发、Eval 默认关；Compliance 仍为规则门 |
+| v1.8 | 2026-08-28 | 负样本评测集（40 条）+ 跑题门控从纯词面覆盖率升级为「cross-encoder 分数优先、词面兜底」；新增 §12 |
 
 ### Rerank implementation update (2026-08-02)
 
@@ -559,3 +562,131 @@ The default remains `local_lexical_fusion`. An optional NVIDIA Cross-Encoder bac
 is now wired through the existing `Reranker` Protocol. It uses a three-model
 round-robin/fallback chain and records `rerank_provider` plus `rerank_model` in the
 Evidence metadata. It fails explicitly when the full chain is unavailable.
+
+---
+
+## 12. 负样本评测集 + 跑题门控（2026-08-28）
+
+### 12.1 要解决什么
+
+「跑题门控」是回答前的最后一道闸：检索确实返回了片段，但片段跟问题没关系时，
+应该丢掉证据、按「无可靠证据」拒答，而不是拿着不相关的制度条款硬答。
+
+原来这道闸只看**词面覆盖率**：把问题切成中文二元词（「差旅住宿」→「差旅」「旅住」「住宿」），
+数一下有多少个出现在召回片段里，覆盖率低于 `0.08` 就判跑题。问题有两个：
+
+- **漏拦**：同一套企业话术的问题很容易「借词」。问「婚假几天」，库里没有婚假制度，
+  但《员工手册》里有「假」「员工」「申请」这些词，覆盖率一算就过关了。
+- **误拦**：换个说法就崩。问「住宿报销额度」，制度写的是「旅馆费用上限」，
+  语义完全对上，词面一个都不重合，反而被拦掉。
+
+### 12.2 没有负样本就标不出阈值
+
+想把闸门换成「重排分数低于 X 就判跑题」，得先知道 X 取多少。
+`scripts/analyze_rerank_scores.py` 就是干这个的：从已跑过的检索评测里把分数捞出来，
+按「是不是金标」分两堆，扫一遍阈值，看每个阈值误拒多少、拦住多少。
+
+第一次跑完发现一个硬问题：**评测集里全是「该答上」的题**。
+230 条 top-1 全都命中了金标，「该被拦掉」的那一侧一个样本都没有。
+只有下界（阈值不能高过多少，否则误杀正样本），没有上界（阈值要多高才拦得住跑题）。
+所以先补负样本。
+
+### 12.3 负样本套件：40 条 = 20 off_topic + 20 near_miss
+
+写在 `backend/app/services/enterprise_eval_dataset.py` 的 `POLICY_NEGATIVES`，
+跟着企业评测套件（12 篇政策 / 200 条正样本）一起 seed。两类：
+
+| 类型 | 数量 | 长什么样 | 为什么要它 |
+|---|---|---|---|
+| `off_topic` | 20 | 「明天北京天气」「快排怎么写」「火锅底料配方」 | 完全不沾企业语境，任何闸门都该拦住——这是**底线**，拦不住说明门控坏了 |
+| `near_miss` | 20 | 「婚假能休几天」「期权行权价怎么定」「手机通讯费能报吗」 | 一样的企业话术、一样的提问方式，但**语料里根本没有这个主题** |
+
+`near_miss` 是真正的难点，也是这次改造的靶子。这 20 条的主题都用 grep 在 12 篇政策里
+逐个确认过出现 0 次，所以「拒答」是唯一正确答案。有两条是刻意设的陷阱：
+
+- 「手机通讯费」——语料里出现过一次「即时通讯工具」，词面能借到「通讯」；
+- 「离职提前多久通知」——「离职」在语料里出现 5 次（在别的语境里），
+  所以它算 near_miss 而不是 off_topic。
+
+负样本没有金标，标记放在 `RetrievalEvalItem.relevance_judgement` 这个自由 JSON 字段里
+（`negative: true` + `negative_kind`），不用改表、不用迁移。判定逻辑集中在
+`backend/app/evals/negatives.py`，避免各处自己 `judgement.get("negative")`。
+
+### 12.4 指标怎么算才不虚高
+
+**负样本绝对不能进 Hit@K / MRR。** 它们没有金标，进去就是白送 0 分，
+把检索指标做低；反过来如果按「命中即算对」也是白送满分。所以分成两条路：
+
+- 正样本：Hit@1/5/10、MRR、`hit_all_at_k`（原样不动），
+  额外记 `gate_false_block`（新门控误拦了吗）和 `lexical_false_block`（老门控会误拦吗）。
+- 负样本：只算 `gate_blocked`（拦住了吗），额外记 `lexical_blocked`（老门控拦得住吗），
+  聚合到 `metrics["negative_gate"]`，并按 `by_kind` 拆开 off_topic / near_miss。
+
+这样**一次 run 同时给出四个数**：新门控的误拦率、新门控的拦截率、
+老门控的误拦率、老门控的拦截率。改进是量出来的，不是嘴上说的。
+
+`scope.label` 里的 `N=` 只数正样本，负样本单独写 `neg=`，
+简历上的 `Hit@1 = x%（N=100）` 不会被 40 条负样本悄悄摊薄。
+
+另外补了一处数据安全：`cleanup_eval_dataset()` 原来会删掉「没有金标」的条目
+（当成金标文档已被删除的脏数据），负样本正好符合这个特征。现在
+`_is_stale_retrieval_item` 先判负样本直接放过，否则 seed 完一次卫生清理就没了。
+
+### 12.5 门控实现：分数优先、词面兜底
+
+改造后的门控在 `backend/app/rag/quality_gate.py`，三个新配置项：
+
+| 配置 | 默认 | 含义 |
+|---|---|---|
+| `RETRIEVAL_GATE_CROSS_ENCODER_ENABLED` | `true` | 有真 cross-encoder 分数时是否用分数判 |
+| `RETRIEVAL_GATE_MIN_CROSS_ENCODER_SCORE` | `-8.0` | 分数阈值（**logit，不是 0-1 相似度**） |
+| `RETRIEVAL_GATE_MIN_OVERLAP_RATIO` | `0.08` | 兜底的词面覆盖率阈值（沿用原值） |
+
+关键的诚实点：**默认聊天路径根本没有 cross-encoder 分数**。
+`ChatRequest.rerank_enabled` 默认 `false`，聊天也从不传 `reranker_method`，
+所以如果只写「分数低于 X 判跑题」，这行代码在聊天里永远不执行，就是摆设。
+因此门控按分数的**来源**分流：
+
+- `metadata.rerank_method == "cross_encoder"` → 用阈值判，`gate="cross_encoder_score"`，
+  被拦时 reason code 是 `RETRIEVAL_SCORE_BELOW_THRESHOLD`；
+- 其余情况（重排关闭 / `local_lexical_fusion` / RRF 合成分）→ 退回词面覆盖率，
+  `gate="lexical_overlap"`，行为与改造前完全一致。
+
+`local_lexical_fusion` 也不参与打分判定，因为它本身就是词面信号，
+用它去判词面相关性等于自己给自己背书，没有增量。RRF 的 `score = 1/(60+rank)`
+更是只反映排名（`metadata.score_is_synthetic=true`），跟语义无关。
+
+两个信号**始终都算、都上报**（`gate` / `top_score` / `score_threshold` /
+`lexical_supported` / `overlap_ratio`），这才是 §12.4 那四个数的来源。
+
+顺手清了一处重复：`pipeline.py` 和 `plan_executor.py` 原来各自再调一次
+`question_evidence_support`，现在统一消费 `assess_retrieval_quality` 返回的
+`quality["off_topic"]`，门控行为只有一个地方能改。
+
+### 12.6 阈值 −8.0 是怎么来的，边界在哪
+
+现有的 230 条金标 top-1 分数里最低 −12.52，取 −8.0 在这批数据上误拒率 0%。
+**这是保守下界，不是标定完成的最优值**——上界还没量出来，
+因为量上界需要一次「开 cross-encoder 重排 + 选进 40 条负样本」的 run，
+而 NVIDIA key 只以密文存在 `model_providers.api_key_ciphertext` 里。
+
+标定流程（拿到 key 之后照着走）：
+
+1. 评估中心 seed 企业评测套件（会一起写入 40 条负样本）；
+2. 建 run：`rerank_enabled=true` + `reranker_method=cross_encoder`，
+   正样本随机 50–100 条，**外加全部 40 条负样本**；
+3. `python scripts/analyze_rerank_scores.py --threshold -8`
+   —— 表格左边是误拒率（代价），右边是负样本拦截率并按 off_topic / near_miss 拆开（收益）；
+4. 按「误拒率 ≤2%」挑最高的阈值（脚本的 `建议：` 一行直接给），
+   回填 `RETRIEVAL_GATE_MIN_CROSS_ENCODER_SCORE`；
+5. 复跑一次，确认正样本 Hit@K 没掉、`negative_gate.gate_blocked` 上去了。
+
+面试时的诚实表述：
+「跑题门控我做了两件事——先补了 40 条负样本（20 条完全跑题 + 20 条同话术但库里没有），
+再把闸门从纯中文二元词覆盖率改成 cross-encoder 分数优先、词面兜底。
+两个信号我都记，所以一次 run 能同时给出新旧门控的误拦率和拦截率。
+阈值现在是 −8.0，来自 230 条金标 top-1 分数的下界（误拒 0%），
+是个保守值；上界还没标完，需要一次开 cross-encoder 的 run，
+我把标定脚本和流程都写进文档了。默认聊天是不开重排的，
+所以分数门在聊天里不生效，走的还是词面兜底——这点我不含糊。」
+
