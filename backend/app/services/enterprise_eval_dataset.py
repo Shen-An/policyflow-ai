@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from backend.app.core.config import Settings, get_settings
 from backend.app.db.models import EvalCase, RetrievalEvalItem, User
+from backend.app.evals.negatives import NEGATIVE_KINDS
 from backend.app.rag.protocols import DocumentIndexer
 from backend.app.schemas.eval import EnterpriseEvalSeedResult
 from backend.app.services.eval_dataset_import import (
@@ -46,6 +47,21 @@ class PolicyFact:
     question: str
     answer_keywords: tuple[str, ...]
     difficulty: str
+    tags: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class PolicyNegative:
+    """A query the 12-policy corpus deliberately cannot answer.
+
+    ``kind='off_topic'`` is unrelated to work policy at all; ``kind='near_miss'``
+    is written in the same register as the corpus (制度/审批/报销/员工) but asks
+    about a topic no document covers, so word-overlap gates cannot catch it.
+    """
+
+    key: str
+    query: str
+    kind: str
     tags: tuple[str, ...]
 
 
@@ -179,11 +195,11 @@ _CORE_POLICY_CASES = (
     PolicyCase("leave-carryover", "今年没有休完的年假最晚可以用到什么时候？", ("次年3月31日", "逾期失效"), ("policy.leave.annual",), "boundary", ("例外", "HR")),
     PolicyCase("leave-approval", "连续申请6个工作日年假需要谁审批？", ("直属主管", "部门负责人"), ("policy.leave.annual",), "multi-step", ("流程", "HR")),
     PolicyCase("sick-proof", "连续病假3个工作日需要准备什么证明？", ("二级及以上公立医院", "诊断证明"), ("policy.leave.sick",), "direct", ("材料", "HR")),
-    PolicyCase("travel-hotel", "员工在一线城市出差住宿每晚的标准是多少？", ("600元",), ("policy.expense.travel",), "数字", ("费用", "财务")),
+    PolicyCase("travel-hotel", "员工在一线城市出差住宿每晚的标准是多少？", ("600元",), ("policy.expense.travel",), "direct", ("费用", "财务")),
     PolicyCase("travel-over-limit", "住宿超过标准但确有业务需要，应该什么时候取得批准？", ("出差前", "部门负责人"), ("policy.expense.travel",), "boundary", ("例外", "财务")),
     PolicyCase("meal-provided", "出差当天午餐由公司提供，午餐补贴如何处理？", ("扣除", "60元"), ("policy.expense.meal",), "exception", ("费用", "财务")),
     PolicyCase("meal-late", "餐费报销超过30日还能直接提交吗？", ("说明原因", "财务负责人批准"), ("policy.expense.meal",), "boundary", ("时限", "财务")),
-    PolicyCase("procurement-80k", "8万元采购需要哪些审批？", ("部门负责人", "财务负责人", "分管副总裁"), ("policy.procurement.approval",), "数字", ("审批", "采购")),
+    PolicyCase("procurement-80k", "8万元采购需要哪些审批？", ("部门负责人", "财务负责人", "分管副总裁"), ("policy.procurement.approval",), "multi-step", ("审批", "采购")),
     PolicyCase("procurement-split", "能否把一笔8万元采购拆成多张5000元订单来减少审批？", ("不得拆分", "规避审批"), ("policy.procurement.approval",), "negative", ("边界", "采购")),
     PolicyCase("remote-limit", "员工每月最多可以申请几天远程办公？", ("4个工作日",), ("policy.remote.work",), "direct", ("数字", "办公")),
     PolicyCase("remote-sensitive", "处理受限数据时能否直接远程办公？", ("不得", "信息安全负责人批准"), ("policy.remote.work", "policy.security.classification"), "cross-policy", ("安全", "例外")),
@@ -239,13 +255,13 @@ POLICY_FACTS: dict[str, tuple[PolicyFact, ...]] = {
         PolicyFact("dinner-subsidy", "国内出差晚餐补贴标准是多少", ("60元",), "direct", ("数字", "财务")),
         PolicyFact("provided-meal", "公司或客户提供餐食时对应餐补怎么处理", ("从对应补贴中扣除",), "exception", ("例外", "财务")),
         PolicyFact("reception-fields", "商务接待申请需要列明哪些信息", ("客户", "参加人员", "事由", "预计金额"), "multi-step", ("流程", "财务")),
-        PolicyFact("reception-high-value", "单次预计接待金额超过3000元需要谁共同审批", ("部门负责人", "财务负责人"), "boundary", ("审批", "财务")),
+        PolicyFact("reception-high-value", "单次预计接待金额超过2000元需要谁共同审批", ("部门负责人", "财务负责人"), "boundary", ("审批", "财务")),
         PolicyFact("prohibited-reception", "接待费用不得用于哪些个人或无关消费", ("个人消费", "烟酒礼品", "家庭成员消费"), "negative", ("违规", "财务")),
         PolicyFact("meal-reimbursement-deadline", "餐费和接待费应在发生后多久提交报销", ("30日内",), "boundary", ("期限", "财务")),
     ),
     "policy.procurement.approval": (
         PolicyFact("under-five-thousand", "单笔不超过5000元的采购由谁审批", ("申请人", "直属主管"), "boundary", ("审批", "采购")),
-        PolicyFact("five-to-fifty-thousand", "5000元以上至50000元采购要增加哪一级审批", ("部门负责人"), "boundary", ("审批", "采购")),
+        PolicyFact("five-to-fifty-thousand", "5000元以上至50000元采购要增加哪一级审批", ("部门负责人",), "boundary", ("审批", "采购")),
         PolicyFact("over-fifty-thousand", "单笔采购超过50000元还需要哪些审批", ("财务负责人", "分管副总裁"), "boundary", ("审批", "采购")),
         PolicyFact("over-two-hundred-thousand", "采购金额超过200000元还要提交什么会议审议", ("采购委员会",), "boundary", ("审批", "采购")),
         PolicyFact("related-transaction", "关联交易采购申请前需要完成什么审查", ("法务审核", "披露原因"), "multi-step", ("合规", "采购")),
@@ -318,6 +334,72 @@ POLICY_FACTS: dict[str, tuple[PolicyFact, ...]] = {
         PolicyFact("vendor-exit-access", "供应商退出时IT需要回收哪些访问能力", ("账号", "接口凭据"), "ordered", ("退出", "供应商")),
     ),
 }
+
+
+# Negative queries: the corpus has no answer, so the honest outcome is a refusal.
+# `off_topic` shares almost no vocabulary with the corpus; `near_miss` deliberately
+# does (制度/报销/审批/员工/出差/离职) while asking about an uncovered topic, which is
+# where a word-overlap gate fails and a relevance score should not.
+POLICY_NEGATIVES = (
+    PolicyNegative("off:weather", "明天上海会下雨吗，需要带伞吗", "off_topic", ("生活",)),
+    PolicyNegative("off:quicksort", "帮我写一个 Python 快速排序函数", "off_topic", ("技术",)),
+    PolicyNegative("off:hotpot", "推荐几家附近好吃的火锅店", "off_topic", ("生活",)),
+    PolicyNegative("off:bitcoin", "现在比特币价格是多少美元", "off_topic", ("金融",)),
+    PolicyNegative("off:high-speed-rail", "北京到杭州的高铁大概要几个小时", "off_topic", ("出行",)),
+    PolicyNegative("off:cat-surgery", "小猫几个月适合做绝育手术", "off_topic", ("生活",)),
+    PolicyNegative("off:excel-pivot", "Excel 数据透视表应该怎么做", "off_topic", ("技术",)),
+    PolicyNegative("off:translate", "把 the quick brown fox jumps over the lazy dog 翻译成中文", "off_topic", ("语言",)),
+    PolicyNegative("off:sci-fi-movie", "最近有什么好看的科幻电影", "off_topic", ("生活",)),
+    PolicyNegative("off:braised-pork", "红烧肉怎么做才好吃", "off_topic", ("生活",)),
+    PolicyNegative("off:ielts", "雅思写作考到 7 分需要什么水平", "off_topic", ("语言",)),
+    PolicyNegative("off:phone-recommend", "两千元左右有哪些手机值得买", "off_topic", ("消费",)),
+    PolicyNegative("off:sql-join", "SQL 里 left join 和 inner join 有什么区别", "off_topic", ("技术",)),
+    PolicyNegative("off:running-knee", "每天跑五公里对膝盖有影响吗", "off_topic", ("健康",)),
+    PolicyNegative("off:japan-tourism", "去日本旅游签证需要准备哪些材料", "off_topic", ("出行",)),
+    PolicyNegative("off:baby-food", "婴儿几个月可以开始添加辅食", "off_topic", ("生活",)),
+    PolicyNegative("off:guitar", "吉他初学者应该先练哪些和弦", "off_topic", ("生活",)),
+    PolicyNegative("off:index-return", "沪深300指数今年涨了多少", "off_topic", ("金融",)),
+    PolicyNegative("off:ev-range", "新能源车冬天续航掉得厉害该怎么办", "off_topic", ("消费",)),
+    PolicyNegative("off:tang-exam", "唐朝的科举制度是怎么运作的", "off_topic", ("历史",)),
+    PolicyNegative("near:marriage-leave", "婚假和产假分别可以休多少天，需要提前多久申请", "near_miss", ("HR", "假期")),
+    PolicyNegative("near:overtime-off", "加班之后可以调休吗，调休最长能保留多久", "near_miss", ("HR", "考勤")),
+    PolicyNegative("near:social-insurance", "试用期员工的社保和公积金缴纳比例是多少", "near_miss", ("HR", "薪酬")),
+    PolicyNegative("near:health-check", "公司年度体检安排在几月，可以带家属一起吗", "near_miss", ("HR", "福利")),
+    PolicyNegative("near:referral-bonus", "内部推荐入职成功后奖金是多少，什么时候发放", "near_miss", ("HR", "福利")),
+    PolicyNegative("near:canteen-shuttle", "食堂就餐补贴和班车路线是怎么规定的", "near_miss", ("行政", "福利")),
+    PolicyNegative("near:performance-grade", "绩效考核分几个等级，调薪什么时候生效", "near_miss", ("HR", "绩效")),
+    PolicyNegative("near:training-fee", "外部培训费用可以报销多少，需要签培训服务期协议吗", "near_miss", ("HR", "报销")),
+    PolicyNegative("near:stock-option", "员工股票期权的行权条件和锁定期是什么", "near_miss", ("薪酬", "股权")),
+    PolicyNegative("near:patent-award", "申请公司专利有奖励吗，奖励标准是多少", "near_miss", ("研发", "奖励")),
+    PolicyNegative("near:travel-insurance", "公司为出差员工购买的商业保险覆盖哪些意外", "near_miss", ("出差", "保险")),
+    PolicyNegative("near:visa-support", "因公出国的签证和护照办理由哪个部门支持", "near_miss", ("出差", "行政")),
+    PolicyNegative("near:relocation", "跨城市调岗的搬家费和租房补贴怎么申请", "near_miss", ("HR", "补贴")),
+    PolicyNegative("near:probation-review", "试用期转正评估流程是怎样的，需要谁签字", "near_miss", ("HR", "流程")),
+    PolicyNegative("near:resignation-notice", "主动离职需要提前多少天提交书面申请", "near_miss", ("HR", "离职")),
+    PolicyNegative("near:employee-loan", "员工借款或备用金申请的额度上限是多少", "near_miss", ("财务", "借款")),
+    PolicyNegative("near:mobile-allowance", "手机通讯费补贴每月可以报多少，需要发票吗", "near_miss", ("财务", "补贴")),
+    PolicyNegative("near:parking", "公司停车位怎么申请，每月停车费能报销吗", "near_miss", ("行政", "报销")),
+    PolicyNegative("near:union-benefit", "工会活动经费和生日福利有哪些规定", "near_miss", ("行政", "福利")),
+    PolicyNegative("near:whistleblower", "举报违规行为有奖励吗，举报人如何保密", "near_miss", ("合规", "举报")),
+)
+
+
+def _validate_policy_negatives() -> tuple[PolicyNegative, ...]:
+    if len(POLICY_NEGATIVES) != 40:
+        raise ValueError(
+            f"enterprise policy suite must contain 40 negatives, got {len(POLICY_NEGATIVES)}"
+        )
+    if len({item.key for item in POLICY_NEGATIVES}) != len(POLICY_NEGATIVES):
+        raise ValueError("enterprise policy negatives contain duplicate keys")
+    if len({item.query for item in POLICY_NEGATIVES}) != len(POLICY_NEGATIVES):
+        raise ValueError("enterprise policy negatives contain duplicate queries")
+    unknown = {item.kind for item in POLICY_NEGATIVES} - set(NEGATIVE_KINDS)
+    if unknown:
+        raise ValueError(f"unknown negative kinds: {sorted(unknown)}")
+    return POLICY_NEGATIVES
+
+
+_validate_policy_negatives()
 
 
 def _build_policy_cases() -> tuple[PolicyCase, ...]:
@@ -469,6 +551,77 @@ def seed_enterprise_eval_dataset(
             item.enabled = True
             session.add(item)
 
+    negative_items_created = 0
+    negative_cases_created = 0
+    for negative in POLICY_NEGATIVES:
+        # The refusal side of the suite: no gold documents, `should_answer=False`.
+        case = session.exec(
+            select(EvalCase).where(
+                EvalCase.category == ENTERPRISE_EVAL_KB_CODE,
+                EvalCase.question == negative.query,
+            )
+        ).first()
+        if case is None:
+            case = EvalCase(
+                question=negative.query,
+                category=ENTERPRISE_EVAL_KB_CODE,
+                expected_answer_keywords=[],
+                expected_source_documents=[],
+                expected_chunk_ids=[],
+                should_answer=False,
+            )
+            session.add(case)
+            session.flush()
+            negative_cases_created += 1
+        else:
+            case.should_answer = False
+            case.expected_answer_keywords = []
+            case.expected_source_documents = []
+            case.enabled = True
+            session.add(case)
+
+        item = next(
+            (
+                candidate
+                for candidate in session.exec(
+                    select(RetrievalEvalItem).where(
+                        RetrievalEvalItem.query == negative.query,
+                    )
+                ).all()
+                if set(candidate.knowledge_base_ids or []) == {knowledge_base.id}
+            ),
+            None,
+        )
+        judgement = {
+            "source": "enterprise_policy",
+            "suite": ENTERPRISE_EVAL_SUITE,
+            "case_key": f"negative:{negative.key}",
+            "difficulty": negative.kind,
+            "tags": list(negative.tags),
+            "gold_doc_count": 0,
+            "negative": True,
+            "negative_kind": negative.kind,
+            "expected_behavior": "refuse",
+        }
+        if item is None:
+            item = RetrievalEvalItem(
+                eval_case_id=case.id,
+                query=negative.query,
+                knowledge_base_ids=[knowledge_base.id],
+                relevant_document_ids=[],
+                relevant_chunk_ids=[],
+                relevance_judgement=judgement,
+            )
+            session.add(item)
+            negative_items_created += 1
+        else:
+            item.eval_case_id = case.id
+            item.relevant_document_ids = []
+            item.relevant_chunk_ids = []
+            item.relevance_judgement = judgement
+            item.enabled = True
+            session.add(item)
+
     session.commit()
     pending_index_ids = created_document_ids if indexer is not None else []
     warning = None
@@ -482,9 +635,12 @@ def seed_enterprise_eval_dataset(
         documents_reused=documents_reused,
         retrieval_items_created=retrieval_items_created,
         eval_cases_created=eval_cases_created,
+        negative_items_created=negative_items_created,
+        negative_cases_created=negative_cases_created,
         index_queued=len(pending_index_ids),
         corpus_document_count=documents_created + documents_reused,
         case_count=len(POLICY_CASES),
+        negative_count=len(POLICY_NEGATIVES),
         warning=warning,
         pending_index_document_ids=pending_index_ids,
     )

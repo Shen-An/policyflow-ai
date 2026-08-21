@@ -19,6 +19,7 @@ from backend.app.db.models import (
     utc_now,
 )
 from backend.app.evals.eval_runner import EvalRunner
+from backend.app.evals.negatives import is_negative_judgement
 from backend.app.schemas.eval import (
     EvalCaseCreate,
     EvalCaseRead,
@@ -130,6 +131,10 @@ def _is_stale_retrieval_item(
     item: RetrievalEvalItem,
     gold_status: dict[str, str | None],
 ) -> bool:
+    # Negatives are gold-less on purpose (the corpus must not answer them), so an
+    # empty gold list is only "stale" for positives whose documents were deleted.
+    if is_negative_judgement(item.relevance_judgement):
+        return False
     golds = [str(value) for value in (item.relevant_document_ids or []) if value]
     if not golds:
         return True
@@ -387,6 +392,7 @@ def _run_scope_summary(
     task_types: list[str] = []
     sources: list[str] = []
     stale_gold_count = 0
+    negative_item_count = 0
 
     if item_ids:
         items = session.exec(
@@ -443,6 +449,9 @@ def _run_scope_summary(
                 task_type = judgement.get("task_type")
                 if task_type and task_type not in task_types:
                     task_types.append(str(task_type))
+            if is_negative_judgement(judgement):
+                negative_item_count += 1
+                continue
             item_golds = [str(value) for value in (item.relevant_document_ids or []) if value]
             if not item_golds:
                 stale_gold_count += 1
@@ -464,7 +473,11 @@ def _run_scope_summary(
     elif sources:
         label_parts.append("+".join(sources))
     if item_ids:
-        label_parts.append(f"N={len(item_ids)}")
+        # Hit@K / MRR are averaged over positives only; keep N unambiguous.
+        positive_count = max(len(item_ids) - negative_item_count, 0)
+        label_parts.append(f"N={positive_count}")
+        if negative_item_count:
+            label_parts.append(f"neg={negative_item_count}")
     if stale_gold_count:
         label_parts.append(f"stale_gold={stale_gold_count}")
 
@@ -474,6 +487,7 @@ def _run_scope_summary(
         sources=sources,
         item_count=len(item_ids),
         case_count=len(case_ids),
+        negative_item_count=negative_item_count,
         stale_gold_count=stale_gold_count,
         label=" · ".join(label_parts) if label_parts else None,
     )

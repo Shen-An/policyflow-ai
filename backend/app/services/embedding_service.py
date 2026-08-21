@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 _MAX_ATTEMPTS = 3
 _RETRY_BASE_SECONDS = 0.8
 _RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
+# The model/endpoint itself is gone (NVIDIA NIM end-of-life, model not enabled
+# for the account, wrong Base URL path). Neither payload variants nor backoff
+# can recover, so surface the upstream reason on the first response.
+_MODEL_UNAVAILABLE_STATUS_CODES = {404, 410}
 
 
 def _provider_request_id(response: httpx.Response) -> str | None:
@@ -231,6 +235,19 @@ class OpenAICompatibleEmbeddingService:
                                 (
                                     f"Embedding 鉴权失败（{status_code}）：{message}。"
                                     "请检查 API Key 是否正确、是否过期。"
+                                ),
+                                502,
+                            )
+
+                        # A missing/retired model is not transient either.
+                        if status_code in _MODEL_UNAVAILABLE_STATUS_CODES:
+                            raise ApplicationError(
+                                "EMBEDDING_MODEL_UNAVAILABLE",
+                                (
+                                    f"Embedding 模型「{model}」不可用（{status_code}）：{message}。"
+                                    "常见原因：模型已下线（EOL）、未对当前账号开放，"
+                                    "或 Base URL 路径不正确。请在「模型设置」中换成仍在服役的"
+                                    "Embedding 模型；换模型后需要对已入库文档重新索引。"
                                 ),
                                 502,
                             )
