@@ -1098,8 +1098,11 @@ The evaluation page exposes two per-run choices: `local_lexical_fusion` (default
 lightweight and reproducible) and `cross_encoder` (NVIDIA). The selected method is
 stored in the run snapshot and passed through `RetrievalRequest`; it is selected explicitly for each Run in the page. NVIDIA API credentials and
 endpoint/model configuration remain environment-level secrets/configuration. The
-`NvidiaCrossEncoderRerankService` rotates through the configured NVIDIA models: the
-Nemotron VL reranker, the Nemotron text reranker, and `rerank-qa-mistral-4b`. A failed
+`NvidiaCrossEncoderRerankService` rotates through the configured NVIDIA models. NVIDIA
+retired `llama-nemotron-rerank-1b-v2` and `rerank-qa-mistral-4b` on 2026-08-25, so the
+configured list is now the single surviving model, `nvidia/llama-nemotron-rerank-vl-1b-v2`;
+the rotation/fallback code is unchanged and picks up extra models as soon as they are
+configured again. A failed
 model is skipped and the next model is attempted. If all configured models fail, the
 service raises `RERANKER_UNAVAILABLE` rather than silently pretending that lexical
 rerank was applied.

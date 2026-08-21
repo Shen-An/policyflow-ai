@@ -114,6 +114,12 @@ def _retry_delay_seconds(
                 return min(float(retry_after), max_seconds)
             except ValueError:
                 pass
+    # Rate-limit quotas (e.g. tokens-per-minute) reset on a ~60s window, so a
+    # 429 without Retry-After needs a harder backoff — retrying inside the same
+    # exhausted minute just burns attempts. Shift the exponential up for 429s.
+    if response is not None and response.status_code == 429:
+        delay = base_seconds * (2 ** (attempt + 2)) + attempt
+        return min(delay, max_seconds)
     # Exponential backoff with light linear jitter so multi-KB bursts desync.
     delay = base_seconds * (2**attempt) + 0.25 * attempt
     return min(delay, max_seconds)
@@ -287,8 +293,11 @@ class OpenAICompatibleLLMService:
             async with self._request_semaphore:
                 response: httpx.Response | None = None
                 last_error: Exception | None = None
+                # Count one logical LLM call against the turn budget. Provider
+                # retries (network / 429) share this slot instead of each
+                # consuming one, so a flaky provider no longer exhausts the turn.
+                reserve_current("llm")
                 for attempt in range(self._max_attempts):
-                    reserve_current("llm")
                     try:
                         response = await client.post(endpoint, headers=headers, json=payload)
                     except (

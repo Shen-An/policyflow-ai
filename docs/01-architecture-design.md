@@ -48,15 +48,15 @@ SQLite + File Storage + LightRAG Workspaces
 
 各层职责：
 
-| 层级 | 职责 |
-|---|---|
-| API 层 | 接收 HTTP 请求、参数校验、认证依赖注入、返回统一响应 |
-| Service 层 | 业务用例编排，如知识库管理、文档上传、聊天、草稿、FAQ 审核 |
-| Agent Pipeline 层 | 问题路由、检索、回答、Skill 选择、合规检查、记忆更新 |
-| Skill 层 | 业务能力封装，如流程清单、申请草稿、制度对比、FAQ 生成 |
-| Tool 层 | 底层可执行动作，如知识检索、草稿保存、FAQ 入库、MCP 调用 |
-| RAG / LLM 层 | LightRAG 封装、模型调用适配、embedding 接入 |
-| 存储层 | SQLite 业务数据、uploads 原始文件、rag_workspaces 索引文件 |
+| 层级               | 职责                                           |
+| ---------------- | -------------------------------------------- |
+| API 层            | 接收 HTTP 请求、参数校验、认证依赖注入、返回统一响应                |
+| Service 层        | 业务用例编排，如知识库管理、文档上传、聊天、草稿、FAQ 审核              |
+| Agent Pipeline 层 | 问题路由、检索、回答、Skill 选择、合规检查、记忆更新                |
+| Skill 层          | 业务能力封装，如流程清单、申请草稿、制度对比、FAQ 生成                |
+| Tool 层           | 底层可执行动作，如知识检索、草稿保存、FAQ 入库、MCP 调用             |
+| RAG / LLM 层      | LightRAG 封装、模型调用适配、embedding 接入              |
+| 存储层              | SQLite 业务数据、uploads 原始文件、rag_workspaces 索引文件 |
 
 ---
 
@@ -277,7 +277,7 @@ RAG 层不只封装 LightRAG，还要预留传统关键词检索、混合检索�
 | `LightRAGService` | LightRAG workspace 管理、插入、查询、引用转换 | 必做 |
 | `BM25Retriever` | 基于文档 chunk 的关键词检索，后续可接 rank-bm25 / SQLite FTS / Elasticsearch | 预留接口，建议实现轻量版 |
 | `HybridRetriever` | 融合 LightRAG 与 BM25 结果，统一排序与去重 | 预留，阶段二/三实现 |
-| `RerankService` | 对候选证据做 rerank，可接 bge-reranker、cross-encoder 或 LLM rerank | 预留接口，默认关闭 |
+| `RerankService` | 对候选证据做 rerank：默认本地 lexical fusion（词法融合），可选真实 NVIDIA cross-encoder | 已落地：默认 `local_lexical_fusion`（`rerank_enabled` 默认关）；可选 `cross_encoder`（真 NVIDIA、opt-in、失败直接 503 不静默回退） |
 | `RetrievalEvaluator` | 计算 Hit@K、MRR、Recall@K 等检索指标 | 预留并在评估阶段实现 |
 | `RagasRunner` | 调用 RAGAS 评估 faithfulness、answer_relevancy、context_precision 等 | 预留，可选实现 |
 
@@ -565,7 +565,7 @@ MVP 之后可扩展：
 3. mock MCP 替换真实飞书 / 邮箱 / Jira / Confluence；
 4. LightRAG 存储迁移 PostgreSQL / Qdrant / Neo4j；
 5. BM25 从轻量本地实现迁移到 SQLite FTS5 / Elasticsearch / OpenSearch；
-6. 增加 RerankService，支持 bge-reranker、cross-encoder 或 LLM rerank；
+6. RerankService 已落地（默认本地 lexical fusion + 可选真实 NVIDIA cross-encoder，opt-in、失败不静默回退）；后续可接 bge-reranker / LLM rerank 等更多后端；
 7. 增加 Hit@K、MRR、Recall@K 和 RAGAS 自动评估流水线；
 8. 增加企业 SSO；
 9. 增加前端管理后台；
