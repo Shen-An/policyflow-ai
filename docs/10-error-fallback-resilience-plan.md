@@ -81,16 +81,17 @@
 - `backend/app/schemas/guardrail.py`
   - `GuardrailDecision`、`BudgetSnapshot`、`ReleaseDecision`
 
-建议配置（最终值通过测试校准）：
+已落地默认值（源：`backend/app/core/config.py`，最终以代码为准）：
 
 ```text
-CHAT_TURN_TIMEOUT_SECONDS=90
-CHAT_TURN_MAX_LLM_CALLS=8
-CHAT_RETRIEVAL_MAX_ATTEMPTS=2
-CHAT_TOOL_MAX_ROUNDS=3              # 已有，纳入总预算
-CHAT_REFLECTION_MAX_ROUNDS=2        # 已有
-CHAT_ANSWER_REVISE_MAX_ROUNDS=1
-CHAT_TOOL_DEFAULT_TIMEOUT_SECONDS=20
+CHAT_TURN_TIMEOUT_SECONDS=180          # 整轮 Chat 总耗时预算（硬截止）
+CHAT_TURN_MAX_LLM_CALLS=8              # Turn Budget：单轮 LLM 调用上限
+CHAT_TURN_MAX_RETRIEVAL_ATTEMPTS=2    # Turn Budget：单轮检索次数上限
+CHAT_TURN_MAX_TOOL_CALLS=6            # Turn Budget：单轮 tool 调用总上限
+CHAT_TOOL_MAX_ROUNDS=3                # Answer tool loop 轮数上限（区别于上面的总数 6）
+CHAT_REFLECTION_MAX_ROUNDS=2          # Critique→Improve 反思轮数
+CHAT_ANSWER_REVISE_MAX_ROUNDS=1       # 回答修订轮数
+CHAT_TOOL_DEFAULT_TIMEOUT_SECONDS=20  # 单次 tool 默认超时
 ```
 
 实施要点：
@@ -279,6 +280,18 @@ status = pending | succeeded | failed | unknown | compensated
 | 副作用 | `SIDE_EFFECT_STATUS_UNKNOWN` | 禁止自动重试，进入核对/补偿 |
 | 持久化 | `CHAT_PERSIST_FAILED` | DB rollback |
 | Memory | `MEMORY_WRITEBACK_FAILED` | fail-open + 后台重试 |
+| 模型下线 | `EMBEDDING_MODEL_UNAVAILABLE` | 立即失败（不重试），提示换模型 + 重新索引 |
+
+### 5.1 上游模型下线（EOL）不是「网络抖动」
+
+2026-08-25 NVIDIA 一次性下线了三个我们在用/备用的模型：`nvidia/llama-nemotron-embed-1b-v2`（Embedding 主力）、`nvidia/llama-nemotron-rerank-1b-v2`、`nvidia/rerank-qa-mistral-4b`，调用返回 **410 Gone**，body 里写明 end-of-life 时间。
+
+处理口径（已落地）：
+
+- **410 / 404 不重试**。`OpenAICompatibleEmbeddingService` 把这两个状态码判为「模型/端点不存在」，第一次响应就抛 `EMBEDDING_MODEL_UNAVAILABLE`，不再走「多种 payload 形状兼容」和退避重试——重试只会把同一个死模型打三遍，还让报错信息变成「共 3 次兼容尝试」，掩盖真实原因。
+- **报错要可执行**：带上模型名、上游原文、以及「去模型设置换模型 + 换完要重新索引」的提示。
+- **Reranker 配置只留在服役的模型**（`NVIDIA_RERANKER_MODELS`）。轮换 + 逐个兜底的代码保留，死模型留在列表里只会浪费一次调用。
+- **换 Embedding 模型 = 向量空间变了**。即使新旧模型维度相同（本次都是 2048，所以不会报维度错），旧向量和新 query 向量不可比，检索质量会悄悄变差。换完必须重建索引：`python scripts/reindex_lightrag.py --kb-code <code>`，或对单个文档调 `POST /api/documents/{id}/index`。引用 Hit@K / MRR 之前，`eval_test` 必须先重建索引，否则数字不可比。
 
 建议在 `TurnDiagnostics` 增加：
 

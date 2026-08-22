@@ -1,7 +1,7 @@
 # PolicyFlow AI 面试知识库
 
-版本：v1.1  
-日期：2026-07-22  
+版本：v1.2  
+日期：2026-08-17  
 用途：把本项目**真实可讲、可指代码**的面试点集中整理；优先诚实边界，不写简历注水话术。
 
 > 配套：
@@ -14,6 +14,7 @@
 
 | 场景 | 打开 |
 |---|---|
+| **名词看不懂 / 想查术语** | **[00-glossary](00-glossary/README.md)（白话术语表）** |
 | 30 秒自我介绍 | [01-overview](01-overview/README.md) |
 | 被问「为什么不是玩具 multi-agent」 | [02-architecture](02-architecture/README.md) + [04](04-agent-skill-tool-mcp/README.md) |
 | 被问 RAG / Hybrid / Rerank | [03-rag-retrieval](03-rag-retrieval/README.md) |
@@ -24,6 +25,7 @@
 | 被追问边界 / mock / 没做啥 | [09-honesty-boundaries](09-honesty-boundaries/README.md) |
 | 临场 demo + 高频 Q&A | [10-demo-qa](10-demo-qa/README.md) |
 | 场景面试题（10 道完整解答） | [11-scenario-questions](11-scenario-questions/README.md) |
+| **被追到第三、第四层问不下去** | **[12-deep-dive-qa](12-deep-dive-qa/README.md)（深挖问答 wiki，一题一页）** |
 
 **原则：能指到代码或测试的才写；说不清就标「半实现 / 不做」。**
 
@@ -34,6 +36,7 @@
 ```text
 docs/interview/
 ├── README.md                          # 本文件：总目录
+├── 00-glossary/                       # 白话术语表（黑话翻译，看不懂先查）
 ├── 01-overview/                       # 项目定位与电梯稿
 ├── 02-architecture/                   # 整体架构与编排诚实性
 ├── 03-rag-retrieval/                  # 检索、Hybrid、Rerank
@@ -44,7 +47,8 @@ docs/interview/
 ├── 08-frontend-ux/                    # 聊天 UX / SSE / 管理面
 ├── 09-honesty-boundaries/             # 必说边界与反吹牛清单
 ├── 10-demo-qa/                        # 演示路径与高频追问
-└── 11-scenario-questions/             # 场景面试题 10 道 + 参考解答
+├── 11-scenario-questions/             # 场景面试题 10 道 + 参考解答
+└── 12-deep-dive-qa/                   # 深挖问答 wiki：一题一页，含失效路径与未实现方向
 ```
 
 ---
@@ -55,22 +59,25 @@ docs/interview/
 2. **主路径（3 min）**：Router → Hybrid 检索 → Skill? → Answer tool loop → Verifier → Memory writeback  
 3. **诚实分层（3 min）**：Skill ≠ Tool ≠ MCP；Retrieval 是 Service  
 4. **记忆（2 min）**：滑动窗口 + 摘要 + 结构化抽取 + 重要性/时间排序；冷热=装配  
-5. **评估（3 min）**：Hit@1/5/10 + MRR，写清策略与 N；eval_test 专用库 + 干扰文档  
-6. **边界（2 min）**：本地 rerank、mock MCP、记忆非权威、SQLite 规模边界  
+5. **评估（3 min）**：Hit@1/5/10 + MRR，写清策略与 N；两套隔离评测库（CRUD 主指标 + 企业政策 sanity）+ 干扰文档  
+6. **边界（2 min）**：默认本地 rerank（可选真 NVIDIA cross-encoder、无静默回退）、mock MCP、记忆非权威、SQLite 规模边界、兜底是基础版非 Saga  
 7. **现场点一点代码 / diagnostics（1 min）**
 
 ---
 
 ## 一页「项目卖点 vs 边界」
 
-| 可讲卖点 | 必须同步说的边界 |
-|---|---|
-| 统一 `AgentPipeline`，Chat/Eval 同编排 | 不是多独立 Agent 平台 |
-| Hybrid 检索 + 可量化 Hit@K/MRR | Hybrid 在 1-doc 任务上未必显著优于 BM25 |
-| Skill 证据绑定，无证据 `insufficient_evidence` | 禁止假 `skill.suggest` diagnostics |
-| MCP 真协议客户端 | 企业连接器可 mock，响应带 `status=mock` |
-| 四层记忆 + query rewrite | 记忆非权威；偏好禁政策事实；冷热非物理冷存 |
-| SSE 阶段可视化 | 前端体验持续打磨，不是生产级 IM |
+| 可讲卖点                                                         | 必须同步说的边界                        |
+| ------------------------------------------------------------ | ------------------------------- |
+| 统一 `AgentPipeline`，Chat/Eval 同编排                             | 不是多独立 Agent 平台                  |
+| Hybrid 检索 + 可量化 Hit@K/MRR                                    | Hybrid 在 1-doc 任务上未必显著优于 BM25   |
+| 默认本地 lexical rerank + 可选真 NVIDIA cross-encoder（opt-in、可 A/B） | 非自研 BGE / 非默认在线；不可用直接 503、不静默回退 |
+| Skill 证据绑定，无证据 `insufficient_evidence`                       | 禁止假 `skill.suggest` diagnostics |
+| MCP 真协议客户端                                                   | 企业连接器可 mock，响应带 `status=mock`   |
+| 四层记忆 + query rewrite                                         | 记忆非权威；偏好禁政策事实；冷热非物理冷存           |
+| 请求级 Turn Budget + 检索质量门 + 答案发布门                              | 基础版兜底；确定性信号，非 Saga / 熔断         |
+| 两套隔离评测库（CRUD 主指标 + 自建企业政策 sanity 集）                          | 企业集小库 / 合成 / 无干扰，量化主张仍用 CRUD    |
+| SSE 阶段可视化 + 亮/暗主题 + 模型设置页                                    | 前端体验持续打磨，不是生产级 IM               |
 
 ---
 

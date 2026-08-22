@@ -1,10 +1,10 @@
 # 10. 项目总结（Project Summary）
 
-版本：v1.0
-日期：2026-07-26
+版本：v1.1
+日期：2026-08-17
 用途：项目的**单页权威快照**——定位、架构、功能、指标、工程质量、诚实边界。新读者从这里进入；细节以各专项文档为准。
 
-> 面试口径请配合 [docs/interview/](interview/README.md)（分章知识库）与 [09-interview-demo-script.md](09-interview-demo-script.md)（现场演示脚本）。
+> 面试口径请配合 [docs/interview/](interview/README.md)（分章知识库）与 [09-interview-demo-script.md](09-interview-demo-script.md)（现场演示脚本）。**名词看不懂先查 [白话术语表](interview/00-glossary/README.md)。**
 
 ---
 
@@ -24,12 +24,12 @@
 | 层 | 选型 |
 |---|---|
 | Backend | FastAPI + SQLModel + SQLAlchemy + SQLite（WAL，可迁移 PostgreSQL） |
-| RAG | Hybrid（LightRAG 路径 + BM25，RRF 融合）+ 本地 lexical fusion rerank（非 cross-encoder） |
-| AI 编排 | `AgentPipeline` 单编排；Answer 为主 agent，带 tool loop |
+| RAG | Hybrid（LightRAG 路径 + BM25，RRF 融合；LightRAG 超时降级 BM25 并打标）+ rerank：默认本地 lexical fusion，可选真实 NVIDIA cross-encoder（opt-in、无静默回退） |
+| AI 编排 | `AgentPipeline` 单编排；Answer 为主 agent，带 tool loop；请求级 Turn Budget + 检索质量门 + PASS/REVISE/REFUSE 发布门 |
 | Memory | 四层（L0 消息 / L1 近窗+滚动摘要 / L2 事件向量摘要 / L3 实体），本地排序公式 |
 | Frontend | React 19 + Vite + antd 6 + TanStack Query + 自定义设计 token（浅/深双主题） |
 | 交互 | Chat 走 SSE（`POST /api/chat/stream`），分阶段流式（记忆加载/改写/检索/回答/回写） |
-| 测试 | pytest（后端 134）+ vitest（前端 108）+ Playwright e2e（f0–f7） |
+| 测试 | pytest（后端 36 文件 / ~159 用例）+ vitest（前端 37 文件）+ Playwright e2e（f0–f7）；绿灯数以本地运行为准 |
 | 环境 | conda `policyflow`，Python 3.11+；`python start.py` 一键启动 |
 
 ## 3. 架构总览
@@ -44,10 +44,10 @@ services 层（chat / kb / document / eval / memory / audit / …）
 AgentPipeline（Chat 与 Eval 同一编排，禁止双写 stage）
    ├─ Router：结构化路由 + 难度分级（CoT / ToT 按难度选路径）
    ├─ Plan：L1/L2 渐进计划，支持并行 wave 与用户选路
-   ├─ Retrieval Service：Hybrid（LightRAG + BM25 + RRF）→ 可选本地 rerank
+   ├─ Retrieval Service：Hybrid（LightRAG + BM25 + RRF；超时降级 BM25 打标）→ 可选 rerank（本地 lexical / 真 NVIDIA cross-encoder）
    ├─ Skill（证据绑定业务规程）/ Tool（可审计原子能力）/ MCP（stdio/http 真协议，企业连接器 mock 且标注 status=mock）
    ├─ Answer Agent：tool loop + 证据绑定生成
-   ├─ Critique→Improve 反思闭环 + 质量门（无证据 → 硬拒答）
+   ├─ Critique→Improve 反思闭环 + 检索质量门 + PASS/REVISE/REFUSE 发布门（无证据 → 硬拒答）
    └─ TurnState 黑板：集中状态与错误
    │
 Memory 子系统（load → 使用 → writeback；记忆非权威，不覆盖本轮 RAG 证据）
@@ -71,20 +71,23 @@ SQLite（25+ 表，全 FK/状态列索引；WAL + busy_timeout；物理删除含
 | 我的记忆 | 四层记忆管理（仅本人），类型过滤、删除 |
 | 知识库 | 多库管理、文档上传/重索引/物理删除、后台索引队列、ACL 权限 |
 | FAQ 审核 | 高频问答沉淀审核（通过/驳回） |
-| 评估中心 | CRUD 金标导入（含干扰文档）、随机 50/100 采样、多策略 Run（Hybrid/BM25/…）、Hit@1/5/10 + MRR 看板、逐条结果折叠、JSON/CSV 导出 |
+| 评估中心 | 两套隔离评测库（CRUD `eval_test` + 一键 seed 企业政策 `enterprise_eval_test`）、金标导入（含干扰文档）、随机 50/100 采样、多策略 Run（Hybrid/BM25/…）、Rerank 页面选择（本地 lexical / 真 NVIDIA，可 A/B）、Hit@1/5/10 + MRR 看板、stale gold 清理、逐条结果折叠、JSON/CSV 导出 |
 | 审计日志 | Tool 调用与请求审计，敏感信息脱敏 |
-| Skill / MCP / 模型设置 / 用户管理 | 管理面（sys_admin），MCP 连通性健康检查、Chat 与 Embedding 独立服务配置 |
+| Skill / MCP / 模型设置 / 用户管理 | 管理面（sys_admin），MCP 连通性健康检查、Chat / Embedding / NVIDIA Reranker 三类独立服务配置（API Key 加密、拉取模型、测试连接） |
 
 ## 5. 评估体系
 
 - **主指标**：Hit@1 / Hit@5 / Hit@10 / MRR，报告**必须写清检索策略与 N**。
-- **金标**：CRUD 数据集 `questanswer_*` split；导入支持 ≥200 干扰文档，避免小库虚高。
+- **两套隔离评测库**（业务库永不灌金标）：
+  - **CRUD 金标**（量化主指标）：`questanswer_*` split，进 `eval_test`「测试库」；导入支持 ≥200 干扰文档，避免小库虚高。
+  - **企业政策测试集**（`enterprise_policy_v1`，一键 seed）：自建 12 篇制度 + 200 用例，进 `enterprise_eval_test`「企业政策测试库」。定位是**领域贴合的 sanity / demo**，非严格 benchmark——全合成、模板扩写变体近重复、语料仅 12 篇无干扰、文档级匹配、difficulty 不聚合；**量化主张仍以 CRUD 为准**。
+- **Rerank 可评测对比**：同一 Run 可 A/B `local_lexical_fusion` vs `cross_encoder`（真 NVIDIA），run summary 记 `reranker_method` / `reranker_backend`；选 `cross_encoder` 不可用直接 503，不静默降级。
 - **结论表述纪律**：1-doc 整篇匹配任务上 Hybrid 与 BM25 接近是常见现象，无区分度时不宣称「Hybrid 显著更优」。
-- 公式实现：`backend/app/evals/retrieval_metrics.py`（有单测）；RAGAS 为可选路径。
+- 公式实现：`backend/app/evals/retrieval_metrics.py`（有单测）；企业集 `backend/app/services/enterprise_eval_dataset.py`；RAGAS 为可选路径。
 
-## 6. 工程质量现状（2026-07-26）
+## 6. 工程质量现状（截至 2026-08-17）
 
-- **测试**：后端 pytest 134/134；前端 vitest 108/108（37 文件）；Playwright e2e 8 条（f0 冒烟 → f7 无障碍 axe）。
+- **测试规模**：后端 pytest 约 159 个用例（36 文件，含 rerank / guardrails / enterprise-eval / reflection 专项）；前端 vitest 37 文件；Playwright e2e f0–f7。通过率以本地 `pytest -q` / `vitest run` 为准，本页不锁死绿灯数。
 - **类型与风格**：`tsc -b` 通过；ruff + mypy(strict) 已配置；eslint 存量 12 项（react-hooks 效应类，无功能影响）。
 - **性能与健壮性**（本轮优化落地）：
   - SQLite 开启 WAL / `synchronous=NORMAL` / `busy_timeout=5000` / 外键强制；
@@ -103,12 +106,14 @@ SQLite（25+ 表，全 FK/状态列索引；WAL + busy_timeout；物理删除含
 
 ## 8. 诚实边界（简历/面试红线）
 
-- Rerank 是**本地 lexical fusion**，不是 cross-encoder，不夸大。
+- Rerank **默认本地 lexical fusion**（词法，非模型）；另有**可选真实 NVIDIA cross-encoder**（opt-in、按 run 选、失败直接 503 不静默回退）——别说「自研 BGE / 默认在线 / 生产级低延迟」。
 - MCP 企业连接器是 **mock**，响应带 `status=mock`；协议层（stdio/http）是真的。
 - LightRAG score 有合成衰减成分，评测不当作模型相关分。
 - 记忆**非权威**，不能覆盖本轮 RAG 证据；偏好不写入制度条款措辞。
 - 无可靠证据默认硬拒答；off-topic 检索结果不当制度依据。
 - 只报 Hit@K/MRR 时必须交代 N、干扰文档、是否 1-doc 任务。
+- 兜底门（Turn Budget / 检索质量门 / PASS·REVISE·REFUSE / Tool 幂等 + `unknown`）是**单体内基础版**，判断以确定性信号为主；**无补偿 Tool / Saga / 熔断**，DB rollback 撤不回已发出的外部副作用。
+- 企业政策测试集是**小库 / 全合成 / 无干扰**的领域 sanity，非严格 benchmark；量化主张仍以 CRUD 为准。
 
 ## 9. 里程碑（git 主线）
 
@@ -119,6 +124,7 @@ SQLite（25+ 表，全 FK/状态列索引；WAL + busy_timeout；物理删除含
 | 记忆与多轮 | 四层记忆、query rewrite、SSE 阶段流、记忆管理页 |
 | Agent 深化 | L1/L2 渐进计划 + 并行 wave、CoT/ToT 按难度、TurnState 黑板、Critique→Improve 反思闭环 |
 | 体验与质量 | 深色模式、quiet chips、限流硬化；SQLite WAL、N+1 修复、全局错误提示、工作台/登录重设计（2026-07-26） |
+| 检索 / 评测 / 兜底强化（2026-08） | 可选 NVIDIA cross-encoder rerank + 模型设置页、自建企业政策评测集、请求级 Turn Budget + 检索质量门 + PASS/REVISE/REFUSE 发布门、Tool 幂等 / `unknown`、文档更新韧性与 LightRAG 超时降级 |
 
 ## 10. 文档导航
 
