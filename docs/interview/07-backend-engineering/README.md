@@ -1,5 +1,7 @@
 # 07. 后端工程面试点
 
+> 这章是「后端工程点速查清单」,凝练是故意的(面试前快过)。**看不懂的词先查 [白话术语表](../00-glossary/README.md)**——尤其第 4 节(兜底:Turn Budget / 质量门 / 幂等 / unknown)和第 6 节(工程:WAL / N+1 / BackgroundTasks / JWT)。想看某点的展开详解,去对应章节。
+
 ## 栈与工程形状
 
 - **FastAPI** 应用：`backend/app/main.py`  
@@ -27,20 +29,22 @@ SSE：`POST /api/chat/stream` 推 stage（MemoryLoad / rewrite / 检索 / 回答
 - Skill `insufficient_evidence`  
 - embedding/LLM 失败：记忆路径 best-effort，不拖垮主回答（视具体路径）  
 
-#### 错误兜底下一步规划（尚未实施）
+#### 错误兜底四类（已落地基础版）
 
-面试时可以按四类问题回答：
+统一按四类问题设计，均已落地基础版（判断以确定性信号为主，非完整 Saga / 熔断）：
 
-1. **调用次数失控**：在 Tool/Reflection 各自轮次限制之外，增加单轮总 LLM 调用数、总检索次数和总耗时预算。
-2. **RAG 有结果但质量差**：增加检索质量门；最多一次回退原问题或替代策略，仍不可靠就 hard refuse。
-3. **答案有引用或事实问题**：将 Compliance 收敛成 `PASS / REVISE / REFUSE` 发布门；改稿一次后必须复检。
-4. **外部操作失败或超时**：区分本地事务和外部副作用。外部写操作使用幂等键、`unknown` 状态、执行结果核对和补偿，而不是声称数据库 rollback 能撤销邮件或飞书消息。
+1. **调用次数失控**：在 Tool/Reflection 各自轮次限制之外，请求级 Turn Budget 再限单轮总 LLM 调用（`llm=16`）、总检索（`retrieval=2`）、总 Tool（`tool=8`）与整轮耗时（`180s`）；超限 `TURN_BUDGET_EXHAUSTED`，不再续跑也不编答案。
+2. **RAG 有结果但质量差**：检索质量门识别空证据 / 偏题 / rewrite 漂移，最多回退原问题重检一次，仍不可靠就 hard refuse（`quality_gate.py`）。偏题判定优先用 cross-encoder 分数（低于阈值 → `RETRIEVAL_SCORE_BELOW_THRESHOLD`），拿不到真分数（默认聊天不开重排、或本地词法重排）时退回中文二元词覆盖率；两个信号都记，可用 40 条负样本量出拦住率与误拦率。
+3. **答案有引用或事实问题**：Compliance 收敛成 `PASS / REVISE / REFUSE` 发布门；`REVISE` 定向改稿一次并复检，失败则安全拒答。
+4. **外部操作失败或超时**：区分本地事务与外部副作用。外部写用幂等键、`unknown` 状态、禁止盲重发，而不是声称 DB rollback 能撤销邮件或飞书消息；补偿 Tool / 状态查询适配器仍待按真实连接器实现。
 
 详细场景见 [`../11-scenario-questions`](../11-scenario-questions/README.md) Q11、Q12。
 
 ### 4. 后台任务意识
 
 - 文档索引后台排队，避免导入接口阻塞  
+- 文档更新韧性：版本号 +1 + `pending` 状态 + 后台重索引；commit 失败则 rollback 并删除孤儿文件（外部 LightRAG 索引不在事务内，不保证跨系统强一致）  
+- LightRAG 超时 → BM25-only 且 metadata 打标（`fallback_reason=timeout`）；**非超时**失败直接抛，不静默降级  
 - Eval 跑批与在线问答隔离在「测试库」约定上  
 
 ### 5. 可测性
