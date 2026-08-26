@@ -33,7 +33,7 @@
 | 5 | 用户只说「给我模板」 | 多轮 + query rewrite |
 | 6 | 记忆把过期制度当真理 | 四层记忆非权威 |
 | 7 | 评测 100% Hit@1 被质疑刷分 | eval_test / 干扰 / 采样 N |
-| 8 | 「你们做了 cross-encoder 重排？」 | 本地 lexical fusion 诚实表述 |
+| 8 | 「你们做了 cross-encoder 重排？」 | 默认本地词法；另有可选真 NVIDIA cross-encoder，无静默回退 |
 | 9 | 前端一直转圈 / 不知道在干什么 | SSE 阶段与信息层级 |
 | 10 | 高风险回答仍要自动改两稿 | Critique→Improve + Compliance 门 |
 | 11 | 模型重试、Tool 循环、低质 RAG 同时发生 | 全局调用预算 + 检索质量门 + 答案发布门 |
@@ -354,38 +354,44 @@
 
 ### 参考解答
 
-1. **立刻纠偏**  
-   默认 **不是** cross-encoder / 不是云端 rerank API。  
-   默认是 **`local_lexical_fusion`（本地词法融合重排）**。
+1. **先分清默认与可选**  
+   默认 **不是** cross-encoder：是 **`local_lexical_fusion`（本地词法融合重排，词法重叠 0.65 + 原分 0.35，非模型）**，且 `rerank_enabled` 默认关。  
+   但**确实有真 cross-encoder 可选**：`cross_encoder` = **真实 NVIDIA NIM 云端 rerank API**（当前模型 `nvidia/llama-nemotron-rerank-vl-1b-v2`；同族的文本版与 `rerank-qa-mistral-4b` 已于 2026-08-25 被上游下线）。**不是自研 BGE、不是本地 GPU、不是 Cohere。**
 
-2. **为什么这样选（MVP 叙事）**  
-   - 单机可演示、无额外 GPU/API 依赖  
-   - metadata 可核验，评测可开关对比  
-   - 面试场景优先**可复现与诚实**，而不是不可演示的大模型链路
+2. **关键工程诚实点（这段最加分）**  
+   - **opt-in**：按请求 / 按 eval run 在评估页「页面选择」，不是全局默认开。  
+   - **刻意不静默回退**：选了 `cross_encoder` 却没配置 / 调用失败 → 直接 `RERANKER_UNAVAILABLE`(503)，**绝不偷偷降级回本地**——否则 eval 数字会张冠李戴。唯一容错是三个 NVIDIA 模型之间轮换。  
+   - 模型设置页把 **chat / embedding / reranker** 三类服务独立配置；reranker 走 `nvidia_rerank` api_style，连通性测试会对 NVIDIA 发一次**真实** 1-passage rerank。
 
 3. **怎么讲价值**  
-   - 在 hybrid 多路融合后做二次排序，压噪声  
-   - 与「不做 rerank」可 A/B；数字说话  
-   - 明确：**扩展 cross-encoder 是下一阶段**，不是当前叙事的一部分
+   - 在 hybrid 多路融合后做二次排序压噪声；  
+   - 可在**同一评测**上 A/B `local_lexical_fusion` vs `cross_encoder`，run summary 记 `reranker_method` / `reranker_backend`，**数字说话**；  
+   - 因为无静默回退，导出结果里的重排方式一定对得上口头叙述。
 
-4. **关联诚实点**  
-   - LightRAG 分可能 synthetic，和 rerank 分数含义不同，勿混谈  
-   - Rerank 开关与策略名应进 eval 结果，避免口头与导出不一致
+4. **延迟 / 成本的诚实边界**  
+   云端调用有网络延迟与配额，**没测严格 p99**；这是「工程可插拔 + 可评测」，不是「生产级低延迟重排已优化」。
 
-5. **态度模板**  
-   > 我把 rerank 做成可开关的工程能力，并在文档写死实现级别。需要 cross-encoder 时是加模型与评测回归，不是改 PPT 用词。
+5. **关联诚实点**  
+   - LightRAG 分可能 synthetic，和 rerank 分数含义不同，勿混谈；  
+   - Rerank 开关与策略名进 eval 结果，避免口头与导出不一致。
+
+6. **态度模板**  
+   > 默认是可核验的本地词法重排；真 cross-encoder 我做成 opt-in 的 NVIDIA NIM 调用，并**故意不做静默回退**，这样每个 eval 数字都能对上到底用的哪种重排。需要它时是选一下 + 跑评测回归，不是改 PPT 用词。
 
 ### 可指代码 / 文档
 
-- `backend/app/rag/rerank_service.py`  
+- `backend/app/rag/rerank_service.py`（本地 `local_lexical_fusion`）  
+- `backend/app/rag/cross_encoder_rerank_service.py`（真实 NVIDIA NIM）、`backend/app/main.py` `_build_rerankers`  
+- `tests/test_nvidia_rerank.py`、`tests/test_rerank_selection.py`  
 - `docs/interview/03-rag-retrieval`、`09-honesty-boundaries` 禁用词表
 
 ### 可能追问
 
 | 追问 | 短答 |
 |---|---|
-| 词法 fusion 会不会伤语义召回？ | 可能；所以可关，且用 Hit@K 看净收益 |
-| 线上默认开吗？ | 以配置/实现为准；面试强调「可配置 + 可评测」 |
+| 为什么默认不开 cross-encoder？ | 单机可演示、无云依赖；cross_encoder 作为 opt-in，可控且可评测对比 |
+| 不可用时为什么不回退本地？ | 回退会让 eval 数字对不上「用的哪种重排」；宁可 503 报错，让人显式换策略 |
+| 词法 fusion 会不会伤语义召回？ | 可能；所以可关，也可换真 cross-encoder，用 Hit@K 看净收益 |
 
 ---
 
@@ -565,6 +571,34 @@ PolicyFlow 发出“发送飞书消息”请求
 
 如果直接重试，用户可能收到两条消息。如果执行数据库 rollback，只能撤销 PolicyFlow 本地尚未提交的消息日志，无法撤销飞书服务器上已经完成的发送动作。
 
+### 什么是幂等键（先搞懂这个）
+
+**幂等**＝同一个操作重复做也不会重复生效。「把请假状态设为已提交」做十次还是已提交（幂等）；「发一封邮件」做两次就真发出两封（不幂等）。
+
+**幂等键**＝给「同一件业务操作」贴的一个唯一编号，随请求一起带上。收到请求的一方先看这个编号：没见过就执行，见过就直接返回上次的结果，**不再执行第二次**。
+
+> 类比：去柜台交单子，单子上印着流水号。你不确定上次交成没交成，又交了一遍；柜员一看流水号已经办过，就把上次的回执给你，而不是再办一次。
+
+它解决的正是上面那个死局：**带着同一个幂等键重发是安全的**（最多生效一次），或者拿这个键去问对方「这单办了没」。没有幂等键时，「重试」和「放弃」两种选择都可能出错。
+
+本项目的键怎么生成（`backend/app/tools/chat_tools.py`）：
+
+```python
+idempotency_key = sha256(f"{user.id}:{conversation_id}:{tool_name}:{参数JSON}")
+```
+
+含义是「同一个人 + 同一轮对话 + 同一个工具 + 同一套参数 = 同一件事」。参数 JSON 排序（`sort_keys=True`）保证键稳定，不会因为字典顺序变化就算出两个不同的键。
+
+执行前先查审计日志里有没有同键记录（`backend/app/tools/registry.py`）：
+
+| 同键的上次记录 | 这次怎么处理 | 为什么 |
+|---|---|---|
+| 没有 | 正常执行 | 第一次做这件事 |
+| `success` | 直接返回上次的 output，不再执行 | 已经做过，重做会产生第二份副作用 |
+| `unknown`（超时） | 报 `SIDE_EFFECT_STATUS_UNKNOWN`（409）拒绝执行 | 不知道做没做，盲目重发风险最大，交人核对 |
+
+注意两点边界：**前端把按钮禁用掉不算幂等**（那只防误点，防不了网络重传和自动重试）；**幂等键需要对方配合**，外部平台不认这个键时，只能靠状态查询或人工确认。
+
 ### 什么叫补偿
 
 补偿不是把时间倒回去，而是执行一个相反或修正动作，例如：
@@ -634,10 +668,10 @@ PolicyFlow 发出“发送飞书消息”请求
 | 5 | 短跟进靠 rewrite + 历史 | 记忆不顶制度 |
 | 6 | 记忆非权威 + TTL/偏好禁条款 | 冷热=装配 |
 | 7 | eval_test + 干扰 + 随机 N | 禁业务库灌金标 |
-| 8 | 本地 lexical fusion | 非 cross-encoder |
+| 8 | 默认本地词法 + 可选真 NVIDIA cross-encoder | 非默认、非自研 BGE、无静默回退 |
 | 9 | SSE 阶段 + 安静 chips | 非生产 IM |
 | 10 | Critique→Improve 硬轮次 | 非辩论；Compliance 终局 |
-| 11 | 总预算 + 检索质量门 + 答案发布门 | 规划中；当前仍是分散限制 |
+| 11 | 请求级 Turn Budget + 质量门 + PASS/REVISE/REFUSE 发布门 | 已落地基础版；判断是轻量确定性信号，非完整 Saga/熔断 |
 | 12 | 外部超时先核对，不能盲目重发 | DB rollback 撤不回外部副作用 |
 
 ---

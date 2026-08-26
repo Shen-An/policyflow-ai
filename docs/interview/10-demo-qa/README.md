@@ -30,8 +30,8 @@
 
 ### 4) Eval（3 min）
 
-- CRUD → eval_test  
-- 随机 50：Hybrid vs BM25  
+- 选评测库：CRUD → `eval_test`（随机 50）；或一键 seed 企业政策测试集 → `enterprise_eval_test`  
+- Hybrid vs BM25；如配 NVIDIA，可 A/B `local_lexical_fusion` vs `cross_encoder`  
 - 看板 Hit@1/5/10、MRR、策略、N  
 - 导出  
 
@@ -55,7 +55,7 @@ A: 编排上多个 stage；**主 agent 是 Answer**。Memory/Retrieval 是 load/
 ### RAG
 
 **Q: Hybrid 怎么融？**  
-A: 多路候选 + 融合（如 RRF）+ 可选本地 lexical rerank；以评测数字为准。
+A: 多路候选 + 融合（如 RRF）+ 可选 rerank（默认本地 lexical fusion，可 opt-in 真 NVIDIA cross-encoder）；以评测数字为准。
 
 **Q: 为什么还要 BM25？**  
 A: 条款号、专名、制度固定表述词法强；与语义路互补。
@@ -87,6 +87,9 @@ A: 实习/面试 MVP 可单机跑通；模型层可迁 PG；向量规模边界�
 **Q: 如何保证可演示稳定？**  
 A: 分阶段测试、注入 Fake LLM/检索适配器、文档化启动与彩排清单。
 
+**Q: 模型重试、Tool 循环、低质 RAG 叠加会不会失控？**  
+A: 请求级 Turn Budget（llm=16 / 检索=2 / tool=8 / 180s）统一收口；检索质量门（跑题回退原问题重检一次）+ `PASS/REVISE/REFUSE` 发布门；外部 Tool 超时记 `unknown` 不盲重发。是单体内基础版兜底，非 Saga / 熔断。详见 [11 Q11/Q12](../11-scenario-questions/README.md)。
+
 ---
 
 ## C. 开场 30 秒 + 收尾 20 秒
@@ -96,7 +99,7 @@ A: 分阶段测试、注入 Fake LLM/检索适配器、文档化启动与彩排�
 **收尾：**
 
 > 项目价值在于把企业制度问答做成 **可编排、可拒答、可评测、可演示** 的诚实系统。  
-> 我清楚本地 rerank、mock MCP、记忆装配的边界，并在仓库文档里写死，方便复现而不是只存在于口述。
+> 我清楚默认本地 rerank（可选真 NVIDIA cross-encoder、无静默回退）、mock MCP、记忆装配的边界，并在仓库文档里写死，方便复现而不是只存在于口述。
 
 ---
 
