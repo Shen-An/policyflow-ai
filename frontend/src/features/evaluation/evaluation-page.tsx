@@ -235,8 +235,57 @@ function formatScopeLabel(scope: EvalRunScope | null | undefined): string | null
   if (scope.taskTypes.length) parts.push(scope.taskTypes.join('+'))
   else if (scope.sources.length) parts.push(scope.sources.join('+'))
   if (scope.itemCount) parts.push(`N=${scope.itemCount}`)
+  if (scope.negativeItemCount) parts.push(`neg=${scope.negativeItemCount}`)
   if (scope.staleGoldCount) parts.push(`stale_gold=${scope.staleGoldCount}`)
   return parts.length ? parts.join(' · ') : null
+}
+
+type NegativeGateKind = {
+  kind: string
+  count: number
+  gateBlocked: number | null
+  lexicalBlocked: number | null
+}
+
+type NegativeGateSummary = {
+  count: number
+  gateBlocked: number | null
+  lexicalBlocked: number | null
+  gateModes: string
+  byKind: NegativeGateKind[]
+}
+
+/** 负样本（该拒答的题）不进 Hit@K，只看「拦住了没有」。 */
+function negativeGateSummary(
+  metrics: Record<string, unknown> | null | undefined,
+): NegativeGateSummary | null {
+  const raw = metrics?.negative_gate
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const gate = raw as Record<string, unknown>
+  const count = asNumber(gate.count) ?? 0
+  if (!count) return null
+  const byKindRaw =
+    gate.by_kind && typeof gate.by_kind === 'object' && !Array.isArray(gate.by_kind)
+      ? (gate.by_kind as Record<string, Record<string, unknown>>)
+      : {}
+  const modesRaw =
+    gate.gate_modes && typeof gate.gate_modes === 'object' && !Array.isArray(gate.gate_modes)
+      ? (gate.gate_modes as Record<string, unknown>)
+      : {}
+  return {
+    count,
+    gateBlocked: pickMetric(gate, 'gate_blocked'),
+    lexicalBlocked: pickMetric(gate, 'lexical_blocked'),
+    gateModes: Object.entries(modesRaw)
+      .map(([mode, value]) => `${mode}×${asNumber(value) ?? 0}`)
+      .join(' · '),
+    byKind: Object.entries(byKindRaw).map(([kind, item]) => ({
+      kind,
+      count: asNumber(item.count) ?? 0,
+      gateBlocked: pickMetric(item, 'gate_blocked'),
+      lexicalBlocked: pickMetric(item, 'lexical_blocked'),
+    })),
+  }
 }
 
 function rankHistogramText(metrics: Record<string, unknown> | null | undefined): string | null {
@@ -453,7 +502,11 @@ function CrudImportSection() {
               const result = await enterpriseSeedMutation.mutateAsync()
               form.setFieldValue('knowledgeBaseId', result.knowledgeBaseId)
               message.success(
-                `企业政策测试集已准备：${result.caseCount} 条用例、${result.corpusDocumentCount} 份制度文档，索引排队 ${result.indexQueued} 份`,
+                `企业政策测试集已准备：${result.caseCount} 条用例、${result.corpusDocumentCount} 份制度文档` +
+                  (result.negativeCount
+                    ? `、${result.negativeCount} 条负样本（该拒答，不计入 Hit@K）`
+                    : '') +
+                  `，索引排队 ${result.indexQueued} 份`,
               )
             }}
           >
@@ -1345,6 +1398,7 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
     (core.hit5 === 1 || core.hit3 === 1) &&
     core.mrr === 1
   const scopeLabel = formatScopeLabel(run.scope)
+  const negativeGate = negativeGateSummary(run.metrics)
   const rankHistText = rankHistogramText(run.metrics)
   const midRankHits = asNumber(run.metrics.mid_rank_hits) ?? 0
   const collapsedHits =
@@ -1424,6 +1478,9 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
             KB：{item.name}({item.code})
           </QuietChip>
         ))}
+        {run.scope && run.scope.negativeItemCount > 0 ? (
+          <QuietChip tone="accent">负样本 {run.scope.negativeItemCount}（不计入 Hit@K）</QuietChip>
+        ) : null}
         {run.scope && run.scope.staleGoldCount > 0 ? (
           <QuietChip tone="error">stale gold {run.scope.staleGoldCount}</QuietChip>
         ) : null}
@@ -1597,6 +1654,69 @@ function RunDetail({ id, onClose }: { id: string; onClose: () => void }) {
                 render: (value) => formatMrr(value),
               },
             ]} />
+        </Card>
+      ) : null}
+
+      {negativeGate ? (
+        <Card
+          size="small"
+          type="inner"
+          title={`拒答门控（负样本 ${negativeGate.count} 条，不计入 Hit@K / MRR）`}
+          style={{ marginBottom: 12 }}
+        >
+          <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 8 }}>
+            这些 query 在语料里<strong>本来就没有答案</strong>，正确行为是拒答，所以它们没有金标、
+            不参与 Hit@K / MRR，只看「拦住了没有」。同时列出旧的纯词面覆盖率门控在同一批片段上的结果，
+            改进是量出来的。{negativeGate.gateModes ? `门控模式：${negativeGate.gateModes}。` : ''}
+          </Typography.Paragraph>
+          <Row gutter={[12, 12]} style={{ marginBottom: 8 }}>
+            <Col xs={12} sm={8} md={6}>
+              <Card size="small">
+                <Statistic
+                  title="现门控拦住率"
+                  value={formatRate(negativeGate.gateBlocked)}
+                  valueStyle={{ color: palette.primary }} />
+              </Card>
+            </Col>
+            <Col xs={12} sm={8} md={6}>
+              <Card size="small">
+                <Statistic
+                  title="旧词面门控拦住率"
+                  value={formatRate(negativeGate.lexicalBlocked)}
+                  valueStyle={{ color: '#64748b' }} />
+              </Card>
+            </Col>
+          </Row>
+          {negativeGate.byKind.length ? (
+            <Table
+              size="small"
+              pagination={false}
+              rowKey="kind"
+              dataSource={negativeGate.byKind}
+              columns={[
+                {
+                  title: '类型',
+                  dataIndex: 'kind',
+                  render: (value: string) =>
+                    value === 'near_miss'
+                      ? 'near_miss（同话术但库里没有）'
+                      : value === 'off_topic'
+                        ? 'off_topic（完全跑题）'
+                        : value,
+                },
+                { title: '条数', dataIndex: 'count' },
+                {
+                  title: '现门控拦住',
+                  dataIndex: 'gateBlocked',
+                  render: (value) => formatRate(value),
+                },
+                {
+                  title: '旧词面门控拦住',
+                  dataIndex: 'lexicalBlocked',
+                  render: (value) => formatRate(value),
+                },
+              ]} />
+          ) : null}
         </Card>
       ) : null}
 

@@ -92,6 +92,16 @@ describe('EvaluationPage', () => {
             completed_cases: 20,
             first_rank_histogram: { '1': 14, '3': 3, miss: 3 },
             mid_rank_hits: 3,
+            negative_gate: {
+              count: 40,
+              gate_blocked: 0.9,
+              lexical_blocked: 0.45,
+              gate_modes: { cross_encoder_score: 40 },
+              by_kind: {
+                near_miss: { count: 20, gate_blocked: 0.8, lexical_blocked: 0.1 },
+                off_topic: { count: 20, gate_blocked: 1, lexical_blocked: 0.8 },
+              },
+            },
           },
           config_snapshot: {
             eval_types: ['retrieval'],
@@ -118,8 +128,9 @@ describe('EvaluationPage', () => {
             sources: ['crud_rag'],
             item_count: 20,
             case_count: 0,
+            negative_item_count: 40,
             stale_gold_count: 0,
-            label: '测试库(eval_test) · questanswer_1doc · N=20',
+            label: '测试库(eval_test) · questanswer_1doc · N=20 · neg=40',
           },
           results: [
             {
@@ -172,6 +183,12 @@ describe('EvaluationPage', () => {
       screen.getAllByText(/测试库\(eval_test\) · questanswer_1doc · N=20/).length,
     ).toBeGreaterThan(0)
     expect(screen.getByText(/用例来源（与 Run 名称无关）/)).toBeVisible()
+    // Negatives are reported next to Hit@K but never folded into it.
+    expect(screen.getByText(/拒答门控（负样本 40 条，不计入 Hit@K \/ MRR）/)).toBeVisible()
+    expect(screen.getByText('现门控拦住率')).toBeVisible()
+    expect(screen.getByText('旧词面门控拦住率')).toBeVisible()
+    expect(screen.getByText(/near_miss（同话术但库里没有）/)).toBeVisible()
+    expect(screen.getByText(/负样本 40（不计入 Hit@K）/)).toBeVisible()
     // Per-case details are collapsed by default to keep the page scannable.
     expect(screen.getByText(/展开逐条检索结果/)).toBeVisible()
     expect(screen.queryByText('差旅住宿标准？')).not.toBeInTheDocument()

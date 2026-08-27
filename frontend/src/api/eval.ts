@@ -45,6 +45,7 @@ export type EvalRunScope = {
   sources: string[]
   itemCount: number
   caseCount: number
+  negativeItemCount: number
   staleGoldCount: number
   label: string | null
 }
@@ -154,6 +155,7 @@ type EvalRunScopeRaw = {
   sources?: string[]
   item_count?: number
   case_count?: number
+  negative_item_count?: number
   stale_gold_count?: number
   label?: string | null
 }
@@ -223,6 +225,7 @@ function toScope(raw: EvalRunScopeRaw | null | undefined): EvalRunScope | null {
     sources: raw.sources ?? [],
     itemCount: raw.item_count ?? 0,
     caseCount: raw.case_count ?? 0,
+    negativeItemCount: raw.negative_item_count ?? 0,
     staleGoldCount: raw.stale_gold_count ?? 0,
     label: raw.label ?? null,
   }
@@ -460,9 +463,12 @@ export type EnterpriseEvalSeedResult = {
   documentsReused: number
   retrievalItemsCreated: number
   evalCasesCreated: number
+  negativeItemsCreated: number
+  negativeCasesCreated: number
   indexQueued: number
   corpusDocumentCount: number
   caseCount: number
+  negativeCount: number
   warning: string | null
 }
 
@@ -474,9 +480,12 @@ export async function seedEnterpriseEvalDataset(): Promise<EnterpriseEvalSeedRes
     documents_reused: number
     retrieval_items_created: number
     eval_cases_created: number
+    negative_items_created?: number
+    negative_cases_created?: number
     index_queued: number
     corpus_document_count: number
     case_count: number
+    negative_count?: number
     warning?: string | null
   }>('/api/eval/datasets/enterprise-seed', {
     method: 'POST',
@@ -490,9 +499,12 @@ export async function seedEnterpriseEvalDataset(): Promise<EnterpriseEvalSeedRes
     documentsReused: raw.documents_reused,
     retrievalItemsCreated: raw.retrieval_items_created,
     evalCasesCreated: raw.eval_cases_created,
+    negativeItemsCreated: raw.negative_items_created ?? 0,
+    negativeCasesCreated: raw.negative_cases_created ?? 0,
     indexQueued: raw.index_queued,
     corpusDocumentCount: raw.corpus_document_count,
     caseCount: raw.case_count,
+    negativeCount: raw.negative_count ?? 0,
     warning: raw.warning ?? null,
   }
 }
