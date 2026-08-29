@@ -168,3 +168,86 @@ async def test_embed_retries_retryable_http_status(tmp_path: Path, monkeypatch) 
 
     assert calls["count"] == 2
     assert vectors == [[1.0, 2.0]]
+
+
+@pytest.mark.asyncio
+async def test_embed_fails_fast_when_model_is_end_of_life(tmp_path: Path, monkeypatch) -> None:
+    """A retired model (410) must not burn payload-compatibility retries."""
+
+    engine, settings = _build_engine(tmp_path)
+    # NVIDIA-hosted base URL would otherwise try three payload shapes.
+    _seed_embedding_provider(engine, base_url="https://integrate.api.nvidia.com/v1")
+
+    calls = {"count": 0}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        calls["count"] += 1
+        return httpx.Response(
+            410,
+            json={
+                "message": (
+                    "The model 'embed-test' has reached its end of life on "
+                    "2026-08-25T09:00:00Z and is no longer available."
+                )
+            },
+        )
+
+    async def no_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(asyncio, "sleep", no_sleep)
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    service = OpenAICompatibleEmbeddingService(
+        engine,
+        settings,
+        client=client,
+        max_attempts=3,
+        retry_base_seconds=0.01,
+    )
+    try:
+        with pytest.raises(ApplicationError) as exc_info:
+            await service.embed(["hello"])
+    finally:
+        await client.aclose()
+        engine.dispose()
+
+    error = exc_info.value
+    assert calls["count"] == 1
+    assert error.code == "EMBEDDING_MODEL_UNAVAILABLE"
+    assert "embed-test" in error.message
+    assert "end of life" in error.message
+    assert "重新索引" in error.message
+
+
+@pytest.mark.asyncio
+async def test_embed_fails_fast_when_model_is_not_found(tmp_path: Path, monkeypatch) -> None:
+    engine, settings = _build_engine(tmp_path)
+    _seed_embedding_provider(engine, base_url="https://integrate.api.nvidia.com/v1")
+
+    calls = {"count": 0}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        calls["count"] += 1
+        return httpx.Response(404, json={"detail": "Not found for account"})
+
+    async def no_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(asyncio, "sleep", no_sleep)
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    service = OpenAICompatibleEmbeddingService(
+        engine,
+        settings,
+        client=client,
+        max_attempts=3,
+        retry_base_seconds=0.01,
+    )
+    try:
+        with pytest.raises(ApplicationError) as exc_info:
+            await service.embed(["hello"])
+    finally:
+        await client.aclose()
+        engine.dispose()
+
+    assert calls["count"] == 1
+    assert exc_info.value.code == "EMBEDDING_MODEL_UNAVAILABLE"
