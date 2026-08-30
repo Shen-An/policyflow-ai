@@ -199,8 +199,13 @@ class AnswerAgent:
                         await event
                 try:
                     output = await tool_executor.execute(call.name, call.arguments)
-                    status = "success"
-                    error_message = None
+                    # A bounded degradation (e.g. retrieval budget spent) is a
+                    # warning, not a failure: the call returned usable guidance.
+                    degraded = isinstance(output, dict) and bool(output.get("degraded"))
+                    status = "warning" if degraded else "success"
+                    error_message = (
+                        str(output.get("warning") or "degraded") if degraded else None
+                    )
                 except Exception as exc:
                     output = {"error": str(exc)}
                     status = "failed"

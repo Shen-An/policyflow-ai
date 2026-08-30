@@ -170,11 +170,17 @@ class AgentPipeline:
                     f"调用工具 {payload.get('tool_name')}",
                 )
             elif event == "tool_result":
+                status = str(payload.get("status") or "success")
+                label = {
+                    "success": "完成",
+                    "warning": "已降级",
+                    "failed": "失败",
+                }.get(status, status)
                 await self._emit_stage(
                     on_stage,
                     "ToolCall",
-                    str(payload.get("status") or "success"),
-                    f"工具 {payload.get('tool_name')} {payload.get('status')}",
+                    status,
+                    f"工具 {payload.get('tool_name')} {label}",
                 )
 
         answer_result = await self.answer_agent.run(
@@ -458,7 +464,7 @@ class AgentPipeline:
         budget = kwargs.pop("budget", None)
         active_budget = budget or TurnBudget(
             max_llm_calls=int(getattr(self.settings, "CHAT_TURN_MAX_LLM_CALLS", 8) or 8),
-            max_retrieval_attempts=int(getattr(self.settings, "CHAT_TURN_MAX_RETRIEVAL_ATTEMPTS", 2) or 2),
+            max_retrieval_attempts=int(getattr(self.settings, "CHAT_TURN_MAX_RETRIEVAL_ATTEMPTS", 5) or 5),
             max_tool_calls=int(getattr(self.settings, "CHAT_TURN_MAX_TOOL_CALLS", 6) or 6),
             max_total_seconds=float(getattr(self.settings, "CHAT_TURN_TIMEOUT_SECONDS", 180.0) or 180.0),
         )

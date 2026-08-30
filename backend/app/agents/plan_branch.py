@@ -339,6 +339,8 @@ async def generate_plan_options(
             '"query":str|null,"skill_hint":str|null,"tool_hints":[str],"depends_on":[str]}]}]}。'
             f"生成 {min_options}-{max_options} 条差异化路径（检索策略/顺序/是否 skill 不同），"
             "每条 2-5 步，最后一步 kind=answer。"
+            "skill_hint 只能取 process_checklist|policy_compare|summary 之一，"
+            "不要自己编技能名，无法归入这三个就填 null。"
             "恰好一条 recommended=true。"
             "这不是学术 Tree-of-Thoughts 搜索，不要写推理散文。"
             "不要解释。"
