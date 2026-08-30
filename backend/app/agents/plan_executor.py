@@ -22,6 +22,7 @@ from backend.app.db.models import KnowledgeBase, User
 from backend.app.rag.quality_gate import assess_retrieval_quality
 from backend.app.schemas.chat import PlanStep, RouterResult
 from backend.app.schemas.retrieval import Evidence, RetrievalRequest, RetrievalResult
+from backend.app.skills.catalog import resolve_skill_name
 
 EventCallback = Callable[[str, dict[str, Any]], Awaitable[None] | None]
 StageCallback = Callable[[str, str, str], Awaitable[None] | None]
@@ -411,7 +412,9 @@ class PlanExecutor:
             if step.kind == "skill":
                 if not enable_skill:
                     return step.id, "skipped", "Skill 未启用", side
-                skill_name = (step.skill_hint or "").strip()
+                # A stored/older plan may still carry a free-text hint; canonicalize
+                # so we never call the registry with a non-existent skill name.
+                skill_name = resolve_skill_name(step.skill_hint) or ""
                 if not skill_name:
                     # Fall back to router task mapping via suggest.
                     hints = self.skill_agent.suggest(

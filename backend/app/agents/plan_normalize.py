@@ -6,6 +6,7 @@ import re
 from typing import Any, Literal
 
 from backend.app.schemas.chat import PlanStep, ReasoningMode, RouterResult
+from backend.app.skills.catalog import resolve_skill_name
 
 PlanSource = Literal["none", "user", "router", "user_selected"]
 Complexity = Literal["simple", "multi_step"]
@@ -154,13 +155,23 @@ def _infer_kind(text: str) -> str:
 
 
 def _infer_skill_hint(text: str) -> str | None:
-    lowered = text.lower()
-    if any(tok in lowered for tok in ("对比", "区别", "compare")):
-        return "policy_compare"
-    if any(tok in lowered for tok in ("摘要", "总结", "summary")):
-        return "summary"
-    if any(tok in lowered for tok in ("清单", "流程", "步骤", "checklist", "process")):
-        return "process_checklist"
+    return resolve_skill_name(text)
+
+
+def _canonical_skill_hint(raw: Any, title: str, kind: str) -> str | None:
+    """Coerce an LLM-provided skill hint into an implemented skill name.
+
+    The planner tends to write descriptive phrases（如「流程清单抽取」）that no
+    registry entry matches; keeping them verbatim guarantees SKILL_NOT_FOUND.
+    Fall back to the step title, then to ``None`` (caller skips the skill).
+    """
+
+    hint = str(raw).strip() if isinstance(raw, str) and raw.strip() else None
+    resolved = resolve_skill_name(hint)
+    if resolved:
+        return resolved
+    if kind == "skill":
+        return _infer_skill_hint(title)
     return None
 
 
@@ -175,7 +186,7 @@ def _coerce_step(raw: Any, index: int) -> PlanStep | None:
             title=title[:120],
             kind=kind,  # type: ignore[arg-type]
             query=(step.query.strip()[:4000] if isinstance(step.query, str) and step.query.strip() else None),
-            skill_hint=(step.skill_hint.strip()[:64] if isinstance(step.skill_hint, str) and step.skill_hint.strip() else None),
+            skill_hint=_canonical_skill_hint(step.skill_hint, title, kind),
             tool_hints=[str(t).strip() for t in (step.tool_hints or []) if str(t).strip()][:8],
             depends_on=[str(d).strip() for d in (step.depends_on or []) if str(d).strip()][:8],
             status="pending",
@@ -191,9 +202,7 @@ def _coerce_step(raw: Any, index: int) -> PlanStep | None:
     query = raw.get("query")
     query_s = str(query).strip()[:4000] if isinstance(query, str) and query.strip() else None
     skill_hint = raw.get("skill_hint") or raw.get("skill")
-    skill_s = str(skill_hint).strip()[:64] if isinstance(skill_hint, str) and skill_hint.strip() else None
-    if kind == "skill" and not skill_s:
-        skill_s = _infer_skill_hint(title)
+    skill_s = _canonical_skill_hint(skill_hint, title, kind)
     tool_hints_raw = raw.get("tool_hints") or []
     tool_hints = (
         [str(t).strip() for t in tool_hints_raw if str(t).strip()][:8]

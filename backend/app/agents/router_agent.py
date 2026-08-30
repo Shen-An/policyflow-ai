@@ -14,6 +14,7 @@ from backend.app.agents.plan_normalize import (
 from backend.app.db.models import KnowledgeBase
 from backend.app.rag.protocols import LLMService
 from backend.app.schemas.chat import PlanStep, RouterResult
+from backend.app.skills.catalog import resolve_skill_name
 
 _VALID_TASK_TYPES = {
     "knowledge_qa",
@@ -148,11 +149,13 @@ def _coerce_plan_steps(raw: Any) -> list[PlanStep]:
         query = item.get("query")
         query_s = str(query).strip()[:4000] if isinstance(query, str) and query.strip() else None
         skill_hint = item.get("skill_hint") or item.get("skill")
-        skill_s = (
-            str(skill_hint).strip()[:64]
-            if isinstance(skill_hint, str) and skill_hint.strip()
-            else None
+        # The model often writes descriptive names（如「流程清单抽取」）that no
+        # registered skill matches; canonicalize or drop instead of failing later.
+        skill_s = resolve_skill_name(
+            str(skill_hint) if isinstance(skill_hint, str) else None
         )
+        if kind == "skill" and not skill_s:
+            skill_s = resolve_skill_name(title)
         tool_hints_raw = item.get("tool_hints") or []
         tool_hints = (
             [str(t).strip() for t in tool_hints_raw if str(t).strip()][:8]
@@ -209,6 +212,8 @@ class RouterAgent:
             "difficulty=branched：存在多种合理执行路径需用户选路（如几种方案/对比路径/先A或先B）。"
             "用户已编号 1.2.3. 线性步骤时 difficulty 必须 multi_step 而非 branched。"
             "multi_step/branched 时 plan_steps 给 2-5 步主路径草案，kind ∈ retrieve|skill|answer|tool|verify；"
+            "skill_hint 只能取 process_checklist|policy_compare|summary 之一，"
+            "不要自己编技能名或写描述性名称，无法归入这三个就填 null；"
             "simple 时 plan_steps 必须为 []。"
             "你不是开放式 planner，也不是学术 ToT 搜索：只做结构化路由。"
             "不要解释。"
