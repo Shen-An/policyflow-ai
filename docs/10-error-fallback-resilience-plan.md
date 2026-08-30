@@ -85,14 +85,16 @@
 
 ```text
 CHAT_TURN_TIMEOUT_SECONDS=180          # 整轮 Chat 总耗时预算（硬截止）
-CHAT_TURN_MAX_LLM_CALLS=8              # Turn Budget：单轮 LLM 调用上限
-CHAT_TURN_MAX_RETRIEVAL_ATTEMPTS=2    # Turn Budget：单轮检索次数上限
-CHAT_TURN_MAX_TOOL_CALLS=6            # Turn Budget：单轮 tool 调用总上限
-CHAT_TOOL_MAX_ROUNDS=3                # Answer tool loop 轮数上限（区别于上面的总数 6）
+CHAT_TURN_MAX_LLM_CALLS=16             # Turn Budget：单轮 LLM 调用上限
+CHAT_TURN_MAX_RETRIEVAL_ATTEMPTS=5     # Turn Budget：单轮检索次数上限（2026-08-28 由 2 放宽）
+CHAT_TURN_MAX_TOOL_CALLS=8             # Turn Budget：单轮 tool 调用总上限
+CHAT_TOOL_MAX_ROUNDS=3                # Answer tool loop 轮数上限（区别于上面的总数 8）
 CHAT_REFLECTION_MAX_ROUNDS=2          # Critique→Improve 反思轮数
 CHAT_ANSWER_REVISE_MAX_ROUNDS=1       # 回答修订轮数
 CHAT_TOOL_DEFAULT_TIMEOUT_SECONDS=20  # 单次 tool 默认超时
 ```
+
+检索额度为什么是 5：一次提问里主检索占 1 次（质量门回退原问题时占 2 次），L2 计划里每个 `retrieve` 步骤各占 1 次，Answer 循环的补充 `kb.search` 再占。原值 2 意味着补查最多 1 次、主检索重试过就是 0 次，`kb.search` 必然抛 `TURN_BUDGET_EXHAUSTED` 并在 UI 上显示成红色「工具失败」。现在额度触顶属于**有界降级**：`kb.search` 返回 `degraded=true` + 「基于已有证据回答，不足就直说」，Answer 循环记 `status="warning"`，budget 快照照旧显示 `retrieval=n/5`。
 
 实施要点：
 
@@ -294,6 +296,18 @@ status = pending | succeeded | failed | unknown | compensated
 - **换 Embedding 模型 = 向量空间变了**。即使新旧模型维度相同（本次都是 2048，所以不会报维度错），旧向量和新 query 向量不可比，检索质量会悄悄变差。换完必须重建索引：`python scripts/reindex_lightrag.py --kb-code <code>`，或对单个文档调 `POST /api/documents/{id}/index`。引用 Hit@K / MRR 之前，`eval_test` 必须先重建索引，否则数字不可比。
 
 建议在 `TurnDiagnostics` 增加：
+
+### 5.2 Planner 编出来的 Skill 名不等于「Skill 缺失」
+
+2026-08-28 从 `ai_query_logs` 里挖到 4 轮 `STEP_ERROR_SKILL / Skill not found`。看着像 Skill 没注册，实际是 **Router LLM 把 `plan_steps[].skill_hint` 写成了描述性中文**：`流程清单抽取`、`报销流程解析技能：识别制度中的报销条件、审批链、材料清单`。`skills` 表和 handler 都没问题，是这两个名字根本不存在。
+
+处理口径（已落地）：
+
+- `backend/app/skills/catalog.py` 是唯一真源：`IMPLEMENTED_SKILLS = process_checklist | policy_compare | summary`，`resolve_skill_name()` 做「精确名 → 别名 → 关键词（对比/摘要/清单流程步骤）」三级归一。
+- **所有 planner 出口都过归一**：`router_agent._coerce_plan_steps`、`plan_normalize._coerce_step`（ToT 分支计划也走它）、`PlanExecutor` 执行前、`SkillAgent.execute_one`、`skill.run` 工具入口。归一不出结果就**不猜**。
+- Router / ToT 的 prompt 明确约束 `skill_hint` 只能取这三个之一，否则填 `null`。
+- 归不了的名字：`SkillAgent.execute_one` 返回 `status="skipped"` + 「未注册的 Skill『X』，已跳过」，PlanExecutor 记 info 级 `skipped`，**不再是红色硬失败**；模型自己调 `skill.run` 写错名时返回 `degraded=true` 并告知可用清单，让它换一个而不是吃一句 404。
+- 这条边界要在面试里说清：**能跑的 Skill 只有 3 个**，`skills` 表里另外 4 行（`knowledge_qa` / `application_draft` / `faq_generate` / `risk_check`）没有 handler，是种子数据，不是能力。
 
 - `budget`：已用/最大调用数、耗时
 - `retrieval_quality`：信号、判定、是否发生替代检索

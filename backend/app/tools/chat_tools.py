@@ -10,11 +10,16 @@ from typing import Any
 
 from sqlmodel import Session
 
-from backend.app.agents.turn_budget import current_turn_budget, reserve_current
+from backend.app.agents.turn_budget import (
+    current_budget_exhausted,
+    current_turn_budget,
+    reserve_current,
+)
 from backend.app.core.exceptions import ApplicationError
 from backend.app.db.models import User
 from backend.app.schemas.retrieval import RetrievalRequest, RetrievalStrategy
 from backend.app.services.rag_service import RAGService
+from backend.app.skills.catalog import IMPLEMENTED_SKILLS, resolve_skill_name
 from backend.app.skills.registry import SkillRegistry
 from backend.app.tools.registry import ToolRegistry
 
@@ -296,7 +301,8 @@ class ChatToolExecutor:
             )
             await self._emit(name, "failed", {"error": error})
             raise
-        await self._emit(name, "success", {"output": output})
+        degraded = isinstance(output, dict) and bool(output.get("degraded"))
+        await self._emit(name, "warning" if degraded else "success", {"output": output})
         return output
 
     async def _kb_search(self, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -309,6 +315,20 @@ class ChatToolExecutor:
             raise ApplicationError("VALIDATION_ERROR", "query is required", 422)
         top_k = int(arguments.get("top_k") or 5)
         top_k = max(1, min(top_k, 10))
+        # Retrieval budget is shared with the pipeline retrieval and plan steps.
+        # Exhausting it is an expected bound, not a tool defect: return a
+        # degraded result so the model stops searching and answers from what it
+        # already has. The budget snapshot in diagnostics still shows the limit.
+        if current_budget_exhausted("retrieval"):
+            return {
+                "evidence": [],
+                "degraded": True,
+                "warning": "retrieval_budget_exhausted",
+                "message": (
+                    "本轮检索次数预算已用尽，无法再补充检索。"
+                    "请基于已有证据回答；若证据不足，请直接说明无法回答，不要编造。"
+                ),
+            }
         # Record an audited synthetic tool log via registry only if registered;
         # otherwise run directly for honesty.
         request = RetrievalRequest(
@@ -344,6 +364,20 @@ class ChatToolExecutor:
         skill_name = str(arguments.get("name") or "").strip()
         if not skill_name:
             raise ApplicationError("VALIDATION_ERROR", "skill name is required", 422)
+        resolved = resolve_skill_name(skill_name)
+        if resolved is None:
+            # The model invented a skill name. Tell it what exists instead of
+            # letting the registry raise SKILL_NOT_FOUND.
+            return {
+                "skill": skill_name,
+                "degraded": True,
+                "warning": "skill_not_registered",
+                "message": (
+                    f"没有名为「{skill_name}」的 Skill。可用：{', '.join(IMPLEMENTED_SKILLS)}。"
+                    "请改用其中之一，或直接基于证据回答。"
+                ),
+            }
+        skill_name = resolved
         payload: dict[str, Any] = dict(arguments)
         payload.pop("name", None)
         payload.setdefault("question", "")
