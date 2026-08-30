@@ -129,8 +129,6 @@ def test_reranker_status_exposes_page_selectable_choices(tmp_path, monkeypatch) 
     assert payload["options"][1]["available"] is False
     assert payload["options"][1]["models"] == [
         "nvidia/llama-nemotron-rerank-vl-1b-v2",
-        "nvidia/llama-nemotron-rerank-1b-v2",
-        "nvidia/rerank-qa-mistral-4b",
     ]
 
 
