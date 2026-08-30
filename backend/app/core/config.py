@@ -88,7 +88,11 @@ class Settings(BaseSettings):
     CHAT_TOOL_MAX_ROUNDS: int = 3
     CHAT_TURN_TIMEOUT_SECONDS: float = 180.0
     CHAT_TURN_MAX_LLM_CALLS: int = 16
-    CHAT_TURN_MAX_RETRIEVAL_ATTEMPTS: int = 2
+    # Retrieval budget covers the pipeline retrieval (1, or 2 when the quality
+    # gate retries), each PlanExecutor retrieve step, and the answer loop's
+    # supplementary kb.search calls. 2 left no room for a supplementary search,
+    # so every second kb.search died as a red TURN_BUDGET_EXHAUSTED failure.
+    CHAT_TURN_MAX_RETRIEVAL_ATTEMPTS: int = 5
     CHAT_TURN_MAX_TOOL_CALLS: int = 8
     CHAT_TOOL_DEFAULT_TIMEOUT_SECONDS: float = 20.0
     CHAT_ANSWER_REVISE_MAX_ROUNDS: int = 1

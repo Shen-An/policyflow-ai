@@ -9,6 +9,7 @@ from sqlmodel import Session
 from backend.app.db.models import User
 from backend.app.schemas.chat import RouterResult
 from backend.app.schemas.retrieval import Evidence
+from backend.app.skills.catalog import IMPLEMENTED_SKILLS, resolve_skill_name
 from backend.app.skills.registry import SkillRegistry
 
 _TASK_TO_SKILL = {
@@ -92,12 +93,24 @@ class SkillAgent:
         step_id: str | None = None,
     ) -> dict[str, Any]:
         """Run a single named skill against evidence (PlanExecutor / L2)."""
-        name = (skill_name or "").strip()
-        if not name:
+        raw_name = (skill_name or "").strip()
+        if not raw_name:
             return {
-                "name": name,
+                "name": raw_name,
                 "status": "failed",
                 "error": "empty skill name",
+                "step_id": step_id,
+            }
+        # Defensive: a planner hint that reaches here unnormalized（如「流程清单抽取」）
+        # would hit SKILL_NOT_FOUND. Skip honestly instead of failing the step.
+        name = resolve_skill_name(raw_name) or ""
+        if not name:
+            return {
+                "name": raw_name,
+                "status": "skipped",
+                "error": (
+                    f"未注册的 Skill「{raw_name}」，已跳过（可用：{', '.join(IMPLEMENTED_SKILLS)}）"
+                ),
                 "step_id": step_id,
             }
         if self.skill_registry is None:
