@@ -86,8 +86,11 @@ A: Tool 可复用、可审计；Skill 组合证据与业务步骤。拆开后评
 **Q: 工具环最多几轮？**  
 A: `CHAT_TOOL_MAX_ROUNDS`（默认 3），有上限，避免无限 function calling。
 
+**Q: Router 是 LLM，如果它编了一个不存在的 Skill 名怎么办？**  
+A: **真发生过。** 2026-08-28 从日志里挖到 4 轮 `Skill not found`，Router 把 `skill_hint` 写成了描述性中文（`流程清单抽取`、`报销流程解析技能：…`），于是注册表抛 404、计划步骤变红。修法不是给它加个 skill，而是**加一层归一**：`backend/app/skills/catalog.py` 里 `IMPLEMENTED_SKILLS` 只有 `process_checklist / policy_compare / summary` 三个，`resolve_skill_name()` 按「精确名 → 别名 → 关键词」把 LLM 的自由文本映射进去；Router / ToT 的 prompt 也明确只准填这三个或 `null`。**归一不出来就跳过（`skipped`）并说明原因，不猜、不编清单**。教训一句话：**LLM 的结构化输出里，任何要拿去查表的字段都必须在入口处校验成枚举**，不能直接透传。
+
 **Q: 各模块都有 max rounds，会不会合起来仍调用很多次？**  
-A: 所以之上还有**请求级 Turn Budget**：单轮总 LLM ≤8、检索 ≤2、Tool ≤6、整轮 ≤180s，任何模块重试都扣同一预算，超限 `TURN_BUDGET_EXHAUSTED` 直接收口。`CHAT_TOOL_MAX_ROUNDS` / `CHAT_REFLECTION_MAX_ROUNDS` 是**局部**限制，Turn Budget 是**全局**上限（软预算，非沙箱）。详见 [11 Q11](../11-scenario-questions/README.md)。
+A: 所以之上还有**请求级 Turn Budget**：单轮总 LLM ≤16、检索 ≤5、Tool ≤8、整轮 ≤180s，任何模块重试都扣同一预算，超限 `TURN_BUDGET_EXHAUSTED` 直接收口。`CHAT_TOOL_MAX_ROUNDS` / `CHAT_REFLECTION_MAX_ROUNDS` 是**局部**限制，Turn Budget 是**全局**上限（软预算，非沙箱）。检索额度触顶时补充 `kb.search` 返回「已降级」提示而不是报错（详见 [12 Q4](../12-deep-dive-qa/Q4-Answer-Agent的决策空间.md)）。详见 [11 Q11](../11-scenario-questions/README.md)。
 
 **Q: Tool 调外部系统超时了会自动重试吗？**  
 A: **不自动重试**。真实 handler 超时记 `unknown`（不是 `failed`），带稳定幂等键；相同键拒绝盲重发，明确成功的结果可复用。DB rollback 只能撤本地未提交数据，撤不回已发出的邮件 / 飞书；补偿 Tool 与状态查询适配器仍待实现，**不宣称完整 Saga**。详见 [11 Q12](../11-scenario-questions/README.md)。
