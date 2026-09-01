@@ -1260,6 +1260,7 @@ function statusLabel(status: string): string {
     empty: '空',
     warning: '警告',
     error: '失败',
+    failed: '失败',
     suggested: '建议',
   }
   return map[status] ?? status
