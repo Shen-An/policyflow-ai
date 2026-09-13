@@ -1,0 +1,1 @@
+"""Alembic migration scaffold package."""

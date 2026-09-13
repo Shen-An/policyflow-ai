@@ -1,0 +1,7 @@
+{
+  "profile": "tenant-isolation",
+  "iterations": 1,
+  "execution_mode": "route_level_asgi",
+  "provider": "deterministic_mock",
+  "retriever": "deterministic_local"
+}

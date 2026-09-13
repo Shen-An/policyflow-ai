@@ -1,0 +1,7 @@
+{
+  "profile": "load",
+  "iterations": 3,
+  "execution_mode": "route_level_asgi",
+  "provider": "deterministic_mock",
+  "retriever": "deterministic_local"
+}

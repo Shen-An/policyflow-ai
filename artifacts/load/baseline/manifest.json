@@ -1,0 +1,441 @@
+{
+  "artifact_root": "E:\\Coding\\Code\\Python\\policyflow-ai\\artifacts\\load\\baseline",
+  "data_volume": {
+    "distractors": 0,
+    "knowledge_base": "admin",
+    "seed": 20260913
+  },
+  "environment": {
+    "captured_at": "2026-09-13T10:18:51.740404+00:00",
+    "cpu_count": 20,
+    "dependencies": {
+      "ConfigArgParse": "1.7.7",
+      "Flask": "3.1.3",
+      "Flask-Login": "0.6.3",
+      "Jinja2": "3.1.6",
+      "Mako": "1.4.1",
+      "MarkupSafe": "3.0.3",
+      "PyYAML": "6.0.3",
+      "Pygments": "2.20.0",
+      "SQLAlchemy": "2.0.51",
+      "Werkzeug": "3.1.8",
+      "aiohappyeyeballs": "2.7.1",
+      "aiohttp": "3.14.1",
+      "aiosignal": "1.4.0",
+      "aiosqlite": "0.22.1",
+      "alembic": "1.20.0",
+      "amqp": "5.3.1",
+      "annotated-doc": "0.0.4",
+      "annotated-types": "0.7.0",
+      "anthropic": "1.5.0",
+      "anyio": "4.14.1",
+      "ascii_colors": "0.11.25",
+      "asgiref": "3.12.1",
+      "ast_serialize": "0.6.0",
+      "asttokens": "3.0.1",
+      "attrs": "26.1.0",
+      "bcrypt": "5.0.0",
+      "bidict": "0.24.1",
+      "billiard": "4.2.4",
+      "blinker": "1.9.0",
+      "boto3": "1.43.93",
+      "botocore": "1.43.93",
+      "brotli": "1.2.0",
+      "cachetools": "7.1.8",
+      "celery": "5.6.3",
+      "certifi": "2026.6.17",
+      "cffi": "2.1.1",
+      "charset-normalizer": "3.4.9",
+      "click": "8.4.2",
+      "click-didyoumean": "0.3.1",
+      "click-plugins": "1.1.1.2",
+      "click-repl": "0.3.0",
+      "colorama": "0.4.6",
+      "configparser": "7.2.0",
+      "cryptography": "49.0.0",
+      "curl_cffi": "0.16.0",
+      "decorator": "5.3.1",
+      "distro": "1.9.0",
+      "docker": "7.2.0",
+      "docstring_parser": "0.18.0",
+      "ecdsa": "0.19.2",
+      "executing": "2.2.1",
+      "fastapi": "0.139.0",
+      "flask-cors": "6.0.5",
+      "frozenlist": "1.8.0",
+      "future": "1.0.0",
+      "gevent": "26.8.0",
+      "geventhttpclient": "2.3.9",
+      "google-api-core": "2.31.0",
+      "google-auth": "2.55.2",
+      "google-genai": "2.11.0",
+      "googleapis-common-protos": "1.75.0",
+      "greenlet": "3.5.3",
+      "grpcio": "1.83.1",
+      "h11": "0.16.0",
+      "httpcore": "1.0.9",
+      "httpcore2": "2.12.0",
+      "httptools": "0.8.0",
+      "httpx": "0.28.1",
+      "httpx2": "2.12.0",
+      "idna": "3.18",
+      "iniconfig": "2.3.0",
+      "ipython": "9.15.0",
+      "ipython_pygments_lexers": "1.1.1",
+      "itsdangerous": "2.2.0",
+      "jedi": "0.20.0",
+      "jiter": "0.16.0",
+      "jmespath": "1.1.0",
+      "json_repair": "0.61.2",
+      "jsonpatch": "1.33",
+      "jsonpointer": "3.1.1",
+      "kombu": "5.6.2",
+      "langchain-core": "1.6.3",
+      "langchain-protocol": "0.0.19",
+      "langgraph": "1.2.11",
+      "langgraph-checkpoint": "4.2.0",
+      "langgraph-checkpoint-postgres": "3.1.2",
+      "langgraph-prebuilt": "1.1.0",
+      "langgraph-sdk": "0.4.4",
+      "langsmith": "0.12.4",
+      "librt": "0.13.0",
+      "lightrag-hku": "1.5.4",
+      "locust": "2.46.5",
+      "lxml": "6.1.1",
+      "matplotlib-inline": "0.2.2",
+      "msgpack": "1.2.2",
+      "multidict": "6.7.1",
+      "mypy": "2.2.0",
+      "mypy_extensions": "1.1.0",
+      "nano-vectordb": "0.0.4.3",
+      "networkx": "3.6.1",
+      "numpy": "2.4.6",
+      "openai": "2.45.0",
+      "opentelemetry-api": "1.44.0",
+      "opentelemetry-exporter-otlp": "1.44.0",
+      "opentelemetry-exporter-otlp-proto-common": "1.44.0",
+      "opentelemetry-exporter-otlp-proto-grpc": "1.44.0",
+      "opentelemetry-exporter-otlp-proto-http": "1.44.0",
+      "opentelemetry-instrumentation": "0.65b0",
+      "opentelemetry-instrumentation-asgi": "0.65b0",
+      "opentelemetry-instrumentation-celery": "0.65b0",
+      "opentelemetry-instrumentation-dbapi": "0.65b0",
+      "opentelemetry-instrumentation-fastapi": "0.65b0",
+      "opentelemetry-instrumentation-psycopg": "0.65b0",
+      "opentelemetry-instrumentation-redis": "0.65b0",
+      "opentelemetry-instrumentation-sqlalchemy": "0.65b0",
+      "opentelemetry-proto": "1.44.0",
+      "opentelemetry-sdk": "1.44.0",
+      "opentelemetry-semantic-conventions": "0.65b0",
+      "opentelemetry-util-http": "0.65b0",
+      "orjson": "3.12.0",
+      "ormsgpack": "1.12.2",
+      "packaging": "26.0",
+      "pandas": "2.3.3",
+      "parso": "0.8.7",
+      "passlib": "1.7.4",
+      "pathspec": "1.1.1",
+      "pip": "26.1.2",
+      "pipmaster": "1.1.13",
+      "pluggy": "1.6.0",
+      "policyflow-ai": "0.1.0",
+      "prompt_toolkit": "3.0.52",
+      "propcache": "0.5.2",
+      "proto-plus": "1.28.1",
+      "protobuf": "7.35.1",
+      "psutil": "7.2.2",
+      "psycopg": "3.3.5",
+      "psycopg-binary": "3.3.5",
+      "psycopg-pool": "3.3.1",
+      "pure_eval": "0.2.3",
+      "pyasn1": "0.6.4",
+      "pyasn1_modules": "0.4.2",
+      "pycparser": "3.0",
+      "pydantic": "2.13.4",
+      "pydantic-settings": "2.14.2",
+      "pydantic_core": "2.46.4",
+      "pymilvus": "3.0.1",
+      "pypdf": "6.14.2",
+      "pypinyin": "0.55.0",
+      "pytest": "9.1.1",
+      "pytest-asyncio": "1.4.0",
+      "python-dateutil": "2.9.0.post0",
+      "python-docx": "1.2.0",
+      "python-dotenv": "1.2.2",
+      "python-engineio": "4.14.0",
+      "python-jose": "3.5.0",
+      "python-multipart": "0.0.32",
+      "python-socketio": "5.16.4",
+      "pytz": "2026.2",
+      "pywin32": "312",
+      "pyzmq": "27.2.0",
+      "rank-bm25": "0.2.2",
+      "redis": "8.1.0",
+      "regex": "2026.7.10",
+      "requests": "2.34.2",
+      "requests-toolbelt": "1.0.0",
+      "rsa": "4.9.1",
+      "ruff": "0.15.21",
+      "s3transfer": "0.19.2",
+      "setuptools": "82.0.1",
+      "simple-websocket": "1.1.0",
+      "six": "1.17.0",
+      "sniffio": "1.3.1",
+      "sqlmodel": "0.0.39",
+      "sse-starlette": "3.4.11",
+      "stack-data": "0.6.3",
+      "starlette": "1.3.1",
+      "tenacity": "9.1.4",
+      "testcontainers": "4.15.0",
+      "tiktoken": "0.13.0",
+      "toxiproxy-python": "0.1.1",
+      "tqdm": "4.68.4",
+      "traitlets": "5.15.1",
+      "truststore": "0.10.4",
+      "typing-inspection": "0.4.2",
+      "typing_extensions": "4.16.0",
+      "tzdata": "2026.3",
+      "tzlocal": "5.4.4",
+      "urllib3": "2.7.0",
+      "uuid_utils": "0.17.1",
+      "uvicorn": "0.51.0",
+      "vine": "5.1.0",
+      "watchfiles": "1.2.0",
+      "wcwidth": "0.8.2",
+      "websocket-client": "1.9.2",
+      "websockets": "16.0",
+      "wheel": "0.47.0",
+      "wrapt": "2.4.1",
+      "wsproto": "1.3.2",
+      "xlsxwriter": "3.2.9",
+      "xxhash": "4.0.1",
+      "yarl": "1.24.2",
+      "zope.event": "6.2",
+      "zope.interface": "8.6",
+      "zstandard": "0.25.0"
+    },
+    "execution_mode": "route_level_asgi",
+    "git_commit": "fe58be558dc29bbbdc13f26f9f2b52e0c4cfee31",
+    "machine": "AMD64",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+    "provider": "deterministic_mock",
+    "python": "3.11.15 | packaged by Anaconda, Inc. | (main, Jun 11 2026, 15:12:53) [MSC v.1942 64 bit (AMD64)]",
+    "python_executable": "E:\\Coding\\Anaconda\\envs\\policyflow\\python.exe",
+    "retriever": "deterministic_local"
+  },
+  "project_root": "E:\\Coding\\Code\\Python\\policyflow-ai",
+  "raw_artifact_bytes": 26724,
+  "raw_artifact_count": 40,
+  "raw_artifacts": [
+    {
+      "bytes": 691,
+      "path": "bottleneck-conclusions.md",
+      "sha256": "d3ffae88319e2acc200f25fd0e4548ebc9b0b02cead5b1ab56bd85d3ec83133d"
+    },
+    {
+      "bytes": 182,
+      "path": "file-workflow/events.jsonl",
+      "sha256": "efd672308ebd93df23f68bfbd1966cb806357a7372cfa4582f5cd1923409efd3"
+    },
+    {
+      "bytes": 173,
+      "path": "file-workflow/profile.json",
+      "sha256": "a5acb64bc4c4be30b361f15b5a9b205935afd70e2fed9f0574332164945cb3bb"
+    },
+    {
+      "bytes": 142,
+      "path": "file-workflow/raw.csv",
+      "sha256": "f6ffca01cb2ce605520032631666fbf7cf03e3a5c34e6b8907b56febc73d25de"
+    },
+    {
+      "bytes": 82,
+      "path": "file-workflow/resource.jsonl",
+      "sha256": "13cc91900b3eb234d577f009a456dfedf4c99529573ef84d01ac4a99379d3f31"
+    },
+    {
+      "bytes": 501,
+      "path": "load/events.jsonl",
+      "sha256": "aa1c0e12f09fe833692ad399678c44a8ee76020e2d3d9dce15fde798ec5f4ceb"
+    },
+    {
+      "bytes": 164,
+      "path": "load/profile.json",
+      "sha256": "591459d71a9d99ae5431313c634ec24166c7c0fc41192dedbaa0b67db39abb9f"
+    },
+    {
+      "bytes": 181,
+      "path": "load/raw.csv",
+      "sha256": "f3343dcb576389458fe45a56acec38ccde403a75fe613fbe09dd662e5b872db2"
+    },
+    {
+      "bytes": 73,
+      "path": "load/resource.jsonl",
+      "sha256": "64055f5a147b384d4f0db6cdadfdf32435230cbb6e5974ed25b41beab6ff9934"
+    },
+    {
+      "bytes": 997,
+      "path": "run.log",
+      "sha256": "9181f93c6986f72ba5cbdeb2fafd0148d46a1b6a3f1047115926307e9fe5ea32"
+    },
+    {
+      "bytes": 13895,
+      "path": "runner-console.log",
+      "sha256": "38c953792d539f20849a503033ecf6fef47374e49aec09706589119051ca2abb"
+    },
+    {
+      "bytes": 518,
+      "path": "saturation/events.jsonl",
+      "sha256": "f0fa531b89f8dc55d398f84b138ccc1970d52148a8b28fb1c354dd484e80b02c"
+    },
+    {
+      "bytes": 170,
+      "path": "saturation/profile.json",
+      "sha256": "b6cf07fad4394c796957fbce2156dc948eafaa81fbcb4a37b9350b8a23b571f0"
+    },
+    {
+      "bytes": 198,
+      "path": "saturation/raw.csv",
+      "sha256": "0c05c5214a6f0c8d42db04bd3a193837fef26fa5f8ec99ff2b9fe3879fb7a8b6"
+    },
+    {
+      "bytes": 79,
+      "path": "saturation/resource.jsonl",
+      "sha256": "ecf4e44e1e2e3e8bb9072db2130ada05061cbe203198a8a8437ad0ba0e40929a"
+    },
+    {
+      "bytes": 168,
+      "path": "smoke/events.jsonl",
+      "sha256": "5f877bce744fec350202dc46436357fdf9a346649af3458f55459f36021d5769"
+    },
+    {
+      "bytes": 165,
+      "path": "smoke/profile.json",
+      "sha256": "6505afb029f910fa8ceb12b5f637222d743478f54cf9395268792b05bea754c5"
+    },
+    {
+      "bytes": 126,
+      "path": "smoke/raw.csv",
+      "sha256": "f0753ff0d4ae74103e862993a8815572f61c4cccb7beaaa4c3b494a34558e61f"
+    },
+    {
+      "bytes": 74,
+      "path": "smoke/resource.jsonl",
+      "sha256": "108aee62d51993e38e97bc4091030e3270102e72c615615e3b5cee93ba667eaa"
+    },
+    {
+      "bytes": 500,
+      "path": "soak/events.jsonl",
+      "sha256": "cf85cd69dfe51ec0448fece8c237b90a6101b313aea78cbeecae7d21f606b4c4"
+    },
+    {
+      "bytes": 164,
+      "path": "soak/profile.json",
+      "sha256": "d145d29c210c586954b22d046f291ce376764b1547c03923d197c11b08fb8c31"
+    },
+    {
+      "bytes": 180,
+      "path": "soak/raw.csv",
+      "sha256": "f356ead20834452080ca764fe991aa5399118f24ef63f1c4ba4fbc9c058e825b"
+    },
+    {
+      "bytes": 73,
+      "path": "soak/resource.jsonl",
+      "sha256": "243795864f906266d450359768182c515d7f626b9df2cf5b899ad59643026246"
+    },
+    {
+      "bytes": 504,
+      "path": "spike/events.jsonl",
+      "sha256": "64e2ca874e53cf76ab147b2484a791192a7dfffd71d9ac54e30240da640a84ed"
+    },
+    {
+      "bytes": 165,
+      "path": "spike/profile.json",
+      "sha256": "564a645c6c4acfdb0c70d41ed0ce427a6ce9ec92a3b3ceb90f5bd15352e512d7"
+    },
+    {
+      "bytes": 184,
+      "path": "spike/raw.csv",
+      "sha256": "b1222ab54b0964e8b2c6c1c31c69dbe4bf520c7be7f177e538ddf21582e74f63"
+    },
+    {
+      "bytes": 74,
+      "path": "spike/resource.jsonl",
+      "sha256": "7ae0685b136de7239cb28796cc5dcc90f028121158bed5402e7a7128b815d12e"
+    },
+    {
+      "bytes": 168,
+      "path": "sse/events.jsonl",
+      "sha256": "7381bb86211eb4a0c06617a1a28324c50ce44b76c48d51cbedbfea41ea0d0526"
+    },
+    {
+      "bytes": 163,
+      "path": "sse/profile.json",
+      "sha256": "22a2c3e92643fa8123017b2948a01d012cb83c58e145ad886c26963dc41b660b"
+    },
+    {
+      "bytes": 126,
+      "path": "sse/raw.csv",
+      "sha256": "3834214a3cfb183a5e2d9b61ee42979ae9c532194ac2900d5d3b0cc22139ee99"
+    },
+    {
+      "bytes": 72,
+      "path": "sse/resource.jsonl",
+      "sha256": "bf7779a7efef3fe6a4b468aea9dd9d96bbd1e93c25b854a9efc30bbabe972535"
+    },
+    {
+      "bytes": 507,
+      "path": "stress/events.jsonl",
+      "sha256": "67a7879e20913e97fb5d502f4a732a67bd2fd0056d24c5997e945c6a2681fa6b"
+    },
+    {
+      "bytes": 166,
+      "path": "stress/profile.json",
+      "sha256": "ddc28f1a18c8e8c670fb259e44419523c5cd82370fcbe7873ec0701c0dda01b0"
+    },
+    {
+      "bytes": 187,
+      "path": "stress/raw.csv",
+      "sha256": "dcb1ab92d339adf89ae78979c2fb1c6bd0b4f581d0a8980d7b1c4ca3c9b32b34"
+    },
+    {
+      "bytes": 75,
+      "path": "stress/resource.jsonl",
+      "sha256": "06972f17e4f637894da4e56c1fc14235dbc125726b7b68410f3a197e6b2f698d"
+    },
+    {
+      "bytes": 4260,
+      "path": "summary.json",
+      "sha256": "5954b9958f46fb04f6fae2c1a253819eeeff36a10d3bb4856feb98d6dfc1eec6"
+    },
+    {
+      "bytes": 177,
+      "path": "tenant-isolation/events.jsonl",
+      "sha256": "4e2182472c724be78c9edf6411cb0408d20ba7b994a9e6baeb04246f4b4ae64e"
+    },
+    {
+      "bytes": 176,
+      "path": "tenant-isolation/profile.json",
+      "sha256": "06a1d9200e1a316d0ff95e6192900f4d719c83a44bfb77bfc50cec41b4da4097"
+    },
+    {
+      "bytes": 139,
+      "path": "tenant-isolation/raw.csv",
+      "sha256": "65358eeeb86c49fbc1d2732db2bca1128095acc79055c5576db3fb5c310ffa8a"
+    },
+    {
+      "bytes": 85,
+      "path": "tenant-isolation/resource.jsonl",
+      "sha256": "80508713a25af4b5621504e073d84d6132e57d6a90e5f2564f2c833d3527fbef"
+    }
+  ],
+  "schema_version": "1",
+  "topology": {
+    "mode": "route_level_asgi",
+    "services": [
+      "FastAPI",
+      "SQLite",
+      "deterministic_mock"
+    ]
+  }
+}

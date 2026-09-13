@@ -1,0 +1,140 @@
+"""Alembic environment for staged SQLAlchemy 2 migrations."""
+
+from __future__ import annotations
+
+import asyncio
+from collections.abc import Collection, Iterable, Mapping
+from logging.config import fileConfig
+from typing import Any, cast
+
+from alembic import context
+from alembic.operations.ops import MigrationScript
+from alembic.runtime.migration import MigrationContext, MigrationInfo
+from sqlalchemy import Connection, MetaData, pool
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import async_engine_from_config
+
+from backend.app.core.config import get_settings
+from backend.app.db import base  # noqa: F401
+from migrations.phases import (
+    MIGRATION_PHASE_LABEL_PREFIX,
+    MIGRATION_PHASES,
+    MigrationPhase,
+    migration_phase_label,
+    requested_migration_phase,
+)
+
+config = context.config
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
+
+target_metadata: MetaData = base.Base.metadata
+
+
+def _set_revision_phase(
+    migration_context: MigrationContext,
+    revision: str | Iterable[str | None] | Iterable[str],
+    directives: list[MigrationScript],
+) -> None:
+    """Persist the required generation phase in metadata and branch labels."""
+    del migration_context, revision
+    phase = requested_migration_phase(required=True)
+    assert phase is not None
+    directives[0].branch_label = migration_phase_label(phase)
+
+
+def _revision_phase(step: MigrationInfo) -> MigrationPhase:
+    """Read and validate exactly one phase label declared by a revision."""
+    revision = step.up_revision
+    revision_id = step.up_revision_id or "<unknown>"
+    declared_labels = set(getattr(revision, "_orig_branch_labels", ()))
+    phase_labels = {
+        label.removeprefix(MIGRATION_PHASE_LABEL_PREFIX)
+        for label in declared_labels
+        if label.startswith(MIGRATION_PHASE_LABEL_PREFIX)
+    }
+    valid_labels = phase_labels.intersection(MIGRATION_PHASES)
+    if (
+        len(declared_labels) != 1
+        or len(phase_labels) != 1
+        or len(valid_labels) != 1
+    ):
+        choices = ", ".join(MIGRATION_PHASES)
+        raise ValueError(
+            f"Revision {revision_id} must declare exactly one migration phase "
+            f"branch label ({choices})"
+        )
+    return cast(MigrationPhase, next(iter(valid_labels)))
+
+
+def _validate_applied_phase(
+    ctx: MigrationContext,
+    step: MigrationInfo,
+    heads: Collection[Any],
+    run_args: Mapping[str, Any],
+) -> None:
+    """Fail the migration transaction if a revision violates ``-x phase=``."""
+    del ctx, heads, run_args
+    declared_phase = _revision_phase(step)
+    requested_phase = requested_migration_phase()
+    if requested_phase is not None and declared_phase != requested_phase:
+        raise ValueError(
+            f"Revision {step.up_revision_id} is phase {declared_phase!r}, "
+            f"not requested phase {requested_phase!r}"
+        )
+
+
+def _configure_context(**kwargs: Any) -> None:
+    context.configure(
+        target_metadata=target_metadata,
+        compare_type=True,
+        compare_server_default=True,
+        transaction_per_migration=True,
+        process_revision_directives=_set_revision_phase,
+        on_version_apply=_validate_applied_phase,
+        **kwargs,
+    )
+
+
+def run_migrations_offline() -> None:
+    """Generate SQL without creating an engine or opening a database connection."""
+    requested_migration_phase()
+    _configure_context(
+        url=make_url(get_settings().DATABASE_URL),
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+    )
+    with context.begin_transaction():
+        context.run_migrations()
+
+
+def do_run_migrations(connection: Connection) -> None:
+    _configure_context(connection=connection)
+    with context.begin_transaction():
+        context.run_migrations()
+
+
+async def run_async_migrations() -> None:
+    """Run online migrations through an SQLAlchemy 2 async engine."""
+    section = config.get_section(config.config_ini_section) or {}
+    section["sqlalchemy.url"] = get_settings().DATABASE_URL
+    connectable = async_engine_from_config(
+        section,
+        prefix="sqlalchemy.",
+        poolclass=pool.NullPool,
+    )
+    try:
+        async with connectable.connect() as connection:
+            await connection.run_sync(do_run_migrations)
+    finally:
+        await connectable.dispose()
+
+
+def run_migrations_online() -> None:
+    asyncio.run(run_async_migrations())
+
+
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    run_migrations_online()

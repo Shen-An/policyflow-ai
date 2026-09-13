@@ -1,0 +1,3 @@
+{"profile": "spike", "iteration": 0, "status_code": 200, "elapsed_ms": 10.908, "response_bytes": 4226, "event_count": 0, "isolation_pass": null, "index_status": null}
+{"profile": "spike", "iteration": 1, "status_code": 200, "elapsed_ms": 11.239, "response_bytes": 4226, "event_count": 0, "isolation_pass": null, "index_status": null}
+{"profile": "spike", "iteration": 2, "status_code": 200, "elapsed_ms": 12.796, "response_bytes": 4226, "event_count": 0, "isolation_pass": null, "index_status": null}

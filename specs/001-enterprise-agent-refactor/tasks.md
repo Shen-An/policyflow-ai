@@ -1,0 +1,464 @@
+---
+
+description: "企业级智能体重构的可执行实施任务清单"
+---
+
+# Tasks: 企业级智能体重构
+
+**Input**: `specs/001-enterprise-agent-refactor/` 下的 `plan.md`、`spec.md`、`research.md`、`data-model.md`、`contracts/`、`quickstart.md`
+
+**Governance**: `.specify/memory/constitution.md` 2.1.0；所有任务受单一 LangGraph、真实沙箱、租户隔离、证据优先和可复现容量测试约束。
+
+**Tests**: 规格明确要求单元、契约、集成、安全、恢复、迁移、核对、Electron E2E 与 Locust 测试，因此各故事先写失败测试，再实现对应能力。
+
+**Organization**: P1 故事同优先级时按强制迁移依赖排序：US3（统一编排）→ US2（持久任务与容量）→ US1（存储、沙箱与审批）；业务 MVP 仍以 US1 的报销材料闭环为准。
+
+## Format: `[ID] [P?] [Story] Description`
+
+- **[P]**: 可在前置阶段完成后并行执行，且不修改同一文件
+- **[Story]**: 对应 `spec.md` 的 US1–US5；Setup、Foundational、Polish 不使用故事标签
+- 每项均含准确仓库相对路径；括号中的任务 ID 是直接前置依赖
+
+## Phase 1: Setup — Stage 1 Capacity Baseline
+
+**Purpose**: 先建立依赖、基础设施骨架和迁移前容量证据；本阶段允许旧系统不达标，但不得缺少原始数据、环境清单或 mock/real-provider 分离。
+
+- [X] T001 在 `pyproject.toml` 中按兼容性验证结果精确锁定 PostgreSQL/psycopg、Alembic、LangGraph checkpoint、Celery、Redis、Milvus、S3、Anthropic SDK、sse-starlette、OpenTelemetry、Locust、Testcontainers 与 Toxiproxy 依赖
+- [X] T002 使 `requirements.txt` 与 `pyproject.toml` 的已锁定 Python 依赖一致，或移除其安装入口并在文件中保留唯一权威依赖来源说明
+- [X] T003 [P] 在 `frontend/package.json` 中精确锁定 Electron、打包签名、WebdriverIO Electron Service、IPC schema 校验和自动无障碍测试依赖及脚本
+- [X] T004 [P] 在 `.env.example` 中定义 PostgreSQL、RabbitMQ、Redis、Milvus、MinIO/S3、OTel、gVisor、配额、deterministic mock 与真实 Claude provider 的非敏感配置项
+- [X] T005 在 `backend/app/core/config.py` 中实现分环境配置、集中 provider 模型/超时/输出预算和生产禁用 SQLite、本地生产文件与 LightRAG workspace 的启动校验
+- [X] T006 [P] 在 `alembic.ini` 与 `migrations/env.py` 中建立 SQLAlchemy 2 async 的 expand/backfill/enforce/contract 迁移骨架，禁止 API startup 自动迁移
+- [X] T007 [P] 在 `infra/dev/compose.yaml` 中配置可重复初始化的 PostgreSQL、PgBouncer、RabbitMQ quorum queue、Redis、Milvus、MinIO 与 OTel 测试栈及健康检查
+- [X] T008 [P] 在 `infra/k8s/base/api-worker.yaml` 中建立单-worker API Pod、Celery worker、优雅下线、资源限制、探针和水平扩缩参考拓扑
+- [X] T009 [P] 在 `infra/observability/collector.yaml` 中配置 OTel Collector 到 Prometheus、Tempo、Loki 的 metrics/traces/logs 管线并禁止 tenant/user 高基数指标标签
+- [X] T010 [P] 在 `backend/app/integrations/deterministic_llm.py` 中实现版本化固定内容、工具调用、延迟与错误脚本且绝不访问外部 provider 的容量测试替身
+- [X] T011 [P] 在 `tests/load/seed_data.py` 中生成两个租户、employee/approver/admin、相似政策、同名材料、独立配额及稳定版本标识的可重复负载数据
+- [X] T012 [P] 在 `tests/load/artifacts.py` 中实现环境、commit、依赖、硬件、拓扑、数据量、原始 CSV/日志及 SHA-256 的不可省略产物清单
+- [X] T013 在 `tests/load/locustfile.py` 中实现 smoke/load/stress/spike/soak/sse/file-workflow/saturation/tenant-isolation profile 和生成器资源监控（依赖 T010–T012；已补真实 Chat/SSE/文件状态/跨身份路由、CLI `--profile` 与原始 CSV 记录）
+- [X] T014 [P] 在 `tests/load/real_provider.py` 中实现受预算控制的真实 Claude latency/rate-limit/token/cost profile，并强制与 deterministic mock 容量结果分目录保存（已补 streaming 首 token、Retry-After/capped retry、错误分类与逐请求 JSONL）
+- [X] T015 执行迁移前全部 baseline profile，将原始产物、哈希、环境清单和瓶颈结论保存到 `artifacts/load/baseline/`，不得把摘要代替原始证据（依赖 T007–T014；2026-09-13 route-level ASGI deterministic baseline 已执行）
+
+**Checkpoint**: Stage 1 的全部 profile 可复现；mock 与真实 provider 报告物理分离；已记录瓶颈而非预先宣称达标。
+
+---
+
+## Phase 2: Foundational — Stage 2 Stateless API + PostgreSQL
+
+**Purpose**: 建立所有故事共用的身份、租户、事务、审计、幂等和迁移基础；本阶段完成前不得开始故事实现。
+
+**⚠ CRITICAL**: PostgreSQL 是生产业务权威；每个 protected repository 调用必须显式接收 tenant，RLS 仅作纵深防御而非替代应用授权。
+
+### Tests
+
+- [ ] T016 [P] 在 `tests/contract/test_data_model_constraints.py` 中为租户一致 FK、复合唯一键、UTC 时间、受约束枚举、version compare-and-set 和禁止 last-write-wins 编写失败测试
+- [ ] T017 [P] 在 `tests/integration/test_postgres_migrations.py` 中为可重启 additive/backfill/enforce 迁移、count/checksum/cursor/failure 核对与恢复点编写失败测试
+- [ ] T018 [P] 在 `tests/integration/test_multi_instance.py` 中为两个 API 实例共享状态、单实例重启和生产拒绝 SQLite 编写失败测试
+- [ ] T019 [P] 在 `tests/security/test_tenant_isolation.py` 中为 repository tenant predicate、RLS、缓存命名空间和相同资源 ID 的跨租户不可见性编写失败测试
+- [ ] T020 [P] 在 `tests/contract/test_principal_authorization.py` 中为 membership 派生 `RequestPrincipal`、请求体 tenant/user 禁止、allow-only 最小权限和 fresh authorization 编写失败测试
+- [ ] T021 [P] 在 `tests/contract/test_error_audit_contract.py` 中为稳定错误 code/retryable/delay、404 防枚举、字段脱敏、append-only 审计与 `run_id` 传播编写失败测试
+
+### Implementation
+
+- [ ] T022 在 `backend/app/db/session.py` 中实现有上限、等待超时、健康检查和回收策略的 SQLAlchemy 2 async PostgreSQL session/事务工厂，并保留 SQLite 仅用于开发或隔离测试
+- [ ] T023 在 `backend/app/db/init_db.py` 中移除生产 `metadata.create_all()` 与 startup migration 权威，改为 readiness schema-version 检查（依赖 T006、T022）
+- [ ] T024 [P] 在 `backend/app/auth/principal.py` 中实现不可变 `RequestPrincipal`，字段包含 tenant/user/membership、roles/scopes、`authorization_version`、session/request/run 标识且身份只来自已验证 membership
+- [ ] T025 [P] 在 `backend/app/auth/authorization.py` 中实现 allow-only RBAC，覆盖 `read/edit/approve/submit/publish/delete/admin/cross_tenant_admin` 并要求每次读写与副作用服务端授权
+- [ ] T026 在 `backend/app/db/models.py` 中增加 Tenant、User、Role、UserRoleGrant、AgentRun、RunEvent、GraphCheckpointBinding、IdempotencyRecord 与 AuditEvent，严格实现 `data-model.md` 的 tenant ownership、状态枚举、唯一约束和 version 字段
+- [ ] T027 [P] 在 `backend/app/db/repositories.py` 中实现显式 tenant 参数、compare-and-set、不可见即 not-found 的基础 repository 与 Unit of Work 接口
+- [ ] T028 [P] 在 `backend/app/observability/audit.py` 中实现按 `event_id` 幂等追加的 AuditSink，禁止凭据、host path、raw provider payload 和 unrestricted file body
+- [ ] T029 [P] 在 `backend/app/observability/telemetry.py` 中实现 `run_id/request_id/trace_id` 关联及 API、DB pool、错误和授权指标，不把 tenant/user 放入 Prometheus 标签
+- [ ] T030 在 `migrations/versions/001_enterprise_expand.py` 中创建 additive schema、`legacy` tenant/membership、nullable tenant ownership 与 RLS policy，应用角色不得拥有表或 `BYPASSRLS`（依赖 T024–T027）
+- [ ] T031 在 `migrations/backfill_legacy_tenant.py` 中实现 conversations/messages/memory/knowledge/eval 的可重启批量回填，持久化 cursor、source/target count、checksum 和 failures（依赖 T030）
+- [ ] T032 在 `migrations/versions/002_enterprise_enforce.py` 中于核对通过后增加 NOT NULL、tenant-aware FK/composite unique 及 RLS 强制约束（依赖 T031）
+- [ ] T033 在 `backend/app/api/deps.py` 中接入 principal、async Unit of Work 与 fresh authorization 依赖，并禁止路由从 body/query 接受 tenant/user 身份
+- [ ] T034 在 `backend/app/main.py` 中接入 async lifespan、v2 router、health/readiness 与 OTel，移除 correctness 对进程锁、队列、缓存和 startup migration 的依赖
+- [ ] T035 将 `backend/app/services/memory_service.py`、`backend/app/services/knowledge_base_service.py` 和 `backend/app/services/eval_service.py` 的权威读写迁移到 tenant-aware async repository，并保持四层记忆非权威与现有 Eval 语义（依赖 T027、T033）
+- [ ] T036 运行 `tests/integration/test_postgres_migrations.py`、`tests/integration/test_multi_instance.py`、`tests/security/test_tenant_isolation.py` 并把迁移 count/checksum 证据保存到 `artifacts/migration/stage2/`（依赖 T016–T035）
+
+**Checkpoint**: 两个 API 实例共享 PostgreSQL，重启不丢权威状态；生产拒绝 SQLite；迁移与租户隔离核对 100%。
+
+---
+
+## Phase 3: User Story 3 — 使用统一可信的智能助手 (Priority: P1, Stage 3)
+
+**Goal**: Chat、SSE Chat、Eval 与文件工作流共用一个可恢复 LangGraph，在相同输入、权限和知识版本下执行相同证据门控；无可靠证据时 fail closed。
+
+**Independent Test**: 对相同问题并行调用普通 Chat、stream 与 Eval，证据结论一致率 100%；在 `waiting_approval` 重启后恢复同一授权 checkpoint，工具调用与总 deadline 均受限且不会自动执行副作用。
+
+### Tests for User Story 3
+
+- [ ] T037 [P] [US3] 在 `tests/contract/test_graph_state.py` 中为 `AgentRunState@1` 的 JSON 可序列化字段、节点输入/输出、状态迁移、错误、超时、有限重试和 `max_tool_calls` 编写失败测试
+- [ ] T038 [P] [US3] 在 `tests/contract/test_graph_checkpoint_binding.py` 中为 opaque thread、tenant/user/run 绑定、未授权 invoke/stream/resume 拒绝和 schema version 编写失败测试
+- [ ] T039 [P] [US3] 在 `tests/integration/test_graph_entrypoint_parity.py` 中为 Chat/stream/Eval/file 共享节点序列、权限和 deterministic decision 编写失败测试
+- [ ] T040 [P] [US3] 在 `tests/eval/test_evidence_gate_parity.py` 中为可靠证据、无关证据、检索不可用、跨租户证据与 memory 不可满足 gate 编写失败测试
+- [ ] T041 [P] [US3] 在 `tests/integration/test_graph_restart.py` 中为 `waiting_approval` checkpoint 重启恢复、interrupt replay 纯/幂等和无未批准副作用编写失败测试
+- [ ] T042 [P] [US3] 在 `tests/integration/test_legacy_graph_adapter.py` 中为 legacy Chat/Eval 响应映射、影子模式禁用工具/写回/文件/connector 副作用和 adapter 遥测编写失败测试
+
+### Implementation for User Story 3
+
+- [ ] T043 [P] [US3] 在 `backend/app/graph/state.py` 中定义版本化 `AgentRunState@1`，包含 principal ref、budget、memory、rewrite、retrieval/evidence、tool、workspace、approval、output、errors、retry 和 audit context
+- [ ] T044 [P] [US3] 在 `backend/app/graph/checkpoints.py` 中实现 `GraphCheckpointBinding` 授权解析和 `langgraph-checkpoint-postgres` saver，任何 invoke/stream/resume 前都校验 tenant/user/run/thread
+- [ ] T045 [US3] 在 `backend/app/graph/nodes.py` 中实现 validate、memory_load、rewrite、retrieve、rerank、evidence_gate、plan_or_tool、sandbox、approval_interrupt、generate、writeback、finalize 的类型化节点契约（依赖 T043）
+- [ ] T046 [US3] 在 `backend/app/graph/builder.py` 中组装唯一共享 LangGraph，强制总 deadline、工具次数、节点 retry budget、interrupt 边界和 compare-and-set finalize（依赖 T044、T045）
+- [ ] T047 [P] [US3] 在 `backend/app/services/query_rewrite.py` 与 `backend/app/services/memory_window.py` 中将短跟进句 rewrite、hot/warm/cold 四层记忆装配迁移为 graph 可调用服务，保持记忆非权威且不得改写政策证据
+- [ ] T048 [P] [US3] 在 `backend/app/retrieval/evidence_gate.py` 中迁移当前检索质量门、诚实策略名和 `insufficient_evidence` 语义；local lexical fusion 不得标记为 cross-encoder
+- [ ] T049 [US3] 在 `backend/app/graph/service.py` 中实现统一 create/invoke/stream/resume/cancel 服务并持久化 AgentRun、RunEvent、EvidenceReference 与 audit correlation（依赖 T046–T048）
+- [ ] T050 [P] [US3] 在 `backend/app/integrations/claude_provider.py` 中使用官方 Anthropic async SDK 实现集中模型配置、streaming、adaptive thinking、typed stop reason/error 和受 graph deadline 约束的有限 retry
+- [ ] T051 [US3] 在 `backend/app/api/routes_chat.py` 中将普通与 SSE Chat legacy endpoints 改为调用 graph service 的兼容 adapter，并记录 adapter 使用遥测和 Stage 9 删除条件（依赖 T049）
+- [ ] T052 [US3] 在 `backend/app/api/routes_eval.py` 中将 Eval 改为 deterministic、禁副作用但不绕过 evidence gate 的 graph service adapter（依赖 T049）
+- [ ] T053 [US3] 在 `backend/app/agents/pipeline.py` 中把 `AgentPipeline` 收敛为 graph service facade，删除第二套业务 stage 执行并保留限期兼容遥测（依赖 T049）
+- [ ] T054 [US3] 运行 `tests/contract/test_graph_state.py`、`tests/integration/test_graph_entrypoint_parity.py`、`tests/eval/test_evidence_gate_parity.py` 并将 parity 明细保存到 `artifacts/graph/stage3/`（依赖 T037–T053）
+
+**Checkpoint**: US3 可独立演示：所有入口共享单一 graph，证据门控 parity 100%，重启可恢复且无未经批准的副作用。
+
+---
+
+## Phase 4: User Story 2 — 大规模并发下稳定使用 (Priority: P1, Stage 4)
+
+**Goal**: 让 run、后台任务、配额和 SSE 跨实例/重启可恢复；过载明确返回 429/503 + `Retry-After`，重复投递不重复状态变化或副作用。
+
+**Independent Test**: 在 API/worker kill、RabbitMQ redelivery、lease expiry、Redis 短时故障、1,000 条 SSE 和队列饱和条件下，任务均进入正确终态/可恢复态，断开资源 30 秒内释放且无无限积压。
+
+### Tests for User Story 2
+
+- [ ] T055 [P] [US2] 在 `tests/contract/test_job_state_machine.py` 中为 DurableJob、OutboxEvent、lease token、expected state/version、有限 retry/timeout 和幂等发布编写失败测试
+- [ ] T056 [P] [US2] 在 `tests/recovery/test_run_restart.py` 中为 running/waiting_approval/cancel_requested 的 API 重启恢复编写失败测试
+- [ ] T057 [P] [US2] 在 `tests/recovery/test_job_redelivery.py` 中为 publisher confirm、重复消息、worker 崩溃、lease 过期、DLQ 和 unknown attempt 编写失败测试
+- [ ] T058 [P] [US2] 在 `tests/integration/test_quota_admission.py` 中为 tenant/user/global token bucket、租期 semaphore、bounded queue、429/503 与 `Retry-After` 编写失败测试
+- [ ] T059 [P] [US2] 在 `tests/integration/test_sse_resume.py` 中为 ordered sequence、heartbeat、`Last-Event-ID`、Redis replay expiry snapshot、bounded backpressure 和不可丢 terminal/approval/error 事件编写失败测试
+- [ ] T060 [P] [US2] 在 `tests/recovery/test_sse_cleanup.py` 中为断连、cancel、send timeout、slow consumer 和优雅停机后 30 秒内释放 producer/subscription/lease 编写失败测试
+
+### Implementation for User Story 2
+
+- [ ] T061 [P] [US2] 在 `backend/app/db/models.py` 中增加 DurableJob、OutboxEvent、QuotaPolicy、QuotaLease、UsageRecord 和 CapacityTestRun，严格实现 `data-model.md` 的状态枚举、attempt/deadline、唯一幂等与 raw artifact hash 约束
+- [ ] T062 [P] [US2] 在 `backend/app/jobs/celery_app.py` 中配置固定 workload queues、RabbitMQ quorum、publisher confirms、manual late ack、`prefetch=1`、DLQ、jitter 和软硬 timeout
+- [ ] T063 [US2] 在 `backend/app/jobs/service.py` 中实现 PostgreSQL 权威 DurableJob + transactional outbox 的 enqueue/lease/heartbeat/complete/fail/cancel compare-and-set 流程（依赖 T061）
+- [ ] T064 [US2] 在 `backend/app/jobs/workers.py` 中实现仅由 RabbitMQ 唤醒、每个 bounded step 检查取消、重复消息无重复 transition 的 Celery consumers（依赖 T062、T063）
+- [ ] T065 [P] [US2] 在 `backend/app/jobs/outbox_publisher.py` 中实现 outbox claim、publisher confirm、有限重试、dead-letter 和唯一 aggregate-version-event 投递
+- [ ] T066 [P] [US2] 在 `backend/app/jobs/quota.py` 中实现 Redis Lua tenant/user/global token bucket 与租期 semaphore，并把 policy/final usage/audit 写回 PostgreSQL
+- [ ] T067 [P] [US2] 在 `backend/app/streaming/events.py` 中实现 durable milestone、单调 `(run_id, sequence)`、Redis Streams 有界 TTL replay 和 snapshot fallback
+- [ ] T068 [US2] 在 `backend/app/streaming/sse.py` 中使用 `sse-starlette` + 有界 AnyIO channel 实现 heartbeat、send timeout、背压、进度合并、disconnect/cancel/cleanup（依赖 T067）
+- [ ] T069 [US2] 在 `backend/app/api/routes_runs.py` 中实现 `POST /api/v2/runs`、`GET /runs/{run_id}`、events 和 cancel 契约，`Idempotency-Key` 约束为 min 16/max 128 且过载返回受控 retry delay（依赖 T049、T063、T066、T068）
+- [ ] T070 [P] [US2] 将 `backend/app/api/routes_kb.py`、`backend/app/api/routes_eval.py` 和 `backend/app/api/routes_faq.py` 的长时间 `BackgroundTasks` 替换为 DurableJob/outbox 提交
+- [ ] T071 [P] [US2] 在 `backend/app/observability/telemetry.py` 中增加 active SSE、queue depth、lease、LLM concurrency/tokens、graph node latency/failure 和 cleanup duration 指标
+- [ ] T072 [US2] 运行 restart/redelivery/SSE/quota 测试及 Locust `sse`、`saturation` profile，把终态一致性与资源清理证据保存到 `artifacts/recovery/stage4/`（依赖 T055–T071）
+
+**Checkpoint**: US2 的持久任务和连接生命周期可独立验收；重启、重复投递和过载都不会丢任务、无限等待或重复副作用。
+
+---
+
+## Phase 5: User Story 1A — 材料版本与存储权威 (Priority: P1, Stage 5)
+
+**Goal**: 在真实文件工作流前建立 PostgreSQL 元数据、Milvus 向量和 MinIO/S3 字节的单一职责、不可变版本、租户过滤、可恢复 saga 与物理删除核对。
+
+**Independent Test**: 两租户同名材料更新期间只检索当前 active immutable version；Milvus 不可用时返回 `RETRIEVAL_UNAVAILABLE` 并 fail closed；预置 missing/orphan/drift 100% 检出且物理删除清空向量、对象所有版本/delete markers 和 SQL 引用。
+
+### Tests for User Story 1A
+
+- [ ] T073 [P] [US1] 在 `tests/contract/test_material_model.py` 中为 Material/MaterialVersion/ObjectVersion/EmbeddingVersion/VectorManifest/ReconciliationIssue 的字段、枚举、不可变发布字段和版本关系编写失败测试
+- [ ] T074 [P] [US1] 在 `tests/integration/test_milvus_versions.py` 中为 ANN 前 tenant + allowed KB + active document/material version + embedding version + `retrievable=true` 过滤和 CAS activation 编写失败测试
+- [ ] T075 [P] [US1] 在 `tests/integration/test_object_versions.py` 中为短期受限 upload、provider VersionId、size/SHA-256/media/scan 核验、opaque key 和跨租户拒绝编写失败测试
+- [ ] T076 [P] [US1] 在 `tests/recovery/test_cross_store_saga.py` 中为 upload/index/activate/delete 部分失败、幂等恢复和禁止永久双写编写失败测试
+- [ ] T077 [P] [US1] 在 `tests/reconciliation/test_cross_store_issues.py` 中为 `missing_object/orphan_object/missing_vector/orphan_vector/missing_chunk/version_drift` 100% 检出编写失败测试
+- [ ] T078 [P] [US1] 在 `tests/reconciliation/test_physical_delete.py` 中为先禁检索、删除所有对象版本/delete markers、清 SQL 及失败保持 `deleting` 可恢复编写失败测试
+
+### Implementation for User Story 1A
+
+- [ ] T079 [P] [US1] 在 `backend/app/db/models.py` 中增加 Material、MaterialVersion、ObjectVersion、EmbeddingVersion、VectorManifest 与 ReconciliationIssue，约束 `version_number` 单调且每 Material 唯一、`source_version_id` 根版本外必填、对象元数据必须一致、状态严格使用 `data-model.md` 枚举
+- [ ] T080 [P] [US1] 在 `backend/app/storage/object_store.py` 中实现只接受 material/version ID 的 create_upload、verify_upload、range read 与 delete_all_versions；客户端不得选择 bucket/key
+- [ ] T081 [P] [US1] 在 `backend/app/retrieval/milvus.py` 中实现共享 collection、tenant partition key、mandatory pre-ANN filters、typed unavailable 和真实策略/索引元数据
+- [ ] T082 [US1] 在 `backend/app/retrieval/indexer.py` 中实现 deterministic vector IDs、stage/verify/CAS activate/deactivate/delete 与一次仅一个 active retrieval version（依赖 T079、T081）
+- [ ] T083 [US1] 在 `backend/app/storage/saga.py` 中实现 `pending_upload → scanning → indexing → available → deleting → deleted/error` 的 outbox 驱动幂等 saga（依赖 T063、T079、T080、T082）
+- [ ] T084 [P] [US1] 在 `backend/app/storage/reconciliation.py` 中实现 PostgreSQL/Milvus/object-store 的 missing/orphan/drift 周期核对、attempt/next_attempt/error 和修复/人工处理终态
+- [ ] T085 [US1] 在 `backend/app/api/routes_materials.py` 中实现 `POST /api/v2/materials`：filename `minLength=1/maxLength=255`、size `minimum=1`、SHA-256 `^[a-f0-9]{64}$`、purpose `task_input|policy_import` 及 413/415/422（依赖 T080、T083）
+- [ ] T086 [US1] 在 `backend/app/services/document_service.py` 与 `backend/app/services/indexing_service.py` 中把生产 authority 切到 MaterialVersion/object store/Milvus，保留旧本地文件与 LightRAG 仅作有遥测和 Stage 9 删除条件的迁移 adapter
+- [ ] T087 [US1] 在 `migrations/backfill_materials.py` 中实现本地文件到版本化对象存储的 byte count + SHA-256 核验及 Milvus 不可检索 manifest 回填，核验通过才 CAS authority pointer
+- [ ] T088 [US1] 运行 Milvus/object/saga/reconciliation 测试并将 update/delete manifest、seeded fault detection 和物理删除证据保存到 `artifacts/storage/stage5/`（依赖 T073–T087）
+
+**Checkpoint**: US1 的材料与证据存储基础可独立验证；无 stale retrieval、无跨租户结果，物理删除与核对具备明确恢复状态。
+
+---
+
+## Phase 6: User Story 1B — 安全编辑并提交企业材料 (Priority: P1, Stage 6) 🎯 Business MVP
+
+**Goal**: 完成“选择报销材料 → 证据支持草稿 → 差异 → 人工批准/拒绝 → fresh RBAC + digest 校验 → 幂等 mock 提交”的安全纵向切片，正式政策原件永不直接修改。
+
+**Independent Test**: employee 只能选择已授权 immutable versions；所有 traversal/link/malware/resource-limit、跨租户、未批准、stale digest、权限撤销测试产生 0 泄露/正式政策改写/外部副作用；重复触发最多一次 `status=mock` 提交。
+
+### Tests for User Story 1B
+
+- [ ] T089 [P] [US1] 在 `tests/contract/test_workspace_change_approval.py` 中为 TaskWorkspace、WorkspaceInput、ChangeSet/Item、ApprovalRequest 和 SubmissionJob 的完整字段、枚举与状态机编写失败测试
+- [ ] T090 [P] [US1] 在 `tests/security/test_workspace_escape.py` 中为 `..`、绝对路径、Unicode/设备名、symlink、junction/shortcut、mount escape、TOCTOU 和异常编码编写失败测试
+- [ ] T091 [P] [US1] 在 `tests/security/test_malicious_uploads.py` 中为 magic bytes、类型、大小、总空间、malware、嵌套压缩层数、展开字节、文件数、压缩比、CPU/memory/PID/time 限制编写失败测试
+- [ ] T092 [P] [US1] 在 `tests/security/test_sandbox_runtime.py` 中为 non-root、read-only root、drop capabilities、seccomp、gVisor、无 service-account/hostPath/credential/default egress/shell 编写失败测试
+- [ ] T093 [P] [US1] 在 `tests/security/test_approval_authorization.py` 中为 exact digest、expected version、approval expiry/invalidation、fresh RBAC、内容/目标/证据/权限变化和跨租户拒绝编写失败测试
+- [ ] T094 [P] [US1] 在 `tests/recovery/test_submission_idempotency.py` 中为重复点击、客户端 retry、worker restart、唯一 `(tenant_id, connector_id, idempotency_key)` 和 unknown outcome 先 reconcile 编写失败测试
+- [ ] T095 [P] [US1] 在 `tests/integration/test_reimbursement_workflow.py` 中为选择材料、生成草稿、预览 diff、approve/reject、提交、恢复和 audit 全流程编写失败测试
+
+### Implementation for User Story 1B
+
+- [ ] T096 [P] [US1] 在 `backend/app/db/models.py` 中增加 TaskWorkspace、WorkspaceInput、ChangeSet、ChangeSetItem、ApprovalRequest 与 SubmissionJob，严格实现 `data-model.md` 的 ownership、状态、unique path、expected source version 和 version CAS
+- [ ] T097 [P] [US1] 在 `backend/app/sandbox/processors.py` 中建立 `processor_id → signed allowlisted image + fixed argv` 注册表，禁止任意 image、URL、shell string、credential 或 network destination
+- [ ] T098 [P] [US1] 在 `infra/k8s/sandbox-job.yaml` 中定义每任务短寿命 gVisor Job、non-root/read-only/drop capabilities/seccomp、禁 token/hostPath/egress 及 CPU/memory/PID/time/ephemeral-storage/deadline 限制
+- [ ] T099 [US1] 在 `backend/app/sandbox/runner.py` 中实现只接收 workspace/material version manifest 的 start/cancel/collect，输入复制到受控 `emptyDir`，输出拒绝 links、异常名和 manifest/hash mismatch（依赖 T097、T098）
+- [ ] T100 [US1] 在 `backend/app/sandbox/validation.py` 中实现 realpath containment、链接/快捷方式/挂载拒绝、magic-byte/media/size/malware/archive-bomb 与 TOCTOU 防护（依赖 T099）
+- [ ] T101 [P] [US1] 在 `backend/app/approvals/digest.py` 中实现绑定 action、destination、exact source/output versions/hashes、diff、evidence、permission snapshot 和 side effects 的 SHA-256 action digest
+- [ ] T102 [US1] 在 `backend/app/approvals/service.py` 中实现 ChangeSet 创建/冲突检测、`pending → approved|rejected|expired|invalidated`、`approved → consumed|invalidated|expired`，任何 digest 输入变化均使批准失效（依赖 T096、T101）
+- [ ] T103 [P] [US1] 在 `backend/app/integrations/mock_submission.py` 中实现明确返回 `status=mock` 的报销提交 connector、receipt 和 idempotency reconcile，不得描述为生产集成
+- [ ] T104 [US1] 在 `backend/app/approvals/submission.py` 中实现批准消费与 SubmissionJob 原子 claim、fresh principal/RBAC/digest/目标版本重验、bounded retry 和 unknown outcome reconciliation（依赖 T025、T102、T103）
+- [ ] T105 [US1] 在 `backend/app/graph/nodes.py` 中接通 file workflow 的 workspace、sandbox durable job、change set、approval interrupt/resume 和批准后 submission，interrupt 前节点须纯或幂等（依赖 T099–T104）
+- [ ] T106 [US1] 在 `backend/app/api/routes_approvals.py` 中实现 `POST /runs/{run_id}/approvals/{approval_id}`：decision `approve|reject`、64 位 lowercase hex digest、expected version `minimum=1`、reason `maxLength=1000` 和 conflict 契约
+- [ ] T107 [US1] 在 `backend/app/api/routes_workspaces.py` 中实现授权 material selection、workspace/tree/preview/version/diff/submission-result 查询，API 只接收 IDs 且不暴露 object key、host path 或 sandbox ref
+- [ ] T108 [US1] 在 `backend/app/services/draft_service.py` 与 `backend/app/api/routes_draft.py` 中把旧 Draft 变为新 MaterialVersion/ChangeSet 的只读兼容 projection，记录遥测和 Stage 9 删除条件
+- [ ] T109 [US1] 运行 sandbox/RBAC/idempotency/报销 E2E 测试并将 0 泄露/0 未批准副作用/最多一次 mock submission 的证据保存到 `artifacts/security/stage6/`（依赖 T089–T108）
+
+**Checkpoint**: 业务 MVP 完整可用且可独立验收；正式政策只读，所有高影响动作在批准前暂停并在执行前重新授权。
+
+---
+
+## Phase 7: User Story 4A — 安全桌面外壳 (Priority: P2, Stage 7)
+
+**Goal**: 建立 Electron main/preload/renderer 的最小 capability boundary；renderer 不拥有 Node、任意文件、refresh token、raw IPC 或直接认证网络能力。
+
+**Independent Test**: 在真实 Electron 应用中验证非法 IPC schema/origin、导航、新窗口、Node/文件/token 访问全部被拒绝；renderer crash 不批准或提交动作，服务端 run 仍为权威。
+
+### Tests for User Story 4A
+
+- [ ] T110 [P] [US4] 在 `frontend/tests/electron/security.e2e.ts` 中为 `contextIsolation=true`、renderer sandbox、`nodeIntegration=false`、无 raw IPC/任意 file/token API 编写失败 E2E
+- [ ] T111 [P] [US4] 在 `frontend/tests/electron/ipc-contract.e2e.ts` 中为 operation-specific schema、sender origin、request cancellation 和 error redaction 编写失败 E2E
+- [ ] T112 [P] [US4] 在 `frontend/tests/electron/navigation.e2e.ts` 中为 strict CSP、remote page/new window 拒绝和外链系统浏览器打开编写失败 E2E
+- [ ] T113 [P] [US4] 在 `frontend/tests/electron/renderer-crash.e2e.ts` 中为 renderer 销毁取消未形成服务端批准的 privileged request 且不影响 durable run 编写失败 E2E
+
+### Implementation for User Story 4A
+
+- [ ] T114 [P] [US4] 在 `frontend/electron/main/window.ts` 中创建 hardened BrowserWindow，启用 context isolation/sandbox、禁 Node integration、限制导航与新窗口并加载受控本地 renderer
+- [ ] T115 [P] [US4] 在 `frontend/electron/main/credentials.ts` 中使用 OS `safeStorage` 保存 refresh token，renderer 永不接触 token 明文
+- [ ] T116 [P] [US4] 在 `frontend/electron/main/api-proxy.ts` 中实现认证 API/SSE 代理、请求取消、run/event typed mapping 和脱敏错误
+- [ ] T117 [US4] 在 `frontend/electron/main/ipc.ts` 中实现 sender origin 校验与 operation-specific schema-validated handlers，禁止 raw channel、任意 path 和任意 URL（依赖 T115、T116）
+- [ ] T118 [US4] 在 `frontend/electron/preload/index.ts` 中通过 `contextBridge` 仅暴露认证、run、material、workspace、approval 与系统外链的最小 typed capabilities（依赖 T117）
+- [ ] T119 [P] [US4] 在 `frontend/src/services/desktop-api.ts` 中封装 preload capabilities 为 typed clients，renderer feature 不得直接调用 raw IPC
+- [ ] T120 [P] [US4] 在 `frontend/index.html` 与 `frontend/electron/main/security.ts` 中实施 strict CSP、permission deny、navigation/new-window deny 和 external-link allowlist
+- [ ] T121 [US4] 在 `frontend/package.json` 与 `frontend/wdio.electron.conf.ts` 中接入开发、构建、`test:electron`、签名 package/update 的安全脚本且生产构建拒绝 unsigned placeholder 配置
+- [ ] T122 [US4] 运行 `npm --prefix frontend run test:electron` 并将 Electron 安全边界与 crash 证据保存到 `artifacts/electron/stage7/`（依赖 T110–T121）
+
+**Checkpoint**: Electron capability broker 可独立验收；renderer compromise 不可直接获得主机、凭据或副作用权限。
+
+---
+
+## Phase 8: User Story 4B — 专业一致的桌面工作界面 (Priority: P2, Stage 8)
+
+**Goal**: 在安全 Electron 外壳内重做统一桌面体验，覆盖 chat、knowledge、memory、workspace、approval、admin；文件流程在同一连贯界面展示 tree/preview/version/diff/target/status。
+
+**Independent Test**: 在 small/medium/large 常见窗口使用键盘完成问答与报销材料审批，自动 a11y 无阻断项，loading/empty/error/offline/recovery/permission/conflict 均有明确原因与下一步；用户研究达到 SC-010–SC-012。
+
+### Tests for User Story 4B
+
+- [ ] T123 [P] [US4] 在 `frontend/tests/electron/chat-workflow.e2e.ts` 中为 Chat → compact stages → evidence → answer/refusal、copy/edit/scroll 和断线恢复编写失败 E2E
+- [ ] T124 [P] [US4] 在 `frontend/tests/electron/file-approval-workflow.e2e.ts` 中为 select → draft → tree/preview/version/diff → approve/reject → result 编写失败 E2E
+- [ ] T125 [P] [US4] 在 `frontend/tests/electron/state-recovery.e2e.ts` 中为 loading/empty/error/offline/recovery/permission/conflict 状态和可执行下一步编写失败 E2E
+- [ ] T126 [P] [US4] 在 `frontend/tests/electron/accessibility.e2e.ts` 中为键盘、焦点、语义、对比度及 small/medium/large 窗口无遮挡编写失败 E2E
+
+### Implementation for User Story 4B
+
+- [ ] T127 [P] [US4] 在 `frontend/src/design-system/tokens.css` 中落地 soft mint canvas、white floating cards、light sidebar 的 color/type/spacing/radius/elevation/motion/focus tokens，并满足可辨识对比度
+- [ ] T128 [P] [US4] 在 `frontend/src/design-system/states.tsx` 中实现一致的 loading/empty/error/offline/recovery/permission/conflict 状态组件及可执行下一步
+- [ ] T129 [US4] 在 `frontend/src/components/layout/app-shell.tsx` 与 `frontend/src/app/router.tsx` 中统一 chat/knowledge/memory/workspace/approval/admin 导航、层级和响应式桌面布局（依赖 T127、T128）
+- [ ] T130 [P] [US4] 在 `frontend/src/features/chat/components/thinking-process.tsx` 中实现安静 compact staged timeline，详情默认折叠并消费有序 run events
+- [ ] T131 [P] [US4] 在 `frontend/src/features/chat/chat-page.tsx` 中接入 v2 run/events，保留 Markdown、答案复制、用户消息复制/编辑、打开/刷新滚到底部和可点空状态示例
+- [ ] T132 [P] [US4] 在 `frontend/src/features/knowledge-bases/knowledge-base-page.tsx` 中展示上传、扫描、索引、版本、检索可用性、物理删除和恢复状态
+- [ ] T133 [P] [US4] 在 `frontend/src/features/memory/memory-page.tsx` 中保留仅本人查看/删除和“记忆非政策依据”的明确边界
+- [ ] T134 [P] [US4] 在 `frontend/src/features/workspace/workspace-page.tsx` 中实现授权材料选择、文件树、预览、版本和 draft 状态，避免与现有 `frontend/src/app/workspace-page.tsx` 命名职责混淆
+- [ ] T135 [P] [US4] 在 `frontend/src/features/approval/approval-page.tsx` 中实现 diff、target、exact files/hashes、side effects、expiry、approve/reject 和 stale/permission/conflict 反馈
+- [ ] T136 [US4] 在 `frontend/src/features/workspace/workflow-page.tsx` 中整合 tree/preview/version/diff/approval/submission result，并在批准前保持所有生成文件为 draft（依赖 T134、T135）
+- [ ] T137 [US4] 运行 `npm --prefix frontend run test:electron:e2e`，完成目标员工可用性研究并将完成率、耗时、误操作、评分和窗口/a11y 证据保存到 `artifacts/ui/stage8/`（依赖 T123–T136）
+
+**Checkpoint**: US4 可独立验收；核心流程在真实 Electron、常见窗口和键盘模式下无不可达/遮挡，并达到用户成功率与信心阈值。
+
+---
+
+## Phase 9: User Story 5 — 管理员治理企业能力 (Priority: P2)
+
+**Goal**: 管理员按租户/角色治理知识、文件、任务、提交与配额，并通过 `run_id` 查询脱敏审计、容量和 reconciliation 问题；跨租户管理默认关闭。
+
+**Independent Test**: 用两个租户和 employee/approver/admin 验证授权矩阵、fresh revocation、审计链、配额使用、失败任务恢复与 seeded cross-store issue；普通管理员无法发现另一租户资源存在。
+
+### Tests for User Story 5
+
+- [ ] T138 [P] [US5] 在 `tests/security/test_admin_rbac.py` 中为租户内 admin、显式 `cross_tenant_admin`、grant validity/revocation、逐次服务端授权和防资源枚举编写失败测试
+- [ ] T139 [P] [US5] 在 `tests/integration/test_audit_trace.py` 中为按 `run_id` 关联 request/evidence/tool/approval/submission/retry/error 且敏感字段脱敏编写失败测试
+- [ ] T140 [P] [US5] 在 `tests/integration/test_admin_capacity.py` 中为租户配额、最终 usage、queue/capacity/retrieval/sandbox/file health 查询和分页编写失败测试
+- [ ] T141 [P] [US5] 在 `tests/integration/test_admin_reconciliation.py` 中为 orphan/missing/drift、恢复尝试、人工处理和物理删除状态编写失败测试
+
+### Implementation for User Story 5
+
+- [ ] T142 [P] [US5] 在 `backend/app/services/admin_service.py` 中实现 tenant-scoped role/grant/quota/job/audit/capacity/reconciliation 查询与 mutation，并对每项逐次调用 AuthorizationService
+- [ ] T143 [US5] 在 `backend/app/api/routes_admin.py` 中实现角色授权、配额、run audit、任务恢复、capacity run 和 reconciliation issue 的分页 v2 管理 API，跨租户访问返回不可枚举错误（依赖 T142）
+- [ ] T144 [P] [US5] 在 `backend/app/jobs/reconciliation_worker.py` 中实现 scheduled cross-store scan、bounded repair、人工处理终态和每次 transition 的 audit event
+- [ ] T145 [P] [US5] 在 `frontend/src/features/admin/admin-page.tsx` 中实现角色/权限、配额/用量、任务/队列、审计、容量与 reconciliation 的分区导航和状态摘要
+- [ ] T146 [P] [US5] 在 `frontend/src/features/admin/audit-run-page.tsx` 中实现按 `run_id` 的 request→evidence→tool→approval→submission→retry/error 脱敏时间线
+- [ ] T147 [P] [US5] 在 `frontend/src/features/admin/reconciliation-page.tsx` 中实现 issue kind、fingerprints、attempt、resolution 和人工处理动作且不暴露 object key/host path
+- [ ] T148 [US5] 运行 admin RBAC/audit/capacity/reconciliation 测试并将双租户矩阵与 seeded fault 结果保存到 `artifacts/admin/us5/`（依赖 T138–T147）
+
+**Checkpoint**: US5 可独立验收；管理员能治理本租户并追踪恢复问题，跨租户能力必须显式授予且独立审计。
+
+---
+
+## Phase 10: Polish & Cross-Cutting — Stage 9 Comprehensive Acceptance and Legacy Exit
+
+**Purpose**: 完成综合验收、数据权威切换和临时路径退出；任何未运行/失败/环境差距必须披露，旧路径仅在一个 release window 零使用后删除。
+
+- [ ] T149 [P] 在 `tests/migration/test_enterprise_data_preservation.py` 中验证 users/knowledge/conversations/messages/memory/drafts/eval/material objects/vectors 的 row count、FK、unique、SHA-256、manifest 和 legacy read comparison 100%
+- [ ] T150 [P] 在 `tests/contract/test_openapi_v2.py` 中验证 `specs/001-enterprise-agent-refactor/contracts/openapi.yaml` 与运行中 v2 schema、Idempotency-Key、Problem、RunEvent 2.0、approval/material constraints 一致
+- [ ] T151 [P] 在 `tests/contract/test_internal_contracts.py` 中验证 principal、graph、jobs、retrieval、object store、sandbox、connector、AuditSink、SSE 和 stable error codes 符合 `contracts/internal-contracts.md`
+- [ ] T152 在 `migrations/versions/003_authority_contract.py` 中仅于 Stage 2–8 全部迁移核对和恢复点存在时 contract legacy columns/paths，并拒绝自动反向 destructive migration
+- [ ] T153 在 `tests/load/locustfile.py` 中实现 acceptance profile，组合 1,000 active sessions、1,000 SSE、non-LLM 200 RPS、p95/首阶段目标、30 分钟 soak、文件流与 tenant isolation
+- [ ] T154 运行 `pytest -q tests/contract tests/unit tests/integration tests/security tests/recovery tests/migration tests/reconciliation` 并把完整输出与哈希保存到 `artifacts/acceptance/backend/`
+- [ ] T155 [P] 运行 `npm --prefix frontend run test` 和 `npm --prefix frontend run test:electron:e2e` 并把完整输出与哈希保存到 `artifacts/acceptance/desktop/`
+- [ ] T156 运行分布式 Locust acceptance profile，验证 server failure <1%、non-LLM p95 <500ms、首阶段 p95 <1s、SSE 清理 <30s 和 soak 无持续增长，并把原始 CSV/log/environment/hash 保存到 `artifacts/acceptance/load/`
+- [ ] T157 在 `artifacts/acceptance/SC-001-SC-016.md` 中逐项链接原始证据、给出 pass/fail/inconclusive 并明确未运行项、已知限制和 deterministic mock/real provider 边界
+- [ ] T158 在 `backend/app/observability/compatibility.py` 中确认 legacy Chat/Eval adapter、AgentPipeline facade、local material/workspace、LightRAG production workspace、Draft projection 与 browser shell 连续一个 release window 零使用
+- [ ] T159 在 `backend/app/agents/pipeline.py`、`backend/app/rag/lightrag_adapter.py`、`backend/app/api/routes_draft.py` 和 `backend/app/main.py` 中删除已满足 T158 门槛的旧生产业务路径与静态 Web surface，保留明确允许的 SQLite 隔离测试 adapter
+- [ ] T160 在 `frontend/src/app/router.tsx` 与 `frontend/package.json` 中删除旧 browser-only 入口和重复 API client 路径，Electron 成为唯一 end-user product surface
+- [ ] T161 [P] 在 `docs/01-architecture-design.md`、`docs/03-api-design.md` 和 `docs/04-ai-pipeline-rag-eval-design.md` 中更新生产权威、单一 graph、协议、状态机、恢复和真实验收边界
+- [ ] T162 [P] 在 `docs/08-de-toy-multiagent-skill-eval-strategy.md` 与 `docs/09-interview-demo-script.md` 中更新 Stage 1–9 落地状态，诚实披露 mock connector、本地 rerank、采样规模、负载环境和 known limits
+- [ ] T163 在 `docs/10-project-summary.md` 和 `README.md` 中发布最终架构/启动/验收快照，并确保所有容量数字只引用 T156–T157 的同一环境证据
+- [ ] T164 运行 `specs/001-enterprise-agent-refactor/quickstart.md` 全部适用命令并在 `artifacts/acceptance/quickstart-validation.md` 记录每个命令的实际结果、未执行理由和最终发布判断
+
+**Checkpoint**: SC-001–SC-016 均有可追溯 verdict；数据迁移 100%；无永久双主/双编排；旧路径删除前后均有恢复点和核验证据。
+
+---
+
+## Dependencies & Execution Order
+
+### Phase Dependencies
+
+```text
+Phase 1 Setup / Stage 1 baseline
+  → Phase 2 Foundational / Stage 2 PostgreSQL + tenant foundation
+    → Phase 3 US3 / Stage 3 shared LangGraph
+      → Phase 4 US2 / Stage 4 durable jobs, quotas and SSE
+        → Phase 5 US1A / Stage 5 Milvus + object storage
+          → Phase 6 US1B / Stage 6 sandbox + approval (business MVP)
+            → Phase 7 US4A / Stage 7 secure Electron shell
+              → Phase 8 US4B / Stage 8 redesigned workflows
+                → Phase 9 US5 admin governance
+                  → Phase 10 Stage 9 acceptance and legacy exit
+```
+
+- **Setup** has no dependency and first records the migration baseline.
+- **Foundational** depends on Setup and blocks every user story because identity, tenant and PostgreSQL authority are cross-cutting security prerequisites.
+- **US3** depends on Foundational; it establishes the only permitted decision path.
+- **US2** depends on US3 because jobs, SSE and quotas persist and expose shared graph runs.
+- **US1A/US1B** depend on US2 because file indexing, sandbox and submissions are durable jobs; US1B additionally requires versioned storage.
+- **US4** depends on the v2 run/material/approval contracts; shell security can begin after US1B APIs stabilize, then workflow UI follows.
+- **US5** depends on persisted jobs, usage, audit and reconciliation data from prior stories.
+- **Polish/exit** depends on all desired stories and one observed release window; no legacy path is deleted speculatively.
+
+### User Story Dependencies
+
+- **US3 (P1)**: no dependency on another story after Foundational; independently proves graph/evidence parity.
+- **US2 (P1)**: consumes US3 run/checkpoint contracts; independently proves restart, overload and SSE behavior.
+- **US1 (P1)**: consumes US2 durable work and US3 graph; split into storage authority then secure business MVP.
+- **US4 (P2)**: consumes stable v2 APIs from US1–US3; independently proves desktop security and usability.
+- **US5 (P2)**: consumes persisted governance records but has its own RBAC/audit/admin acceptance.
+
+### Within Each Story
+
+1. Write story tests and verify they fail for the missing behavior.
+2. Add models/contracts before repositories and services.
+3. Add services before endpoints, graph wiring or UI integration.
+4. Run the independent test gate and retain raw artifacts before starting the dependent phase.
+5. Never merge deterministic mock and real-provider capacity results.
+
+## Parallel Opportunities
+
+- Phase 1: T003/T004/T006–T012/T014 touch independent setup, frontend, infra and test files.
+- Phase 2: T016–T021 tests can run in parallel; T024/T025/T027–T029 can be implemented in parallel after DB session direction is fixed.
+- US3: T037–T042 tests, T043/T044, T047/T048/T050 are independent file groups.
+- US2: T055–T060 tests and T062/T065–T067/T071 are parallelizable.
+- US1A: all six initial tests and storage/retrieval adapters T080/T081/T084 are parallelizable.
+- US1B: security/recovery tests T089–T095 and processor/digest/mock-connector work T097/T098/T101/T103 are parallelizable.
+- US4: each E2E file and most feature pages operate in separate files after shared tokens/shell land.
+- US5: test files, worker, and three frontend pages can progress in parallel after the admin service contract is agreed.
+
+## Parallel Execution Examples
+
+### User Story 3
+
+```text
+Parallel: T037 test graph state | T038 test checkpoint auth | T040 test evidence parity
+Then parallel: T043 implement state | T044 implement checkpoint binding | T048 implement evidence gate
+Then sequential: T045 → T046 → T049 → T051/T052/T053 → T054
+```
+
+### User Story 2
+
+```text
+Parallel: T055–T060 recovery/contract tests
+Parallel: T062 Celery config | T065 outbox publisher | T066 quotas | T067 event storage
+Then sequential: T063 → T064; T067 → T068; all converge at T069 and T072
+```
+
+### User Story 1
+
+```text
+Parallel Stage 5: T073–T078 tests; T080 object store | T081 Milvus | T084 reconciliation
+Sequential Stage 5 core: T079 → T082 → T083 → T085/T086/T087 → T088
+Parallel Stage 6: T089–T095 tests; T097 processors | T098 K8s policy | T101 digest | T103 mock connector
+Sequential Stage 6 core: T096 → T102 → T104; T097/T098 → T099 → T100; converge at T105–T109
+```
+
+### User Story 4
+
+```text
+Parallel shell tests: T110–T113
+Parallel shell implementation: T114 window | T115 credentials | T116 API proxy | T120 CSP
+Then: T117 → T118 → T121 → T122
+Parallel workflow tests: T123–T126
+After T127/T128/T129: T130–T135 feature surfaces in parallel; converge at T136/T137
+```
+
+### User Story 5
+
+```text
+Parallel: T138–T141 tests
+After T142/T143: T144 reconciliation worker | T145 admin shell | T146 audit timeline | T147 issue page
+Then: T148 independent acceptance
+```
+
+## Implementation Strategy
+
+### Technical MVP: Unified Trusted Assistant
+
+1. Complete Phase 1 baseline and Phase 2 foundation.
+2. Complete US3 shared LangGraph.
+3. Stop and verify Chat/stream/Eval evidence-gate parity 100%.
+4. This is the first safe architecture increment, but not yet the requested business MVP.
+
+### Business MVP: Reimbursement Material Workflow
+
+1. Complete Phases 1–4 so state, jobs, quotas and SSE are recoverable.
+2. Complete US1A storage/version authority.
+3. Complete US1B secure sandbox, review and idempotent mock submission.
+4. Stop and validate the employee → draft → diff → approve/reject → submit path with zero unauthorized side effects.
+5. Demo only with explicit `status=mock` connector disclosure until a production connector is separately authorized.
+
+### Incremental Delivery
+
+1. Stage 1 produces baseline evidence; no capacity claim yet.
+2. Stage 2 produces stateless multi-instance PostgreSQL service.
+3. Stage 3 produces one trusted graph path.
+4. Stage 4 produces recoverable runs and bounded overload behavior.
+5. Stages 5–6 produce the secure file business MVP.
+6. Stages 7–8 produce the sole desktop product surface and usability evidence.
+7. US5 adds operational governance.
+8. Stage 9 proves SC-001–SC-016, observes adapter usage, then removes legacy paths.
+
+## Notes
+
+- Every temporary adapter must expose usage telemetry, deletion test and Stage 9 deadline; no permanent dual authority is allowed.
+- Every public Python module/class/function and public TypeScript component/hook/IPC/shared type needs concise responsibility or invariant documentation where required by Constitution Principle X.
+- Generated drafts remain non-authoritative and excluded from formal retrieval until a separately authorized publish workflow.
+- Capacity tuning values—replicas, pools, queues, Milvus index, sandbox concurrency and LLM quotas—must come from retained test evidence, not guesses in implementation.
+- A task is complete only when its listed test/artifact gate is real; placeholder commands or generated summaries without raw evidence do not count.

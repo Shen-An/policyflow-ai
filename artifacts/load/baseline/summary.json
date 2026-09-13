@@ -1,0 +1,182 @@
+{
+  "execution_mode": "route_level_asgi",
+  "provider": "deterministic_mock",
+  "retriever": "deterministic_local",
+  "profiles": [
+    {
+      "profile": "smoke",
+      "samples": 1,
+      "status_codes": [
+        200
+      ],
+      "failures": 0,
+      "status_counts": {
+        "200": 1
+      },
+      "latency_ms": {
+        "min": 27.295,
+        "p50": 27.295,
+        "max": 27.295
+      },
+      "isolation_pass": true,
+      "sse_event_count": null
+    },
+    {
+      "profile": "load",
+      "samples": 3,
+      "status_codes": [
+        200
+      ],
+      "failures": 0,
+      "status_counts": {
+        "200": 3
+      },
+      "latency_ms": {
+        "min": 11.636,
+        "p50": 12.489,
+        "max": 13.024
+      },
+      "isolation_pass": true,
+      "sse_event_count": null
+    },
+    {
+      "profile": "stress",
+      "samples": 3,
+      "status_codes": [
+        200
+      ],
+      "failures": 0,
+      "status_counts": {
+        "200": 3
+      },
+      "latency_ms": {
+        "min": 11.208,
+        "p50": 11.395,
+        "max": 11.926
+      },
+      "isolation_pass": true,
+      "sse_event_count": null
+    },
+    {
+      "profile": "spike",
+      "samples": 3,
+      "status_codes": [
+        200
+      ],
+      "failures": 0,
+      "status_counts": {
+        "200": 3
+      },
+      "latency_ms": {
+        "min": 10.908,
+        "p50": 11.239,
+        "max": 12.796
+      },
+      "isolation_pass": true,
+      "sse_event_count": null
+    },
+    {
+      "profile": "soak",
+      "samples": 3,
+      "status_codes": [
+        200
+      ],
+      "failures": 0,
+      "status_counts": {
+        "200": 3
+      },
+      "latency_ms": {
+        "min": 11.756,
+        "p50": 12.03,
+        "max": 12.342
+      },
+      "isolation_pass": true,
+      "sse_event_count": null
+    },
+    {
+      "profile": "sse",
+      "samples": 1,
+      "status_codes": [
+        200
+      ],
+      "failures": 0,
+      "status_counts": {
+        "200": 1
+      },
+      "latency_ms": {
+        "min": 16.048,
+        "p50": 16.048,
+        "max": 16.048
+      },
+      "isolation_pass": true,
+      "sse_event_count": 25
+    },
+    {
+      "profile": "file-workflow",
+      "samples": 1,
+      "status_codes": [
+        201
+      ],
+      "failures": 0,
+      "status_counts": {
+        "201": 1
+      },
+      "latency_ms": {
+        "min": 20.871,
+        "p50": 20.871,
+        "max": 20.871
+      },
+      "isolation_pass": true,
+      "sse_event_count": null
+    },
+    {
+      "profile": "saturation",
+      "samples": 3,
+      "status_codes": [
+        200
+      ],
+      "failures": 0,
+      "status_counts": {
+        "200": 3
+      },
+      "latency_ms": {
+        "min": 11.556,
+        "p50": 12.278,
+        "max": 12.45
+      },
+      "isolation_pass": true,
+      "sse_event_count": null
+    },
+    {
+      "profile": "tenant-isolation",
+      "samples": 1,
+      "status_codes": [
+        200
+      ],
+      "failures": 0,
+      "status_counts": {
+        "200": 1
+      },
+      "latency_ms": {
+        "min": 11.59,
+        "p50": 11.59,
+        "max": 11.59
+      },
+      "isolation_pass": true,
+      "sse_event_count": null
+    }
+  ],
+  "bottleneck_conclusions": [
+    "Route-level ASGI requests completed without 5xx in this offline run.",
+    "Observed latency is application-process timing only; it is not a distributed capacity claim.",
+    "SSE produced stage events, but TestClient buffered the response, so first-event timing is not a network measurement.",
+    "File workflow reached upload and status endpoints; background indexing remains deployment-dependent.",
+    "Tenant isolation was verified with an HR employee token: finance KB list/detail was not visible (detail returned 403)."
+  ],
+  "limitations": [
+    "offline route-level baseline; not production capacity evidence",
+    "tenant isolation is limited by the legacy single-database fixture",
+    "saturation was sequential in-process ASGI; no 429/503 claim is made",
+    "TestClient buffers SSE responses, so first-event latency is not a network streaming measurement"
+  ]
+}

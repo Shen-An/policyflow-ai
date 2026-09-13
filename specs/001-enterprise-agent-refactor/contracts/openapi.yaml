@@ -1,0 +1,311 @@
+openapi: 3.1.0
+info:
+  title: PolicyFlow Enterprise Run and File Workflow API
+  version: 2.0.0-draft
+  description: >-
+    Target contract for unified Chat, Eval and file workflows. Legacy chat APIs
+    remain temporary adapters until client parity is proven.
+servers:
+  - url: /api/v2
+security:
+  - bearerAuth: []
+tags:
+  - name: Runs
+  - name: Approvals
+  - name: Files
+  - name: Admin
+paths:
+  /runs:
+    post:
+      tags: [Runs]
+      operationId: createRun
+      summary: Start a unified agent run
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRunRequest'
+      responses:
+        '202':
+          description: Run accepted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Run'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+        '429': {$ref: '#/components/responses/Overloaded'}
+        '503': {$ref: '#/components/responses/Overloaded'}
+  /runs/{run_id}:
+    get:
+      tags: [Runs]
+      operationId: getRun
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+      responses:
+        '200':
+          description: Tenant-authorized run snapshot
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Run'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /runs/{run_id}/events:
+    get:
+      tags: [Runs]
+      operationId: streamRunEvents
+      summary: Stream ordered run events with heartbeat and bounded replay
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - name: Last-Event-ID
+          in: header
+          required: false
+          schema: {type: string}
+      responses:
+        '200':
+          description: >-
+            text/event-stream. Each event has id equal to event_id, event equal
+            to type and data equal to a RunEvent JSON object. If replay expired,
+            the first event is run.snapshot.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '404': {$ref: '#/components/responses/NotFound'}
+        '429': {$ref: '#/components/responses/Overloaded'}
+  /runs/{run_id}/cancel:
+    post:
+      tags: [Runs]
+      operationId: cancelRun
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Cancellation intent persisted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Run'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /runs/{run_id}/approvals/{approval_id}:
+    post:
+      tags: [Approvals]
+      operationId: decideApproval
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - $ref: '#/components/parameters/ApprovalId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ApprovalDecision'}
+      responses:
+        '200':
+          description: Decision recorded; execution remains subject to RBAC and digest recheck
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Approval'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /materials:
+    post:
+      tags: [Files]
+      operationId: createMaterialUpload
+      summary: Create a tenant-scoped upload intent
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateMaterialRequest'}
+      responses:
+        '201':
+          description: Upload intent with constrained transfer capability
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MaterialUpload'}
+        '413':
+          description: File or tenant/task storage limit exceeded
+        '415':
+          description: Unsupported media type
+        '422': {$ref: '#/components/responses/ValidationError'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    RunId:
+      name: run_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    ApprovalId:
+      name: approval_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 16, maxLength: 128}
+  responses:
+    NotFound:
+      description: Resource does not exist or is not visible to this principal
+    Conflict:
+      description: State, version, digest or idempotency conflict
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    ValidationError:
+      description: Invalid request
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    Overloaded:
+      description: Bounded capacity reached; response includes Retry-After
+      headers:
+        Retry-After:
+          schema: {type: integer, minimum: 1}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+  schemas:
+    CreateRunRequest:
+      type: object
+      additionalProperties: false
+      required: [kind, input]
+      properties:
+        kind:
+          type: string
+          enum: [chat, eval, file_workflow]
+        conversation_id: {type: [string, 'null'], format: uuid}
+        knowledge_base_ids:
+          type: array
+          items: {type: string, format: uuid}
+          uniqueItems: true
+        input:
+          type: object
+          description: Versioned kind-specific input; tenant/user fields are forbidden
+        workspace:
+          oneOf:
+            - $ref: '#/components/schemas/WorkspaceManifest'
+            - type: 'null'
+    Run:
+      type: object
+      required: [run_id, kind, status, stage, evidence_gate, created_at, version]
+      properties:
+        run_id: {type: string, format: uuid}
+        kind: {type: string, enum: [chat, eval, file_workflow, reconciliation]}
+        status:
+          type: string
+          enum: [queued, running, waiting_approval, cancel_requested, cancelled, succeeded, recoverable_failed, terminal_failed, timed_out]
+        stage: {type: string}
+        evidence_gate: {type: string, enum: [supported, insufficient_evidence, not_applicable]}
+        result: {type: [object, 'null']}
+        recoverable: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        version: {type: integer, minimum: 1}
+    RunEvent:
+      type: object
+      additionalProperties: false
+      required: [contract_version, event_id, run_id, sequence, type, stage, status, occurred_at]
+      properties:
+        contract_version: {type: string, const: '2.0'}
+        event_id: {type: string}
+        run_id: {type: string, format: uuid}
+        sequence: {type: integer, minimum: 0}
+        type:
+          type: string
+          enum: [run.snapshot, stage.started, stage.completed, evidence.ready, approval.required, output.delta, run.completed, run.failed, heartbeat]
+        stage: {type: string}
+        status: {type: string}
+        payload:
+          type: object
+          description: Sanitized event payload; never contains credentials, host paths or cross-tenant identifiers
+        occurred_at: {type: string, format: date-time}
+    WorkspaceManifest:
+      type: object
+      additionalProperties: false
+      required: [input_version_ids]
+      properties:
+        input_version_ids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, format: uuid}
+        intended_action:
+          type: string
+          enum: [draft, compare, prepare_submission]
+        destination_id: {type: [string, 'null'], format: uuid}
+    ApprovalDecision:
+      type: object
+      additionalProperties: false
+      required: [decision, action_digest, expected_version]
+      properties:
+        decision: {type: string, enum: [approve, reject]}
+        action_digest: {type: string, pattern: '^[a-f0-9]{64}$'}
+        expected_version: {type: integer, minimum: 1}
+        reason: {type: [string, 'null'], maxLength: 1000}
+    Approval:
+      type: object
+      required: [approval_id, run_id, status, action_digest, target, files, side_effects, version]
+      properties:
+        approval_id: {type: string, format: uuid}
+        run_id: {type: string, format: uuid}
+        status: {type: string, enum: [pending, approved, rejected, expired, invalidated, consumed]}
+        action_digest: {type: string}
+        target: {type: object}
+        files:
+          type: array
+          items:
+            type: object
+            required: [material_version_id, sha256]
+            properties:
+              material_version_id: {type: string, format: uuid}
+              sha256: {type: string}
+              diff_summary: {type: string}
+        side_effects:
+          type: array
+          items: {type: string}
+        expires_at: {type: string, format: date-time}
+        version: {type: integer, minimum: 1}
+    CreateMaterialRequest:
+      type: object
+      additionalProperties: false
+      required: [filename, size_bytes, sha256, media_type, purpose]
+      properties:
+        filename: {type: string, minLength: 1, maxLength: 255}
+        size_bytes: {type: integer, minimum: 1}
+        sha256: {type: string, pattern: '^[a-f0-9]{64}$'}
+        media_type: {type: string}
+        purpose: {type: string, enum: [task_input, policy_import]}
+    MaterialUpload:
+      type: object
+      required: [material_id, version_id, status, upload]
+      properties:
+        material_id: {type: string, format: uuid}
+        version_id: {type: string, format: uuid}
+        status: {type: string, enum: [staging]}
+        upload:
+          type: object
+          description: Short-lived constrained upload capability; object key is not client-selected
+    Problem:
+      type: object
+      required: [type, title, status, code, request_id]
+      properties:
+        type: {type: string, format: uri-reference}
+        title: {type: string}
+        status: {type: integer}
+        code: {type: string}
+        detail: {type: string}
+        request_id: {type: string}
+        run_id: {type: [string, 'null'], format: uuid}
+        retryable: {type: boolean}
+        current_version: {type: [integer, 'null']}

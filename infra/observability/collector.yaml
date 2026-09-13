@@ -1,0 +1,73 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+  batch:
+    send_batch_size: 512
+    timeout: 5s
+  transform/metrics:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          # Tenant/user/request identifiers are intentionally not metric labels.
+          - delete_key(attributes, "tenant_id")
+          - delete_key(attributes, "tenant.id")
+          - delete_key(attributes, "user_id")
+          - delete_key(attributes, "user.id")
+          - delete_key(attributes, "principal_id")
+          - delete_key(attributes, "session_id")
+          - delete_key(attributes, "request_id")
+          - delete_key(attributes, "run_id")
+          - delete_key(resource.attributes, "tenant_id")
+          - delete_key(resource.attributes, "tenant.id")
+          - delete_key(resource.attributes, "user_id")
+          - delete_key(resource.attributes, "user.id")
+          - delete_key(resource.attributes, "principal_id")
+          - delete_key(resource.attributes, "session_id")
+          - delete_key(resource.attributes, "request_id")
+          - delete_key(resource.attributes, "run_id")
+
+exporters:
+  prometheus:
+    endpoint: ${env:OTEL_PROMETHEUS_ENDPOINT:-0.0.0.0:9464}
+    enable_open_metrics: true
+  otlp/tempo:
+    endpoint: ${env:TEMPO_OTLP_ENDPOINT:-tempo:4317}
+    tls:
+      insecure: ${env:TEMPO_OTLP_INSECURE:-true}
+  loki:
+    endpoint: ${env:LOKI_ENDPOINT:-http://loki:3100/loki/api/v1/push}
+    default_labels_enabled:
+      exporter: false
+      job: true
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions:
+    - health_check
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/metrics, batch]
+      exporters: [prometheus]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/tempo]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [loki]
