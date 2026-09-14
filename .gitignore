@@ -55,3 +55,6 @@ docs/rehearsal-latest.json
 
 # Claude
 .claude/
+
+# DSH session upload scratch
+.dsh-uploads/

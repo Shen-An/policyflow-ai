@@ -6,6 +6,38 @@
 
 ---
 
+## 当前状态（建议先读这一节）
+
+**功能可跑；企业化改造（Stage 2）进行到一半。** 进度以 `specs/001-enterprise-agent-refactor/tasks.md` 为准：
+
+- **已完成 32 / 164 项**（T001–T032，含 Phase 1 与 Phase 2 大部分）
+- **Phase 2 剩余**：T033（API principal + async Unit of Work 依赖）、T034（async lifespan、v2 router、health/readiness、OTel）、T035（service 层租户化）、T036（整门禁证据）
+- **未开始**：Phase 3–10（T037–T164）
+
+所以现在**有两套并存的现实**，请不要混为一谈：
+
+| | 当前默认（dev） | Stage 2 目标（生产） |
+|---|---|---|
+| 数据库 | SQLite 单文件 | PostgreSQL 16，唯一生产 SQL 权威 |
+| schema 来源 | 启动时 `create_all` + 原地补列 | Alembic 分阶段迁移，生产**禁止** `create_all` |
+| 租户 | 单租户，`tenant_id` 可为 NULL | 每行必须有租户，RLS 强制 |
+| 唯一约束 | 业务标识全局唯一 | 业务标识**按租户**唯一 |
+
+**已验证的事实**（重跑得出，非计划）：
+
+- `pytest tests -q --ignore=tests/load` → **463 passed**
+- `python start.py --no-browser` → `/health` 200、`/` 200，本地已有数据保留
+- PostgreSQL 迁移链路 expand →（正确拒绝）→ backfill → enforce 端到端跑通；原始输出见 `artifacts/migration/stage2/`
+
+**已知缺口，请勿假设已具备**：
+
+1. **`/health` 不检查数据库 schema 版本**——进程活着就返回 200，迁移到一半的库同样返回 200。此项属 T034。
+2. **RLS、NOT NULL、按租户唯一只在 PostgreSQL 上存在**；dev SQLite 完全不产生这些约束，用 SQLite 验证租户隔离是无效的。
+3. `memory_service.py`、`eval_service.py` 仍是单租户语义（T035 未做）；仅 `knowledge_base_service.py` 做了最小租户化改动。
+4. Phase 6（gVisor / k8s Job）、Phase 7–8（Electron 打包签名）、Phase 10 部分内容**在本机无法完整验证**，相关结论不应被当作已验收。
+
+---
+
 ## 功能概览
 
 | 模块 | 说明 |
@@ -24,7 +56,8 @@
 
 ## 技术栈
 
-- **后端**：Python 3.11+、FastAPI、SQLModel / SQLAlchemy、SQLite  
+- **后端**：Python 3.11+、FastAPI、SQLModel / SQLAlchemy 2  
+- **数据库**：开发用 SQLite；**生产目标为 PostgreSQL 16**（见「数据库与迁移」）  
 - **前端**：React 19、TypeScript、Vite、Ant Design 5、TanStack Query  
 - **RAG**：进程内 LightRAG（无需单独 LightRAG 服务）  
 - **鉴权**：JWT Bearer Token  
@@ -97,6 +130,41 @@ http://127.0.0.1:8000
 GET /health
 ```
 
+> `/health` 目前只表示进程存活，**不校验数据库 schema 版本**（T034 待补）。
+
+### 只启动后端
+
+```powershell
+python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+---
+
+## 数据库与迁移
+
+### 开发（默认）
+
+`.env` 里的 `DATABASE_URL=sqlite:///./policyflow.db`，走开发路径：启动时 `create_all` 建表、原地补列（旧库自动升级）、接管租户化之前的旧数据，然后写入种子数据。整个流程幂等，重复启动不会重复建数据。
+
+### 生产（PostgreSQL）
+
+生产**不允许** `create_all`，启动只校验 schema 版本，由 Alembic 分阶段迁移管理。三个阶段**必须按顺序**执行：
+
+```powershell
+$env:DATABASE_URL = "postgresql+psycopg://<user>:<pass>@<host>:5432/<db>"
+
+alembic upgrade 001                              # expand：加列、建表、legacy 租户、RLS policy
+python -m migrations.backfill_legacy_tenant      # backfill：可重启批量回填，带 ledger/校验和
+alembic upgrade head                             # enforce：NOT NULL、按租户唯一、强制 RLS
+```
+
+说明：
+
+- **直接跑 `alembic upgrade head` 会失败，这是设计如此**：enforce 会先核对回填账本，未回填就拒绝执行，避免把没归属的数据锁死。
+- 回填可中断续跑（持久化 cursor 与校验和），中断后重跑即可。
+- enforce 后会把 `tenant_id` 变为 NOT NULL，并开启 `ENABLE` + `FORCE ROW LEVEL SECURITY`；两者缺一不可（只 `FORCE` 不会开启行安全）。
+- 多租户约定：每个受保护的 repository 调用都**显式传 `tenant_id`**；跨租户访问与「不存在」返回同一个错误，避免被当成枚举探针。RLS 只是纵深防御。
+
 ---
 
 ## 默认管理员
@@ -134,11 +202,14 @@ GET /health
 
 ```text
 policyflow-ai/
-├── backend/app/          # FastAPI 应用（API、服务、RAG、Agent）
+├── backend/app/          # FastAPI 应用（API、服务、RAG、Agent）、db/auth/observability
 ├── frontend/             # React + Ant Design 前端
 ├── docs/                 # 架构、数据库、API、RAG/Eval、前端设计文档
+├── specs/                # SDD 规格：spec / plan / tasks（企业化改造的进度以此为准）
+├── migrations/           # Alembic 分阶段迁移 + legacy 租户回填脚本
+├── artifacts/            # 原始证据输出（迁移流程、测试原始日志）
 ├── scripts/              # 重索引、种子文档等脚本
-├── tests/                # 后端与契约测试
+├── tests/                # 后端、契约、集成与安全测试
 ├── start.py / start.bat  # 一键启动
 ├── pyproject.toml
 └── README.md
@@ -213,20 +284,24 @@ policyflow-ai/
 conda activate policyflow
 pip install -e ".[dev]"
 
-# 后端测试
-pytest
+# 后端测试（不含压测）
+pytest tests -q --ignore=tests/load
 
 # 前端开发
 cd frontend
 npm install
 npm run dev
 
-# 前端类型检查 / 单测
+# 前端类型检查 / 单测 / 生产校验
 npm run build
 npm test
 ```
 
-生产启动前会校验前端产物（无源码 map、无 MSW、无测试账号泄漏等）。
+需要注意的测试边界：
+
+- **部分测试需要本地 PostgreSQL**（默认 `127.0.0.1:55432`，可用 `POLICYFLOW_TEST_DATABASE_URL` 覆盖）。相关套件：`tests/integration/test_postgres_migrations.py`、`tests/integration/test_multi_instance.py`、`tests/security/test_tenant_isolation.py`。没有 PostgreSQL 时这些用例无法运行，**不要**把它们的跳过当成通过。
+- 租户隔离用例会以受限角色 `policyflow_app` 执行（`SET ROLE`）。超级用户绕过 RLS，用超级用户测 RLS 等于没测。
+- 生产启动前会校验前端产物（无源码 map、无 MSW、无测试账号泄漏等）。
 
 ---
 
@@ -246,6 +321,7 @@ python scripts/seed_enterprise_docs.py
 
 | 文档 | 内容 |
 |------|------|
+| [specs/001-enterprise-agent-refactor/tasks.md](specs/001-enterprise-agent-refactor/tasks.md) | **企业化改造任务清单与真实进度**（当前 32 / 164） |
 | [docs/01-architecture-design.md](docs/01-architecture-design.md) | 架构设计 |
 | [docs/02-database-design-sqlite.md](docs/02-database-design-sqlite.md) | 数据库设计 |
 | [docs/03-api-design.md](docs/03-api-design.md) | API 设计 |

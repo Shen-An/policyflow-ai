@@ -1,19 +1,37 @@
-"""Create database tables and idempotently insert roadmap seed data."""
+"""Create database tables and idempotently insert roadmap seed data.
 
+Schema authority rules:
+
+- **Production**: Alembic owns the schema. This module must NOT create tables or
+  run migrations at startup; it only verifies that the expected revision is
+  already applied and fails fast otherwise. A service that silently creates its
+  own schema cannot be rolled forward or rolled back predictably.
+- **Development/test**: the SQLite convenience bootstrap (``create_all`` plus the
+  small column backfills below) is retained so a developer can start the app
+  without running migrations. It is explicitly refused in production.
+"""
+
+import json
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 
-from sqlalchemy import inspect, text
+from sqlalchemy import JSON, Column, func, inspect, text
+from sqlalchemy.dialects import sqlite as sqlite_dialect
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, SQLModel, col, select
 
-from backend.app.core.config import Settings, get_settings
+from backend.app.core.config import Environment, Settings, get_settings
 from backend.app.core.logging import get_logger
 from backend.app.core.mcp_security import protect_command, protect_config, reveal_config
 from backend.app.core.redaction import redact_sensitive
 from backend.app.core.security import hash_password
 from backend.app.db import base  # noqa: F401
 from backend.app.db.models import (
+    DEFAULT_TENANT_CODE,
+    DEFAULT_TENANT_NAME,
+    LEGACY_TENANT_CODE,
+    LEGACY_TENANT_ID,
+    LEGACY_TENANT_NAME,
     Department,
     KnowledgeBase,
     KnowledgeBasePermission,
@@ -21,31 +39,108 @@ from backend.app.db.models import (
     ModelProvider,
     Role,
     Skill,
+    Tenant,
     Tool,
     ToolCallLog,
     User,
     UserRole,
     utc_now,
 )
-from backend.app.db.session import get_engine
+from backend.app.db.session import (
+    ALEMBIC_VERSION_TABLE,
+    expected_schema_revision,
+    get_engine,
+)
 
 logger = get_logger(__name__)
 
+
+class SchemaAuthorityError(RuntimeError):
+    """Raised when the database schema is not the expected migrated revision.
+
+    Startup must fail loudly rather than repairing schema implicitly: an
+    implicitly-created schema has no migration history and therefore no defined
+    rollback path.
+    """
+
 SQLITE_COLUMN_MIGRATIONS = {
+    # Columns added after the original SQLite schema. A development database file
+    # is upgraded in place, so every column the ORM has gained since that file was
+    # created must appear here; otherwise an existing development database cannot
+    # start at all. `tenant_id` stays nullable here because ownership is only
+    # made mandatory by the enforce migration, which SQLite never runs.
+    "agent_runs": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+    },
+    "ai_query_logs": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+    },
+    "audit_events": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+    },
+    "conversations": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+    },
+    "drafts": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+    },
+    "eval_cases": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+    },
+    "eval_results": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+        "answer_metrics": "answer_metrics JSON",
+        "type_statuses": "type_statuses JSON NOT NULL DEFAULT '{}'",
+    },
+    "eval_runs": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+        "error_summary": "error_summary TEXT",
+        "request_id": "request_id VARCHAR(128)",
+    },
+    "graph_checkpoint_bindings": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+    },
+    "idempotency_records": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+    },
+    "knowledge_bases": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+    },
+    "knowledge_documents": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+        "external_id": "external_id VARCHAR(128)",
+    },
+    "memory_items": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+        "embedding": "embedding JSON",
+        "meta_json": "meta_json JSON NOT NULL DEFAULT '{}'",
+    },
+    "messages": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+    },
+    "retrieval_eval_items": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+    },
+    "roles": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+        "version": "version INTEGER NOT NULL DEFAULT 1",
+    },
+    "run_events": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+    },
+    "user_role_grants": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+    },
+    "users": {
+        "tenant_id": "tenant_id VARCHAR(36)",
+        "version": "version INTEGER NOT NULL DEFAULT 1",
+    },
     "model_providers": {
         "api_key_ciphertext": "api_key_ciphertext TEXT",
         "capability": "capability VARCHAR(20) NOT NULL DEFAULT 'chat'",
     },
     "audit_logs": {
         "request_id": "request_id VARCHAR(128)",
-    },
-    "eval_runs": {
-        "error_summary": "error_summary TEXT",
-        "request_id": "request_id VARCHAR(128)",
-    },
-    "eval_results": {
-        "answer_metrics": "answer_metrics JSON",
-        "type_statuses": "type_statuses JSON NOT NULL DEFAULT '{}'",
     },
     "tool_call_logs": {
         "request_id": "request_id VARCHAR(128)",
@@ -57,13 +152,6 @@ SQLITE_COLUMN_MIGRATIONS = {
         "tools": "tools JSON NOT NULL DEFAULT '[]'",
         "last_error_code": "last_error_code VARCHAR(100)",
         "last_error_message": "last_error_message TEXT",
-    },
-    "memory_items": {
-        "embedding": "embedding JSON",
-        "meta_json": "meta_json JSON NOT NULL DEFAULT '{}'",
-    },
-    "knowledge_documents": {
-        "external_id": "external_id VARCHAR(128)",
     },
 }
 
@@ -131,31 +219,152 @@ class SeedSummary:
     model_providers_created: int = 0
     skills_created: int = 0
     tools_created: int = 0
+    tenants_created: int = 0
 
 
 def create_db_and_tables(engine: Engine | None = None) -> Engine:
+    """Development/test-only schema bootstrap.
+
+    Production schema is owned by Alembic. Allowing the application to create
+    tables in production would produce a schema with no migration history and
+    therefore no defined rollback path, so the call is refused there.
+    """
+    if get_settings().ENVIRONMENT is Environment.PRODUCTION:
+        raise SchemaAuthorityError(
+            "create_all is not permitted in production; apply `alembic upgrade head` "
+            "before starting the service"
+        )
     database_engine = engine or get_engine()
     SQLModel.metadata.create_all(database_engine)
     return database_engine
 
 
+def verify_schema_version(engine: Engine | None = None) -> str:
+    """Return the applied Alembic revision, raising when schema is not usable.
+
+    This is the production readiness check for schema: it reads
+    ``alembic_version`` and compares it with the repository head. It never
+    creates or alters anything.
+    """
+    database_engine = engine or get_engine()
+    expected = expected_schema_revision()
+    with database_engine.connect() as connection:
+        if not inspect(connection).has_table(ALEMBIC_VERSION_TABLE):
+            raise SchemaAuthorityError(
+                "schema is not migrated: alembic_version is absent; "
+                "run `alembic upgrade head` before starting the service"
+            )
+        applied = connection.execute(
+            text(f"SELECT version_num FROM {ALEMBIC_VERSION_TABLE} LIMIT 1")  # noqa: S608
+        ).scalar()
+    if not applied:
+        raise SchemaAuthorityError(
+            "schema is not migrated: alembic_version is empty; "
+            "run `alembic upgrade head` before starting the service"
+        )
+    if expected is not None and str(applied) != expected:
+        raise SchemaAuthorityError(
+            f"schema revision {applied} does not match repository head {expected}; "
+            "run `alembic upgrade head` before starting the service"
+        )
+    logger.info("database schema revision verified", extra={"revision": str(applied)})
+    return str(applied)
+
+
+def _sqlite_literal(value: object) -> str:
+    """Render a Python default as a SQLite DDL literal."""
+    if isinstance(value, bool):
+        return "1" if value else "0"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, (list, dict)):
+        return "'" + json.dumps(value).replace("'", "''") + "'"
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def _sqlite_add_column_clause(column: Column) -> str | None:
+    """Render an ``ADD COLUMN`` clause for SQLite, or ``None`` when impossible.
+
+    SQLite only accepts ``ALTER TABLE ... ADD COLUMN`` for a nullable column or
+    one with a constant default, so the default has to be derived from the model
+    for the migration to be expressible at all.
+    """
+    try:
+        type_sql = column.type.compile(sqlite_dialect.dialect())
+    except Exception:  # pragma: no cover - a type SQLite cannot name
+        return None
+    quoted = f'"{column.name}" {type_sql}'
+    if column.nullable:
+        return quoted
+    server_default = getattr(column.server_default, "arg", None)
+    if server_default is not None:
+        rendered = getattr(server_default, "text", None) or str(server_default)
+        return f"{quoted} NOT NULL DEFAULT {rendered}"
+    default = column.default
+    if default is not None and not default.is_callable:
+        return f"{quoted} NOT NULL DEFAULT {_sqlite_literal(default.arg)}"
+    if isinstance(column.type, JSON):
+        # An empty container is the only sensible constant for a JSON column; the
+        # model's own default decides which shape where it declares one.
+        factory = getattr(default, "arg", None)
+        literal = "{}" if isinstance(factory, dict) or factory is dict else "[]"
+        return f"{quoted} NOT NULL DEFAULT '{literal}'"
+    if default is not None and default.is_callable:
+        # A callable default cannot be evaluated by SQLite, and SQLite rejects a
+        # non-constant default in ADD COLUMN outright, so existing rows receive a
+        # fixed sentinel rather than a fabricated "now".
+        if "DATE" in type_sql.upper() or "TIME" in type_sql.upper():
+            logger.warning(
+                "existing rows receive the epoch for a timestamp column added in place",
+                extra={"column": column.name},
+            )
+            return f"{quoted} NOT NULL DEFAULT '1970-01-01 00:00:00'"
+    return None
+
+
 def _apply_sqlite_column_migrations(engine: Engine) -> None:
+    """Bring an existing development SQLite file up to the current ORM.
+
+    The columns are derived from the model metadata rather than a hand-maintained
+    list, because that list is exactly how this upgrade path broke: the ORM
+    gained ``roles.actions``, ``roles.updated_at``, ``users.external_subject``,
+    ``tenant_id`` on fifteen tables and ``version``, none of which were recorded,
+    and an existing development database could no longer start at all.
+    ``SQLITE_COLUMN_MIGRATIONS`` is still consulted first so that a column whose
+    DDL cannot be derived can be specified by hand.
+
+    A column that SQLite cannot add to a non-empty table is reported instead of
+    being skipped silently, so the gap stays visible.
+    """
     if engine.dialect.name != "sqlite":
         return
     inspector = inspect(engine)
-    table_names = set(inspector.get_table_names())
+    existing_tables = set(inspector.get_table_names())
     with engine.begin() as connection:
-        for table_name, columns in SQLITE_COLUMN_MIGRATIONS.items():
-            if table_name not in table_names:
+        for table_name, table in sorted(SQLModel.metadata.tables.items()):
+            if table_name not in existing_tables:
                 continue
             existing_columns = {
                 column["name"] for column in inspector.get_columns(table_name)
             }
-            for column_name, definition in columns.items():
-                if column_name not in existing_columns:
-                    connection.execute(
-                        text(f'ALTER TABLE "{table_name}" ADD COLUMN {definition}')
+            overrides = SQLITE_COLUMN_MIGRATIONS.get(table_name, {})
+            for column in table.columns:
+                if column.name in existing_columns:
+                    continue
+                clause = overrides.get(column.name) or _sqlite_add_column_clause(column)
+                if clause is None:
+                    logger.warning(
+                        "development database is missing a column that cannot be added in place",
+                        extra={"table": table_name, "column": column.name},
                     )
+                    continue
+                connection.execute(
+                    text(f'ALTER TABLE "{table_name}" ADD COLUMN {clause}')
+                )
+                logger.info(
+                    "added column to development database",
+                    extra={"table": table_name, "column": column.name},
+                )
 
 
 def _split_legacy_model_providers(engine: Engine) -> None:
@@ -296,6 +505,86 @@ def _ensure_permission(
     return True
 
 
+def _adopt_unowned_rows(session: Session, tenant_id: str) -> int:
+    """Give every row without a tenant to ``tenant_id`` and return the row count.
+
+    This mirrors the PostgreSQL backfill so development and production agree on
+    ownership. It matters because a development database that predates tenancy
+    has ``tenant_id = NULL`` everywhere: without adoption the seed would not find
+    the existing ``employee`` role, would try to insert a second one, and the
+    pre-tenant global unique index would abort startup.
+    """
+    adopted = 0
+    for table in SQLModel.metadata.sorted_tables:
+        if "tenant_id" not in table.columns:
+            continue
+        result = session.execute(
+            table.update()
+            .where(table.c.tenant_id.is_(None))
+            .values(tenant_id=tenant_id)
+        )
+        adopted += int(result.rowcount or 0)
+    return adopted
+
+
+def _resolve_bootstrap_tenant(session: Session) -> tuple[Tenant, bool]:
+    """Return the tenant that owns seeded reference data, and whether it was created.
+
+    Reference data (roles, knowledge bases, the bootstrap administrator) is
+    tenant-owned, because the enforced schema makes ``tenant_id`` NOT NULL and
+    per-tenant uniqueness means a role code only means something inside one
+    tenant. On an upgraded deployment the ``legacy`` tenant already owns every
+    pre-tenant row, so seeding joins it instead of inventing a second root; on a
+    fresh database a tenant is created from the bootstrapping configuration.
+    """
+    tenant = session.exec(select(Tenant).where(Tenant.code == LEGACY_TENANT_CODE)).first()
+    if tenant is not None:
+        return tenant, False
+    tenant = session.exec(select(Tenant).where(Tenant.code == DEFAULT_TENANT_CODE)).first()
+    if tenant is not None:
+        return tenant, False
+
+    # No tenant exists yet. If rows already exist they predate tenancy (an older
+    # development database file), and they must be adopted rather than abandoned.
+    if _unowned_row_count(session):
+        tenant = Tenant(
+            id=LEGACY_TENANT_ID,
+            code=LEGACY_TENANT_CODE,
+            name=LEGACY_TENANT_NAME,
+            status="active",
+        )
+        session.add(tenant)
+        session.flush()
+        adopted = _adopt_unowned_rows(session, tenant.id)
+        logger.info(
+            "adopted pre-tenancy rows into the legacy tenant",
+            extra={"tenant": LEGACY_TENANT_CODE, "rows": adopted},
+        )
+        return tenant, True
+
+    tenant = Tenant(
+        code=DEFAULT_TENANT_CODE,
+        name=DEFAULT_TENANT_NAME,
+        status="active",
+    )
+    session.add(tenant)
+    session.flush()
+    return tenant, True
+
+
+def _unowned_row_count(session: Session) -> int:
+    """Return how many rows across all tenant-scoped tables have no owner."""
+    total = 0
+    for table in SQLModel.metadata.sorted_tables:
+        if "tenant_id" not in table.columns:
+            continue
+        count = session.execute(
+            select(func.count()).select_from(table).where(table.c.tenant_id.is_(None))
+        ).scalar()
+        total += int(count or 0)
+    return total
+
+
 def seed_initial_data(
     engine: Engine | None = None,
     settings: Settings | None = None,
@@ -310,13 +599,22 @@ def seed_initial_data(
     model_providers_created = 0
     skills_created = 0
     tools_created = 0
+    tenants_created = 0
 
     with Session(database_engine) as session:
+        tenant, tenant_created = _resolve_bootstrap_tenant(session)
+        tenants_created += int(tenant_created)
+        tenant_id = tenant.id
+
         roles: dict[str, Role] = {}
         for code, name, description in ROLE_SEEDS:
-            role = session.exec(select(Role).where(Role.code == code)).first()
+            role = session.exec(
+                select(Role).where(Role.tenant_id == tenant_id, Role.code == code)
+            ).first()
             if role is None:
-                role = Role(code=code, name=name, description=description)
+                role = Role(
+                    tenant_id=tenant_id, code=code, name=name, description=description
+                )
                 session.add(role)
                 session.flush()
                 roles_created += 1
@@ -337,12 +635,15 @@ def seed_initial_data(
         knowledge_bases: dict[str, KnowledgeBase] = {}
         for code, name, description in KNOWLEDGE_BASE_SEEDS:
             knowledge_base = session.exec(
-                select(KnowledgeBase).where(KnowledgeBase.code == code)
+                select(KnowledgeBase).where(
+                    KnowledgeBase.tenant_id == tenant_id, KnowledgeBase.code == code
+                )
             ).first()
             if knowledge_base is None:
                 # eval_test reuses admin department so it is clearly non-business.
                 department_code = code if code in departments else "admin"
                 knowledge_base = KnowledgeBase(
+                    tenant_id=tenant_id,
                     code=code,
                     name=name,
                     description=description,
@@ -390,10 +691,14 @@ def seed_initial_data(
 
         if app_settings.BOOTSTRAP_ADMIN_PASSWORD:
             admin = session.exec(
-                select(User).where(User.username == app_settings.BOOTSTRAP_ADMIN_USERNAME)
+                select(User).where(
+                    User.tenant_id == tenant_id,
+                    User.username == app_settings.BOOTSTRAP_ADMIN_USERNAME,
+                )
             ).first()
             if admin is None:
                 admin = User(
+                    tenant_id=tenant_id,
                     username=app_settings.BOOTSTRAP_ADMIN_USERNAME,
                     email=app_settings.BOOTSTRAP_ADMIN_EMAIL,
                     password_hash=hash_password(app_settings.BOOTSTRAP_ADMIN_PASSWORD),
@@ -469,6 +774,7 @@ def seed_initial_data(
         model_providers_created=model_providers_created,
         skills_created=skills_created,
         tools_created=tools_created,
+        tenants_created=tenants_created,
     )
     logger.info("Database seed completed", extra={"seed_summary": asdict(summary)})
     return summary
@@ -504,7 +810,17 @@ def initialize_database(
     engine: Engine | None = None,
     settings: Settings | None = None,
 ) -> SeedSummary:
+    """Bring the database to a usable state for the configured environment.
+
+    Production verifies the migrated schema and seeds reference data; it never
+    creates or migrates schema. Development/test keep the SQLite convenience
+    bootstrap so the app starts without a migration step.
+    """
     app_settings = settings or get_settings()
+    if app_settings.ENVIRONMENT is Environment.PRODUCTION:
+        verify_schema_version(engine)
+        return seed_initial_data(engine or get_engine(), app_settings)
+
     database_engine = create_db_and_tables(engine)
     _apply_sqlite_column_migrations(database_engine)
     _run_backfill_once(

@@ -1,0 +1,327 @@
+........................................................................ [ 30%]
+........................................................................ [ 61%]
+........................................................................ [ 91%]
+...................                                                      [100%]
+=================================== PASSES ====================================
+__________________ test_compare_and_set_blocks_a_stale_write __________________
+---------------------------- Captured stderr call -----------------------------
+{"timestamp": "2026-09-14T08:47:41.542259+00:00", "level": "WARNING", "logger": "backend.app.db.repositories", "message": "repository compare-and-set refused a stale write", "resource_kind": "user", "expected_version": 1}
+------------------------------ Captured log call ------------------------------
+WARNING  backend.app.db.repositories:repositories.py:530 repository compare-and-set refused a stale write
+________ test_offline_upgrade_uses_configured_dialect_without_database ________
+---------------------------- Captured stderr call -----------------------------
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Generating static SQL
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 001, enterprise expand
+INFO  [alembic.runtime.migration] Running upgrade 001 -> 002, enterprise enforce
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Generating static SQL
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+____________ test_revision_generation_requires_and_persists_phase _____________
+---------------------------- Captured stdout call -----------------------------
+Generating E:\Coding\Code\Python\policyflow-ai\migrations\versions\phase_smoke_phase_smoke.py ...  done
+---------------------------- Captured stderr call -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Generating static SQL
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Generating static SQL
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+___________________ test_a_phase_may_hold_several_revisions ___________________
+---------------------------- Captured stdout call -----------------------------
+Generating E:\Coding\Code\Python\policyflow-ai\migrations\versions\phase_dup1_phase_dup1.py ...  done
+Generating E:\Coding\Code\Python\policyflow-ai\migrations\versions\phase_dup2_phase_dup2.py ...  done
+---------------------------- Captured stderr call -----------------------------
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Generating static SQL
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Generating static SQL
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+______________ test_two_instances_share_state_through_postgresql ______________
+---------------------------- Captured stderr call -----------------------------
+{"timestamp": "2026-09-14T08:47:46.108664+00:00", "level": "INFO", "logger": "backend.app.db.init_db", "message": "Database seed completed", "seed_summary": {"roles_created": 3, "departments_created": 5, "knowledge_bases_created": 7, "permissions_created": 14, "users_created": 1, "model_providers_created": 0, "skills_created": 7, "tools_created": 10, "tenants_created": 0}}
+{"timestamp": "2026-09-14T08:47:46.109666+00:00", "level": "INFO", "logger": "backend.app.main", "message": "Application started", "environment": "development", "database_seed": {"roles_created": 3, "departments_created": 5, "knowledge_bases_created": 7, "permissions_created": 14, "users_created": 1, "model_providers_created": 0, "skills_created": 7, "tools_created": 10, "tenants_created": 0}}
+{"timestamp": "2026-09-14T08:47:46.277566+00:00", "level": "INFO", "logger": "backend.app.db.init_db", "message": "Database seed completed", "seed_summary": {"roles_created": 0, "departments_created": 0, "knowledge_bases_created": 0, "permissions_created": 0, "users_created": 0, "model_providers_created": 0, "skills_created": 0, "tools_created": 0, "tenants_created": 0}}
+{"timestamp": "2026-09-14T08:47:46.278717+00:00", "level": "INFO", "logger": "backend.app.main", "message": "Application started", "environment": "development", "database_seed": {"roles_created": 0, "departments_created": 0, "knowledge_bases_created": 0, "permissions_created": 0, "users_created": 0, "model_providers_created": 0, "skills_created": 0, "tools_created": 0, "tenants_created": 0}}
+{"timestamp": "2026-09-14T08:47:46.362500+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "5b162e0d-f49d-4596-8d34-7c55bb44e89c", "request_method": "POST", "request_path": "/api/auth/login", "status_code": 200, "duration_ms": 81.61}
+{"timestamp": "2026-09-14T08:47:46.370283+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/auth/login \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-14T08:47:46.435575+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "54d3c327-16d5-459b-a2bd-e9ef69d5e49c", "request_method": "POST", "request_path": "/api/auth/login", "status_code": 200, "duration_ms": 63.66}
+{"timestamp": "2026-09-14T08:47:46.437857+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/auth/login \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-14T08:47:46.526423+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "290def75-c9ef-4138-8693-6f778e32e50b", "request_method": "GET", "request_path": "/api/knowledge-bases", "status_code": 200, "duration_ms": 86.86}
+{"timestamp": "2026-09-14T08:47:46.529124+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: GET http://testserver/api/knowledge-bases \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-14T08:47:46.598262+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "f7360c46-d6d3-4c59-b858-e47bd5528672", "request_method": "GET", "request_path": "/api/departments", "status_code": 200, "duration_ms": 67.73}
+{"timestamp": "2026-09-14T08:47:46.600929+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: GET http://testserver/api/departments \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-14T08:47:46.628677+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "079f056e-bfad-4244-acf8-ce42fb55230a", "request_method": "POST", "request_path": "/api/knowledge-bases", "status_code": 201, "duration_ms": 26.55}
+{"timestamp": "2026-09-14T08:47:46.631382+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/knowledge-bases \"HTTP/1.1 201 Created\""}
+{"timestamp": "2026-09-14T08:47:46.666346+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "afe00cb6-4dd8-4f8d-99c4-2140953075e7", "request_method": "GET", "request_path": "/api/knowledge-bases", "status_code": 200, "duration_ms": 34.2}
+{"timestamp": "2026-09-14T08:47:46.669150+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: GET http://testserver/api/knowledge-bases \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-14T08:47:46.683461+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "b94a8e3c-1986-4394-b831-1d165ee77b08", "request_method": "GET", "request_path": "/api/departments", "status_code": 200, "duration_ms": 12.4}
+{"timestamp": "2026-09-14T08:47:46.685573+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: GET http://testserver/api/departments \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-14T08:47:46.709099+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "0896e587-429d-430f-99fd-7dd9775917bf", "request_method": "POST", "request_path": "/api/knowledge-bases", "status_code": 201, "duration_ms": 22.14}
+{"timestamp": "2026-09-14T08:47:46.711299+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/knowledge-bases \"HTTP/1.1 201 Created\""}
+{"timestamp": "2026-09-14T08:47:46.748343+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "4c941d68-bb72-412c-ad76-6684bf2c24d9", "request_method": "GET", "request_path": "/api/knowledge-bases", "status_code": 200, "duration_ms": 36.37}
+{"timestamp": "2026-09-14T08:47:46.750901+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: GET http://testserver/api/knowledge-bases \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-14T08:47:46.753106+00:00", "level": "INFO", "logger": "backend.app.main", "message": "Application stopped"}
+{"timestamp": "2026-09-14T08:47:46.756297+00:00", "level": "INFO", "logger": "backend.app.main", "message": "Application stopped"}
+_____________ test_instance_restart_preserves_authoritative_state _____________
+---------------------------- Captured stderr call -----------------------------
+{"timestamp": "2026-09-14T08:47:46.900873+00:00", "level": "INFO", "logger": "backend.app.db.init_db", "message": "Database seed completed", "seed_summary": {"roles_created": 0, "departments_created": 0, "knowledge_bases_created": 0, "permissions_created": 0, "users_created": 0, "model_providers_created": 0, "skills_created": 0, "tools_created": 0, "tenants_created": 0}}
+{"timestamp": "2026-09-14T08:47:46.901445+00:00", "level": "INFO", "logger": "backend.app.main", "message": "Application started", "environment": "development", "database_seed": {"roles_created": 0, "departments_created": 0, "knowledge_bases_created": 0, "permissions_created": 0, "users_created": 0, "model_providers_created": 0, "skills_created": 0, "tools_created": 0, "tenants_created": 0}}
+{"timestamp": "2026-09-14T08:47:46.969988+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "64847b8d-ecf1-470d-9555-83d9996826d0", "request_method": "POST", "request_path": "/api/auth/login", "status_code": 200, "duration_ms": 66.86}
+{"timestamp": "2026-09-14T08:47:46.972005+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/auth/login \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-14T08:47:47.042159+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "2ca24f46-18ab-4f03-8f60-624fe6ddf0b6", "request_method": "GET", "request_path": "/api/departments", "status_code": 200, "duration_ms": 68.91}
+{"timestamp": "2026-09-14T08:47:47.044549+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: GET http://testserver/api/departments \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-14T08:47:47.071395+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "75f0dd77-1d9c-407b-9333-c85490fa905c", "request_method": "POST", "request_path": "/api/knowledge-bases", "status_code": 201, "duration_ms": 25.31}
+{"timestamp": "2026-09-14T08:47:47.073511+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/knowledge-bases \"HTTP/1.1 201 Created\""}
+{"timestamp": "2026-09-14T08:47:47.076104+00:00", "level": "INFO", "logger": "backend.app.main", "message": "Application stopped"}
+{"timestamp": "2026-09-14T08:47:47.212718+00:00", "level": "INFO", "logger": "backend.app.db.init_db", "message": "Database seed completed", "seed_summary": {"roles_created": 0, "departments_created": 0, "knowledge_bases_created": 0, "permissions_created": 0, "users_created": 0, "model_providers_created": 0, "skills_created": 0, "tools_created": 0, "tenants_created": 0}}
+{"timestamp": "2026-09-14T08:47:47.213775+00:00", "level": "INFO", "logger": "backend.app.main", "message": "Application started", "environment": "development", "database_seed": {"roles_created": 0, "departments_created": 0, "knowledge_bases_created": 0, "permissions_created": 0, "users_created": 0, "model_providers_created": 0, "skills_created": 0, "tools_created": 0, "tenants_created": 0}}
+{"timestamp": "2026-09-14T08:47:47.279861+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "9a07f9b8-538b-4440-ac21-0803564401a8", "request_method": "POST", "request_path": "/api/auth/login", "status_code": 200, "duration_ms": 64.18}
+{"timestamp": "2026-09-14T08:47:47.282229+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/auth/login \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-14T08:47:47.377971+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "777cc2d0-cf75-494a-99fb-ae68f1bc3f05", "request_method": "GET", "request_path": "/api/knowledge-bases", "status_code": 200, "duration_ms": 94.8}
+{"timestamp": "2026-09-14T08:47:47.380793+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: GET http://testserver/api/knowledge-bases \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-14T08:47:47.382473+00:00", "level": "INFO", "logger": "backend.app.main", "message": "Application stopped"}
+_______ test_production_startup_verifies_schema_instead_of_creating_it ________
+---------------------------- Captured stderr call -----------------------------
+{"timestamp": "2026-09-14T08:47:47.456001+00:00", "level": "INFO", "logger": "backend.app.db.init_db", "message": "database schema revision verified", "revision": "002"}
+------------------------------ Captured log call ------------------------------
+INFO     backend.app.db.init_db:init_db.py:210 database schema revision verified
+=========================== short test summary info ===========================
+PASSED tests/security/test_tenant_isolation.py::test_repository_reads_are_tenant_scoped
+PASSED tests/security/test_tenant_isolation.py::test_repository_rejects_a_missing_tenant_instead_of_defaulting
+PASSED tests/security/test_tenant_isolation.py::test_listing_never_crosses_the_tenant_boundary
+PASSED tests/security/test_tenant_isolation.py::test_resource_catalog_answers_per_tenant
+PASSED tests/security/test_tenant_isolation.py::test_role_codes_are_unique_per_tenant_only
+PASSED tests/security/test_tenant_isolation.py::test_compare_and_set_blocks_a_stale_write
+PASSED tests/security/test_tenant_isolation.py::test_row_level_security_is_forced_and_selective
+PASSED tests/security/test_tenant_isolation.py::test_identical_business_identifiers_stay_isolated
+PASSED tests/contract/test_data_model_constraints.py::test_vocabularies_are_frozen_and_lowercase
+PASSED tests/contract/test_data_model_constraints.py::test_python_vocabularies_match_the_database_checks
+PASSED tests/contract/test_data_model_constraints.py::test_every_database_check_has_a_python_vocabulary
+PASSED tests/contract/test_data_model_constraints.py::test_check_constraint_names_follow_the_convention
+PASSED tests/contract/test_data_model_constraints.py::test_ownership_root_has_no_owner_and_everything_else_does
+PASSED tests/contract/test_data_model_constraints.py::test_compare_and_set_models_declare_a_version_column
+PASSED tests/contract/test_data_model_constraints.py::test_metadata_and_migrations_agree_on_the_table_set
+PASSED tests/contract/test_data_model_constraints.py::test_every_scoped_table_is_covered_by_both_migration_phases
+PASSED tests/contract/test_data_model_constraints.py::test_every_scoped_table_has_an_owner_column_in_the_orm
+PASSED tests/contract/test_data_model_constraints.py::test_per_tenant_uniqueness_targets_tenant_scoped_tables
+PASSED tests/contract/test_error_audit_contract.py::test_error_vocabulary_covers_the_contract_codes
+PASSED tests/contract/test_error_audit_contract.py::test_undeclared_codes_are_rejected
+PASSED tests/contract/test_error_audit_contract.py::test_error_codes_declare_stable_status[RESOURCE_NOT_FOUND-404]
+PASSED tests/contract/test_error_audit_contract.py::test_error_codes_declare_stable_status[TENANT_NOT_FOUND-404]
+PASSED tests/contract/test_error_audit_contract.py::test_error_codes_declare_stable_status[AUTH_FORBIDDEN-403]
+PASSED tests/contract/test_error_audit_contract.py::test_error_codes_declare_stable_status[VERSION_CONFLICT-409]
+PASSED tests/contract/test_error_audit_contract.py::test_error_codes_declare_stable_status[APPROVAL_REQUIRED-409]
+PASSED tests/contract/test_error_audit_contract.py::test_error_codes_declare_stable_status[QUOTA_EXCEEDED-429]
+PASSED tests/contract/test_error_audit_contract.py::test_error_codes_declare_stable_status[CAPACITY_SATURATED-503]
+PASSED tests/contract/test_error_audit_contract.py::test_error_codes_declare_stable_status[RETRIEVAL_UNAVAILABLE-503]
+PASSED tests/contract/test_error_audit_contract.py::test_error_codes_declare_stable_status[CONNECTOR_UNKNOWN_OUTCOME-502]
+PASSED tests/contract/test_error_audit_contract.py::test_error_codes_declare_stable_status[TERMINAL_FAILURE-500]
+PASSED tests/contract/test_error_audit_contract.py::test_retry_semantics_are_declared_per_code[AUTH_FORBIDDEN-False]
+PASSED tests/contract/test_error_audit_contract.py::test_retry_semantics_are_declared_per_code[RESOURCE_NOT_FOUND-False]
+PASSED tests/contract/test_error_audit_contract.py::test_retry_semantics_are_declared_per_code[VERSION_CONFLICT-False]
+PASSED tests/contract/test_error_audit_contract.py::test_retry_semantics_are_declared_per_code[IDEMPOTENCY_CONFLICT-False]
+PASSED tests/contract/test_error_audit_contract.py::test_retry_semantics_are_declared_per_code[APPROVAL_STALE-False]
+PASSED tests/contract/test_error_audit_contract.py::test_retry_semantics_are_declared_per_code[INSUFFICIENT_EVIDENCE-False]
+PASSED tests/contract/test_error_audit_contract.py::test_retry_semantics_are_declared_per_code[SANDBOX_POLICY_DENIED-False]
+PASSED tests/contract/test_error_audit_contract.py::test_retry_semantics_are_declared_per_code[CONNECTOR_UNKNOWN_OUTCOME-False]
+PASSED tests/contract/test_error_audit_contract.py::test_retry_semantics_are_declared_per_code[TERMINAL_FAILURE-False]
+PASSED tests/contract/test_error_audit_contract.py::test_retry_semantics_are_declared_per_code[QUOTA_EXCEEDED-True]
+PASSED tests/contract/test_error_audit_contract.py::test_retry_semantics_are_declared_per_code[CAPACITY_SATURATED-True]
+PASSED tests/contract/test_error_audit_contract.py::test_retry_semantics_are_declared_per_code[RETRIEVAL_UNAVAILABLE-True]
+PASSED tests/contract/test_error_audit_contract.py::test_retry_semantics_are_declared_per_code[SANDBOX_LIMIT_EXCEEDED-True]
+PASSED tests/contract/test_error_audit_contract.py::test_retry_semantics_are_declared_per_code[RECOVERABLE_FAILURE-True]
+PASSED tests/contract/test_error_audit_contract.py::test_server_controlled_delay_is_optional_and_never_client_supplied
+PASSED tests/contract/test_error_audit_contract.py::test_retry_delay_must_be_positive_and_capped[0.0]
+PASSED tests/contract/test_error_audit_contract.py::test_retry_delay_must_be_positive_and_capped[-1.0]
+PASSED tests/contract/test_error_audit_contract.py::test_retry_delay_must_be_positive_and_capped[3601.0]
+PASSED tests/contract/test_error_audit_contract.py::test_error_payload_exposes_only_stable_fields
+PASSED tests/contract/test_error_audit_contract.py::test_error_content_cannot_leak_paths_or_credentials[failed to read C:\\Users\\alice\\policy.docx]
+PASSED tests/contract/test_error_audit_contract.py::test_error_content_cannot_leak_paths_or_credentials[cannot open /etc/passwd]
+PASSED tests/contract/test_error_audit_contract.py::test_error_content_cannot_leak_paths_or_credentials[provider said Bearer abcdefgh12345678]
+PASSED tests/contract/test_error_audit_contract.py::test_error_content_cannot_leak_paths_or_credentials[api_key=sk-live-abcdefghijklmnop]
+PASSED tests/contract/test_error_audit_contract.py::test_error_details_cannot_leak_paths_or_credentials
+PASSED tests/contract/test_error_audit_contract.py::test_missing_and_foreign_tenant_resources_are_indistinguishable
+PASSED tests/contract/test_error_audit_contract.py::test_not_found_factory_cannot_be_told_why_a_resource_is_invisible
+PASSED tests/contract/test_error_audit_contract.py::test_not_found_error_is_a_client_safe_application_error
+PASSED tests/contract/test_error_audit_contract.py::test_visible_resource_does_not_raise_not_found
+PASSED tests/contract/test_error_audit_contract.py::test_in_memory_store_satisfies_the_persistence_protocol
+PASSED tests/contract/test_error_audit_contract.py::test_append_persists_one_row_and_returns_it
+PASSED tests/contract/test_error_audit_contract.py::test_generated_event_ids_are_uuid_strings
+PASSED tests/contract/test_error_audit_contract.py::test_duplicate_append_is_idempotent_and_append_only
+PASSED tests/contract/test_error_audit_contract.py::test_stored_rows_are_not_mutable_through_returned_records
+PASSED tests/contract/test_error_audit_contract.py::test_invalid_event_fields_are_rejected[overrides0-event_id_not_uuid]
+PASSED tests/contract/test_error_audit_contract.py::test_invalid_event_fields_are_rejected[overrides1-tenant_id_not_uuid]
+PASSED tests/contract/test_error_audit_contract.py::test_invalid_event_fields_are_rejected[overrides2-run_id_not_uuid]
+PASSED tests/contract/test_error_audit_contract.py::test_invalid_event_fields_are_rejected[overrides3-outcome_unknown]
+PASSED tests/contract/test_error_audit_contract.py::test_invalid_event_fields_are_rejected[overrides4-authorization_version_invalid]
+PASSED tests/contract/test_error_audit_contract.py::test_invalid_event_fields_are_rejected[overrides5-action_malformed]
+PASSED tests/contract/test_error_audit_contract.py::test_invalid_event_fields_are_rejected[overrides6-reason_code_malformed]
+PASSED tests/contract/test_error_audit_contract.py::test_reference_fields_reject_host_paths_and_credentials[file:///etc/passwd-actor_ref]
+PASSED tests/contract/test_error_audit_contract.py::test_reference_fields_reject_host_paths_and_credentials[file:///etc/passwd-resource_ref]
+PASSED tests/contract/test_error_audit_contract.py::test_reference_fields_reject_host_paths_and_credentials[C:\\Users\\alice\\policy.docx-actor_ref]
+PASSED tests/contract/test_error_audit_contract.py::test_reference_fields_reject_host_paths_and_credentials[C:\\Users\\alice\\policy.docx-resource_ref]
+PASSED tests/contract/test_error_audit_contract.py::test_reference_fields_reject_host_paths_and_credentials[\\\\fs01\\hr\\policy.pdf-actor_ref]
+PASSED tests/contract/test_error_audit_contract.py::test_reference_fields_reject_host_paths_and_credentials[\\\\fs01\\hr\\policy.pdf-resource_ref]
+PASSED tests/contract/test_error_audit_contract.py::test_reference_fields_reject_host_paths_and_credentials[Bearer abcdefgh12345678-actor_ref]
+PASSED tests/contract/test_error_audit_contract.py::test_reference_fields_reject_host_paths_and_credentials[Bearer abcdefgh12345678-resource_ref]
+PASSED tests/contract/test_error_audit_contract.py::test_credentials_are_redacted_before_persistence
+PASSED tests/contract/test_error_audit_contract.py::test_host_paths_never_reach_the_persisted_row[C:\\Users\\alice\\policy.docx]
+PASSED tests/contract/test_error_audit_contract.py::test_host_paths_never_reach_the_persisted_row[\\\\fs01\\hr\\policy.pdf]
+PASSED tests/contract/test_error_audit_contract.py::test_host_paths_never_reach_the_persisted_row[/etc/policyflow/secrets.env]
+PASSED tests/contract/test_error_audit_contract.py::test_host_paths_never_reach_the_persisted_row[/home/alice/workspace/draft.docx]
+PASSED tests/contract/test_error_audit_contract.py::test_raw_provider_payload_is_redacted
+PASSED tests/contract/test_error_audit_contract.py::test_embedded_json_provider_payload_is_redacted
+PASSED tests/contract/test_error_audit_contract.py::test_unrestricted_file_bodies_are_rejected
+PASSED tests/contract/test_error_audit_contract.py::test_oversized_bodies_are_stripped_not_persisted[xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx]
+PASSED tests/contract/test_error_audit_contract.py::test_oversized_bodies_are_stripped_not_persisted[cG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkgcG9saWN5IGRvY3VtZW50IGJvZHkg]
+PASSED tests/contract/test_error_audit_contract.py::test_oversized_metadata_document_is_rejected
+PASSED tests/contract/test_error_audit_contract.py::test_too_many_metadata_entries_are_rejected
+PASSED tests/contract/test_error_audit_contract.py::test_deeply_nested_metadata_is_rejected
+PASSED tests/contract/test_error_audit_contract.py::test_metadata_keys_are_validated[metadata0-metadata_key_reserved]
+PASSED tests/contract/test_error_audit_contract.py::test_metadata_keys_are_validated[metadata1-metadata_key_malformed]
+PASSED tests/contract/test_error_audit_contract.py::test_metadata_keys_are_validated[metadata2-metadata_key_not_string]
+PASSED tests/contract/test_error_audit_contract.py::test_metadata_must_be_a_mapping
+PASSED tests/contract/test_error_audit_contract.py::test_sanitizer_reports_what_it_stripped
+PASSED tests/contract/test_error_audit_contract.py::test_critical_actions_are_classified[approval.execute-True]
+PASSED tests/contract/test_error_audit_contract.py::test_critical_actions_are_classified[connector.submit-True]
+PASSED tests/contract/test_error_audit_contract.py::test_critical_actions_are_classified[external.submit-True]
+PASSED tests/contract/test_error_audit_contract.py::test_critical_actions_are_classified[read.policy-False]
+PASSED tests/contract/test_error_audit_contract.py::test_critical_actions_are_classified[authorization.decision-False]
+PASSED tests/contract/test_error_audit_contract.py::test_audit_failure_blocks_completion_and_is_never_swallowed[approval.execute]
+PASSED tests/contract/test_error_audit_contract.py::test_audit_failure_blocks_completion_and_is_never_swallowed[connector.submit]
+PASSED tests/contract/test_error_audit_contract.py::test_non_blocking_audit_failure_still_raises
+PASSED tests/contract/test_error_audit_contract.py::test_critical_flag_can_be_set_explicitly
+PASSED tests/contract/test_error_audit_contract.py::test_duplicate_without_a_readable_row_is_unavailable
+PASSED tests/contract/test_error_audit_contract.py::test_run_id_falls_back_to_the_bound_telemetry_context
+PASSED tests/contract/test_error_audit_contract.py::test_explicit_run_id_wins_over_the_bound_context
+PASSED tests/contract/test_error_audit_contract.py::test_run_id_correlates_audit_rows_and_telemetry_state
+PASSED tests/contract/test_error_audit_contract.py::test_orm_persistence_is_idempotent_on_the_event_id_unique_constraint
+PASSED tests/contract/test_error_audit_contract.py::test_orm_persistence_keeps_one_row_per_event_id
+PASSED tests/contract/test_error_audit_contract.py::test_orm_persistence_constructs_without_importing_the_models
+PASSED tests/contract/test_error_audit_contract.py::test_column_mapping_uses_a_direct_resource_ref_column
+PASSED tests/contract/test_error_audit_contract.py::test_column_mapping_splits_the_reference_for_the_landed_model_shape
+PASSED tests/contract/test_error_audit_contract.py::test_column_mapping_rejects_values_that_do_not_fit_their_column
+PASSED tests/contract/test_error_audit_contract.py::test_metric_labels_reject_identity_keys[tenant_id]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_labels_reject_identity_keys[tenant]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_labels_reject_identity_keys[tenant.id]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_labels_reject_identity_keys[user_id]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_labels_reject_identity_keys[user]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_labels_reject_identity_keys[actor_ref]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_labels_reject_identity_keys[actor_id]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_labels_reject_identity_keys[email]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_labels_reject_identity_keys[user_email]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_labels_reject_identity_keys[membership_id]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_labels_reject_identity_keys[session_id]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_labels_reject_identity_keys[run_id]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_labels_reject_identity_keys[request_id]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_labels_reject_identity_keys[trace_id]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_labels_reject_identity_keys[resource_ref]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_labels_reject_identity_keys[event_id]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_labels_reject_identity_keys[idempotency_key]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_label_values_reject_identifiers_and_unbounded_text[f3ff1b00-4d1b-4232-982f-31025f456458]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_label_values_reject_identifiers_and_unbounded_text[aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_label_values_reject_identifiers_and_unbounded_text[alice@example.com]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_label_values_reject_identifiers_and_unbounded_text[Bearer abcdefgh12345678]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_label_values_reject_identifiers_and_unbounded_text[C:\\Users\\alice\\policy.docx]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_label_values_reject_identifiers_and_unbounded_text[vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv]
+PASSED tests/contract/test_error_audit_contract.py::test_metric_label_values_reject_identifiers_and_unbounded_text[line\nbreak]
+PASSED tests/contract/test_error_audit_contract.py::test_tenant_id_is_rejected_as_a_metric_label_value
+PASSED tests/contract/test_error_audit_contract.py::test_bounded_labels_are_accepted
+PASSED tests/contract/test_error_audit_contract.py::test_non_scalar_and_malformed_label_inputs_are_rejected
+PASSED tests/contract/test_error_audit_contract.py::test_label_keys_are_normalized_to_snake_case
+PASSED tests/contract/test_error_audit_contract.py::test_span_attributes_reject_forbidden_content[attribute0]
+PASSED tests/contract/test_error_audit_contract.py::test_span_attributes_reject_forbidden_content[attribute1]
+PASSED tests/contract/test_error_audit_contract.py::test_span_attributes_reject_forbidden_content[attribute2]
+PASSED tests/contract/test_error_audit_contract.py::test_span_attributes_reject_forbidden_content[attribute3]
+PASSED tests/contract/test_error_audit_contract.py::test_span_attributes_reject_forbidden_content[attribute4]
+PASSED tests/contract/test_error_audit_contract.py::test_span_attributes_may_carry_tenant_and_run_identifiers
+PASSED tests/contract/test_error_audit_contract.py::test_metric_helpers_only_send_bounded_labels
+PASSED tests/contract/test_error_audit_contract.py::test_correlation_reaches_spans_but_never_labels
+PASSED tests/contract/test_error_audit_contract.py::test_record_error_uses_declared_retryability
+PASSED tests/contract/test_error_audit_contract.py::test_record_error_rejects_unstable_codes
+PASSED tests/contract/test_error_audit_contract.py::test_record_api_request_requires_a_templated_route
+PASSED tests/contract/test_error_audit_contract.py::test_record_authorization_decision_counts_allow_and_deny
+PASSED tests/contract/test_error_audit_contract.py::test_db_pool_usage_reports_absolute_snapshot_then_deltas
+PASSED tests/contract/test_error_audit_contract.py::test_db_pool_usage_rejects_invalid_input[kwargs0-extra0]
+PASSED tests/contract/test_error_audit_contract.py::test_db_pool_usage_rejects_invalid_input[kwargs1-extra1]
+PASSED tests/contract/test_error_audit_contract.py::test_db_pool_usage_rejects_invalid_input[kwargs2-extra2]
+PASSED tests/contract/test_error_audit_contract.py::test_correlation_context_binds_and_restores_identifiers
+PASSED tests/contract/test_error_audit_contract.py::test_correlation_context_replace_clears_inherited_identifiers
+PASSED tests/contract/test_error_audit_contract.py::test_correlation_rejects_malformed_identifiers[bindings0]
+PASSED tests/contract/test_error_audit_contract.py::test_correlation_rejects_malformed_identifiers[bindings1]
+PASSED tests/contract/test_error_audit_contract.py::test_correlation_rejects_malformed_identifiers[bindings2]
+PASSED tests/contract/test_error_audit_contract.py::test_correlation_rejects_malformed_identifiers[bindings3]
+PASSED tests/contract/test_error_audit_contract.py::test_metrics_are_safe_without_an_exporter
+PASSED tests/contract/test_error_audit_contract.py::test_exporter_is_only_configured_when_an_endpoint_is_declared
+PASSED tests/contract/test_error_audit_contract.py::test_repeated_identical_configuration_is_idempotent
+PASSED tests/contract/test_error_audit_contract.py::test_enabling_telemetry_without_an_endpoint_builds_no_exporter
+PASSED tests/contract/test_principal_authorization.py::test_principal_is_derived_from_membership
+PASSED tests/contract/test_principal_authorization.py::test_body_supplied_tenant_is_rejected
+PASSED tests/contract/test_principal_authorization.py::test_body_supplied_user_is_rejected
+PASSED tests/contract/test_principal_authorization.py::test_body_echoing_membership_identity_is_accepted
+PASSED tests/contract/test_principal_authorization.py::test_membership_must_belong_to_tenant_and_user[override0]
+PASSED tests/contract/test_principal_authorization.py::test_membership_must_belong_to_tenant_and_user[override1]
+PASSED tests/contract/test_principal_authorization.py::test_inactive_entities_cannot_mint_a_principal[membership-None-suspended]
+PASSED tests/contract/test_principal_authorization.py::test_inactive_entities_cannot_mint_a_principal[user-33333333-3333-4333-8333-333333333333-disabled]
+PASSED tests/contract/test_principal_authorization.py::test_inactive_entities_cannot_mint_a_principal[tenant-11111111-1111-4111-8111-111111111111-suspended]
+PASSED tests/contract/test_principal_authorization.py::test_missing_membership_is_rejected
+PASSED tests/contract/test_principal_authorization.py::test_principal_is_immutable
+PASSED tests/contract/test_principal_authorization.py::test_principal_collections_are_immutable
+PASSED tests/contract/test_principal_authorization.py::test_effective_scopes_are_a_copy
+PASSED tests/contract/test_principal_authorization.py::test_principal_ref_exposes_only_reference_fields
+PASSED tests/contract/test_principal_authorization.py::test_with_run_binds_a_run_without_mutating_the_original
+PASSED tests/contract/test_principal_authorization.py::test_with_run_rejects_a_blank_run_id
+PASSED tests/contract/test_principal_authorization.py::test_with_authorization_version_returns_a_new_value
+PASSED tests/contract/test_principal_authorization.py::test_expired_grant_contributes_no_scope
+PASSED tests/contract/test_principal_authorization.py::test_activating_grant_contributes_scope_and_role
+PASSED tests/contract/test_principal_authorization.py::test_revoked_grant_is_dropped
+PASSED tests/contract/test_principal_authorization.py::test_declared_codes_are_intersected_with_valid_grants
+PASSED tests/contract/test_principal_authorization.py::test_authorization_version_must_be_a_non_negative_int
+PASSED tests/contract/test_principal_authorization.py::test_action_enum_covers_the_contract_vocabulary
+PASSED tests/contract/test_principal_authorization.py::test_ordinary_membership_cannot_reach_elevated_actions
+PASSED tests/contract/test_principal_authorization.py::test_unknown_action_is_denied
+PASSED tests/contract/test_principal_authorization.py::test_no_grants_means_denied_everywhere
+PASSED tests/contract/test_principal_authorization.py::test_same_tenant_read_is_allowed
+PASSED tests/contract/test_principal_authorization.py::test_cross_tenant_access_is_denied_without_the_grant
+PASSED tests/contract/test_principal_authorization.py::test_admin_does_not_imply_cross_tenant_admin
+PASSED tests/contract/test_principal_authorization.py::test_cross_tenant_admin_grant_enables_other_tenants
+PASSED tests/contract/test_principal_authorization.py::test_cross_tenant_grant_is_not_implied_by_any_other_scope
+PASSED tests/contract/test_principal_authorization.py::test_tenant_less_resource_needs_the_cross_tenant_grant
+PASSED tests/contract/test_principal_authorization.py::test_decision_raise_for_denial_produces_a_typed_error
+PASSED tests/contract/test_principal_authorization.py::test_nonexistent_and_other_tenant_denials_are_indistinguishable
+PASSED tests/contract/test_principal_authorization.py::test_tenant_visibility_hides_other_tenants
+PASSED tests/contract/test_principal_authorization.py::test_authorization_version_reads_from_the_grant_source
+PASSED tests/contract/test_principal_authorization.py::test_fresh_authorization_rereads_grants
+PASSED tests/contract/test_principal_authorization.py::test_fresh_authorization_grants_access_added_after_the_snapshot
+PASSED tests/contract/test_principal_authorization.py::test_fresh_authorization_denies_without_a_grant_source
+PASSED tests/contract/test_principal_authorization.py::test_fresh_authorization_drops_a_revoked_scope_only
+PASSED tests/contract/test_principal_authorization.py::test_fresh_authorization_rejects_a_foreign_membership
+PASSED tests/contract/test_principal_authorization.py::test_resource_ref_attributes_are_read_only
+PASSED tests/contract/test_principal_authorization.py::test_decision_objects_are_frozen
+PASSED tests/contract/test_principal_authorization.py::test_replace_can_only_rebind_a_run_never_identity
+PASSED tests/migration/test_alembic_scaffold.py::test_alembic_config_and_revision_scaffold_load
+PASSED tests/migration/test_alembic_scaffold.py::test_target_metadata_imports_real_models
+PASSED tests/migration/test_alembic_scaffold.py::test_offline_upgrade_uses_configured_dialect_without_database
+PASSED tests/migration/test_alembic_scaffold.py::test_revision_generation_requires_and_persists_phase
+PASSED tests/migration/test_alembic_scaffold.py::test_a_phase_may_hold_several_revisions
+PASSED tests/migration/test_alembic_scaffold.py::test_revision_phase_requires_exactly_one_supported_label
+PASSED tests/migration/test_alembic_scaffold.py::test_phase_generation_contract_is_wired
+PASSED tests/migration/test_alembic_scaffold.py::test_api_main_has_no_alembic_import_or_command
+PASSED tests/integration/test_multi_instance.py::test_two_instances_share_state_through_postgresql
+PASSED tests/integration/test_multi_instance.py::test_instance_restart_preserves_authoritative_state
+PASSED tests/integration/test_multi_instance.py::test_production_settings_reject_sqlite
+PASSED tests/integration/test_multi_instance.py::test_production_startup_verifies_schema_instead_of_creating_it
+PASSED tests/integration/test_multi_instance.py::test_readiness_distinguishes_unmigrated_from_unreachable
+PASSED tests/integration/test_multi_instance.py::test_readiness_passes_on_a_migrated_database
+PASSED tests/integration/test_postgres_migrations.py::test_expand_is_additive_and_leaves_ownership_nullable
+PASSED tests/integration/test_postgres_migrations.py::test_enforce_refuses_before_the_backfill_has_run
+PASSED tests/integration/test_postgres_migrations.py::test_second_enforce_revision_is_idempotent_once_applied
+PASSED tests/integration/test_postgres_migrations.py::test_interrupted_backfill_resumes_and_reconciles
+PASSED tests/integration/test_postgres_migrations.py::test_enforce_applies_after_reconciliation
+PASSED tests/integration/test_postgres_migrations.py::test_enforce_refuses_when_rows_remain_unowned
+PASSED tests/integration/test_postgres_migrations.py::test_row_level_security_is_selective_for_the_application_role
+PASSED tests/integration/test_postgres_migrations.py::test_business_codes_are_unique_per_tenant
+235 passed in 33.63s

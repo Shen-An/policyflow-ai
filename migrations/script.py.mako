@@ -1,6 +1,6 @@
 """${message}
 
-Migration phase: ${branch_labels[0].removeprefix("phase:")}
+Migration phase: ${branch_labels[0].split(":")[1]}
 Revision ID: ${up_revision}
 Revises: ${down_revision | comma,n}
 Create Date: ${create_date}
@@ -22,7 +22,7 @@ down_revision: str | Sequence[str] | None = ${repr(down_revision)}
 branch_labels: str | Sequence[str] | None = ${repr(branch_labels)}
 depends_on: str | Sequence[str] | None = ${repr(depends_on)}
 migration_phase = validate_migration_phase(
-    ${repr(branch_labels[0].removeprefix("phase:"))}, revision
+    ${repr(branch_labels[0].split(":")[1])}, revision
 )
 
 

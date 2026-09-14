@@ -51,26 +51,26 @@ description: "企业级智能体重构的可执行实施任务清单"
 
 ### Tests
 
-- [ ] T016 [P] 在 `tests/contract/test_data_model_constraints.py` 中为租户一致 FK、复合唯一键、UTC 时间、受约束枚举、version compare-and-set 和禁止 last-write-wins 编写失败测试
-- [ ] T017 [P] 在 `tests/integration/test_postgres_migrations.py` 中为可重启 additive/backfill/enforce 迁移、count/checksum/cursor/failure 核对与恢复点编写失败测试
-- [ ] T018 [P] 在 `tests/integration/test_multi_instance.py` 中为两个 API 实例共享状态、单实例重启和生产拒绝 SQLite 编写失败测试
-- [ ] T019 [P] 在 `tests/security/test_tenant_isolation.py` 中为 repository tenant predicate、RLS、缓存命名空间和相同资源 ID 的跨租户不可见性编写失败测试
-- [ ] T020 [P] 在 `tests/contract/test_principal_authorization.py` 中为 membership 派生 `RequestPrincipal`、请求体 tenant/user 禁止、allow-only 最小权限和 fresh authorization 编写失败测试
-- [ ] T021 [P] 在 `tests/contract/test_error_audit_contract.py` 中为稳定错误 code/retryable/delay、404 防枚举、字段脱敏、append-only 审计与 `run_id` 传播编写失败测试
+- [X] T016 [P] 在 `tests/contract/test_data_model_constraints.py` 中为租户一致 FK、复合唯一键、UTC 时间、受约束枚举、version compare-and-set 和禁止 last-write-wins 编写失败测试
+- [X] T017 [P] 在 `tests/integration/test_postgres_migrations.py` 中为可重启 additive/backfill/enforce 迁移、count/checksum/cursor/failure 核对与恢复点编写失败测试
+- [X] T018 [P] 在 `tests/integration/test_multi_instance.py` 中为两个 API 实例共享状态、单实例重启和生产拒绝 SQLite 编写失败测试
+- [X] T019 [P] 在 `tests/security/test_tenant_isolation.py` 中为 repository tenant predicate、RLS、缓存命名空间和相同资源 ID 的跨租户不可见性编写失败测试
+- [X] T020 [P] 在 `tests/contract/test_principal_authorization.py` 中为 membership 派生 `RequestPrincipal`、请求体 tenant/user 禁止、allow-only 最小权限和 fresh authorization 编写失败测试
+- [X] T021 [P] 在 `tests/contract/test_error_audit_contract.py` 中为稳定错误 code/retryable/delay、404 防枚举、字段脱敏、append-only 审计与 `run_id` 传播编写失败测试
 
 ### Implementation
 
-- [ ] T022 在 `backend/app/db/session.py` 中实现有上限、等待超时、健康检查和回收策略的 SQLAlchemy 2 async PostgreSQL session/事务工厂，并保留 SQLite 仅用于开发或隔离测试
-- [ ] T023 在 `backend/app/db/init_db.py` 中移除生产 `metadata.create_all()` 与 startup migration 权威，改为 readiness schema-version 检查（依赖 T006、T022）
-- [ ] T024 [P] 在 `backend/app/auth/principal.py` 中实现不可变 `RequestPrincipal`，字段包含 tenant/user/membership、roles/scopes、`authorization_version`、session/request/run 标识且身份只来自已验证 membership
-- [ ] T025 [P] 在 `backend/app/auth/authorization.py` 中实现 allow-only RBAC，覆盖 `read/edit/approve/submit/publish/delete/admin/cross_tenant_admin` 并要求每次读写与副作用服务端授权
-- [ ] T026 在 `backend/app/db/models.py` 中增加 Tenant、User、Role、UserRoleGrant、AgentRun、RunEvent、GraphCheckpointBinding、IdempotencyRecord 与 AuditEvent，严格实现 `data-model.md` 的 tenant ownership、状态枚举、唯一约束和 version 字段
-- [ ] T027 [P] 在 `backend/app/db/repositories.py` 中实现显式 tenant 参数、compare-and-set、不可见即 not-found 的基础 repository 与 Unit of Work 接口
-- [ ] T028 [P] 在 `backend/app/observability/audit.py` 中实现按 `event_id` 幂等追加的 AuditSink，禁止凭据、host path、raw provider payload 和 unrestricted file body
-- [ ] T029 [P] 在 `backend/app/observability/telemetry.py` 中实现 `run_id/request_id/trace_id` 关联及 API、DB pool、错误和授权指标，不把 tenant/user 放入 Prometheus 标签
-- [ ] T030 在 `migrations/versions/001_enterprise_expand.py` 中创建 additive schema、`legacy` tenant/membership、nullable tenant ownership 与 RLS policy，应用角色不得拥有表或 `BYPASSRLS`（依赖 T024–T027）
-- [ ] T031 在 `migrations/backfill_legacy_tenant.py` 中实现 conversations/messages/memory/knowledge/eval 的可重启批量回填，持久化 cursor、source/target count、checksum 和 failures（依赖 T030）
-- [ ] T032 在 `migrations/versions/002_enterprise_enforce.py` 中于核对通过后增加 NOT NULL、tenant-aware FK/composite unique 及 RLS 强制约束（依赖 T031）
+- [X] T022 在 `backend/app/db/session.py` 中实现有上限、等待超时、健康检查和回收策略的 SQLAlchemy 2 async PostgreSQL session/事务工厂，并保留 SQLite 仅用于开发或隔离测试
+- [X] T023 在 `backend/app/db/init_db.py` 中移除生产 `metadata.create_all()` 与 startup migration 权威，改为 readiness schema-version 检查（依赖 T006、T022）
+- [X] T024 [P] 在 `backend/app/auth/principal.py` 中实现不可变 `RequestPrincipal`，字段包含 tenant/user/membership、roles/scopes、`authorization_version`、session/request/run 标识且身份只来自已验证 membership
+- [X] T025 [P] 在 `backend/app/auth/authorization.py` 中实现 allow-only RBAC，覆盖 `read/edit/approve/submit/publish/delete/admin/cross_tenant_admin` 并要求每次读写与副作用服务端授权
+- [X] T026 在 `backend/app/db/models.py` 中增加 Tenant、User、Role、UserRoleGrant、AgentRun、RunEvent、GraphCheckpointBinding、IdempotencyRecord 与 AuditEvent，严格实现 `data-model.md` 的 tenant ownership、状态枚举、唯一约束和 version 字段
+- [X] T027 [P] 在 `backend/app/db/repositories.py` 中实现显式 tenant 参数、compare-and-set、不可见即 not-found 的基础 repository 与 Unit of Work 接口
+- [X] T028 [P] 在 `backend/app/observability/audit.py` 中实现按 `event_id` 幂等追加的 AuditSink，禁止凭据、host path、raw provider payload 和 unrestricted file body
+- [X] T029 [P] 在 `backend/app/observability/telemetry.py` 中实现 `run_id/request_id/trace_id` 关联及 API、DB pool、错误和授权指标，不把 tenant/user 放入 Prometheus 标签
+- [X] T030 在 `migrations/versions/001_enterprise_expand.py` 中创建 additive schema、`legacy` tenant/membership、nullable tenant ownership 与 RLS policy，应用角色不得拥有表或 `BYPASSRLS`（依赖 T024–T027）
+- [X] T031 在 `migrations/backfill_legacy_tenant.py` 中实现 conversations/messages/memory/knowledge/eval 的可重启批量回填，持久化 cursor、source/target count、checksum 和 failures（依赖 T030）
+- [X] T032 在 `migrations/versions/002_enterprise_enforce.py` 中于核对通过后增加 NOT NULL、tenant-aware FK/composite unique 及 RLS 强制约束（依赖 T031）
 - [ ] T033 在 `backend/app/api/deps.py` 中接入 principal、async Unit of Work 与 fresh authorization 依赖，并禁止路由从 body/query 接受 tenant/user 身份
 - [ ] T034 在 `backend/app/main.py` 中接入 async lifespan、v2 router、health/readiness 与 OTel，移除 correctness 对进程锁、队列、缓存和 startup migration 的依赖
 - [ ] T035 将 `backend/app/services/memory_service.py`、`backend/app/services/knowledge_base_service.py` 和 `backend/app/services/eval_service.py` 的权威读写迁移到 tenant-aware async repository，并保持四层记忆非权威与现有 Eval 语义（依赖 T027、T033）
@@ -462,3 +462,49 @@ Then: T148 independent acceptance
 - Generated drafts remain non-authoritative and excluded from formal retrieval until a separately authorized publish workflow.
 - Capacity tuning values—replicas, pools, queues, Milvus index, sandbox concurrency and LLM quotas—must come from retained test evidence, not guesses in implementation.
 - A task is complete only when its listed test/artifact gate is real; placeholder commands or generated summaries without raw evidence do not count.
+
+## Phase 2 execution status (recorded 2026-09-14)
+
+Verified by rerunning, not by summary:
+
+- `pytest tests -q --ignore=tests/load` -> **460 passed** (includes the new
+  `tests/contract/test_data_model_constraints.py`, `tests/integration/test_multi_instance.py`,
+  `tests/security/test_tenant_isolation.py`).
+- Raw evidence: `artifacts/migration/stage2/migration_flow_raw.txt` (7-step
+  expand -> refuse -> backfill -> enforce proof) and
+  `artifacts/migration/stage2/pytest_integration_raw.txt` (235 DB-backed cases, `-rA`).
+- The DB-backed suites need the local PostgreSQL at `127.0.0.1:55432`
+  (`POLICYFLOW_TEST_DATABASE_URL`); they are not runnable without it.
+
+Three real Stage 2 defects were found by these tests and fixed:
+
+1. **RLS was not enabled on 5 tables.** `002` issued only
+   `ALTER TABLE ... FORCE ROW LEVEL SECURITY`. PostgreSQL's FORCE changes who the
+   policy binds (the owner) but does **not** enable row security, so
+   `ai_query_logs`, `eval_cases`, `eval_results`, `eval_runs` and
+   `retrieval_eval_items` carried a policy that was never consulted — no
+   isolation at all on the tables holding evaluation data and query logs. `002`
+   now emits `ENABLE` **and** `FORCE`. The earlier evidence check was itself
+   vacuous (`relrowsecurity AND NOT relforcerowsecurity` is trivially satisfied
+   when RLS is off); both the script and `tests/security/test_tenant_isolation.py`
+   now assert `relrowsecurity AND relforcerowsecurity` per tenant-scoped table.
+2. **Global uniqueness on per-tenant identifiers.** `users.username`,
+   `users.email`, `run_events.event_id` and `audit_events.event_id` stayed
+   globally unique after enforce, so a second tenant could not reuse a username
+   or email. `PER_TENANT_UNIQUE_CODES` now converts all five identifiers
+   (`knowledge_bases.code` plus these four) to composite uniqueness.
+3. **`users` had no `version` column** although `UserRepository.set_status`
+   performs compare-and-set, so the documented stale-write refusal was
+   unimplementable. `001` and the ORM now add it. Related drift: the ORM omitted
+   `tenant_id` on the four backfill-owned tables, so an ORM insert there would
+   violate NOT NULL after enforce.
+
+Still open, and Phase 2 is therefore **not** complete: **T033** (api/deps principal
++ async Unit of Work), **T034** (async lifespan, v2 router, health/readiness, OTel)
+and **T035** (service-level tenant-aware repository migration) are unstarted.
+`knowledge_base_service.py` received the minimum tenant-correct change needed for
+the integration gate (tenant-scoped duplicate check, `tenant_id` on insert,
+tenant-filtered listing, and an honest unique-violation mapping instead of
+reporting every `IntegrityError` as `KB_CODE_EXISTS`); `memory_service.py` and
+`eval_service.py` are untouched. T036 is left unchecked because its stated
+dependency (T035) is not met even though the three named suites run green.

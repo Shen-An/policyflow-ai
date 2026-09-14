@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Final, Literal
+from typing import Final, Literal, cast
 
 from alembic import context
 
@@ -34,9 +34,26 @@ def requested_migration_phase(*, required: bool = False) -> MigrationPhase | Non
     return phase
 
 
-def migration_phase_label(phase: MigrationPhase) -> str:
-    """Return the branch label persisted on a staged revision."""
-    return f"{MIGRATION_PHASE_LABEL_PREFIX}{phase}"
+def migration_phase_label(phase: MigrationPhase, revision: str) -> str:
+    """Return the branch label persisted on a staged revision.
+
+    The revision id is part of the label because Alembic requires branch labels
+    to be globally unique. A bare ``phase:expand`` label would allow only one
+    revision per phase, which cannot express Stage 5+, where several additive
+    revisions share the expand phase.
+    """
+    return f"{MIGRATION_PHASE_LABEL_PREFIX}{phase}:{revision}"
+
+
+def parse_migration_phase_label(label: str) -> MigrationPhase | None:
+    """Extract the migration phase from a staged branch label, if it is one."""
+    if not label.startswith(MIGRATION_PHASE_LABEL_PREFIX):
+        return None
+    parts = label.split(":", 2)
+    if len(parts) < 2:
+        return None
+    phase = parts[1].strip().casefold()
+    return cast("MigrationPhase", phase) if phase in MIGRATION_PHASES else None
 
 
 def validate_migration_phase(declared_phase: object, revision: str) -> MigrationPhase:

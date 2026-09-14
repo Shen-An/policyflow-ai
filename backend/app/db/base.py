@@ -3,7 +3,9 @@
 from sqlmodel import SQLModel
 
 from backend.app.db.models import (
+    AgentRun,
     AIQueryLog,
+    AuditEvent,
     AuditLog,
     Conversation,
     Department,
@@ -12,6 +14,8 @@ from backend.app.db.models import (
     EvalResult,
     EvalRun,
     FAQDraft,
+    GraphCheckpointBinding,
+    IdempotencyRecord,
     KnowledgeBase,
     KnowledgeBasePermission,
     KnowledgeDocument,
@@ -23,17 +27,22 @@ from backend.app.db.models import (
     RagIndexJob,
     RetrievalEvalItem,
     Role,
+    RunEvent,
     Skill,
+    Tenant,
     Tool,
     ToolCallLog,
     User,
     UserRole,
+    UserRoleGrant,
 )
 
 Base = SQLModel
 
 __all__ = [
     "AIQueryLog",
+    "AgentRun",
+    "AuditEvent",
     "AuditLog",
     "Base",
     "Conversation",
@@ -42,6 +51,8 @@ __all__ = [
     "EvalResult",
     "EvalRun",
     "FAQDraft",
+    "GraphCheckpointBinding",
+    "IdempotencyRecord",
     "Department",
     "KnowledgeBase",
     "KnowledgeBasePermission",
@@ -53,10 +64,13 @@ __all__ = [
     "QueryFeedback",
     "RagIndexJob",
     "RetrievalEvalItem",
+    "RunEvent",
     "Skill",
     "Role",
+    "Tenant",
     "Tool",
     "ToolCallLog",
     "User",
     "UserRole",
+    "UserRoleGrant",
 ]

@@ -1,0 +1,25 @@
+== 1. reset + upgrade 001 ==
+   rc: 0 ['INFO  [alembic.runtime.migration] Running upgrade  -> 001, enterprise expand']
+== 2. seed unowned legacy rows ==
+   null-tenant rows: [(1,)]
+== 3. enforce must REFUSE before the backfill ==
+   rc: 1
+   refusal evidence: ['    raise RuntimeError(', "RuntimeError: enforce refused: the backfill ledger 'migration_backfill_state' does not exist; run `python -m migrations.backfill_legacy_tenant` before enforcing"]
+== 4. run the backfill ==
+   rc: 0
+   tail: ['roles                 completed        0        0         0  e3b0c44298fc', 'users                 completed        1        1         1  65c3a5291675', 'batches=17 stopped_early=False', 'aggregate_checksum=7a47b2907058d99c36ba1e79d9d8e919b537f8e20f81e1f31c09f2750718c173']
+== 5. ledger reconciliation ==
+   ledger: []
+== 6. apply enforce ==
+   rc: 0
+   revision: [('002',)]
+   nullable tenant_id columns: []
+   tenant-scoped tables without ENABLED+FORCED RLS: []
+   tenant-scoped tables without an RLS policy: []
+   per-tenant unique: [('uq_audit_events_tenant_event_id',), ('uq_knowledge_bases_tenant_code',), ('uq_run_events_tenant_event_id',), ('uq_users_tenant_email',), ('uq_users_tenant_username',)]
+   app role flags: [('policyflow_app', False, False)]
+== 7. RLS actually constrains the application role ==
+   current_user: policyflow_app
+   as legacy tenant (expect 1): 1
+   as an unrelated tenant (expect 0): 0
+   with no tenant set (expect 0): 0

@@ -20,7 +20,9 @@ services:
     restart: unless-stopped
 
   pgbouncer:
-    image: edoburu/pgbouncer:1.24.1
+    # Upstream publishes pgbouncer images with a -pN suffix; the bare "1.24.1"
+    # tag does not exist and made `compose up pgbouncer` fail to resolve.
+    image: edoburu/pgbouncer:v1.24.1-p1
     environment:
       DB_HOST: postgres
       DB_PORT: 5432

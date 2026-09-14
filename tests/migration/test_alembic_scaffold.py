@@ -14,6 +14,9 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import MetaData
 
+from backend.app.core.config import get_settings
+from migrations.phases import MIGRATION_PHASES
+
 ROOT = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = ROOT / "alembic.ini"
 ENV_PATH = ROOT / "migrations" / "env.py"
@@ -60,7 +63,31 @@ def test_alembic_config_and_revision_scaffold_load() -> None:
     assert config.get_main_option("sqlalchemy.url") == "driver://unused"
     assert config.get_main_option("revision_environment") == "true"
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == []
+    # Stage 2 replaced the empty Phase 1 scaffold with real staged revisions.
+    # Every revision must still declare exactly one recognised phase label, and
+    # labels must embed the revision id so a single phase can hold several
+    # revisions (Stage 5+ needs this).
+    revisions = list(script.walk_revisions())
+    assert revisions, "the staged scaffold must contain the Stage 2 revisions"
+    assert script.get_heads(), "the revision graph must expose at least one head"
+    assert "001" in {revision.revision for revision in revisions}
+    for revision in revisions:
+        # The revision's OWN declaration is asserted, not Script.branch_labels:
+        # Alembic folds a branch ancestor's label into the descendant's view, so
+        # 002 legitimately reports both its own label and 001's.
+        declared = tuple(revision.module.branch_labels or ())
+        expected = f"phase:{revision.module.migration_phase}:{revision.revision}"
+        assert declared == (expected,), f"{revision.revision} declares {declared}"
+        assert revision.module.migration_phase in MIGRATION_PHASES
+        # ``down_revision`` must chain linearly so the staged order is the only
+        # order available.
+        if revision.down_revision is not None:
+            assert isinstance(revision.down_revision, str)
+    # The chain is expand -> enforce, and only 002 is a head.
+    assert script.get_heads() == ["002"]
+    parents = {revision.revision: revision.down_revision for revision in revisions}
+    assert parents["002"] == "001"
+    assert parents["001"] is None
 
 
 def test_target_metadata_imports_real_models() -> None:
@@ -77,8 +104,22 @@ def test_offline_upgrade_uses_configured_dialect_without_database(
 ) -> None:
     output = io.StringIO()
     monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://user:secret@invalid/policyflow")
-    command.upgrade(_config(output=output), "head", sql=True)
-    assert output.getvalue() == ""
+    # Settings is process-wide cached; without this the upgrade below could
+    # silently render for whichever dialect an earlier test happened to cache.
+    get_settings.cache_clear()
+    try:
+        command.upgrade(_config(output=output), "head", sql=True)
+    finally:
+        get_settings.cache_clear()
+    emitted = output.getvalue()
+    # Offline SQL generation must reach the real revisions and must never echo
+    # the credentials embedded in the configured URL.
+    assert emitted, "offline upgrade must emit the staged DDL"
+    assert "CREATE TABLE" in emitted.upper()
+    assert "secret" not in emitted
+    # PostgreSQL-only steps must render offline for PostgreSQL.
+    assert "ROW LEVEL SECURITY" in emitted.upper()
+    assert "alembic_version" in emitted
 
     from alembic.runtime.migration import MigrationContext
 
@@ -108,9 +149,38 @@ def test_revision_generation_requires_and_persists_phase() -> None:
     )
     assert generated is not None
     source = expected_revision.read_text(encoding="utf-8")
-    assert "branch_labels: str | Sequence[str] | None = ('phase:expand',)" in source
+    assert "branch_labels: str | Sequence[str] | None = ('phase:expand:phase_smoke',)" in source
     assert 'validate_migration_phase(\n    \'expand\', revision\n)' in source
     expected_revision.unlink()
+
+
+def test_a_phase_may_hold_several_revisions() -> None:
+    """Two generated revisions in one phase must not collide on a branch label.
+
+    This is the defect that made the original scaffold unusable past Stage 2: a
+    bare ``phase:<name>`` label is rejected by Alembic as a duplicate branch.
+    """
+    versions = ROOT / "migrations" / "versions"
+    config = _config()
+    config.cmd_opts = type("CommandOptions", (), {"x": ["phase=expand"]})()
+    created = [versions / f"phase_dup{i}_phase_dup{i}.py" for i in (1, 2)]
+    try:
+        for index in (1, 2):
+            assert (
+                command.revision(
+                    config,
+                    message=f"phase dup{index}",
+                    rev_id=f"phase_dup{index}",
+                    sql=True,
+                )
+                is not None
+            )
+        # Loading the whole graph is what raises on a duplicate branch label.
+        revisions = {revision.revision for revision in ScriptDirectory.from_config(config).walk_revisions()}
+        assert {"phase_dup1", "phase_dup2"} <= revisions
+    finally:
+        for path in created:
+            path.unlink(missing_ok=True)
 
 
 def test_revision_phase_requires_exactly_one_supported_label() -> None:
@@ -135,7 +205,10 @@ def test_revision_phase_requires_exactly_one_supported_label() -> None:
 def test_phase_generation_contract_is_wired() -> None:
     source = ENV_PATH.read_text(encoding="utf-8")
     assert "required=True" in source
-    assert "directives[0].branch_label = migration_phase_label(phase)" in source
+    assert "directives[0].branch_label = migration_phase_label(phase, str(revision_id))" in source
+    # The phase label must embed the revision id, otherwise Alembic rejects the
+    # second revision of any phase as a duplicate branch.
+    assert 'getattr(directives[0], "rev_id", None)' in source
 
 
 def test_api_main_has_no_alembic_import_or_command() -> None:

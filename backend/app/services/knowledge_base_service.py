@@ -1,14 +1,13 @@
 """Knowledge-base creation and ACL-filtered listing."""
 
 from pathlib import Path
+from shutil import rmtree
 
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from backend.app.core.config import Settings
 from backend.app.core.exceptions import ApplicationError, ConflictError
-from shutil import rmtree
-
 from backend.app.db.models import (
     Department,
     FAQDraft,
@@ -73,7 +72,23 @@ def create_knowledge_base(
     data: KnowledgeBaseCreate,
     ip_address: str | None = None,
 ) -> KnowledgeBaseRead:
-    if session.exec(select(KnowledgeBase).where(KnowledgeBase.code == data.code)).first():
+    # Tenant ownership is mandatory on the enforced schema, and business codes
+    # are unique per tenant rather than globally. Both the duplicate check and
+    # the new row therefore have to be scoped to the caller's tenant: a global
+    # check would reject a code another tenant already used, which is legal.
+    tenant_id = user.tenant_id
+    if tenant_id is None:
+        raise ApplicationError(
+            "TENANT_REQUIRED",
+            "The authenticated user has no tenant membership",
+            403,
+        )
+    duplicate = session.exec(
+        select(KnowledgeBase).where(
+            KnowledgeBase.tenant_id == tenant_id, KnowledgeBase.code == data.code
+        )
+    ).first()
+    if duplicate is not None:
         raise ConflictError("KB_CODE_EXISTS", "Knowledge-base code already exists")
     if session.get(Department, data.department_id) is None:
         raise ApplicationError("DEPARTMENT_NOT_FOUND", "Department not found", 404)
@@ -81,6 +96,7 @@ def create_knowledge_base(
     workspace = settings.RAG_WORKSPACE_DIR / data.code
     Path(workspace).mkdir(parents=True, exist_ok=True)
     knowledge_base = KnowledgeBase(
+        tenant_id=tenant_id,
         name=data.name,
         code=data.code,
         department_id=data.department_id,
@@ -120,17 +136,36 @@ def create_knowledge_base(
         session.commit()
     except IntegrityError as exc:
         session.rollback()
+        if not _is_unique_violation(exc):
+            # Re-raised deliberately: a failure such as a NOT NULL violation is a
+            # defect, and reporting it as "code already exists" would send the
+            # caller looking for a duplicate that does not exist.
+            raise
         raise ConflictError("KB_CODE_EXISTS", "Knowledge-base code already exists") from exc
     session.refresh(knowledge_base)
     return to_knowledge_base_read(session, knowledge_base, "admin")
 
 
+def _is_unique_violation(exc: IntegrityError) -> bool:
+    """Return True only for a real uniqueness conflict.
+
+    PostgreSQL reports ``23505``; SQLite only reports it in the message text, so
+    both signals are checked rather than assuming a driver.
+    """
+    original = getattr(exc, "orig", None)
+    if getattr(original, "sqlstate", None) == "23505":
+        return True
+    description = str(original if original is not None else exc).upper()
+    return "UNIQUE" in description or "DUPLICATE KEY" in description
+
+
 def list_knowledge_bases(session: Session, user: User) -> KnowledgeBaseListResponse:
-    knowledge_bases = session.exec(
-        select(KnowledgeBase)
-        .where(KnowledgeBase.status == "active")
-        .order_by(KnowledgeBase.name)
-    ).all()
+    statement = select(KnowledgeBase).where(KnowledgeBase.status == "active")
+    # A caller may only ever enumerate their own tenant's knowledge bases, even
+    # if a permission row would otherwise match.
+    if user.tenant_id is not None:
+        statement = statement.where(KnowledgeBase.tenant_id == user.tenant_id)
+    knowledge_bases = session.exec(statement.order_by(KnowledgeBase.name)).all()
     items = []
     for knowledge_base in knowledge_bases:
         permission = get_knowledge_base_permission(session, user, knowledge_base)
