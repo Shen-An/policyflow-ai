@@ -322,7 +322,8 @@ python scripts/seed_enterprise_docs.py
 | 文档 | 内容 |
 |------|------|
 | [specs/001-enterprise-agent-refactor/tasks.md](specs/001-enterprise-agent-refactor/tasks.md) | **企业化改造任务清单与真实进度**（当前 32 / 164） |
-| [docs/01-architecture-design.md](docs/01-architecture-design.md) | 架构设计 |
+| [docs/12-postgresql-multitenancy-design.md](docs/12-postgresql-multitenancy-design.md) | **生产数据面权威**：PostgreSQL、多租户、分阶段迁移、RLS 与已知缺口 |
+| [docs/01-architecture-design.md](docs/01-architecture-design.md) | 架构设计（v0.1 MVP 基线） |
 | [docs/02-database-design-sqlite.md](docs/02-database-design-sqlite.md) | 数据库设计 |
 | [docs/03-api-design.md](docs/03-api-design.md) | API 设计 |
 | [docs/04-ai-pipeline-rag-eval-design.md](docs/04-ai-pipeline-rag-eval-design.md) | AI / RAG / Eval |

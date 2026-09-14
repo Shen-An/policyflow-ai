@@ -5,6 +5,23 @@
 项目：Enterprise Policy Assistant / 企业内部制度问答与流程助手  
 技术基线：FastAPI + SQLite + LightRAG + Skill 编排
 
+> **现状提示（2026-09-14 追加）**
+>
+> 本文是 v0.1 MVP 的应用架构基线，**应用层（RAG、Skill/Tool/MCP、评估、前端边界）仍然有效**；但**存储层表述已被 Stage 2 取代**，请以 [`12-postgresql-multitenancy-design.md`](12-postgresql-multitenancy-design.md) 为准。
+>
+> 已被取代的具体表述：
+>
+> | 位置 | 原文 | 现状 |
+> |------|------|------|
+> | 技术基线（本页第 6 行） | `FastAPI + SQLite + LightRAG` | 生产目标为 **PostgreSQL 16**；SQLite 仅用于开发与隔离测试 |
+> | 第 46、59 行 | `SQLite + File Storage + LightRAG Workspaces` / `SQLite 业务数据` | 业务数据权威为 PostgreSQL；文件与索引工作区仍在文件系统 |
+> | 第 422 行 | `SQLite:` | 同上 |
+> | 第 554、563、567 行 | `数据库：SQLite`、`SQLite 迁移 PostgreSQL` | 该迁移**已在进行中**，进度见 `specs/001-enterprise-agent-refactor/tasks.md` |
+>
+> 另需注意：**本文完全未涉及多租户**。Stage 2 的硬性不变量是「每个受保护的数据访问显式传 `tenant_id`」与「跨租户访问与不存在不可区分」，见 `12-postgresql-multitenancy-design.md` §2。
+>
+> Stage 2 尚未完成的部分（`/health` 不校验 schema 版本、API 层未接 principal、service 层未整体租户化）在本文中**没有对应章节**——不要按本文推断它们已具备。
+
 ---
 
 ## 1. 设计目标

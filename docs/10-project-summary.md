@@ -1,8 +1,17 @@
 # 10. 项目总结（Project Summary）
 
-版本：v1.1
-日期：2026-08-17
+版本：v1.2
+日期：2026-09-14
 用途：项目的**单页权威快照**——定位、架构、功能、指标、工程质量、诚实边界。新读者从这里进入；细节以各专项文档为准。
+
+> **数据面现状（2026-09-14 追加）**
+>
+> 本项目正在做企业化改造（Stage 2），**部分完成**。进度以 `specs/001-enterprise-agent-refactor/tasks.md` 为准（当前 **32 / 164**）。
+>
+> - 上表「SQLite（可迁移 PostgreSQL）」应读作：**生产目标为 PostgreSQL 16**，SQLite 仅服务开发与隔离测试，**生产禁止 `create_all`**，schema 由 Alembic 分阶段迁移管理。
+> - 已引入多租户归属、RLS、按租户唯一与 compare-and-set。设计权威见 [`12-postgresql-multitenancy-design.md`](12-postgresql-multitenancy-design.md)。
+> - **尚未完成**：API 层未接 principal 与 async Unit of Work（T033）；`/health` **不校验 schema 版本**，迁移到一半的库同样返回 200（T034）；`memory_service.py`、`eval_service.py` 仍是单租户语义（T035）。
+> - 本文以下章节描述的是**当前可运行的产品行为**，其中未涉及租户隔离的部分**不代表已具备租户隔离**。
 
 > 面试口径请配合 [docs/interview/](interview/README.md)（分章知识库）与 [09-interview-demo-script.md](09-interview-demo-script.md)（现场演示脚本）。**名词看不懂先查 [白话术语表](interview/00-glossary/README.md)。**
 
@@ -23,7 +32,7 @@
 
 | 层 | 选型 |
 |---|---|
-| Backend | FastAPI + SQLModel + SQLAlchemy + SQLite（WAL，可迁移 PostgreSQL） |
+| Backend | FastAPI + SQLModel + SQLAlchemy + SQLite（WAL，开发用）；**生产目标 PostgreSQL 16**，见 [12](12-postgresql-multitenancy-design.md) |
 | RAG | Hybrid（LightRAG 路径 + BM25，RRF 融合；LightRAG 超时降级 BM25 并打标）+ rerank：默认本地 lexical fusion，可选真实 NVIDIA cross-encoder（opt-in、无静默回退） |
 | AI 编排 | `AgentPipeline` 单编排；Answer 为主 agent，带 tool loop；请求级 Turn Budget + 检索质量门 + PASS/REVISE/REFUSE 发布门 |
 | Memory | 四层（L0 消息 / L1 近窗+滚动摘要 / L2 事件向量摘要 / L3 实体），本地排序公式 |
@@ -130,13 +139,14 @@ SQLite（25+ 表，全 FK/状态列索引；WAL + busy_timeout；物理删除含
 
 | 文档 | 内容 |
 |---|---|
-| [01-architecture-design.md](01-architecture-design.md) | 架构设计 |
-| [02-database-design-sqlite.md](02-database-design-sqlite.md) | 数据库设计 |
+| [01-architecture-design.md](01-architecture-design.md) | 架构设计（v0.1 MVP 基线；存储层已被 12 取代） |
+| [02-database-design-sqlite.md](02-database-design-sqlite.md) | 开发库 SQLite 表结构（**非**生产权威） |
 | [03-api-design.md](03-api-design.md) | API 设计 |
 | [04-ai-pipeline-rag-eval-design.md](04-ai-pipeline-rag-eval-design.md) | AI/RAG/Eval 设计 |
-| [05-development-roadmap.md](05-development-roadmap.md) | 路线图 |
+| [05-development-roadmap.md](05-development-roadmap.md) | 路线图（v0.1 历史规划） |
 | [06-frontend-implementation-design.md](06-frontend-implementation-design.md) | 前端实现 |
 | [07-phase5-acceptance.md](07-phase5-acceptance.md) | Phase 5 验收 |
 | [08-de-toy-multiagent-skill-eval-strategy.md](08-de-toy-multiagent-skill-eval-strategy.md) | **去玩具化总策略（实现以此为准，§10 落地状态）** |
 | [09-interview-demo-script.md](09-interview-demo-script.md) | 面试演示脚本 |
+| [12-postgresql-multitenancy-design.md](12-postgresql-multitenancy-design.md) | **生产数据面权威**：PostgreSQL、多租户、迁移、RLS、缺口清单 |
 | [interview/](interview/README.md) | 面试知识库（11 章） |

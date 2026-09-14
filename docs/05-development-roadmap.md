@@ -5,6 +5,14 @@
 项目：Enterprise Policy Assistant  
 技术基线：FastAPI + SQLite + LightRAG + Skill 编排
 
+> **现状提示（2026-09-14 追加）**
+>
+> 本文是 v0.1（2026-07-10）的路线图。**Phase 0–1 已完成**；企业化改造（Stage 2）正在进行，**另有权威任务清单**：`specs/001-enterprise-agent-refactor/tasks.md`（当前 32 / 164，Phase 2 剩余 T033–T036，Phase 3–10 未开始）。
+>
+> 两者关系：**本文的 Phase 编号与 Stage 2 的 Phase 编号不是同一套**。需要判断「现在做到哪」时，以 `tasks.md` 为唯一权威，本文仅作早期规划的历史记录。
+>
+> 另注意：本文第 6 行的技术基线（含 SQLite 作为数据权威）已被 Stage 2 取代，见 [`12-postgresql-multitenancy-design.md`](12-postgresql-multitenancy-design.md)。
+
 ---
 
 ## 1. 总体阶段划分

@@ -5,6 +5,24 @@
 项目：Enterprise Policy Assistant  
 数据库：SQLite
 
+> **现状提示（2026-09-14 追加）**
+>
+> 本文描述的是**开发库（SQLite）**的表结构与字段语义，对 dev 环境仍然有效。但它**不再是生产数据面的权威**。
+>
+> 生产权威是 **PostgreSQL 16**，schema 由 Alembic 分阶段迁移管理（expand → backfill → enforce），启动**禁止** `create_all`。多租户归属、RLS、按租户唯一、compare-and-set 等约束**只在 PostgreSQL 上存在**，本文完全没有描述——请以 [`12-postgresql-multitenancy-design.md`](12-postgresql-multitenancy-design.md) 为准。
+>
+> 三条最容易误用的差异：
+>
+> | | 本文（dev SQLite） | 生产（PostgreSQL） |
+> |---|---|---|
+> | `tenant_id` | 可空，无强制 | NOT NULL，RLS `ENABLE` + `FORCE` |
+> | 业务标识唯一性 | 全局唯一 | 按租户唯一（`knowledge_bases.code`、`users.username`、`users.email`、`run_events.event_id`、`audit_events.event_id`） |
+> | schema 来源 | 启动时 `create_all` + 原地补列 | Alembic 迁移 |
+>
+> 因此：**用 dev SQLite 验证租户隔离是无效的**（SQLite 没有行级安全）。开发库还会为「NOT NULL 且无默认值」的列跳过原地补列，所以 dev 与生产 schema 不保证等价。
+>
+> 本文的 §1「选择 SQLite」是 v0.1 的历史决策记录，保留原文以便追溯；该决策已在 Stage 2 被替代。
+
 ---
 
 ## 1. 设计原则
