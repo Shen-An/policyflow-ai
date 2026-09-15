@@ -124,6 +124,15 @@ description: "企业级智能体重构的可执行实施任务清单"
 6. **`eval_service.py`**（755 行，0 处租户感知）最后处理，语义需保持现有 Eval 行为不变。
 7. **验证锚点**（可证伪，优先于主观判断）：① PG 上遗留 `write_memory` 被 `IntegrityError(tenant_id)` 拒绝的测试（`test_memory_repository.py` 内，docstring 已注明修复后删除该测试）必须转为失败；② 相同 `owner_id` 的两租户互不可见；③ 全量套件绿。**门禁判断必须用 `$LASTEXITCODE`，不要用字符串匹配**（见上「顺序约束」中记录的守卫失误）。
 
+**已实测排除的捷径（2026-09-15，否定结果）**：我曾尝试**不新增参数**、改为在 `write_memory` 内**从 owner 行查出租户**并落列，以绕开约 22 处调用点的改动。实测不成立，两条路都失败：
+
+1. **查不到就报错**（owner 无 `tenant_id` 时抛 `ApplicationError`）→ **12 个测试失败**：多处 fixture 的 owner 没有租户。
+2. **查不到回落到 `LEGACY_TENANT_ID`**（与 `backfill_legacy_tenant` 的收养规则一致）→ **16 个测试失败**，比方案 1 更糟（测试库中该租户行/FK 不满足，且可见性随之变化）。
+
+已完整回退（`git checkout -- backend/app/services/memory_service.py`），工作树 490 passed / exit 0。
+
+**结论**：写路径**必须**按计划第 1 步做「显式 `tenant_id` 参数 + 迁移调用点」，不存在低改动的替代路径。这也第三次印证了同一件事：T035 的读写是一个不可分割的整体，任何"绕开调用点"的取巧都会在可见性或测试库约束上失败。设计问题至此关闭，无需再试捷径。
+
 
 
 - [ ] T036 运行 `tests/integration/test_postgres_migrations.py`、`tests/integration/test_multi_instance.py`、`tests/security/test_tenant_isolation.py` 并把迁移 count/checksum 证据保存到 `artifacts/migration/stage2/`（依赖 T016–T035）
