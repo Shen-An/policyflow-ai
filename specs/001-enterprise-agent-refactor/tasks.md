@@ -74,6 +74,25 @@ description: "企业级智能体重构的可执行实施任务清单"
 - [X] T033 在 `backend/app/api/deps.py` 中接入 principal、async Unit of Work 与 fresh authorization 依赖，并禁止路由从 body/query 接受 tenant/user 身份
 - [X] T034 在 `backend/app/main.py` 中接入 async lifespan、v2 router、health/readiness 与 OTel，移除 correctness 对进程锁、队列、缓存和 startup migration 的依赖
 - [ ] T035 将 `backend/app/services/memory_service.py`、`backend/app/services/knowledge_base_service.py` 和 `backend/app/services/eval_service.py` 的权威读写迁移到 tenant-aware async repository，并保持四层记忆非权威与现有 Eval 语义（依赖 T027、T033）
+
+**T035 开工前的暴露面测量（2026-09-15，尚未开始实现）**
+
+本轮只做了测量，**没有开始改造**——这是刻意的：T035 是跨三文件约 1630 行的重构，改动 `memory_service` 的函数签名会牵动 routes_memory / chat 流水线 / memory_agent / memory_extractor / memory_window 等调用方。在没有足够预算完成并验证整条链的情况下开工，只会重复本项目此前"半成品 + 测试全绿假象"的失败模式。因此记录证据、留待专门一轮。
+
+| 文件 | 行数 | `tenant_id` 出现次数 |
+|---|---|---|
+| `memory_service.py` | 542 | **0** |
+| `knowledge_base_service.py` | 332 | 6（此前最小改动过） |
+| `eval_service.py` | 755 | **0** |
+
+`memory_service.py` 的具体暴露（已核实源码，非推断）：
+
+- `write_memory`、`read_memory`、`list_fixed_memories` 的查询只按 `MemoryItem.owner_type` + `owner_id` 过滤，**没有任何租户条件**。
+- `write_memory` 构造 `MemoryItem(...)` 时**不写 `tenant_id`**。`memory_items` 属 19 张租户所有表，Stage 2 enforce 后 `tenant_id` 为 NOT NULL，因此**在 PostgreSQL 上这条写入会直接失败**（SQLite 上则写入 NULL）。这不只是隔离缺口，是功能本身在权威库上不可用。
+- 两个租户下若存在相同 `owner_id`，`read_memory` 会互相看到对方记忆——**跨租户泄露**。
+
+结论：T035 不是"加固"，而是让记忆层在权威库上**能工作**的前提。应作为独立一轮处理，顺序建议：先 `memory_service`（暴露最明确、有 PG 上的硬失败可作验证锚点），再 `eval_service`，最后核对 `knowledge_base_service` 剩余的 6 处是否已闭环。
+
 - [ ] T036 运行 `tests/integration/test_postgres_migrations.py`、`tests/integration/test_multi_instance.py`、`tests/security/test_tenant_isolation.py` 并把迁移 count/checksum 证据保存到 `artifacts/migration/stage2/`（依赖 T016–T035）
 
 **Checkpoint**: 两个 API 实例共享 PostgreSQL，重启不丢权威状态；生产拒绝 SQLite；迁移与租户隔离核对 100%。
