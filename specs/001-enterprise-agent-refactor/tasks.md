@@ -97,6 +97,9 @@ description: "企业级智能体重构的可执行实施任务清单"
 
 这是**加法式**落地：遗留服务签名未动，故 T035 本体仍未完成——`memory_service` / `eval_service` 的读写仍走同步遗留助手，**上面的跨租户泄露与 PG 写入失败在真实调用路径上依然存在**。下一步是把这些服务切到 `uow.memories`（约 30 处调用点）。
 
+**T035 可行性复核（2026-09-15，改变工期判断）**：乐观面——`MemoryAgent.load`/`writeback` 与两个 memory tool **已是 async**，chat 流水线已 `await`。但悲观面更实：`memory_service.py` 里碰 `MemoryItem` 的是 **12 个同步函数**（`write_memory`、`read_memory`、`list_fixed_memories`、`search_memories_scored`、`search_memories`、`touch_access`、`upsert_entity`、`find_similar_preference`、`list_user_memories`、`get_user_memory`、`delete_user_memory` 等），且存在**同步消费者**：`MemoryAgent.run`（chat_service:1089 直接调用）、`build_answer_context`（同步），`routes_memory.py` 亦同步。结论：T035 不是「3 个函数 + 30 个调用点」，而是**整个 542 行同步服务层的 async 化**（含其同步消费者），需要一段完整预算、以独立一轮（或两轮）处理；若只做同步路径的租户修正而不 async 化，则与任务字面要求（迁移到 async repository）不符，需用户定夺取舍。
+
+
 
 - [ ] T036 运行 `tests/integration/test_postgres_migrations.py`、`tests/integration/test_multi_instance.py`、`tests/security/test_tenant_isolation.py` 并把迁移 count/checksum 证据保存到 `artifacts/migration/stage2/`（依赖 T016–T035）
 
