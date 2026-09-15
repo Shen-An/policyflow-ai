@@ -113,6 +113,31 @@ description: "企业级智能体重构的可执行实施任务清单"
 - **A**（token 携带 `tenant_id`，其余不动）：未解决上面的登录歧义。
 - **B**（每请求一次显式跨租户 membership 查询）：热路径引入跨租户查询，把防枚举风险放进每个请求。
 
+### T033 实施状态（2026-09-15 记录）
+
+**已实现并验证**（`pytest tests -q --ignore=tests/load` → 463 passed，无回归）：
+
+| 改动 | 位置 |
+|------|------|
+| access token 强制携带租户声明；缺失即拒绝（旧 token 不会被当作某默认租户放行） | `backend/app/core/security.py` |
+| 登录先解析租户再查用户：`resolve_login_tenant` + 租户作用域 `authenticate_user`；多租户且未指定时返回 `AUTH_TENANT_REQUIRED`；错误租户码以「凭据错误」返回，不可枚举租户 | `backend/app/services/auth_service.py` |
+| `LoginRequest.tenant_code`；登录签发带租户的 token | `backend/app/schemas/auth.py`、`backend/app/api/routes_auth.py` |
+| `get_current_user` 改为租户限定：用户行属于别的租户即拒绝 | `backend/app/api/deps.py` |
+| 新增 `UserRepository.find_by_username(tenant_id, username)` | `backend/app/db/repositories.py` |
+| 新增 `UnitOfWorkGrantSource`：在 UoW 事务内重读当前 grants，使 `authorize_fresh` 真正 fresh | `backend/app/db/repositories.py` |
+| `deps.py`：async Unit of Work 依赖、principal 依赖、fresh authorization 依赖、body/query 身份比对 | `backend/app/api/deps.py` |
+| `create_user` 从**操作者**取 tenant_id 落库（不再写 NULL） | `backend/app/services/user_service.py` |
+
+**修复的一个被暴露的缺陷**：遗留的用户创建路径此前不写 `tenant_id`。改为租户作用域登录后，这些用户无法登录。根因是遗留写路径，**不是** T032 引入的。
+
+**尚未完成，且不得当作已完成**：
+
+1. **principal 依赖与 fresh authorization 依赖没有任何测试。** `get_principal`、`require_authorization`、claimed-identity 比对全部**未被验证**——目前没有任何路由使用它们。
+2. **`user_roles`（遗留）与 `user_role_grants`（Stage 2）不一致。** 遗留管理界面通过 `user_roles` 授予角色，而 `get_principal` 只读 `user_role_grants`。因此在补齐之前，构造出的 principal 会因「无 membership」被拒。**Phase 2 没有任何任务覆盖这项桥接。**
+3. `app.state.uow_factory` 尚不存在（属 T034 的 async lifespan 职责）；当前 `UnitOfWork()` 回落到进程级 async factory。
+
+因此 T033 **保持未勾选**：它的验收要求是依赖被接入且可用，而第 1、2 条未满足。
+
 ---
 
 ## Phase 3: User Story 3 — 使用统一可信的智能助手 (Priority: P1, Stage 3)

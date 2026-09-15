@@ -14,6 +14,20 @@ def get_user_by_username(session: Session, username: str) -> User | None:
     return session.exec(select(User).where(User.username == username)).first()
 
 
+def get_user_by_username_in_tenant(
+    session: Session, tenant_id: str, username: str
+) -> User | None:
+    """Return the member with ``username`` inside ``tenant_id``, or ``None``.
+
+    Usernames are unique per tenant after the enforce phase, so a username-only
+    lookup is ambiguous once two tenants share the name. Every authentication
+    path must therefore resolve its tenant before landing here.
+    """
+    return session.exec(
+        select(User).where(User.tenant_id == tenant_id, User.username == username)
+    ).first()
+
+
 def get_user_by_id(session: Session, user_id: str) -> User:
     user = session.get(User, user_id)
     if user is None:
@@ -54,7 +68,21 @@ def _resolve_roles(session: Session, role_codes: list[str]) -> list[Role]:
     return list(roles)
 
 
-def create_user(session: Session, data: UserCreate) -> UserRead:
+def create_user(session: Session, data: UserCreate, tenant_id: str) -> UserRead:
+    """Create a member inside ``tenant_id``.
+
+    The tenant is stamped from the acting administrator, never from the request
+    body, so a caller cannot place a member into another tenant. Usernames and
+    emails are unique per tenant after the enforce phase, so an unqualified
+    name check is only meaningful while a single tenant exists.
+
+    Raises:
+        ValueError: when the acting administrator carries no tenant, which is a
+            server-side configuration fault rather than a client error.
+    """
+    if not isinstance(tenant_id, str) or not tenant_id.strip():
+        raise ValueError("create_user requires the acting administrator's tenant_id")
+    tenant_id = tenant_id.strip()
     existing_username = session.exec(
         select(User).where(User.username == data.username)
     ).first()
@@ -70,6 +98,7 @@ def create_user(session: Session, data: UserCreate) -> UserRead:
 
     roles = _resolve_roles(session, data.role_codes)
     user = User(
+        tenant_id=tenant_id,
         username=data.username,
         email=data.email,
         password_hash=hash_password(data.password),

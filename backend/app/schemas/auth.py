@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class LoginRequest(BaseModel):
     username: str = Field(min_length=1, max_length=64)
     password: str = Field(min_length=1, max_length=128)
+    tenant_code: str | None = Field(default=None, max_length=50)
 
 
 class AuthenticatedUser(BaseModel):

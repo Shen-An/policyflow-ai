@@ -873,6 +873,22 @@ class UserRepository:
         )
         return (await self._session.execute(statement)).scalars().first()
 
+    async def find_by_username(self, tenant_id: str, username: str) -> _Row | None:
+        """Return the member with ``username`` inside this tenant, or ``None``.
+
+        Usernames are unique per tenant after the enforce phase, so this lookup is
+        only meaningful with an explicit tenant and must never be issued without
+        one: the same username can legitimately exist in several tenants.
+
+        Raises:
+            TenantScopeError: when ``tenant_id`` is empty or missing.
+        """
+        tenant = require_tenant(tenant_id, "UserRepository.find_by_username")
+        statement = select(User).where(
+            _tenant_predicate(User, tenant), User.username == _require_text(username, "username")
+        )
+        return (await self._session.execute(statement)).scalars().first()
+
     async def create(
         self,
         tenant_id: str,
@@ -2361,3 +2377,73 @@ def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+class UnitOfWorkGrantSource:
+    """Grant source that re-reads the caller's current grants inside the unit of work.
+
+    This is what makes authorization *fresh* rather than token-scoped: the scopes
+    come from the grants that are valid right now, so a revocation or an expiry
+    takes effect on the next check instead of waiting for the token to be
+    reissued. Reads go through the unit of work's own transaction, so the
+    authorization decision sees the same snapshot as the effect it guards.
+    """
+
+    def __init__(self, uow: UnitOfWork) -> None:
+        """Bind the grant source to the unit of work it reads through."""
+        self._uow = uow
+
+    async def _selected(self, tenant_id: str, user_id: str, membership_id: str) -> list[Any]:
+        """Return the currently valid grants for one membership.
+
+        ``membership_id`` identifies a single grant row, so a caller holding a
+        stale membership reference resolves to nothing rather than to whatever
+        grants the user happens to have now.
+        """
+        member = _require_text(membership_id, "membership_id")
+        grants = await self._uow.grants.active_grants(tenant_id, user_id)
+        return [grant for grant in grants if getattr(grant, "id", None) == member]
+
+    async def scopes_for(
+        self, tenant_id: str, user_id: str, membership_id: str
+    ) -> frozenset[str]:
+        """Return the role actions and grant scope labels in force right now.
+
+        Raises:
+            TenantScopeError: when ``tenant_id`` is empty or missing.
+            ResourceNotFoundError: when a referenced role row cannot be read.
+        """
+        scopes: set[str] = set()
+        for grant in await self._selected(tenant_id, user_id, membership_id):
+            label = getattr(grant, "scope", None)
+            if isinstance(label, str) and label.strip():
+                scopes.add(label.strip())
+            role_id = getattr(grant, "role_id", None)
+            if not isinstance(role_id, str) or not role_id.strip():
+                continue
+            role = await self._uow.roles.get(tenant_id, role_id)
+            actions = getattr(role, "actions", None)
+            if isinstance(actions, (list, tuple)):
+                scopes.update(
+                    action.strip()
+                    for action in actions
+                    if isinstance(action, str) and action.strip()
+                )
+        return frozenset(scopes)
+
+    async def authorization_version_for(
+        self, tenant_id: str, user_id: str, membership_id: str
+    ) -> int:
+        """Return a version that changes whenever any covering grant changes.
+
+        The sum of the selected grants' versions is used rather than a single
+        row's version, so adding or removing a grant also moves the value. The
+        number itself is only ever carried into the audit trail; it is never the
+        thing that decides an action.
+        """
+        total = 0
+        for grant in await self._selected(tenant_id, user_id, membership_id):
+            version = getattr(grant, "version", None)
+            if isinstance(version, int) and not isinstance(version, bool):
+                total += version
+        return total

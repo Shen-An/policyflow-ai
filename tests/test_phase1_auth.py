@@ -119,6 +119,7 @@ def test_expired_token_is_rejected(tmp_path: Path) -> None:
             admin.id,
             app.state.settings,
             expires_delta=timedelta(seconds=-1),
+            tenant_id=admin.tenant_id,
         )
         response = client.get("/api/auth/me", headers=auth_headers(token))
 

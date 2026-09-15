@@ -26,8 +26,8 @@ def get_users(
 
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-def post_user(data: UserCreate, session: SessionDep, _: SysAdminUser) -> UserRead:
-    return create_user(session, data)
+def post_user(data: UserCreate, session: SessionDep, actor: SysAdminUser) -> UserRead:
+    return create_user(session, data, actor.tenant_id)
 
 
 @router.put("/{user_id}/roles", response_model=UserRead)

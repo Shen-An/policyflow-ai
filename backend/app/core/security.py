@@ -69,13 +69,25 @@ def create_access_token(
     subject: str,
     settings: Settings,
     expires_delta: timedelta | None = None,
+    *,
+    tenant_id: str,
 ) -> str:
+    """Issue a tenant-scoped access token for ``subject``.
+
+    The tenant claim is mandatory: a token that cannot name its tenant cannot be
+    turned into a principal, because every user and membership lookup requires a
+    tenant up front. Binding the tenant here is what keeps the request path free
+    of cross-tenant queries.
+    """
+    if not isinstance(tenant_id, str) or not tenant_id.strip():
+        raise ValueError("tenant_id is required to issue an access token")
     issued_at = datetime.now(UTC)
     expires_at = issued_at + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     payload = {
         "sub": subject,
+        "tenant_id": tenant_id.strip(),
         "type": "access",
         "iat": issued_at,
         "exp": expires_at,
@@ -84,6 +96,7 @@ def create_access_token(
 
 
 def decode_access_token(token: str, settings: Settings) -> dict[str, Any]:
+    """Decode and validate an access token, including its tenant claim."""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[JWT_ALGORITHM])
     except ExpiredSignatureError as exc:
@@ -94,4 +107,10 @@ def decode_access_token(token: str, settings: Settings) -> dict[str, Any]:
     subject = payload.get("sub")
     if not isinstance(subject, str) or payload.get("type") != "access":
         raise AuthenticationError("AUTH_INVALID_TOKEN", "Access token is invalid")
+
+    # A token minted before tenant scoping existed carries no tenant and is
+    # rejected rather than being served as some default tenant.
+    tenant_id = payload.get("tenant_id")
+    if not isinstance(tenant_id, str) or not tenant_id.strip():
+        raise AuthenticationError("AUTH_INVALID_TOKEN", "Access token is not tenant scoped")
     return dict(payload)
