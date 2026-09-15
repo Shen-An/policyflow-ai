@@ -80,7 +80,7 @@ def main() -> int:
         json.dumps(evidence, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
 
-    report = [f"# Stage 2 migration evidence (T036)", "", f"captured at `{stamp}`", ""]
+    report = ["# Stage 2 migration evidence (T036)", "", f"captured at `{stamp}`", ""]
     for suite, outcome in suite_results.items():
         report.append(f"- `{suite}`: {outcome}")
     report.append("")
