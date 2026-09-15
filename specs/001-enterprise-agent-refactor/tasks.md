@@ -93,6 +93,11 @@ description: "企业级智能体重构的可执行实施任务清单"
 
 结论：T035 不是"加固"，而是让记忆层在权威库上**能工作**的前提。应作为独立一轮处理，顺序建议：先 `memory_service`（暴露最明确、有 PG 上的硬失败可作验证锚点），再 `eval_service`，最后核对 `knowledge_base_service` 剩余的 6 处是否已闭环。
 
+**T035 已落地的地基（2026-09-15）**：`MemoryItemRepository`（`UnitOfWork.memories`）已实现——`create`、`list_for_owner`，租户必填且写入时落 `tenant_id`，读取按租户限定，过期项由仓库过滤。测试 `tests/integration/test_memory_repository.py`（**6 passed**，跑在已迁移到 enforce 的 PostgreSQL 上）锁定四条：写入在权威库上**成功**（`memory_items.tenant_id` 为 NOT NULL，遗留插入不写该列，故此前必然失败）、相同 `owner_id` 的两个租户**互不可见**、无租户/无 owner 的写入被拒、过期项不会进入提示词。
+
+这是**加法式**落地：遗留服务签名未动，故 T035 本体仍未完成——`memory_service` / `eval_service` 的读写仍走同步遗留助手，**上面的跨租户泄露与 PG 写入失败在真实调用路径上依然存在**。下一步是把这些服务切到 `uow.memories`（约 30 处调用点）。
+
+
 - [ ] T036 运行 `tests/integration/test_postgres_migrations.py`、`tests/integration/test_multi_instance.py`、`tests/security/test_tenant_isolation.py` 并把迁移 count/checksum 证据保存到 `artifacts/migration/stage2/`（依赖 T016–T035）
 
 **Checkpoint**: 两个 API 实例共享 PostgreSQL，重启不丢权威状态；生产拒绝 SQLite；迁移与租户隔离核对 100%。
