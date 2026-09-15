@@ -1,5 +1,6 @@
 """Background document indexing state transitions."""
 
+from sqlalchemy import update
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, col, select
 
@@ -17,7 +18,7 @@ async def process_document_index(
         document = session.get(KnowledgeDocument, document_id)
         if document is None:
             return
-        job = session.exec(
+        candidate = session.exec(
             select(RagIndexJob)
             .where(
                 RagIndexJob.knowledge_document_id == document.id,
@@ -26,19 +27,33 @@ async def process_document_index(
             .order_by(col(RagIndexJob.created_at).desc())
         ).first()
         knowledge_base = session.get(KnowledgeBase, document.knowledge_base_id)
-        if job is None or knowledge_base is None:
+        if candidate is None or knowledge_base is None:
             return
-        job.status = "running"
-        job.started_at = utc_now()
+        job_id = candidate.id
+
+        # Claim the job in one conditional statement instead of reading it and then
+        # writing it back. Reading a pending job and assigning a new status in a
+        # later statement leaves a window in which two workers both read the same
+        # pending row, both conclude they own it, and both index the same document.
+        # The condition travels with the update, so exactly one worker changes a row
+        # and the others change none and stop here. The status change and the
+        # document state below then commit together, so a claimed job is never left
+        # without its document marked as indexing.
+        claimed = session.execute(
+            update(RagIndexJob)
+            .where(RagIndexJob.id == job_id, RagIndexJob.status == "pending")
+            .values(status="running", started_at=utc_now())
+        ).rowcount
+        if claimed != 1:
+            session.rollback()
+            return
+
         document.index_status = "indexing"
         document.updated_at = utc_now()
-        session.add(job)
         session.add(document)
         session.commit()
-        session.refresh(job)
         session.refresh(document)
         session.refresh(knowledge_base)
-        job_id = job.id
         detached_document = KnowledgeDocument.model_validate(document.model_dump())
         detached_knowledge_base = KnowledgeBase.model_validate(knowledge_base.model_dump())
 

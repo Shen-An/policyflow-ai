@@ -155,6 +155,24 @@ description: "企业级智能体重构的可执行实施任务清单"
 
 顺序提醒（重复强调，两轮代价换来）：**先改生产写路径与调用点，再改测试**；否则测试会因可见性变化先红，掩盖真实错误。
 
+### 跨实例缺陷：`rag_index_jobs` 的认领曾不是数据库级（2026-09-15 已修）
+
+这是此前在 T036 小节里记为「最值得下一步查」的那个问题的**答案：不是**。
+
+原实现（`backend/app/services/indexing_service.py:20-37`）是典型的 read-then-write：
+
+```python
+job = ... select where status == "pending" ... .first()   # 读
+job.status = "running"                                    # 写，无 status 条件、无行锁
+session.commit()
+```
+
+SELECT 与 UPDATE 之间没有原子性，UPDATE 也不带 `status='pending'` 守卫。**两个实例可以同时读到同一个 pending job、都认为自己是所有者、并发索引同一文档**——重复索引、重复占用 LightRAG、可能产生重复条目。这直接推翻「认领是数据库级的」这一隐含假设。
+
+已改为**带条件的单条 UPDATE**（`update ... where id = :id and status = 'pending'` → `rowcount`），并把文档状态变更与认领放在**同一个 commit** 内，因此不会出现「job 已认领但文档未标记 indexing」的中间态。
+
+**证据边界（诚实声明）**：修复后全量 490 passed / exit 0，证明了正常认领路径无回归；但**尚未补并发测试**——即「两个会话同时读到同一 pending job、只有一个 UPDATE 生效」这一断言目前**没有自动化测试覆盖**。补齐它需要 KnowledgeBase + KnowledgeDocument + RagIndexJob 的测试夹具（字段要求尚未摸清）。这是本修复已知的验证缺口，不应被"套件全绿"掩盖。
+
 
 
 - [ ] T036 运行 `tests/integration/test_postgres_migrations.py`、`tests/integration/test_multi_instance.py`、`tests/security/test_tenant_isolation.py` 并把迁移 count/checksum 证据保存到 `artifacts/migration/stage2/`（依赖 T016–T035）
