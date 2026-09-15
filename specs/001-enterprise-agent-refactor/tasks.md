@@ -97,6 +97,14 @@ description: "企业级智能体重构的可执行实施任务清单"
 
 这是**加法式**落地：遗留服务签名未动，故 T035 本体仍未完成——`memory_service` / `eval_service` 的读写仍走同步遗留助手，**上面的跨租户泄露与 PG 写入失败在真实调用路径上依然存在**。下一步是把这些服务切到 `uow.memories`（约 30 处调用点）。
 
+**T035 的顺序约束（2026-09-15 实测，重要）**：读迁移**被写迁移阻塞**，二者必须同时移动。
+
+实测过程：把 `/api/memory` 的 GET 切到 `uow.memories.list_for_user`（租户化 async 读）后，`tests/test_memory_management_api.py::test_list_and_delete_memory` 立刻失败——该测试用**遗留 `write_memory`** 造数据，而遗留写入**不写 `tenant_id`**（SQLite 上写入 NULL，PostgreSQL 上直接被 NOT NULL 拒绝，见上文实测）。于是租户化读**看不见这些行**：列表变空。
+
+结论：单纯迁移读路径会让**既有数据全部不可见**。因此 T035 不是「可以切片推进」的任务——读、写必须一起迁（或先迁写、后迁读）。这也解释了为什么先前把它拆成"切片"的设想不成立。相应地，`/api/memory` 的 GET 保持遗留路径，`MemoryItemRepository.list_for_user` 保留为已验证的加法地基（23 个记忆相关测试通过）。
+
+同时记录一次我自己的执行失误：守卫脚本用 `$out -notmatch "failed"` 判断套件是否全绿——**PowerShell 中对数组使用 `-notmatch` 返回的是过滤后的元素而非布尔值**，所以"有任意一行不匹配"会被判定为通过。该轮在测试失败的情况下仍然提交了（`b668e78`）。已恢复 `routes_memory.py` 并重新验证通过。后续守卫必须写成 `-not ($out -match 'failed')` 或直接检查退出码。
+
 **T035 可行性复核（2026-09-15，改变工期判断）**：乐观面——`MemoryAgent.load`/`writeback` 与两个 memory tool **已是 async**，chat 流水线已 `await`。但悲观面更实：`memory_service.py` 里碰 `MemoryItem` 的是 **12 个同步函数**（`write_memory`、`read_memory`、`list_fixed_memories`、`search_memories_scored`、`search_memories`、`touch_access`、`upsert_entity`、`find_similar_preference`、`list_user_memories`、`get_user_memory`、`delete_user_memory` 等），且存在**同步消费者**：`MemoryAgent.run`（chat_service:1089 直接调用）、`build_answer_context`（同步），`routes_memory.py` 亦同步。结论：T035 不是「3 个函数 + 30 个调用点」，而是**整个 542 行同步服务层的 async 化**（含其同步消费者），需要一段完整预算、以独立一轮（或两轮）处理；若只做同步路径的租户修正而不 async 化，则与任务字面要求（迁移到 async repository）不符，需用户定夺取舍。
 
 
