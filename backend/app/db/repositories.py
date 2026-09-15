@@ -60,6 +60,7 @@ from backend.app.db.models import (
     AuditEvent,
     GraphCheckpointBinding,
     IdempotencyRecord,
+    MemoryItem,
     Role,
     RunEvent,
     Tenant,
@@ -2313,6 +2314,11 @@ class UnitOfWork:
         return self._repository("audit", AuditEventRepository)
 
     @property
+    def memories(self) -> MemoryItemRepository:
+        """Return the memory-item repository bound to this transaction."""
+        return self._repository("memories", MemoryItemRepository)
+
+    @property
     def resource_catalog(self) -> UnitOfWorkResourceCatalog:
         """Return a resource catalogue bound to this same connection.
 
@@ -2402,6 +2408,100 @@ def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+class MemoryItemRepository:
+    """Tenant-qualified memory reads and writes.
+
+    Memory is not authoritative - it never overrides the evidence retrieved for
+    the current turn - but it is still tenant-owned data, so every query is
+    qualified by the owning tenant. The legacy service layer filtered by owner
+    alone, which let two tenants that happen to share an owner id see each other's
+    memories, and its inserts did not stamp ``tenant_id`` at all, which the
+    enforced schema rejects outright.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        """Bind the repository to the unit-of-work session."""
+        self._session = session
+
+    async def create(
+        self,
+        tenant_id: str,
+        *,
+        owner_type: str,
+        owner_id: str,
+        memory_type: str,
+        content: str,
+        source: str = "manual",
+        confidence: float = 0.5,
+        embedding: list[float] | None = None,
+        meta_json: dict[str, Any] | None = None,
+        expires_at: datetime | None = None,
+    ) -> MemoryItem:
+        """Store one memory item for this tenant.
+
+        The caller flushes rather than commits: a unit of work owns the
+        transaction, so the item becomes visible to the rest of the request
+        without deciding its outcome.
+
+        Raises:
+            TenantScopeError: when ``tenant_id`` is empty or missing.
+            ValueError: when a required text field is empty.
+        """
+        tenant = require_tenant(tenant_id, "MemoryItemRepository.create")
+        item = MemoryItem(
+            tenant_id=tenant,
+            owner_type=_require_text(owner_type, "owner_type"),
+            owner_id=_require_text(owner_id, "owner_id"),
+            memory_type=_require_text(memory_type, "memory_type"),
+            content=_require_text(content, "content")[:2000],
+            source=_require_text(source, "source"),
+            confidence=max(0.0, min(float(confidence), 1.0)),
+            embedding=embedding,
+            meta_json=dict(meta_json or {}),
+            expires_at=_as_utc(expires_at) if expires_at is not None else None,
+        )
+        self._session.add(item)
+        await self._session.flush()
+        return item
+
+    async def list_for_owner(
+        self,
+        tenant_id: str,
+        owner_type: str,
+        owner_id: str,
+        *,
+        memory_types: list[str] | None = None,
+        now: datetime | None = None,
+    ) -> list[MemoryItem]:
+        """Return this tenant's live memories for one owner.
+
+        Expired rows are filtered out here rather than by the caller, so an
+        expired item cannot reach a prompt through a path that forgot to check.
+
+        Raises:
+            TenantScopeError: when ``tenant_id`` is empty or missing.
+            ValueError: when a required text field is empty.
+        """
+        tenant = require_tenant(tenant_id, "MemoryItemRepository.list_for_owner")
+        moment = _as_utc(now) if now is not None else utc_now()
+        statement = select(MemoryItem).where(
+            _tenant_predicate(MemoryItem, tenant),
+            MemoryItem.owner_type == _require_text(owner_type, "owner_type"),
+            MemoryItem.owner_id == _require_text(owner_id, "owner_id"),
+            # A null expiry means the item never expires, so the null case has to
+            # be spelled out instead of collapsed into the comparison.
+            (MemoryItem.expires_at.is_(None)) | (MemoryItem.expires_at > moment),
+        )
+        if memory_types is not None:
+            allowed = [value for value in memory_types if value]
+            if not allowed:
+                return []
+            statement = statement.where(MemoryItem.memory_type.in_(allowed))
+        return await _fetch_all(
+            self._session, statement.order_by(MemoryItem.updated_at.desc())
+        )
 
 
 class UnitOfWorkGrantSource:
