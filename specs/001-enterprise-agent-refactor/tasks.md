@@ -78,6 +78,41 @@ description: "企业级智能体重构的可执行实施任务清单"
 
 **Checkpoint**: 两个 API 实例共享 PostgreSQL，重启不丢权威状态；生产拒绝 SQLite；迁移与租户隔离核对 100%。
 
+### T033 前置决策（2026-09-14 记录，已确认）
+
+**阻塞点：从 access token 到租户当前不存在代码路径。**
+
+| 事实 | 位置 |
+|------|------|
+| token payload 只有 `sub`（user id）与 `type`，**无 `tenant_id`** | `backend/app/core/security.py:77` |
+| `UserRepository.get(tenant_id, user_id)` 要求先有 tenant_id | `backend/app/db/repositories.py:846` |
+| `UserRoleGrantRepository.get(tenant_id, grant_id)` 要求先有 tenant_id | `backend/app/db/repositories.py:1068` |
+| 仓库中**不存在**「按 user_id 查 membership」的方法 | —— |
+| 而 `resolve_principal` 强制校验 `membership.tenant_id == tenant_id` | `backend/app/auth/principal.py:337` |
+
+**决定性连带后果**：T032 把 `users.username`/`email` 改为按租户唯一之后，`POST /api/auth/login` 仅凭 username + password **已产生歧义**（两个租户可各有一个 `admin`）。当前实际只有 `legacy` 一个租户故仍可用，但设计必须回答「登录时如何确定租户」——这不是 T033 的额外工作，而是它的前提。
+
+**已选路线 C —— 登录时确定租户：**
+
+1. 登录接受租户码；未提供时，若系统只有一个活跃租户则用它（保持现有 dev 登录 `admin/123456` 可用）
+2. 在该租户内解析用户与 membership
+3. 签发的 access token 携带 `tenant_id`
+4. 请求期以 token 的 `tenant_id` + `sub` 做**租户作用域**的用户/membership 查询
+5. **热路径不含跨租户查询**
+
+**需要新增（不得复用越权路径）：**
+
+- `UserRepository.find_by_username(tenant_id, username)`（配合按租户唯一）
+- `UserRoleGrantRepository` 的 membership 查询（按 tenant_id + user_id）
+- `create_access_token` 增加 `tenant_id` 声明；`decode_access_token` 必须校验其存在
+- `backend/app/api/deps.py`：principal 依赖、async Unit of Work 依赖、fresh authorization 依赖
+- 路由**不得**从 body/query 接受 tenant/user 身份；一旦出现必须与 membership 比对，不符即拒绝（`resolve_principal` 已实现该校验，勿在依赖层重复实现）
+
+**已评估并放弃的路线：**
+
+- **A**（token 携带 `tenant_id`，其余不动）：未解决上面的登录歧义。
+- **B**（每请求一次显式跨租户 membership 查询）：热路径引入跨租户查询，把防枚举风险放进每个请求。
+
 ---
 
 ## Phase 3: User Story 3 — 使用统一可信的智能助手 (Priority: P1, Stage 3)
