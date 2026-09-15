@@ -72,7 +72,7 @@ description: "企业级智能体重构的可执行实施任务清单"
 - [X] T031 在 `migrations/backfill_legacy_tenant.py` 中实现 conversations/messages/memory/knowledge/eval 的可重启批量回填，持久化 cursor、source/target count、checksum 和 failures（依赖 T030）
 - [X] T032 在 `migrations/versions/002_enterprise_enforce.py` 中于核对通过后增加 NOT NULL、tenant-aware FK/composite unique 及 RLS 强制约束（依赖 T031）
 - [X] T033 在 `backend/app/api/deps.py` 中接入 principal、async Unit of Work 与 fresh authorization 依赖，并禁止路由从 body/query 接受 tenant/user 身份
-- [ ] T034 在 `backend/app/main.py` 中接入 async lifespan、v2 router、health/readiness 与 OTel，移除 correctness 对进程锁、队列、缓存和 startup migration 的依赖
+- [X] T034 在 `backend/app/main.py` 中接入 async lifespan、v2 router、health/readiness 与 OTel，移除 correctness 对进程锁、队列、缓存和 startup migration 的依赖
 - [ ] T035 将 `backend/app/services/memory_service.py`、`backend/app/services/knowledge_base_service.py` 和 `backend/app/services/eval_service.py` 的权威读写迁移到 tenant-aware async repository，并保持四层记忆非权威与现有 Eval 语义（依赖 T027、T033）
 - [ ] T036 运行 `tests/integration/test_postgres_migrations.py`、`tests/integration/test_multi_instance.py`、`tests/security/test_tenant_isolation.py` 并把迁移 count/checksum 证据保存到 `artifacts/migration/stage2/`（依赖 T016–T035）
 
@@ -153,7 +153,16 @@ description: "企业级智能体重构的可执行实施任务清单"
 
 **遗留（不阻塞 T033，但会影响后续）**：资源目录只登记 7 种 kind（tenant/user/role/user_role_grant/agent_run/checkpoint_binding/audit_event），**不含 knowledge_base 等业务资源**；对这些 kind 调用 `contains` 会抛 `UnknownResourceKindError`（实测 400）。在补齐 kind 之前，业务资源的授权无法做存在性检查。
 
-全量：`pytest tests -q --ignore=tests/load` → **474 passed**。
+**T034 完成（2026-09-15，`tests/integration/test_main_readiness.py`，6 passed）**
+
+- `/health` 是纯 liveness，**不碰数据库**；`/ready` 是 readiness，经 `check_database_ready(async_engine)` 校验 schema revision，未迁移即 503。之前 `/health` 对未迁移的库也返回 200——**这正是 T034 要关掉的缺口**。
+- `app.state.uow_factory` 发布（绑定本应用 async engine 的 `UnitOfWork` 工厂）；async engine 在 shutdown 时 dispose；启动时 `configure_telemetry`。
+- v2 面：`backend/app/api/routes_v2.py`（`/api/v2/principal`）——token 是唯一身份来源；query 里自称别的租户 → 403（不回显真租户）。测试走真实 HTTP：login → token → principal，`sys_admin` 角色来自**存储的 grant**。
+- 写测试时发现并修复：`deps.get_unit_of_work` 把 `app.state.uow_factory`（UoW 工厂）误传给 `UnitOfWork(factory=…)`（期望 session 工厂）→ 每个仓库拿到 UoW 当 session，任何首条路由触碰即 500。此前被依赖覆盖挡住，未暴露。
+- 写测试时发现并修复：`check_database_ready` 用 PostgreSQL 专有 `to_regclass`，SQLite 上直接 `OperationalError`。且 dev SQLite 的 schema 是启动时建的、**没有 alembic_version**。修复为方言感知：PG 上缺 revision = 致命（503），SQLite 上记录「无 revision，dev schema 启动时创建」（200）。严格门禁只对 migration 权威的方言生效。
+
+全量：`pytest tests -q --ignore=tests/load` → **480 passed**。
+
 
 ---
 

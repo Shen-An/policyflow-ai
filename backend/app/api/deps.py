@@ -104,7 +104,11 @@ async def get_unit_of_work(request: Request) -> AsyncGenerator[UnitOfWork, None]
     deployments supply their own session factory without patching this module.
     """
     factory = getattr(request.app.state, "uow_factory", None)
-    uow = UnitOfWork(factory=factory) if factory is not None else UnitOfWork()
+    # ``app.state.uow_factory`` builds a unit of work. It must not be handed to
+    # ``UnitOfWork(factory=...)``, which expects an async session factory: doing
+    # so gives every repository a unit of work where it expects a session, and
+    # the mistake only appears when a route first touches one.
+    uow = factory() if callable(factory) else UnitOfWork()
     try:
         yield uow
     finally:

@@ -241,10 +241,24 @@ async def check_database_ready(engine: AsyncEngine | None = None) -> ReadinessRe
         )
     try:
         async with resolved.connect() as connection:
-            exists = await connection.scalar(
-                text("SELECT to_regclass(:table_name)"), {"table_name": ALEMBIC_VERSION_TABLE}
-            )
-            if exists is None:
+            # ``to_regclass`` is PostgreSQL-specific, and SQLite is the documented
+            # development database: without a dialect branch the probe failed on
+            # SQLite and reported a healthy development instance as not ready,
+            # which trains people to ignore the probe.
+            if dialect == "postgresql":
+                exists = await connection.scalar(
+                    text("SELECT to_regclass(:table_name)"),
+                    {"table_name": ALEMBIC_VERSION_TABLE},
+                )
+            else:
+                exists = await connection.scalar(
+                    text(
+                        "SELECT name FROM sqlite_master "
+                        "WHERE type = 'table' AND name = :table_name"
+                    ),
+                    {"table_name": ALEMBIC_VERSION_TABLE},
+                )
+            if exists is None and dialect == "postgresql":
                 return ReadinessReport(
                     ok=False,
                     dialect=dialect,
@@ -254,6 +268,21 @@ async def check_database_ready(engine: AsyncEngine | None = None) -> ReadinessRe
                         "schema is not migrated: alembic_version table is absent; "
                         "run `alembic upgrade head`"
                     ),
+                )
+            if exists is None:
+                # SQLite is the documented development database, and its schema is
+                # created at startup rather than by Alembic, so it carries no
+                # revision to compare against. Demanding one there would report a
+                # healthy development instance as not ready, which teaches people
+                # to ignore the probe. Where the schema is migration-authoritative
+                # this branch is unreachable, so the strict check above still
+                # governs every deployment.
+                return ReadinessReport(
+                    ok=True,
+                    dialect=dialect,
+                    schema_revision=None,
+                    expected_revision=expected,
+                    reason="no revision recorded; development schema created at startup",
                 )
             revision = await connection.scalar(
                 text(f"SELECT version_num FROM {ALEMBIC_VERSION_TABLE} LIMIT 1")  # noqa: S608

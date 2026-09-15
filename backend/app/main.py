@@ -10,9 +10,10 @@ from uuid import uuid4
 
 from fastapi import FastAPI
 from sqlalchemy.engine import Engine
+from sqlalchemy.ext.asyncio import async_sessionmaker
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 
 from backend.app.agents.answer_agent import AnswerAgent
 from backend.app.agents.compliance_agent import ComplianceAgent
@@ -39,6 +40,7 @@ from backend.app.api.routes_settings import router as settings_router
 from backend.app.api.routes_skill import router as skill_router
 from backend.app.api.routes_tool import router as tool_router
 from backend.app.api.routes_users import router as users_router
+from backend.app.api.routes_v2 import router as v2_router
 from backend.app.core.config import Settings, get_settings
 from backend.app.core.exceptions import (
     register_exception_handlers,
@@ -51,9 +53,16 @@ from backend.app.core.logging import (
     reset_request_id,
 )
 from backend.app.db.init_db import initialize_database
-from backend.app.db.session import build_engine, get_engine
+from backend.app.db.repositories import UnitOfWork
+from backend.app.db.session import (
+    build_async_engine,
+    build_engine,
+    check_database_ready,
+    get_engine,
+)
 from backend.app.frontend import mount_frontend
 from backend.app.mcp.manager import MCPManager
+from backend.app.observability.telemetry import configure_telemetry
 from backend.app.rag.bm25_retriever import BM25Retriever
 from backend.app.rag.cross_encoder_rerank_service import NvidiaCrossEncoderRerankService
 from backend.app.rag.hybrid_retriever import HybridRetriever
@@ -159,8 +168,23 @@ def create_app(
         embedding_service=embedding_service,
     )
 
+    # The async plane is built alongside the synchronous one. It owns its own
+    # engine because async connections cannot be shared with synchronous callers,
+    # and it is what every unit of work runs on.
+    async_engine = build_async_engine(app_settings.DATABASE_URL, app_settings)
+    async_session_factory = async_sessionmaker(async_engine, expire_on_commit=False)
+
+    def build_unit_of_work() -> UnitOfWork:
+        """Return a unit of work bound to this application's async engine.
+
+        The factory is published on the application so that a request neither
+        reaches for a process-wide engine nor invents its own transaction scope.
+        """
+        return UnitOfWork(factory=async_session_factory)
+
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        configure_telemetry(service_name=app_settings.PROJECT_NAME)
         summary = initialize_database(engine, app_settings)
         logger.info(
             "Application started",
@@ -177,6 +201,7 @@ def create_app(
             close_reranker = getattr(reranker, "close", None)
             if close_reranker is not None:
                 await close_reranker()
+        await async_engine.dispose()
         engine.dispose()
         logger.info("Application stopped")
 
@@ -188,6 +213,8 @@ def create_app(
     )
     application.state.settings = app_settings
     application.state.engine = engine
+    application.state.async_engine = async_engine
+    application.state.uow_factory = build_unit_of_work
     application.state.lightrag_adapter = adapter
     application.state.llm_service = language_model
     application.state.embedding_service = embedding_service
@@ -252,10 +279,39 @@ def create_app(
     application.include_router(skill_router)
     application.include_router(tool_router)
     application.include_router(users_router)
+    application.include_router(v2_router)
 
     @application.get("/health", tags=["system"])
     async def health_check() -> dict[str, str]:
+        """Liveness: this process is running.
+
+        Deliberately does not touch the database. A liveness probe that failed on
+        a database blip would restart otherwise healthy instances and turn one
+        dependency's outage into a fleet-wide one.
+        """
         return {"status": "ok"}
+
+    @application.get("/ready", tags=["system"])
+    async def readiness_check() -> JSONResponse:
+        """Readiness: this instance may serve authoritative reads.
+
+        Answers 503 unless the schema has reached the expected revision, so an
+        instance that is running but pointed at an unmigrated database is kept
+        out of rotation instead of answering with wrong results. This is the only
+        place where "the process is up" and "the process can be trusted" are
+        distinguished.
+        """
+        report = await check_database_ready(async_engine)
+        return JSONResponse(
+            status_code=200 if report.ok else 503,
+            content={
+                "status": "ready" if report.ok else "not-ready",
+                "database": report.reason or "ok",
+                "dialect": report.dialect,
+                "schema_revision": report.schema_revision,
+                "expected_revision": report.expected_revision,
+            },
+        )
 
     if frontend_dist is not None:
         mount_frontend(application, frontend_dist)
