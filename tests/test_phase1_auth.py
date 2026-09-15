@@ -10,7 +10,7 @@ from sqlmodel import Session, select
 
 from backend.app.core.config import Settings
 from backend.app.core.security import create_access_token
-from backend.app.db.models import User
+from backend.app.db.models import Role, User, UserRoleGrant
 from backend.app.main import create_app
 
 
@@ -65,6 +65,72 @@ def test_invalid_credentials_return_auth_error(tmp_path: Path) -> None:
 
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "AUTH_INVALID_CREDENTIALS"
+
+
+def test_bootstrap_admin_receives_a_role_grant(tmp_path: Path) -> None:
+    """The first account must be able to act, not merely to log in.
+
+    The principal and fresh authorization read ``user_role_grants``; the legacy
+    ``user_roles`` link alone would leave the bootstrap administrator without a
+    membership and therefore unable to do anything.
+    """
+    app = build_auth_app(tmp_path)
+
+    with TestClient(app):  # entering the context runs startup, which seeds
+        with Session(app.state.engine) as session:
+            admin = session.exec(select(User).where(User.username == "admin")).one()
+            grants = session.exec(
+                select(UserRoleGrant).where(UserRoleGrant.user_id == admin.id)
+            ).all()
+
+    assert admin.tenant_id is not None
+    assert len(grants) >= 1
+    assert all(grant.tenant_id == admin.tenant_id for grant in grants)
+
+
+def test_role_assignment_writes_both_the_link_and_the_grant(tmp_path: Path) -> None:
+    """Assigning roles must land in the grants table, and removal must too."""
+    app = build_auth_app(tmp_path)
+
+    with TestClient(app) as client:
+        admin_headers = auth_headers(login(client, "admin", "test-password")["access_token"])
+        created = client.post(
+            "/api/users",
+            headers=admin_headers,
+            json={
+                "username": "lisi",
+                "email": "lisi@example.com",
+                "display_name": "李四",
+                "password": "employee-password",
+                "role_codes": ["employee"],
+            },
+        )
+        assert created.status_code == 201, created.text
+        user_id = created.json()["id"]
+        granted = client.put(
+            f"/api/users/{user_id}/roles",
+            headers=admin_headers,
+            json={"role_codes": ["employee", "kb_admin"]},
+        )
+        assert granted.status_code == 200, granted.text
+        revoked = client.put(
+            f"/api/users/{user_id}/roles",
+            headers=admin_headers,
+            json={"role_codes": ["employee"]},
+        )
+        assert revoked.status_code == 200, revoked.text
+
+    with Session(app.state.engine) as session:
+        codes = {role.code for role in session.exec(select(Role)).all()}
+        assert codes  # the role vocabulary must exist for the assertions below
+        grants = session.exec(
+            select(UserRoleGrant).where(UserRoleGrant.user_id == user_id)
+        ).all()
+        by_id = {role.id: role.code for role in session.exec(select(Role)).all()}
+
+    # The revoked kb_admin grant must be gone, and employee must remain: removal
+    # is what keeps expiry and revocation on the same single path.
+    assert sorted(by_id[grant.role_id] for grant in grants) == ["employee"]
 
 
 def test_sys_admin_can_manage_users_and_employee_is_denied(tmp_path: Path) -> None:

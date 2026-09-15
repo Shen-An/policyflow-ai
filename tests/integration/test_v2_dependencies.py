@@ -24,15 +24,17 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlmodel import Session, create_engine
 
 from backend.app.api.deps import (
+    AuthorizationDep,
     PrincipalDep,
     UnitOfWorkDep,
     get_db_session,
     get_unit_of_work,
 )
+from backend.app.auth.authorization import Action, ResourceRef
 from backend.app.core.config import Settings
 from backend.app.core.security import create_access_token
 from backend.app.db.models import Role, Tenant, User, UserRoleGrant
-from backend.app.db.repositories import UnitOfWork
+from backend.app.db.repositories import RESOURCE_KIND_USER, UnitOfWork
 from backend.app.db.session import build_async_engine
 from backend.app.main import create_app
 
@@ -64,6 +66,22 @@ async def probe_unit(uow: UnitOfWorkDep) -> dict[str, Any]:
     """Report a per-request identity for the unit of work."""
     seen_units.append(id(uow))
     return {"index": len(seen_units)}
+
+
+@probe.get("/authorize")
+async def probe_authorize(principal: PrincipalDep, service: AuthorizationDep) -> dict[str, Any]:
+    """Authorize freshly against a catalogued kind whose resource does not exist.
+
+    ``user`` is used because it is one of the kinds the unit-of-work catalogue
+    actually knows; the id is deliberately absent so a denial can only come from
+    the resource check rather than from a missing scope.
+    """
+    decision = await service.authorize_fresh(
+        principal,
+        Action.READ,
+        ResourceRef(kind=RESOURCE_KIND_USER, id=USER_BETA, tenant_id=TENANT_ALPHA),
+    )
+    return {"allowed": decision.allowed, "code": decision.code, "reason": decision.reason_code}
 
 
 @pytest.fixture(scope="module")
@@ -282,6 +300,21 @@ def test_each_request_gets_its_own_unit_of_work(client: TestClient) -> None:
     assert second.status_code == 200
     assert len(seen_units) == 2
     assert seen_units[0] != seen_units[1]
+
+
+def test_fresh_authorization_fails_closed_for_a_missing_resource(
+    client: TestClient,
+) -> None:
+    """authorize_fresh reaches the catalogue and denies an unprovable resource.
+
+    The member holds the ``read`` action, so a denial here can only come from the
+    resource check: it proves the asynchronous catalogue is actually consulted
+    rather than silently skipped, which would widen every decision.
+    """
+    response = client.get("/probe/authorize", headers=headers(mint(TENANT_ALPHA, USER_ALPHA)))
+
+    assert response.status_code == 200, response.text
+    assert response.json()["allowed"] is False
 
 
 def test_a_token_cannot_be_minted_without_a_tenant() -> None:

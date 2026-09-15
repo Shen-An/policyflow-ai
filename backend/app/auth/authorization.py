@@ -500,14 +500,44 @@ class AuthorizationService:
             resolved_action,
             resource_ref,
             scopes=scopes,
-            resource_exists=self._resource_exists(resource_ref),
+            resource_exists=await self._resource_exists_async(resource_ref),
         )
 
     def _resource_exists(self, resource_ref: ResourceRef) -> bool | None:
-        """Return catalogue presence, or ``None`` when no catalogue is bound."""
+        """Return catalogue presence, or ``None`` when no catalogue is bound.
+
+        This synchronous form only serves a synchronous catalogue; the async
+        authorization path uses :meth:`_resource_exists_async`.
+        """
         if self._resource_catalog is None:
             return None
         return self._resource_catalog.contains(resource_ref)
+
+    async def _resource_exists_async(self, resource_ref: ResourceRef) -> bool | None:
+        """Resolve catalogue presence for either published catalogue shape.
+
+        Two catalogues exist and they answer the same question from different
+        sides: the synchronous, single-argument ``ResourceCatalog``, and the
+        tenant-qualified asynchronous catalogue that shares the request's own
+        connection and transaction. The asynchronous one exposes a
+        ``contains_ref`` coroutine so it can be driven from here without a second
+        connection; when a catalogue offers only ``contains``, its result is
+        awaited in case it is a coroutine rather than a value.
+
+        A catalogue that cannot answer returns ``None``, which fails closed:
+        ``evaluate_authorization`` treats unknown presence as absent.
+        """
+        catalog = self._resource_catalog
+        if catalog is None:
+            return None
+        contains_ref = getattr(catalog, "contains_ref", None)
+        result = (
+            contains_ref(resource_ref)
+            if callable(contains_ref)
+            else catalog.contains(resource_ref)
+        )
+        resolved = await _resolve(result)
+        return None if resolved is None else bool(resolved)
 
 
     async def authorization_version(self, principal: RequestPrincipal) -> int:

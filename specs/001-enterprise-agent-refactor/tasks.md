@@ -71,7 +71,7 @@ description: "企业级智能体重构的可执行实施任务清单"
 - [X] T030 在 `migrations/versions/001_enterprise_expand.py` 中创建 additive schema、`legacy` tenant/membership、nullable tenant ownership 与 RLS policy，应用角色不得拥有表或 `BYPASSRLS`（依赖 T024–T027）
 - [X] T031 在 `migrations/backfill_legacy_tenant.py` 中实现 conversations/messages/memory/knowledge/eval 的可重启批量回填，持久化 cursor、source/target count、checksum 和 failures（依赖 T030）
 - [X] T032 在 `migrations/versions/002_enterprise_enforce.py` 中于核对通过后增加 NOT NULL、tenant-aware FK/composite unique 及 RLS 强制约束（依赖 T031）
-- [ ] T033 在 `backend/app/api/deps.py` 中接入 principal、async Unit of Work 与 fresh authorization 依赖，并禁止路由从 body/query 接受 tenant/user 身份
+- [X] T033 在 `backend/app/api/deps.py` 中接入 principal、async Unit of Work 与 fresh authorization 依赖，并禁止路由从 body/query 接受 tenant/user 身份
 - [ ] T034 在 `backend/app/main.py` 中接入 async lifespan、v2 router、health/readiness 与 OTel，移除 correctness 对进程锁、队列、缓存和 startup migration 的依赖
 - [ ] T035 将 `backend/app/services/memory_service.py`、`backend/app/services/knowledge_base_service.py` 和 `backend/app/services/eval_service.py` 的权威读写迁移到 tenant-aware async repository，并保持四层记忆非权威与现有 Eval 语义（依赖 T027、T033）
 - [ ] T036 运行 `tests/integration/test_postgres_migrations.py`、`tests/integration/test_multi_instance.py`、`tests/security/test_tenant_isolation.py` 并把迁移 count/checksum 证据保存到 `artifacts/migration/stage2/`（依赖 T016–T035）
@@ -145,7 +145,15 @@ description: "企业级智能体重构的可执行实施任务清单"
 2. **`user_roles`（遗留）与 `user_role_grants`（Stage 2）不一致。** 遗留管理界面通过 `user_roles` 授角色，而 `get_principal` 只读 `user_role_grants`。因此真实用户登录后构造 principal 会因「无 membership」被拒——测试中是直接写 grant 才走通的。**Phase 2 没有任何任务覆盖这项桥接。**
 3. `app.state.uow_factory` 尚不存在（属 T034 的 async lifespan 职责）；当前 `UnitOfWork()` 回落到进程级 async factory。
 
-因此 T033 **保持未勾选**：principal 一条已可用且有测试，authorization 一条既不可用也无测试。
+**T033 完成（2026-09-15）**。四条验收全部达成且有测试：principal 派生、async Unit of Work、fresh authorization、禁止从 body/query 接受身份。
+
+- 资源目录协议冲突已解：`UnitOfWorkResourceCatalog` 增加 `contains_ref(resource_ref)` 协程以符合 `AuthorizationService` 的 `ResourceCatalog` 契约，service 侧新增 `_resource_exists_async` 负责解析 awaitable。异步目录现在**真的会被查询**——`test_fresh_authorization_fails_closed_for_a_missing_resource` 用「持有 read 角色但资源不存在」证明拒绝只可能来自资源检查，而不是目录被静默跳过（跳过即等于放宽）。
+- `user_roles` → `user_role_grants` 桥接完成：新增 `sync_role_grants`，`update_user_roles` 调用它（新增与**移除**同步，使撤销走同一条路）；种子为引导管理员建 grant。测试：`test_bootstrap_admin_receives_a_role_grant`、`test_role_assignment_writes_both_the_link_and_the_grant`。
+- 真机验证（`scripts/_verify_t033_bridge.py`，对 `policyflow.db`）：`admin.tenant_id=00000000-…-0001`、`user_role_grants=1`（`revoked_at=None`、无 `expires_at`）、登录 OK、token 的租户声明与 subject 一致。
+
+**遗留（不阻塞 T033，但会影响后续）**：资源目录只登记 7 种 kind（tenant/user/role/user_role_grant/agent_run/checkpoint_binding/audit_event），**不含 knowledge_base 等业务资源**；对这些 kind 调用 `contains` 会抛 `UnknownResourceKindError`（实测 400）。在补齐 kind 之前，业务资源的授权无法做存在性检查。
+
+全量：`pytest tests -q --ignore=tests/load` → **474 passed**。
 
 ---
 

@@ -44,6 +44,7 @@ from backend.app.db.models import (
     ToolCallLog,
     User,
     UserRole,
+    UserRoleGrant,
     utc_now,
 )
 from backend.app.db.session import (
@@ -712,6 +713,25 @@ def seed_initial_data(
             admin_role = session.get(UserRole, (admin.id, roles["sys_admin"].id))
             if admin_role is None:
                 session.add(UserRole(user_id=admin.id, role_id=roles["sys_admin"].id))
+
+            # The principal and fresh authorization read grants, not the legacy
+            # link table, so the bootstrap administrator needs a grant as well.
+            # Without it the very first account could log in but never act.
+            existing_grant = session.exec(
+                select(UserRoleGrant).where(
+                    UserRoleGrant.tenant_id == admin.tenant_id,
+                    UserRoleGrant.user_id == admin.id,
+                    UserRoleGrant.role_id == roles["sys_admin"].id,
+                )
+            ).first()
+            if existing_grant is None:
+                session.add(
+                    UserRoleGrant(
+                        tenant_id=admin.tenant_id,
+                        user_id=admin.id,
+                        role_id=roles["sys_admin"].id,
+                    )
+                )
 
         for name, description, risk_level in SKILL_SEEDS:
             if session.exec(select(Skill).where(Skill.name == name)).first() is None:

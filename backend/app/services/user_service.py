@@ -6,7 +6,14 @@ from sqlmodel import Session, col, select
 
 from backend.app.core.exceptions import ConflictError, NotFoundError
 from backend.app.core.security import hash_password
-from backend.app.db.models import Department, Role, User, UserRole, utc_now
+from backend.app.db.models import (
+    Department,
+    Role,
+    User,
+    UserRole,
+    UserRoleGrant,
+    utc_now,
+)
 from backend.app.schemas.user import DepartmentRead, UserCreate, UserListResponse, UserRead
 
 
@@ -145,6 +152,43 @@ def list_users(
     )
 
 
+def sync_role_grants(
+    session: Session, tenant_id: str, user_id: str, role_ids: list[str]
+) -> None:
+    """Make a member's grants match the given role assignments.
+
+    ``user_role_grants`` is what the principal and fresh authorization read, while
+    ``user_roles`` is the legacy link table the administrator interface still
+    writes. Until that table is retired in the contract phase both must carry the
+    same assignment, or a member would be authorized against roles that no part
+    of the UI can show. Removing an assignment removes its grant, so revocation
+    and expiry keep working through the same single path.
+
+    Raises:
+        ValueError: when no tenant is supplied, which would make the write
+            unattributable.
+    """
+    if not isinstance(tenant_id, str) or not tenant_id.strip():
+        raise ValueError("sync_role_grants requires a tenant_id")
+    tenant = tenant_id.strip()
+    wanted = set(role_ids)
+    existing = session.exec(
+        select(UserRoleGrant).where(
+            UserRoleGrant.tenant_id == tenant,
+            UserRoleGrant.user_id == user_id,
+        )
+    ).all()
+    by_role = {grant.role_id: grant for grant in existing}
+    for role_id, grant in by_role.items():
+        if role_id not in wanted:
+            session.delete(grant)
+    for role_id in wanted:
+        if role_id not in by_role:
+            session.add(
+                UserRoleGrant(tenant_id=tenant, user_id=user_id, role_id=role_id)
+            )
+
+
 def update_user_roles(session: Session, user_id: str, role_codes: list[str]) -> UserRead:
     user = get_user_by_id(session, user_id)
     roles = _resolve_roles(session, role_codes)
@@ -153,6 +197,7 @@ def update_user_roles(session: Session, user_id: str, role_codes: list[str]) -> 
         session.delete(link)
     for role in roles:
         session.add(UserRole(user_id=user_id, role_id=role.id))
+    sync_role_grants(session, user.tenant_id or "", user_id, [role.id for role in roles])
     user.updated_at = utc_now()
     session.add(user)
     session.commit()

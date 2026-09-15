@@ -605,6 +605,21 @@ class UnitOfWorkResourceCatalog:
         """Bind the catalogue to a unit-of-work session."""
         self._session = session
 
+    async def contains_ref(self, resource_ref: Any) -> bool:
+        """Answer presence from a resource reference, matching the sync protocol.
+
+        ``AuthorizationService`` holds the documented synchronous
+        ``ResourceCatalog`` contract, which passes one reference. This coroutine
+        lets the same service drive this asynchronous, tenant-qualified catalogue
+        without opening a second connection or blocking the event loop.
+        """
+        tenant_id = getattr(resource_ref, "tenant_id", None) or ""
+        return await self.contains(
+            tenant_id,
+            getattr(resource_ref, "kind", ""),
+            getattr(resource_ref, "id", ""),
+        )
+
     async def contains(self, tenant_id: str, resource_kind: str, resource_id: str) -> bool:
         """Return whether the resource is visible, never revealing its owner.
 
