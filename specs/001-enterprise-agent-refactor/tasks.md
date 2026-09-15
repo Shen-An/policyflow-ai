@@ -107,6 +107,23 @@ description: "企业级智能体重构的可执行实施任务清单"
 
 **T035 可行性复核（2026-09-15，改变工期判断）**：乐观面——`MemoryAgent.load`/`writeback` 与两个 memory tool **已是 async**，chat 流水线已 `await`。但悲观面更实：`memory_service.py` 里碰 `MemoryItem` 的是 **12 个同步函数**（`write_memory`、`read_memory`、`list_fixed_memories`、`search_memories_scored`、`search_memories`、`touch_access`、`upsert_entity`、`find_similar_preference`、`list_user_memories`、`get_user_memory`、`delete_user_memory` 等），且存在**同步消费者**：`MemoryAgent.run`（chat_service:1089 直接调用）、`build_answer_context`（同步），`routes_memory.py` 亦同步。结论：T035 不是「3 个函数 + 30 个调用点」，而是**整个 542 行同步服务层的 async 化**（含其同步消费者），需要一段完整预算、以独立一轮（或两轮）处理；若只做同步路径的租户修正而不 async 化，则与任务字面要求（迁移到 async repository）不符，需用户定夺取舍。
 
+**T035 可执行施工计划（2026-09-15，供接手方直接执行，无需重新推导）**
+
+前置结论（已实测，勿再假设）：
+- 读迁移**不能先于**写迁移（见上「顺序约束」）：遗留写入不落 `tenant_id`，租户化读看不见这些行。
+- 因此正确做法是**逐模块同时迁移读与写**，不是按读/写分两轮。
+- 建议第一个模块 = `memory_service`（暴露最明确，且 PG 上有硬验证锚点）。
+
+执行步骤：
+
+1. **写路径**：`write_memory` 增必填 `tenant_id`，构造 `MemoryItem` 时落该列。修改点：`memory_service.py:41`（本体）、`:370`（内部 `upsert_entity` 的调用）。调用方 `memory_agent.py:151/213/240/319/386`、`builtin_tools.py:61`——这些函数**已是 async**，且作用域内有 `user`，取 `user.tenant_id` 即可。
+2. **读路径**：`read_memory`（`:82`）、`list_fixed_memories`（`:102`）、`list_user_memories`（`:445`）、`get_user_memory`（`:524`）、`delete_user_memory`（`:539`）同样增必填 `tenant_id` 并加租户谓词。对应的仓库方法已在位：`create` / `list_for_owner` / `list_for_user` / `get_for_owner` / `delete_for_owner`（`backend/app/db/repositories.py` 的 `MemoryItemRepository`）。
+3. **同步消费者必须 async 化**（这是本任务的主要成本）：`memory_agent.py` 的 `build_answer_context:260`、`run:378`；其调用方 `chat_service.py:1089`。`routes_memory.py` 的 DELETE 处理器。
+4. **测试**：约 14 处调用点需补 tenant 参数——`test_memory_system.py`（约 9）、`test_memory_management_api.py`（3）、`test_phase3_skill_draft_mcp_memory.py`（2）。**注意**：这些测试目前用遗留 `write_memory` 造数据；改完写路径后它们会自动落租户，故应**先改写路径再改测试**，否则测试会因可见性变化先红。
+5. **`routes_memory.py`**：GET 切 `uow.memories.list_for_user` + `user.tenant_id`（上一轮已验证该切换本身可行，唯一阻塞是数据未落租户）；DELETE 需要**会话感知删除**（`owner_type == "conversation"` 且该会话属于本用户），仓库目前只有 owner 限定版，需补 `get_for_user` / `delete_for_user`。
+6. **`eval_service.py`**（755 行，0 处租户感知）最后处理，语义需保持现有 Eval 行为不变。
+7. **验证锚点**（可证伪，优先于主观判断）：① PG 上遗留 `write_memory` 被 `IntegrityError(tenant_id)` 拒绝的测试（`test_memory_repository.py` 内，docstring 已注明修复后删除该测试）必须转为失败；② 相同 `owner_id` 的两租户互不可见；③ 全量套件绿。**门禁判断必须用 `$LASTEXITCODE`，不要用字符串匹配**（见上「顺序约束」中记录的守卫失误）。
+
 
 
 - [ ] T036 运行 `tests/integration/test_postgres_migrations.py`、`tests/integration/test_multi_instance.py`、`tests/security/test_tenant_isolation.py` 并把迁移 count/checksum 证据保存到 `artifacts/migration/stage2/`（依赖 T016–T035）
