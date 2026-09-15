@@ -133,6 +133,28 @@ description: "企业级智能体重构的可执行实施任务清单"
 
 **结论**：写路径**必须**按计划第 1 步做「显式 `tenant_id` 参数 + 迁移调用点」，不存在低改动的替代路径。这也第三次印证了同一件事：T035 的读写是一个不可分割的整体，任何"绕开调用点"的取巧都会在可见性或测试库约束上失败。设计问题至此关闭，无需再试捷径。
 
+**调用点精确清单（2026-09-15 实测生成，接手方按此执行即可）**
+
+**关键结构事实**：`memory_items` 的 owner **允许不对应任何行**。`tests/test_memory_system.py` 全部用字面量 owner（`"u1"`）写记忆，该文件内**不存在任何 `User(` 构造**。这既解释了「捷径 1」为何 12 个测试失败（无 owner 行可查），也说明**显式 `tenant_id` 参数不是风格偏好，而是数据模型的硬要求**——没有 owner 行可咨询，租户只能由调用方给出。
+
+生产调用点（9 处，均需补显式租户）：
+
+| 位置 | owner | 租户来源 |
+|---|---|---|
+| `memory_agent.py:68` | `user.id` | `user.tenant_id` |
+| `memory_agent.py:128` | `user.id` | `user.tenant_id` |
+| `memory_agent.py:151` | `user.id` | `user.tenant_id` |
+| `memory_agent.py:213` | `user.id` | `user.tenant_id` |
+| `memory_agent.py:240` | `conversation.id` | **取行动用户**的 `user.tenant_id`（会话自身的 `tenant_id` 可能为 NULL，不可依赖） |
+| `memory_agent.py:319` | `conversation.id` | 同上 |
+| `memory_agent.py:386` | `conversation_id` | 同上 |
+| `builtin_tools.py:61` | `owner_type/owner_id`（来自 `_resolve_memory_owner(user, payload)`） | 需核查该函数是否允许 payload 指定 owner；若允许，则须以 `user.tenant_id` 为准 |
+| `memory_service.py:370` / `:404` | `user_id` | 由上层包装函数透传（**这些包装函数的签名也要改**） |
+
+测试调用点（16 处）：`test_memory_system.py` 共 12 处（154/163/217/252/259/356/369/413/426/456/466 + 347 的断言处），owner 均为字面量 `"u1"` → 传**测试租户常量**即可（SQLite 测试不校验 FK）；`test_memory_management_api.py` 80/87/94 → 前两处用 `user.tenant_id`，第三处 owner 为 `"other-user"`（用于跨用户不可见断言）；`test_phase3_skill_draft_mcp_memory.py` 265/274 → 字面量 `"user-1"`。
+
+顺序提醒（重复强调，两轮代价换来）：**先改生产写路径与调用点，再改测试**；否则测试会因可见性变化先红，掩盖真实错误。
+
 
 
 - [ ] T036 运行 `tests/integration/test_postgres_migrations.py`、`tests/integration/test_multi_instance.py`、`tests/security/test_tenant_isolation.py` 并把迁移 count/checksum 证据保存到 `artifacts/migration/stage2/`（依赖 T016–T035）
