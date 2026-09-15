@@ -190,6 +190,26 @@ description: "企业级智能体重构的可执行实施任务清单"
 
 全量：`pytest tests -q --ignore=tests/load` → **480 passed**。
 
+**T034 遗留子句的审计结论（2026-09-15）**：此前我标注「进程内锁/队列/缓存的正确性依赖」**未验证**。现做审计，结论如下。
+
+已核实（全 `backend/app` 扫描）：
+
+| 进程内构造 | 保护什么 | 是否权威正确性 |
+|---|---|---|
+| `observability/telemetry.py` `_STATE_LOCK`（RLock） | 模块级 telemetry 配置 | 否，配置状态 |
+| `rag/cross_encoder_rerank_service.py` `_rotation_lock` | 凭据轮换 | 否 |
+| `rag/inprocess_lightrag.py` `_locks`（per-KB asyncio.Lock） | **进程内 workspace 记忆化缓存的初始化**（`self._workspaces`），并在 provider 签名变化时 finalize 旧 storage | 否，是缓存初始化，不是数据权威 |
+| `services/llm_service.py` `_request_semaphore` | 并发限流 | 否 |
+| `services/chat_service.py` `event_queue` | 单请求 SSE 队列 | 否，请求内 |
+| `mcp/manager.py` `ThreadPoolExecutor(max_workers=1)` | 串行化 MCP 调用 | 否（但见下） |
+
+**结论**：未发现任何进程内状态被当作**持久化数据、身份或授权**的正确性权威——那些全部由 PostgreSQL 承载并有测试覆盖。因此 T034 保持 `[X]`。
+
+**两项仍未验证的跨实例疑点**（如实记录，不当作已解决，也不当作缺陷）：
+1. **RAG workspace 是文件系统路径**（`knowledge_base.rag_workspace`）。上面那把 per-KB 锁只在**单进程内**排他；若两个实例共享该路径，锁无法阻止并发写入同一 workspace。是否共享取决于部署方式，仓库内**无文档说明**，故无法判定为缺陷或非缺陷。
+2. **`rag_index_jobs` 的任务认领是否为数据库级**尚未核查。若认领是进程内的，则同一 KB 的索引任务可能被两个实例同时执行。这是最值得下一步查的一处。
+
+
 
 ---
 
