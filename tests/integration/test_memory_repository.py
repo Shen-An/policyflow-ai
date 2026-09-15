@@ -200,6 +200,116 @@ def test_an_async_session_is_used_end_to_end(memory_url: str) -> None:
     assert asyncio.run(inspect()) is AsyncSession
 
 
+def test_a_memory_cannot_be_fetched_across_tenants(memory_url: str) -> None:
+    """A memory id is only meaningful inside the tenant and owner that hold it.
+
+    The owner is part of the lookup, so a foreign id and a missing id produce the
+    same refusal rather than telling a caller that the row exists elsewhere.
+    """
+    from backend.app.core.exceptions import ApplicationError
+
+    async def store_and_probe() -> tuple[str, str]:
+        engine = build_async_engine(memory_url)
+        try:
+            factory = async_sessionmaker(engine, expire_on_commit=False)
+            async with UnitOfWork(factory=factory) as uow:
+                await uow.set_tenant_context(TENANT_BETA)
+                item = await uow.memories.create(
+                    TENANT_BETA,
+                    owner_type="user",
+                    owner_id=OWNER,
+                    memory_type="preference",
+                    content="beta secret",
+                )
+                await uow.commit()
+                memory_id = item.id
+
+            # Same id, different tenant: must not be readable.
+            async with UnitOfWork(factory=factory) as uow:
+                await uow.set_tenant_context(TENANT_ALPHA)
+                try:
+                    await uow.memories.get_for_owner(
+                        TENANT_ALPHA,
+                        memory_id,
+                        owner_type="user",
+                        owner_id=OWNER,
+                    )
+                    foreign = "readable"
+                except ApplicationError:
+                    foreign = "refused"
+
+            # Same id and tenant, different owner: must not be readable either.
+            async with UnitOfWork(factory=factory) as uow:
+                await uow.set_tenant_context(TENANT_BETA)
+                try:
+                    await uow.memories.get_for_owner(
+                        TENANT_BETA,
+                        memory_id,
+                        owner_type="user",
+                        owner_id="99999999-9999-9999-9999-999999999999",
+                    )
+                    other_owner = "readable"
+                except ApplicationError:
+                    other_owner = "refused"
+
+            # And the true owner still reads it, so the refusals are meaningful.
+            async with UnitOfWork(factory=factory) as uow:
+                await uow.set_tenant_context(TENANT_BETA)
+                owned = await uow.memories.get_for_owner(
+                    TENANT_BETA, memory_id, owner_type="user", owner_id=OWNER
+                )
+            return foreign, f"{other_owner}:{owned.content}"
+        finally:
+            await engine.dispose()
+
+    foreign, own = asyncio.run(store_and_probe())
+
+    assert foreign == "refused"
+    assert own == "refused:beta secret"
+
+
+def test_deleting_a_foreign_memory_is_refused(memory_url: str) -> None:
+    """A delete scoped to the wrong tenant must not remove somebody else's row."""
+    from backend.app.core.exceptions import ApplicationError
+
+    async def store_then_delete_from_alpha() -> bool:
+        engine = build_async_engine(memory_url)
+        try:
+            factory = async_sessionmaker(engine, expire_on_commit=False)
+            async with UnitOfWork(factory=factory) as uow:
+                await uow.set_tenant_context(TENANT_BETA)
+                item = await uow.memories.create(
+                    TENANT_BETA,
+                    owner_type="user",
+                    owner_id=OWNER,
+                    memory_type="preference",
+                    content="must survive",
+                )
+                await uow.commit()
+                memory_id = item.id
+
+            async with UnitOfWork(factory=factory) as uow:
+                await uow.set_tenant_context(TENANT_ALPHA)
+                try:
+                    await uow.memories.delete_for_owner(
+                        TENANT_ALPHA, memory_id, owner_type="user", owner_id=OWNER
+                    )
+                    await uow.commit()
+                except ApplicationError:
+                    await uow.rollback()
+
+            async with UnitOfWork(factory=factory) as uow:
+                await uow.set_tenant_context(TENANT_BETA)
+                survivor = await uow.memories.get_for_owner(
+                    TENANT_BETA, memory_id, owner_type="user", owner_id=OWNER
+                )
+            return survivor.content == "must survive"
+        finally:
+            await engine.dispose()
+
+    assert asyncio.run(store_then_delete_from_alpha()) is True
+
+
 def test_the_legacy_memory_write_is_rejected_by_the_enforced_schema(
     memory_url: str,
 ) -> None:

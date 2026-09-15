@@ -2504,6 +2504,64 @@ class MemoryItemRepository:
         )
 
 
+    async def get_for_owner(
+        self,
+        tenant_id: str,
+        memory_id: str,
+        *,
+        owner_type: str,
+        owner_id: str,
+    ) -> MemoryItem:
+        """Return one memory of this tenant and owner, or a not-found error.
+
+        The owner is part of the lookup rather than a check applied afterwards, so
+        an id that belongs to another tenant or another owner is indistinguishable
+        from one that does not exist. That keeps the refusal non-enumerating.
+
+        Raises:
+            TenantScopeError: when ``tenant_id`` is empty or missing.
+            ValueError: when a required text field is empty.
+            ResourceNotFoundError: when no matching memory exists.
+        """
+        tenant = require_tenant(tenant_id, "MemoryItemRepository.get_for_owner")
+        identifier = _require_text(memory_id, "memory_id")
+        rows = await _fetch_all(
+            self._session,
+            select(MemoryItem).where(
+                _tenant_predicate(MemoryItem, tenant),
+                MemoryItem.id == identifier,
+                MemoryItem.owner_type == _require_text(owner_type, "owner_type"),
+                MemoryItem.owner_id == _require_text(owner_id, "owner_id"),
+            ),
+        )
+        if not rows:
+            raise ResourceNotFoundError("memory", identifier)
+        return rows[0]
+
+    async def delete_for_owner(
+        self,
+        tenant_id: str,
+        memory_id: str,
+        *,
+        owner_type: str,
+        owner_id: str,
+    ) -> None:
+        """Remove one memory of this tenant and owner.
+
+        The caller commits: a unit of work owns the transaction, so deleting does
+        not quietly decide the outcome of the rest of the request.
+
+        Raises:
+            TenantScopeError: when ``tenant_id`` is empty or missing.
+            ResourceNotFoundError: when no matching memory exists.
+        """
+        item = await self.get_for_owner(
+            tenant_id, memory_id, owner_type=owner_type, owner_id=owner_id
+        )
+        await self._session.delete(item)
+        await self._session.flush()
+
+
 class UnitOfWorkGrantSource:
     """Grant source that re-reads the caller's current grants inside the unit of work.
 
