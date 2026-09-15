@@ -148,6 +148,12 @@ async def get_principal(
     tenant_id = payload["tenant_id"]
     user_id = payload["sub"]
 
+    # Declare the tenant before the first read. Row-level security is forced on
+    # the tenant-scoped tables, so a session that has not declared its tenant
+    # reads nothing at all: without this, a valid member would look identical to
+    # a missing one and every request would be refused for the wrong reason.
+    await uow.set_tenant_context(tenant_id)
+
     tenant = await uow.tenants.get_visible(tenant_id)
     user = await uow.users.get(tenant_id, user_id)
     grants = await uow.grants.active_grants(tenant_id, user_id)

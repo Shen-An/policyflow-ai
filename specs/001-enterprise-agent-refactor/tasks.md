@@ -130,13 +130,22 @@ description: "企业级智能体重构的可执行实施任务清单"
 
 **修复的一个被暴露的缺陷**：遗留的用户创建路径此前不写 `tenant_id`。改为租户作用域登录后，这些用户无法登录。根因是遗留写路径，**不是** T032 引入的。
 
+**本轮新增验证（`tests/integration/test_v2_dependencies.py`，8 passed）**
+
+`get_principal` 与 claimed-identity 比对现在有真实测试：principal 由 membership 派生；query 里的 tenant/user 与 membership 不符即拒，且不回显对端租户；相符时接受（证明这是比对而非一律禁止）；token 的租户必须拥有其 subject；无 membership 即拒；每个请求各持一个 UoW。测试跑在**已迁移到 enforce 的 PostgreSQL** 上——只有那里 NOT NULL 租户、按租户唯一与强制 RLS 才真正存在。
+
+写测试时发现的两个缺陷：
+
+1. **（已修）永不过期的授权永远不会生效。** `UserRoleGrantRepository.active_grants` 与 `active_role_codes` 的谓词原作 `func.coalesce(expires_at, moment) > moment`：`expires_at IS NULL` 时 coalesce 返回 `moment`，于是变成 `moment > moment`，**恒为假**。后果是 fresh authorization 拒绝一切没有显式到期时间的授权。此前无调用方，属潜伏缺陷；现改为 `expires_at IS NULL OR expires_at > moment`（两处）。
+2. **（未修，需决策）资源目录两套协议不兼容。** `AuthorizationService._resource_exists` 是**同步、单参**，按 `backend/app/auth/authorization.py` 的 `ResourceCatalog` 协议调用 `contains(resource_ref)`；而 `UnitOfWorkResourceCatalog.contains` 是**异步、三参** `(tenant_id, resource_kind, resource_id)`。把 `uow.resource_catalog` 绑进 `AuthorizationService` 会抛 `TypeError: missing 2 required positional arguments`（实测 500）。修法二选一：（a）让 service 解析 awaitable 并把资源检查改为异步，连带把 `authorize` 改成异步；（b）给 UoW 目录加一个符合协议的适配层。**解决前 `require_authorization` 路径不可用。**
+
 **尚未完成，且不得当作已完成**：
 
-1. **principal 依赖与 fresh authorization 依赖没有任何测试。** `get_principal`、`require_authorization`、claimed-identity 比对全部**未被验证**——目前没有任何路由使用它们。
-2. **`user_roles`（遗留）与 `user_role_grants`（Stage 2）不一致。** 遗留管理界面通过 `user_roles` 授予角色，而 `get_principal` 只读 `user_role_grants`。因此在补齐之前，构造出的 principal 会因「无 membership」被拒。**Phase 2 没有任何任务覆盖这项桥接。**
+1. **fresh authorization 依赖未被验证**（上一条的直接后果）：`require_authorization` 与 UoW 目录的组合没有可用实现，因此无法写测试。
+2. **`user_roles`（遗留）与 `user_role_grants`（Stage 2）不一致。** 遗留管理界面通过 `user_roles` 授角色，而 `get_principal` 只读 `user_role_grants`。因此真实用户登录后构造 principal 会因「无 membership」被拒——测试中是直接写 grant 才走通的。**Phase 2 没有任何任务覆盖这项桥接。**
 3. `app.state.uow_factory` 尚不存在（属 T034 的 async lifespan 职责）；当前 `UnitOfWork()` 回落到进程级 async factory。
 
-因此 T033 **保持未勾选**：它的验收要求是依赖被接入且可用，而第 1、2 条未满足。
+因此 T033 **保持未勾选**：principal 一条已可用且有测试，authorization 一条既不可用也无测试。
 
 ---
 

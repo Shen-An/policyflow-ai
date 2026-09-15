@@ -1158,7 +1158,12 @@ class UserRoleGrantRepository:
                 UserRoleGrant.user_id == member,
                 UserRoleGrant.valid_from <= moment,
                 UserRoleGrant.revoked_at.is_(None),
-                func.coalesce(UserRoleGrant.expires_at, moment) > moment,
+                # A grant without an expiry is permanent, so the null case must be
+                # spelled out. Collapsing it with COALESCE(expires_at, moment)
+                # compares the moment with itself and silently excludes every
+                # perpetual grant, which denies all authorization outright.
+                (UserRoleGrant.expires_at.is_(None))
+                | (UserRoleGrant.expires_at > moment),
             )
             .order_by(UserRoleGrant.valid_from, UserRoleGrant.id)
         )
@@ -1187,7 +1192,12 @@ class UserRoleGrantRepository:
                 UserRoleGrant.user_id == member,
                 UserRoleGrant.valid_from <= moment,
                 UserRoleGrant.revoked_at.is_(None),
-                func.coalesce(UserRoleGrant.expires_at, moment) > moment,
+                # A grant without an expiry is permanent, so the null case must be
+                # spelled out. Collapsing it with COALESCE(expires_at, moment)
+                # compares the moment with itself and silently excludes every
+                # perpetual grant, which denies all authorization outright.
+                (UserRoleGrant.expires_at.is_(None))
+                | (UserRoleGrant.expires_at > moment),
             )
             .order_by(Role.code)
         )
