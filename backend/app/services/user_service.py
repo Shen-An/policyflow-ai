@@ -117,6 +117,11 @@ def create_user(session: Session, data: UserCreate, tenant_id: str) -> UserRead:
         session.flush()
         for role in roles:
             session.add(UserRole(user_id=user.id, role_id=role.id))
+        # The principal and fresh authorization read grants, not the legacy link
+        # table, so a member created with roles must receive grants as well.
+        # Without this the account could authenticate and then hold no membership
+        # at all, which is the failure mode the bridge exists to prevent.
+        sync_role_grants(session, tenant_id, user.id, [role.id for role in roles])
         session.commit()
     except IntegrityError as exc:
         session.rollback()

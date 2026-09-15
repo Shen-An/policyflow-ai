@@ -133,6 +133,40 @@ def test_role_assignment_writes_both_the_link_and_the_grant(tmp_path: Path) -> N
     assert sorted(by_id[grant.role_id] for grant in grants) == ["employee"]
 
 
+def test_creating_a_member_with_roles_also_writes_grants(tmp_path: Path) -> None:
+    """A member created with roles must hold a membership, not merely a link.
+
+    The principal reads grants, so creating the legacy links alone would leave the
+    new account able to authenticate and then unable to act.
+    """
+    app = build_auth_app(tmp_path)
+
+    with TestClient(app) as client:
+        admin_headers = auth_headers(login(client, "admin", "test-password")["access_token"])
+        created = client.post(
+            "/api/users",
+            headers=admin_headers,
+            json={
+                "username": "wangwu",
+                "email": "wangwu@example.com",
+                "display_name": "王五",
+                "password": "employee-password",
+                "role_codes": ["employee", "kb_admin"],
+            },
+        )
+        assert created.status_code == 201, created.text
+        user_id = created.json()["id"]
+
+    with Session(app.state.engine) as session:
+        by_id = {role.id: role.code for role in session.exec(select(Role)).all()}
+        grants = session.exec(
+            select(UserRoleGrant).where(UserRoleGrant.user_id == user_id)
+        ).all()
+
+    assert sorted(by_id[grant.role_id] for grant in grants) == ["employee", "kb_admin"]
+    assert all(grant.tenant_id for grant in grants)
+
+
 def test_sys_admin_can_manage_users_and_employee_is_denied(tmp_path: Path) -> None:
     app = build_auth_app(tmp_path)
 
