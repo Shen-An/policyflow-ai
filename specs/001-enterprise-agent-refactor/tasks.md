@@ -171,7 +171,13 @@ SELECT 与 UPDATE 之间没有原子性，UPDATE 也不带 `status='pending'` �
 
 已改为**带条件的单条 UPDATE**（`update ... where id = :id and status = 'pending'` → `rowcount`），并把文档状态变更与认领放在**同一个 commit** 内，因此不会出现「job 已认领但文档未标记 indexing」的中间态。
 
-**证据边界（诚实声明）**：修复后全量 490 passed / exit 0，证明了正常认领路径无回归；但**尚未补并发测试**——即「两个会话同时读到同一 pending job、只有一个 UPDATE 生效」这一断言目前**没有自动化测试覆盖**。补齐它需要 KnowledgeBase + KnowledgeDocument + RagIndexJob 的测试夹具（字段要求尚未摸清）。这是本修复已知的验证缺口，不应被"套件全绿"掩盖。
+**证据边界（诚实声明）**：修复后全量 490 passed / exit 0，证明了正常认领路径无回归；但**尚未补并发测试**——即「两个会话同时读到同一 pending job、只有一个 UPDATE 生效」这一断言目前**没有自动化测试覆盖**。
+
+认领规则已提取为 `indexing_service.claim_pending_index_job(session, document_id) -> str | None`（单一归属、含文档说明），因此补测现在**只差一个夹具**。夹具所需字段已摸清，无需再查：
+
+- `Department(name, code)` → `KnowledgeBase(name, code, department_id, rag_workspace)` → `KnowledgeDocument(knowledge_base_id, title, file_path, file_type, content_hash)` → `RagIndexJob(knowledge_document_id)`（其余字段均有默认值）。
+- **剩余障碍**：`knowledge_bases` / `knowledge_documents` 属租户表且 PG 上 RLS 强制启用，故会话须先 `SELECT set_config('policyflow.tenant_id', :t, false)` 且行的 `tenant_id` 要与之匹配（INSERT 的 `WITH CHECK` 会拒绝不一致的行），还需先建 `Tenant` 行满足 FK。复现可参照 `tests/integration/test_memory_repository.py` 的 `_seed`。
+- **测试设计要点（勿写成同线程串行调用）**：串行调用两次 helper 时，第二次因「查不到 pending」而返回 None——**这在修复前的旧代码上同样成立，因此不能判别**。只有两个会话**先各自读到同一 pending 行、再先后写入**才能判别；写测试时必须显式构造这一交错。这也是该缺陷难以从公开接口观测的原因：认领的读与写之间没有挂起点，无法通过调用生产函数制造窗口。
 
 
 

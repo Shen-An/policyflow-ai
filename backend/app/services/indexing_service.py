@@ -9,6 +9,41 @@ from backend.app.db.models import KnowledgeBase, KnowledgeDocument, RagIndexJob,
 from backend.app.rag.protocols import DocumentIndexer
 
 
+def claim_pending_index_job(session: Session, document_id: str) -> str | None:
+    """Claim the newest pending index job of a document, or return None.
+
+    Returns the job id when this caller claimed it, and None when there was nothing
+    pending or another worker claimed it first. The status change travels with a
+    single conditional statement, so exactly one caller can move a pending job to
+    running. Reading the row and then writing it back in a later statement would let
+    two workers both read the same pending job, both conclude they owned it, and
+    index the same document twice.
+
+    The caller owns the transaction. The claim is committed together with whatever
+    else the caller changes, so a job is never left claimed while the state that
+    belongs with it is still unset.
+    """
+    candidate = session.exec(
+        select(RagIndexJob)
+        .where(
+            RagIndexJob.knowledge_document_id == document_id,
+            RagIndexJob.status == "pending",
+        )
+        .order_by(col(RagIndexJob.created_at).desc())
+    ).first()
+    if candidate is None:
+        return None
+    claimed = session.execute(
+        update(RagIndexJob)
+        .where(RagIndexJob.id == candidate.id, RagIndexJob.status == "pending")
+        .values(status="running", started_at=utc_now())
+    ).rowcount
+    if claimed != 1:
+        session.rollback()
+        return None
+    return str(candidate.id)
+
+
 async def process_document_index(
     engine: Engine,
     indexer: DocumentIndexer,
@@ -18,34 +53,11 @@ async def process_document_index(
         document = session.get(KnowledgeDocument, document_id)
         if document is None:
             return
-        candidate = session.exec(
-            select(RagIndexJob)
-            .where(
-                RagIndexJob.knowledge_document_id == document.id,
-                RagIndexJob.status == "pending",
-            )
-            .order_by(col(RagIndexJob.created_at).desc())
-        ).first()
         knowledge_base = session.get(KnowledgeBase, document.knowledge_base_id)
-        if candidate is None or knowledge_base is None:
+        if knowledge_base is None:
             return
-        job_id = candidate.id
-
-        # Claim the job in one conditional statement instead of reading it and then
-        # writing it back. Reading a pending job and assigning a new status in a
-        # later statement leaves a window in which two workers both read the same
-        # pending row, both conclude they own it, and both index the same document.
-        # The condition travels with the update, so exactly one worker changes a row
-        # and the others change none and stop here. The status change and the
-        # document state below then commit together, so a claimed job is never left
-        # without its document marked as indexing.
-        claimed = session.execute(
-            update(RagIndexJob)
-            .where(RagIndexJob.id == job_id, RagIndexJob.status == "pending")
-            .values(status="running", started_at=utc_now())
-        ).rowcount
-        if claimed != 1:
-            session.rollback()
+        job_id = claim_pending_index_job(session, document.id)
+        if job_id is None:
             return
 
         document.index_status = "indexing"
