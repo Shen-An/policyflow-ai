@@ -35,7 +35,7 @@ in an error message, in an error detail or in a log record produced here.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Iterable, Mapping
+from collections.abc import AsyncIterator, Collection, Iterable, Mapping
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -58,6 +58,7 @@ from backend.app.db.models import (
     RUN_STATUSES,
     AgentRun,
     AuditEvent,
+    Conversation,
     GraphCheckpointBinding,
     IdempotencyRecord,
     MemoryItem,
@@ -2503,6 +2504,98 @@ class MemoryItemRepository:
             self._session, statement.order_by(MemoryItem.updated_at.desc())
         )
 
+
+    async def list_for_user(
+        self,
+        tenant_id: str,
+        user_id: str,
+        *,
+        allowed_types: Collection[str],
+        page: int = 1,
+        page_size: int = 20,
+        memory_type: str | None = None,
+        keyword: str | None = None,
+        include_expired: bool = False,
+        now: datetime | None = None,
+    ) -> tuple[list[MemoryItem], int]:
+        """Return one page of a member's memories plus the unpaged total.
+
+        A member's memories are two groups: the ones they own directly, and the
+        conversation-scoped summaries of their own conversations. Both are
+        qualified by the tenant, so an owner id or a conversation id belonging
+        elsewhere cannot pull foreign rows into the list even when the caller
+        supplies it.
+
+        ``allowed_types`` is passed in rather than imported, so the data layer does
+        not depend on a service's vocabulary.
+
+        Raises:
+            TenantScopeError: when ``tenant_id`` is empty or missing.
+            ValueError: when a required text field is empty.
+        """
+        tenant = require_tenant(tenant_id, "MemoryItemRepository.list_for_user")
+        member = _require_text(user_id, "user_id")
+        moment = _as_utc(now) if now is not None else utc_now()
+
+        owned = await _fetch_all(
+            self._session,
+            select(MemoryItem).where(
+                _tenant_predicate(MemoryItem, tenant),
+                MemoryItem.owner_type == "user",
+                MemoryItem.owner_id == member,
+            ),
+        )
+        conversation_ids = await _fetch_all(
+            self._session,
+            select(Conversation.id).where(
+                _tenant_predicate(Conversation, tenant),
+                Conversation.user_id == member,
+            ),
+        )
+        scoped: list[MemoryItem] = []
+        if conversation_ids:
+            scoped = await _fetch_all(
+                self._session,
+                select(MemoryItem).where(
+                    _tenant_predicate(MemoryItem, tenant),
+                    MemoryItem.owner_type == "conversation",
+                    MemoryItem.owner_id.in_(list(conversation_ids)),
+                ),
+            )
+
+        seen: set[str] = set()
+        unique: list[MemoryItem] = []
+        ordered = sorted(
+            [*owned, *scoped],
+            key=lambda row: row.updated_at or row.created_at,
+            reverse=True,
+        )
+        for item in ordered:
+            if item.id in seen:
+                continue
+            seen.add(item.id)
+            unique.append(item)
+
+        type_filter = (memory_type or "").strip()
+        keyword_filter = (keyword or "").strip().lower()
+        vocabulary = set(allowed_types)
+        filtered: list[MemoryItem] = []
+        for item in unique:
+            if type_filter and item.memory_type != type_filter:
+                continue
+            if not include_expired and item.expires_at is not None and item.expires_at <= moment:
+                continue
+            if keyword_filter and keyword_filter not in item.content.lower():
+                continue
+            if item.memory_type not in vocabulary and type_filter != item.memory_type:
+                # Unknown types stay hidden unless they were asked for by name.
+                continue
+            filtered.append(item)
+
+        safe_page = max(page, 1)
+        safe_size = min(max(page_size, 1), 100)
+        start = (safe_page - 1) * safe_size
+        return filtered[start : start + safe_size], len(filtered)
 
     async def get_for_owner(
         self,
