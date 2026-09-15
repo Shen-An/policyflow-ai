@@ -198,3 +198,34 @@ def test_an_async_session_is_used_end_to_end(memory_url: str) -> None:
             await engine.dispose()
 
     assert asyncio.run(inspect()) is AsyncSession
+
+
+def test_the_legacy_memory_write_is_rejected_by_the_enforced_schema(
+    memory_url: str,
+) -> None:
+    """Characterise the defect T035 removes, so the premise is observed not assumed.
+
+    The legacy synchronous helper builds a ``MemoryItem`` without a tenant, and the
+    enforced schema makes that column NOT NULL, so the insert is rejected outright.
+    The memory layer is therefore not merely unscoped on the authoritative
+    database: it cannot store anything at all.
+
+    This test asserts the broken behaviour on purpose, because that behaviour is
+    the evidence behind T035. Delete it when T035 lands: the rejection is the thing
+    being fixed, so this test will fail loudly at that point rather than rot into a
+    misleading comment.
+    """
+    from sqlalchemy.exc import IntegrityError
+    from sqlmodel import Session, create_engine
+
+    from backend.app.services.memory_service import write_memory
+
+    engine = create_engine(memory_url)
+    try:
+        with pytest.raises(IntegrityError) as rejected:
+            with Session(engine) as session:
+                write_memory(session, "user", OWNER, "preference", "legacy write")
+    finally:
+        engine.dispose()
+
+    assert "tenant_id" in str(rejected.value)
