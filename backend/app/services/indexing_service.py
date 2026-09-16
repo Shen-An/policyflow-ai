@@ -1,12 +1,35 @@
 """Background document indexing state transitions."""
 
-from sqlalchemy import update
+from sqlalchemy import Update, update
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, col, select
 
 from backend.app.core.exceptions import ApplicationError
 from backend.app.db.models import KnowledgeBase, KnowledgeDocument, RagIndexJob, utc_now
 from backend.app.rag.protocols import DocumentIndexer
+
+
+def claim_statement(job_id: str) -> Update:
+    """The conditional statement that claims one pending index job.
+
+    Its pending condition is the whole guarantee. Without it the statement would
+    overwrite whatever status the row currently carries, which is how two workers
+    could both decide they owned the same job and index one document twice.
+
+    It is a named function so a test can execute the very statement the service
+    uses, rather than restating it: a test that restates the statement cannot fail
+    when the condition is dropped from the service.
+
+    Raises:
+        ValueError: when ``job_id`` is empty.
+    """
+    if not job_id:
+        raise ValueError("job_id must be a non-empty string")
+    return (
+        update(RagIndexJob)
+        .where(RagIndexJob.id == job_id, RagIndexJob.status == "pending")
+        .values(status="running", started_at=utc_now())
+    )
 
 
 def claim_pending_index_job(session: Session, document_id: str) -> str | None:
@@ -33,11 +56,7 @@ def claim_pending_index_job(session: Session, document_id: str) -> str | None:
     ).first()
     if candidate is None:
         return None
-    claimed = session.execute(
-        update(RagIndexJob)
-        .where(RagIndexJob.id == candidate.id, RagIndexJob.status == "pending")
-        .values(status="running", started_at=utc_now())
-    ).rowcount
+    claimed = session.execute(claim_statement(str(candidate.id))).rowcount
     if claimed != 1:
         session.rollback()
         return None
