@@ -4,11 +4,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, Response, status
 
-from backend.app.api.deps import CurrentUser, SessionDep
+from backend.app.api.deps import CurrentUser, SessionDep, UnitOfWorkDep
 from backend.app.schemas.memory import MemoryItemRead, MemoryListResponse
 from backend.app.services.memory_service import (
+    MANAGEABLE_TYPES,
     delete_user_memory,
-    list_user_memories,
     to_memory_read,
 )
 
@@ -16,30 +16,42 @@ router = APIRouter(prefix="/api/memory", tags=["memory"])
 
 
 @router.get("", response_model=MemoryListResponse)
-def list_memories_route(
+async def list_memories_route(
     user: CurrentUser,
-    session: SessionDep,
+    uow: UnitOfWorkDep,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     memory_type: Annotated[str | None, Query(max_length=50)] = None,
     keyword: Annotated[str | None, Query(max_length=100)] = None,
     include_expired: bool = False,
 ) -> MemoryListResponse:
-    """List the current user's memories (preferences, LTM, entities, trails)."""
-    items, total = list_user_memories(
-        session,
+    """List the current user's memories (preferences, LTM, entities, trails).
+
+    The read runs on the tenant-qualified asynchronous repository: the tenant comes
+    from the account rather than from the request, and every query it issues
+    carries that tenant. The legacy synchronous list filtered by owner alone and
+    so could show one tenant another's rows - that path is no longer reachable.
+
+    The type vocabulary is passed into the repository rather than imported by it,
+    which keeps the data layer free of service-level knowledge.
+    """
+    items, total = await uow.memories.list_for_user(
+        user.tenant_id,
         user.id,
+        allowed_types=MANAGEABLE_TYPES,
         page=page,
         page_size=page_size,
         memory_type=memory_type,
         keyword=keyword,
         include_expired=include_expired,
     )
+    safe_page = max(page, 1)
+    safe_size = min(max(page_size, 1), 100)
     return MemoryListResponse(
         items=[MemoryItemRead.model_validate(to_memory_read(item)) for item in items],
         total=total,
-        page=max(page, 1),
-        page_size=min(max(page_size, 1), 100),
+        page=safe_page,
+        page_size=safe_size,
     )
 
 
@@ -53,6 +65,13 @@ def delete_memory_route(
     user: CurrentUser,
     session: SessionDep,
 ) -> Response:
-    """Delete a memory owned by the current user."""
+    """Delete a memory owned by the current user.
+
+    This handler still runs on the legacy synchronous path. The repository delete
+    is owner-and-tenant qualified but not yet conversation-aware, and the legacy
+    handler accepts deleting a conversation-scoped memory belonging to the user's
+    own conversation; moving this route now would silently drop that case. It
+    follows once the repository covers it.
+    """
     delete_user_memory(session, user.id, memory_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

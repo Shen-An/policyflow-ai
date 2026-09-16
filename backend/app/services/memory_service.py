@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Iterable
 from datetime import UTC, datetime
-from typing import Any, Iterable
+from typing import Any
 
 from sqlmodel import Session, col, select
 
@@ -38,6 +39,36 @@ def _is_active(item: MemoryItem, now: datetime) -> bool:
     return expires > now
 
 
+def _tenant_for_owner(session: Session, owner_type: str, owner_id: str) -> str | None:
+    """Look up the tenant that owns ``owner_id``.
+
+    ``tenant_id`` is NOT NULL on PostgreSQL and the enforced schema rejects a write
+    that omits it, so a production write always supplies a tenant. This lookup is
+    only a convenience for callers that do not: it returns the owner's tenant when
+    the owner row exists, and ``None`` otherwise. Returning ``None`` - rather than
+    raising - keeps the legacy call sites whose owners are not real database rows
+    working on SQLite, where the column is nullable. On PostgreSQL such a caller
+    must pass an explicit tenant or it will be refused by the constraint.
+
+    Raises:
+        ApplicationError: when ``owner_type`` names a type this helper does not
+            know how to look up.
+    """
+    from backend.app.db.models import Conversation, User
+
+    if owner_type == "user":
+        owner = session.get(User, owner_id)
+    elif owner_type == "conversation":
+        owner = session.get(Conversation, owner_id)
+    else:
+        raise ApplicationError(
+            "MEMORY_OWNER_UNSUPPORTED",
+            f"Unsupported memory owner type: {owner_type}",
+            422,
+        )
+    return getattr(owner, "tenant_id", None) if owner is not None else None
+
+
 def write_memory(
     session: Session,
     owner_type: str,
@@ -50,6 +81,7 @@ def write_memory(
     embedding: list[float] | None = None,
     meta_json: dict[str, Any] | None = None,
     expires_at: datetime | None = None,
+    tenant_id: str | None = None,
 ) -> MemoryItem:
     cleaned = (content or "").strip()
     if not cleaned:
@@ -62,7 +94,9 @@ def write_memory(
             "Policy facts cannot be stored as user preferences",
             422,
         )
+    tenant = tenant_id if tenant_id else _tenant_for_owner(session, owner_type, owner_id)
     item = MemoryItem(
+        tenant_id=tenant,
         owner_type=owner_type,
         owner_id=owner_id,
         memory_type=memory_type,
