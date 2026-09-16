@@ -47,16 +47,27 @@ from backend.app.services.rag_service import RAGService
 PROTECTED_EVALUATION_KB_CODES = {"eval_test", "enterprise_eval_test"}
 
 
-def create_eval_case(session: Session, data: EvalCaseCreate) -> EvalCaseRead:
-    item = EvalCase(**data.model_dump())
+def create_eval_case(
+    session: Session, data: EvalCaseCreate, tenant_id: str | None = None
+) -> EvalCaseRead:
+    item = EvalCase(
+        tenant_id=tenant_id,
+        **{k: v for k, v in data.model_dump().items() if k != "tenant_id"},
+    )
     session.add(item)
     session.commit()
     session.refresh(item)
     return EvalCaseRead.model_validate(item.model_dump())
 
 
-def list_eval_cases(session: Session, category: str | None = None) -> list[EvalCaseRead]:
+def list_eval_cases(
+    session: Session,
+    category: str | None = None,
+    tenant_id: str | None = None,
+) -> list[EvalCaseRead]:
     statement = select(EvalCase)
+    if tenant_id is not None:
+        statement = statement.where(EvalCase.tenant_id == tenant_id)
     if category:
         statement = statement.where(EvalCase.category == category)
     return [
@@ -100,7 +111,10 @@ def create_retrieval_item(
                 422,
                 {"document_id": document.id},
             )
-    item = RetrievalEvalItem(**data.model_dump())
+    item = RetrievalEvalItem(
+        tenant_id=user.tenant_id,
+        **{k: v for k, v in data.model_dump().items() if k != "tenant_id"},
+    )
     session.add(item)
     session.commit()
     session.refresh(item)
@@ -110,8 +124,11 @@ def create_retrieval_item(
 def list_retrieval_items(
     session: Session,
     enabled: bool | None = None,
+    tenant_id: str | None = None,
 ) -> list[RetrievalEvalItemRead]:
     statement = select(RetrievalEvalItem)
+    if tenant_id is not None:
+        statement = statement.where(RetrievalEvalItem.tenant_id == tenant_id)
     if enabled is not None:
         statement = statement.where(RetrievalEvalItem.enabled == enabled)
     return [
@@ -348,6 +365,7 @@ def create_eval_run(
     if reranker_method:
         config_snapshot["reranker_method"] = reranker_method
     eval_run = EvalRun(
+        tenant_id=user.tenant_id,
         name=data.name,
         created_by=user.id,
         config_snapshot=config_snapshot,
@@ -562,18 +580,22 @@ def _to_eval_run_read(
     )
 
 
-def get_eval_run(session: Session, run_id: str) -> EvalRunRead:
+def get_eval_run(session: Session, run_id: str, tenant_id: str | None = None) -> EvalRunRead:
     eval_run = session.get(EvalRun, run_id)
     if eval_run is None:
+        raise ApplicationError("EVAL_RUN_NOT_FOUND", "Evaluation run not found", 404)
+    if tenant_id is not None and eval_run.tenant_id != tenant_id:
         raise ApplicationError("EVAL_RUN_NOT_FOUND", "Evaluation run not found", 404)
     session.refresh(eval_run)
     return _to_eval_run_read(session, eval_run, include_results=True)
 
 
-def delete_eval_run(session: Session, run_id: str) -> None:
+def delete_eval_run(session: Session, run_id: str, tenant_id: str | None = None) -> None:
     """Physically delete an evaluation run and all of its per-case results."""
     eval_run = session.get(EvalRun, run_id)
     if eval_run is None:
+        raise ApplicationError("EVAL_RUN_NOT_FOUND", "Evaluation run not found", 404)
+    if tenant_id is not None and eval_run.tenant_id != tenant_id:
         raise ApplicationError("EVAL_RUN_NOT_FOUND", "Evaluation run not found", 404)
     results = session.exec(
         select(EvalResult).where(EvalResult.eval_run_id == run_id)
@@ -584,9 +606,11 @@ def delete_eval_run(session: Session, run_id: str) -> None:
     session.commit()
 
 
-def export_eval_run_payload(session: Session, run_id: str) -> dict[str, Any]:
+def export_eval_run_payload(
+    session: Session, run_id: str, tenant_id: str | None = None
+) -> dict[str, Any]:
     """Structured JSON payload for interview report export."""
-    run = get_eval_run(session, run_id)
+    run = get_eval_run(session, run_id, tenant_id=tenant_id)
     return {
         "export_version": "1.0",
         "run": {
@@ -623,12 +647,14 @@ def export_eval_run_payload(session: Session, run_id: str) -> dict[str, Any]:
     }
 
 
-def export_eval_run_csv(session: Session, run_id: str) -> str:
+def export_eval_run_csv(
+    session: Session, run_id: str, tenant_id: str | None = None
+) -> str:
     """CSV summary for spreadsheet screenshots / attachments."""
     import csv
     import io
 
-    run = get_eval_run(session, run_id)
+    run = get_eval_run(session, run_id, tenant_id=tenant_id)
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     writer.writerow(
@@ -684,8 +710,11 @@ def list_eval_runs(
     created_by: str | None = None,
     created_from: datetime | None = None,
     created_to: datetime | None = None,
+    tenant_id: str | None = None,
 ) -> EvalRunListResponse:
     statement = select(EvalRun)
+    if tenant_id is not None:
+        statement = statement.where(EvalRun.tenant_id == tenant_id)
     if status:
         statement = statement.where(EvalRun.status == status)
     if created_by:

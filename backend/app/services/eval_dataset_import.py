@@ -158,6 +158,7 @@ def ensure_dedicated_eval_knowledge_base(
         return existing
 
     knowledge_base = KnowledgeBase(
+        tenant_id=actor.tenant_id if actor is not None else None,
         name=name,
         code=code,
         department_id=admin_department.id,
@@ -386,6 +387,7 @@ def _upsert_document(
     file_path.write_text(text, encoding="utf-8")
     document = KnowledgeDocument(
         id=document_id,
+        tenant_id=user.tenant_id,
         knowledge_base_id=knowledge_base_id,
         title=title[:255] or external_id,
         file_path=str(file_path),
@@ -475,6 +477,7 @@ async def import_crud_dataset(
         eval_case_id: str | None = None
         if data.create_eval_cases:
             eval_case = EvalCase(
+                tenant_id=user.tenant_id,
                 question=question,
                 category=knowledge_base.code,
                 expected_answer_keywords=_keywords_from_answer(answer),
@@ -491,6 +494,7 @@ async def import_crud_dataset(
 
         thoughts = str(item.get("thoughts") or "").strip()
         retrieval_item = RetrievalEvalItem(
+            tenant_id=user.tenant_id,
             eval_case_id=eval_case_id,
             query=question,
             knowledge_base_ids=[knowledge_base.id],

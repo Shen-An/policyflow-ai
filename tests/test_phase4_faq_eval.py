@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from backend.app.core.config import Settings
 from backend.app.db.models import (
@@ -13,6 +13,7 @@ from backend.app.db.models import (
     KnowledgeBase,
     KnowledgeDocument,
     RetrievalEvalItem,
+    Tenant,
 )
 from backend.app.evals.retrieval_metrics import calculate_retrieval_metrics
 from backend.app.main import create_app
@@ -325,6 +326,8 @@ def test_eval_cleanup_deletes_stale_and_disables_non_eval_test(tmp_path: Path) -
         sandbox_id = next(item["id"] for item in kbs if item["code"] == "eval_test")
 
         with Session(app.state.engine) as session:
+            tenant = session.exec(select(Tenant)).first()
+            tenant_id = tenant.id if tenant else None
             live_doc = KnowledgeDocument(
                 knowledge_base_id=sandbox_id,
                 title="Live gold",
@@ -350,21 +353,25 @@ def test_eval_cleanup_deletes_stale_and_disables_non_eval_test(tmp_path: Path) -
             session.flush()
 
             healthy = RetrievalEvalItem(
+                tenant_id=tenant_id,
                 query="healthy eval_test",
                 knowledge_base_ids=[sandbox_id],
                 relevant_document_ids=[live_doc.id],
             )
             stale = RetrievalEvalItem(
+                tenant_id=tenant_id,
                 query="stale gold",
                 knowledge_base_ids=[sandbox_id],
                 relevant_document_ids=[deleted_doc.id],
             )
             empty_gold = RetrievalEvalItem(
+                tenant_id=tenant_id,
                 query="empty gold",
                 knowledge_base_ids=[sandbox_id],
                 relevant_document_ids=[],
             )
             business = RetrievalEvalItem(
+                tenant_id=tenant_id,
                 query="hr pollution",
                 knowledge_base_ids=[hr_id],
                 relevant_document_ids=[live_doc.id],

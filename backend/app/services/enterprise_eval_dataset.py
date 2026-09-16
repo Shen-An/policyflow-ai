@@ -492,6 +492,7 @@ def seed_enterprise_eval_dataset(
         ).first()
         if case is None:
             case = EvalCase(
+                tenant_id=user.tenant_id,
                 question=spec.question,
                 category=ENTERPRISE_EVAL_KB_CODE,
                 expected_answer_keywords=list(spec.answer_keywords),
@@ -534,6 +535,7 @@ def seed_enterprise_eval_dataset(
         }
         if item is None:
             item = RetrievalEvalItem(
+                tenant_id=user.tenant_id,
                 eval_case_id=case.id,
                 query=spec.question,
                 knowledge_base_ids=[knowledge_base.id],
@@ -563,6 +565,7 @@ def seed_enterprise_eval_dataset(
         ).first()
         if case is None:
             case = EvalCase(
+                tenant_id=user.tenant_id,
                 question=negative.query,
                 category=ENTERPRISE_EVAL_KB_CODE,
                 expected_answer_keywords=[],
@@ -605,6 +608,7 @@ def seed_enterprise_eval_dataset(
         }
         if item is None:
             item = RetrievalEvalItem(
+                tenant_id=user.tenant_id,
                 eval_case_id=case.id,
                 query=negative.query,
                 knowledge_base_ids=[knowledge_base.id],

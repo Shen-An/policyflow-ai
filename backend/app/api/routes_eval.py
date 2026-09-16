@@ -91,18 +91,18 @@ def get_reranker_status(request: Request, _: EvalAdmin) -> RerankerStatus:
 def post_eval_case(
     data: EvalCaseCreate,
     session: SessionDep,
-    _: EvalAdmin,
+    user: EvalAdmin,
 ) -> EvalCaseRead:
-    return create_eval_case(session, data)
+    return create_eval_case(session, data, tenant_id=user.tenant_id)
 
 
 @router.get("/cases", response_model=list[EvalCaseRead])
 def get_eval_cases(
     session: SessionDep,
-    _: EvalAdmin,
+    user: EvalAdmin,
     category: str | None = None,
 ) -> list[EvalCaseRead]:
-    return list_eval_cases(session, category)
+    return list_eval_cases(session, category, tenant_id=user.tenant_id)
 
 
 @router.post(
@@ -121,10 +121,10 @@ def post_retrieval_item(
 @router.get("/retrieval-items", response_model=list[RetrievalEvalItemRead])
 def get_retrieval_items(
     session: SessionDep,
-    _: EvalAdmin,
+    user: EvalAdmin,
     enabled: bool | None = None,
 ) -> list[RetrievalEvalItemRead]:
-    return list_retrieval_items(session, enabled)
+    return list_retrieval_items(session, enabled, tenant_id=user.tenant_id)
 
 
 @router.post(
@@ -247,7 +247,7 @@ async def post_eval_run(
 @router.get("/runs", response_model=EvalRunListResponse)
 def get_eval_runs(
     session: SessionDep,
-    _: EvalAdmin,
+    user: EvalAdmin,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     status_filter: str | None = Query(default=None, alias="status"),
@@ -263,6 +263,7 @@ def get_eval_runs(
         str(created_by) if created_by else None,
         created_from,
         created_to,
+        tenant_id=user.tenant_id,
     )
 
 
@@ -270,19 +271,19 @@ def get_eval_runs(
 def get_eval_run_route(
     run_id: UUID,
     session: SessionDep,
-    _: EvalAdmin,
+    user: EvalAdmin,
 ) -> EvalRunRead:
-    return get_eval_run(session, str(run_id))
+    return get_eval_run(session, str(run_id), tenant_id=user.tenant_id)
 
 
 @router.delete("/runs/{run_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_eval_run_route(
     run_id: UUID,
     session: SessionDep,
-    _: EvalAdmin,
+    user: EvalAdmin,
 ) -> Response:
     """Physically delete an evaluation run and all of its per-case results."""
-    delete_eval_run(session, str(run_id))
+    delete_eval_run(session, str(run_id), tenant_id=user.tenant_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -290,13 +291,13 @@ def delete_eval_run_route(
 def export_eval_run_route(
     run_id: UUID,
     session: SessionDep,
-    _: EvalAdmin,
+    user: EvalAdmin,
     format: Literal["json", "csv"] = Query(default="json"),
 ) -> Response:
     """Export an evaluation run for interview reports / offline review."""
     run_key = str(run_id)
     if format == "csv":
-        content = export_eval_run_csv(session, run_key)
+        content = export_eval_run_csv(session, run_key, tenant_id=user.tenant_id)
         return PlainTextResponse(
             content,
             media_type="text/csv; charset=utf-8",
@@ -304,7 +305,7 @@ def export_eval_run_route(
                 "Content-Disposition": f'attachment; filename="eval-run-{run_key}.csv"'
             },
         )
-    payload = export_eval_run_payload(session, run_key)
+    payload = export_eval_run_payload(session, run_key, tenant_id=user.tenant_id)
     return JSONResponse(
         payload,
         headers={
