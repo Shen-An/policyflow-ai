@@ -13,6 +13,7 @@ from backend.app.core.exceptions import ApplicationError
 from backend.app.core.logging import get_logger
 from backend.app.db.models import Conversation, MemoryItem, User
 from backend.app.rag.protocols import LLMService
+from backend.app.schemas.retrieval import Evidence
 from backend.app.services.context_service import build_context
 from backend.app.services.memory_extractor import extract_memory_events
 from backend.app.services.memory_service import (
@@ -33,7 +34,6 @@ from backend.app.services.memory_window import (
     should_compress,
     update_conversation_summary,
 )
-from backend.app.schemas.retrieval import Evidence
 
 logger = get_logger(__name__)
 
@@ -70,6 +70,7 @@ class MemoryAgent:
             user.id,
             prefs_limit=self.settings.MEMORY_FIXED_PREFS_LIMIT,
             entity_limit=self.settings.MEMORY_ENTITY_LIMIT,
+            tenant_id=user.tenant_id,
         )
         history = load_recent_messages(
             session,
@@ -93,6 +94,7 @@ class MemoryAgent:
             top_k=self.settings.MEMORY_LTM_TOP_K,
             decay_lambda=self.settings.MEMORY_RANK_DECAY_LAMBDA,
             access_boost_cap=self.settings.MEMORY_RANK_ACCESS_BOOST_CAP,
+            tenant_id=user.tenant_id,
         )
         # Avoid duplicating fixed prefs/entities in the recalled slot.
         fixed_ids = {item.id for item in fixed_items}
@@ -125,7 +127,13 @@ class MemoryAgent:
         if not self.settings.MEMORY_WRITEBACK_ENABLED:
             return []
 
-        fixed = list_fixed_memories(session, user.id, prefs_limit=20, entity_limit=20)
+        fixed = list_fixed_memories(
+            session,
+            user.id,
+            prefs_limit=20,
+            entity_limit=20,
+            tenant_id=user.tenant_id,
+        )
         existing_names = [
             str((item.meta_json or {}).get("entity_name") or item.content[:40])
             for item in fixed
@@ -143,7 +151,9 @@ class MemoryAgent:
                 if event.policy_related:
                     continue
                 try:
-                    existing = find_similar_preference(session, user.id, event.summary)
+                    existing = find_similar_preference(
+                        session, user.id, event.summary, tenant_id=user.tenant_id
+                    )
                     if existing is not None:
                         continue
                     embedding = await self._safe_embed(event.summary)
@@ -189,6 +199,7 @@ class MemoryAgent:
                                 "event_type": event.event_type,
                                 "source_message_ids": source_message_ids or [],
                             },
+                            tenant_id=user.tenant_id,
                         )
                     )
                 continue
@@ -228,10 +239,11 @@ class MemoryAgent:
                         "source_message_ids": source_message_ids or [],
                         "conversation_id": conversation.id,
                     },
+                    tenant_id=user.tenant_id,
                 )
             )
 
-        await self._maybe_compress_window(session, conversation)
+        await self._maybe_compress_window(session, conversation, user)
 
         # Thin conversation-scoped trail for audit / backward compatibility.
         # Confidence reflects the strongest signal actually extracted this turn
@@ -253,6 +265,7 @@ class MemoryAgent:
                 "source_message_ids": source_message_ids or [],
                 "extracted_event_count": len(events),
             },
+            tenant_id=user.tenant_id,
         )
         written.append(trail)
         return written
@@ -285,6 +298,7 @@ class MemoryAgent:
         self,
         session: Session,
         conversation: Conversation,
+        user: User,
     ) -> None:
         older = messages_outside_window(
             session,
@@ -332,6 +346,7 @@ class MemoryAgent:
                     "unloaded_from_stm": True,
                     "compressed_message_ids": new_summary.get("compressed_message_ids") or [],
                 },
+                tenant_id=user.tenant_id,
             )
         update_conversation_summary(session, conversation, new_summary)
 

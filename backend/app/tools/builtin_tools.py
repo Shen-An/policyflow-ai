@@ -66,6 +66,7 @@ async def memory_write_tool(
         content=str(payload.get("content") or ""),
         source="tool",
         confidence=float(payload.get("confidence") or 0.5),
+        tenant_id=user.tenant_id,
     )
     return item.model_dump(mode="json")
 
@@ -76,7 +77,7 @@ async def memory_read_tool(
     payload: dict[str, Any],
 ) -> dict[str, Any]:
     owner_type, owner_id = _resolve_memory_owner(user, payload)
-    items = read_memory(session, owner_type, owner_id)
+    items = read_memory(session, owner_type, owner_id, tenant_id=user.tenant_id)
     return {"items": [item.model_dump(mode="json") for item in items]}
 
 

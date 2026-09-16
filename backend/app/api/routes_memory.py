@@ -73,5 +73,5 @@ def delete_memory_route(
     own conversation; moving this route now would silently drop that case. It
     follows once the repository covers it.
     """
-    delete_user_memory(session, user.id, memory_id)
+    delete_user_memory(session, user.id, memory_id, tenant_id=user.tenant_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -548,14 +548,14 @@ async def test_compress_window_updates_summary_once(tmp_path: Path) -> None:
             session.commit()
 
             agent: MemoryAgent = app.state.memory_agent
-            await agent._maybe_compress_window(session, conversation)
+            await agent._maybe_compress_window(session, conversation, user)
             session.refresh(conversation)
             first = parse_conversation_summary(conversation.summary)
             first_ids = list(first.get("compressed_message_ids") or [])
             assert first.get("rolling_summary")
             assert len(first_ids) >= 2
 
-            await agent._maybe_compress_window(session, conversation)
+            await agent._maybe_compress_window(session, conversation, user)
             session.refresh(conversation)
             second = parse_conversation_summary(conversation.summary)
             assert list(second.get("compressed_message_ids") or []) == first_ids
