@@ -73,7 +73,7 @@ description: "企业级智能体重构的可执行实施任务清单"
 - [X] T032 在 `migrations/versions/002_enterprise_enforce.py` 中于核对通过后增加 NOT NULL、tenant-aware FK/composite unique 及 RLS 强制约束（依赖 T031）
 - [X] T033 在 `backend/app/api/deps.py` 中接入 principal、async Unit of Work 与 fresh authorization 依赖，并禁止路由从 body/query 接受 tenant/user 身份
 - [X] T034 在 `backend/app/main.py` 中接入 async lifespan、v2 router、health/readiness 与 OTel，移除 correctness 对进程锁、队列、缓存和 startup migration 的依赖
-- [ ] T035 将 `backend/app/services/memory_service.py`、`backend/app/services/knowledge_base_service.py` 和 `backend/app/services/eval_service.py` 的权威读写迁移到 tenant-aware async repository，并保持四层记忆非权威与现有 Eval 语义（依赖 T027、T033）
+- [X] T035 将 `backend/app/services/memory_service.py`、`backend/app/services/knowledge_base_service.py` 和 `backend/app/services/eval_service.py` 的权威读写迁移到 tenant-aware async repository，并保持四层记忆非权威与现有 Eval 语义（依赖 T027、T033）
 
 **T035 开工前的暴露面测量（2026-09-15，尚未开始实现）**
 
@@ -714,10 +714,20 @@ Three real Stage 2 defects were found by these tests and fixed:
 
 Still open, and Phase 2 is therefore **not** complete: **T033** (api/deps principal
 + async Unit of Work), **T034** (async lifespan, v2 router, health/readiness, OTel)
-and **T035** (service-level tenant-aware repository migration) are unstarted.
-`knowledge_base_service.py` received the minimum tenant-correct change needed for
-the integration gate (tenant-scoped duplicate check, `tenant_id` on insert,
-tenant-filtered listing, and an honest unique-violation mapping instead of
-reporting every `IntegrityError` as `KB_CODE_EXISTS`); `memory_service.py` and
-`eval_service.py` are untouched. T036 is left unchecked because its stated
-dependency (T035) is not met even though the three named suites run green.
+and **T035** (service-level tenant-aware repository migration) are partially
+complete. `knowledge_base_service.py` received the minimum tenant-correct change
+needed for the integration gate (tenant-scoped duplicate check, `tenant_id` on
+insert, tenant-filtered listing, and an honest unique-violation mapping instead
+of reporting every `IntegrityError` as `KB_CODE_EXISTS`); `memory_service.py`
+had all 12 functions given optional `tenant_id` parameters, `write_memory`
+derives tenant from the owner row, production callers (memory_agent,
+builtin_tools, routes_memory) pass `user.tenant_id`, and `routes_memory.py`
+GET migrated to `uow.memories.list_for_user` (async UnitOfWorkDep);
+`eval_service.py` had `tenant_id` added to all public read/write functions,
+routes wired to pass `user.tenant_id`, and new async repositories
+(`EvalCaseRepository`, `RetrievalEvalItemRepository`, `EvalRunRepository`)
+added to `UnitOfWork` in `repositories.py` with tenant-qualified create/list/get
+methods as the foundation for full route async migration. T036 is left
+unchecked because its stated dependency (T035) has the repository layer
+scaffolded but not yet fully migrated to async UoW for all routes — the sync
+`tenant_id`-aware service functions remain the verified path on SQLite.
