@@ -59,9 +59,12 @@ from backend.app.db.models import (
     AgentRun,
     AuditEvent,
     Conversation,
+    EvalCase,
+    EvalRun,
     GraphCheckpointBinding,
     IdempotencyRecord,
     MemoryItem,
+    RetrievalEvalItem,
     Role,
     RunEvent,
     Tenant,
@@ -89,12 +92,15 @@ __all__ = [
     "RESOURCE_KIND_TENANT",
     "RESOURCE_KIND_USER",
     "RESOURCE_KIND_USER_ROLE_GRANT",
+    "RetrievalEvalItemRepository",
     "RESOURCE_KINDS",
     "TENANT_CONTEXT_SETTING",
     "VERSION_CONFLICT",
     "AgentRunRepository",
     "AuditEventRepository",
     "ClaimOutcome",
+    "EvalCaseRepository",
+    "EvalRunRepository",
     "GraphCheckpointBindingRepository",
     "IdempotencyClaim",
     "IdempotencyConflictError",
@@ -159,6 +165,9 @@ RESOURCE_KIND_USER_ROLE_GRANT = "user_role_grant"
 RESOURCE_KIND_AGENT_RUN = "agent_run"
 RESOURCE_KIND_CHECKPOINT_BINDING = "graph_checkpoint_binding"
 RESOURCE_KIND_AUDIT_EVENT = "audit_event"
+RESOURCE_KIND_EVAL_CASE = "eval_case"
+RESOURCE_KIND_EVAL_RUN = "eval_run"
+RESOURCE_KIND_RETRIEVAL_EVAL_ITEM = "retrieval_eval_item"
 RESOURCE_KINDS: frozenset[str] = frozenset(
     {
         RESOURCE_KIND_TENANT,
@@ -168,6 +177,9 @@ RESOURCE_KINDS: frozenset[str] = frozenset(
         RESOURCE_KIND_AGENT_RUN,
         RESOURCE_KIND_CHECKPOINT_BINDING,
         RESOURCE_KIND_AUDIT_EVENT,
+        RESOURCE_KIND_EVAL_CASE,
+        RESOURCE_KIND_EVAL_RUN,
+        RESOURCE_KIND_RETRIEVAL_EVAL_ITEM,
     }
 )
 
@@ -592,6 +604,9 @@ _CATALOG_MODELS: dict[str, tuple[type[Any], bool]] = {
     RESOURCE_KIND_AGENT_RUN: (AgentRun, True),
     RESOURCE_KIND_CHECKPOINT_BINDING: (GraphCheckpointBinding, True),
     RESOURCE_KIND_AUDIT_EVENT: (AuditEvent, True),
+    RESOURCE_KIND_EVAL_CASE: (EvalCase, True),
+    RESOURCE_KIND_EVAL_RUN: (EvalRun, True),
+    RESOURCE_KIND_RETRIEVAL_EVAL_ITEM: (RetrievalEvalItem, True),
 }
 
 
@@ -2320,6 +2335,21 @@ class UnitOfWork:
         return self._repository("memories", MemoryItemRepository)
 
     @property
+    def eval_cases(self) -> EvalCaseRepository:
+        """Return the eval-case repository bound to this transaction."""
+        return self._repository("eval_cases", EvalCaseRepository)
+
+    @property
+    def retrieval_eval_items(self) -> RetrievalEvalItemRepository:
+        """Return the retrieval-eval-item repository bound to this transaction."""
+        return self._repository("retrieval_eval_items", RetrievalEvalItemRepository)
+
+    @property
+    def eval_runs(self) -> EvalRunRepository:
+        """Return the eval-run repository bound to this transaction."""
+        return self._repository("eval_runs", EvalRunRepository)
+
+    @property
     def resource_catalog(self) -> UnitOfWorkResourceCatalog:
         """Return a resource catalogue bound to this same connection.
 
@@ -2653,6 +2683,167 @@ class MemoryItemRepository:
         )
         await self._session.delete(item)
         await self._session.flush()
+
+
+class EvalCaseRepository:
+    """Tenant-qualified eval-case reads and writes."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create(
+        self, tenant_id: str, *, question: str, category: str,
+        expected_answer_keywords: list[str],
+        expected_source_documents: list[str],
+        expected_chunk_ids: list[str],
+        should_answer: bool = True,
+    ) -> EvalCase:
+        tenant = require_tenant(tenant_id, "EvalCaseRepository.create")
+        case = EvalCase(
+            tenant_id=tenant,
+            question=_require_text(question, "question"),
+            category=_require_text(category, "category"),
+            expected_answer_keywords=list(expected_answer_keywords),
+            expected_source_documents=list(expected_source_documents),
+            expected_chunk_ids=list(expected_chunk_ids),
+            should_answer=should_answer,
+        )
+        self._session.add(case)
+        await self._session.flush()
+        return case
+
+    async def list_for_tenant(
+        self, tenant_id: str, *, category: str | None = None,
+        enabled_only: bool = True,
+    ) -> list[EvalCase]:
+        tenant = require_tenant(tenant_id, "EvalCaseRepository.list_for_tenant")
+        statement = select(EvalCase).where(
+            _tenant_predicate(EvalCase, tenant),
+        )
+        if category is not None:
+            statement = statement.where(EvalCase.category == category)
+        if enabled_only:
+            statement = statement.where(EvalCase.enabled.is_(True))
+        return await _fetch_all(self._session, statement)
+
+    async def get(
+        self, tenant_id: str, case_id: str, *, enabled_only: bool = True,
+    ) -> EvalCase:
+        tenant = require_tenant(tenant_id, "EvalCaseRepository.get")
+        statement = select(EvalCase).where(
+            _tenant_predicate(EvalCase, tenant),
+            EvalCase.id == _require_text(case_id, "case_id"),
+        )
+        if enabled_only:
+            statement = statement.where(EvalCase.enabled.is_(True))
+        rows = await _fetch_all(self._session, statement)
+        if not rows:
+            raise ResourceNotFoundError(RESOURCE_KIND_EVAL_CASE, case_id)
+        return rows[0]
+
+
+class RetrievalEvalItemRepository:
+    """Tenant-qualified retrieval-eval-item reads and writes."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create(
+        self, tenant_id: str, *, query: str,
+        knowledge_base_ids: list[str],
+        relevant_document_ids: list[str],
+        relevant_chunk_ids: list[str],
+        eval_case_id: str | None = None,
+        relevance_judgement: dict[str, Any] | None = None,
+    ) -> RetrievalEvalItem:
+        tenant = require_tenant(tenant_id, "RetrievalEvalItemRepository.create")
+        item = RetrievalEvalItem(
+            tenant_id=tenant,
+            eval_case_id=eval_case_id,
+            query=_require_text(query, "query"),
+            knowledge_base_ids=list(knowledge_base_ids),
+            relevant_document_ids=list(relevant_document_ids),
+            relevant_chunk_ids=list(relevant_chunk_ids),
+            relevance_judgement=relevance_judgement,
+        )
+        self._session.add(item)
+        await self._session.flush()
+        return item
+
+    async def list_for_tenant(
+        self, tenant_id: str, *, enabled_only: bool = True,
+    ) -> list[RetrievalEvalItem]:
+        tenant = require_tenant(tenant_id, "RetrievalEvalItemRepository.list_for_tenant")
+        statement = select(RetrievalEvalItem).where(
+            _tenant_predicate(RetrievalEvalItem, tenant),
+        )
+        if enabled_only:
+            statement = statement.where(RetrievalEvalItem.enabled.is_(True))
+        return await _fetch_all(self._session, statement)
+
+
+class EvalRunRepository:
+    """Tenant-qualified eval-run reads and writes."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create(
+        self, tenant_id: str, *, name: str, created_by: str | None = None,
+        config_snapshot: dict[str, Any] | None = None,
+        request_id: str | None = None,
+    ) -> EvalRun:
+        tenant = require_tenant(tenant_id, "EvalRunRepository.create")
+        run = EvalRun(
+            tenant_id=tenant,
+            name=_require_text(name, "name"),
+            created_by=created_by,
+            config_snapshot=dict(config_snapshot or {}),
+            request_id=request_id,
+        )
+        self._session.add(run)
+        await self._session.flush()
+        return run
+
+    async def get(
+        self, tenant_id: str, run_id: str,
+    ) -> EvalRun:
+        tenant = require_tenant(tenant_id, "EvalRunRepository.get")
+        statement = select(EvalRun).where(
+            _tenant_predicate(EvalRun, tenant),
+            EvalRun.id == _require_text(run_id, "run_id"),
+        )
+        rows = await _fetch_all(self._session, statement)
+        if not rows:
+            raise ResourceNotFoundError(RESOURCE_KIND_EVAL_RUN, run_id)
+        return rows[0]
+
+    async def delete(
+        self, tenant_id: str, run_id: str,
+    ) -> None:
+        run = await self.get(tenant_id, run_id)
+        await self._session.delete(run)
+        await self._session.flush()
+
+    async def list_for_tenant(
+        self, tenant_id: str, *, status: str | None = None,
+        created_by: str | None = None,
+        created_from: datetime | None = None,
+        created_to: datetime | None = None,
+    ) -> list[EvalRun]:
+        tenant = require_tenant(tenant_id, "EvalRunRepository.list_for_tenant")
+        statement = select(EvalRun).where(
+            _tenant_predicate(EvalRun, tenant),
+        )
+        if status is not None:
+            statement = statement.where(EvalRun.status == status)
+        if created_by is not None:
+            statement = statement.where(EvalRun.created_by == created_by)
+        if created_from is not None:
+            statement = statement.where(EvalRun.created_at >= created_from)
+        if created_to is not None:
+            statement = statement.where(EvalRun.created_at <= created_to)
+        return await _fetch_all(self._session, statement)
 
 
 class UnitOfWorkGrantSource:
