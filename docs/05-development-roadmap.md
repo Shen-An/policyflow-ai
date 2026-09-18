@@ -7,7 +7,7 @@
 
 > **现状提示（2026-09-14 追加）**
 >
-> 本文是 v0.1（2026-07-10）的路线图。**Phase 0–1 已完成**；企业化改造（Stage 2）正在进行，**另有权威任务清单**：`specs/001-enterprise-agent-refactor/tasks.md`（当前 32 / 164，Phase 2 剩余 T033–T036，Phase 3–10 未开始）。
+> 本文是 v0.1（2026-07-10）的路线图。**Phase 0–1 已完成，企业化改造的 Phase 2（Stage 2 基础阶段）已完成**；后续进度以权威任务清单为准：`specs/001-enterprise-agent-refactor/tasks.md`（当前 42 / 164，Phase 3 及后续阶段按清单推进）。
 >
 > 两者关系：**本文的 Phase 编号与 Stage 2 的 Phase 编号不是同一套**。需要判断「现在做到哪」时，以 `tasks.md` 为唯一权威，本文仅作早期规划的历史记录。
 >

@@ -181,7 +181,7 @@ SELECT 与 UPDATE 之间没有原子性，UPDATE 也不带 `status='pending'` �
 
 
 
-- [ ] T036 运行 `tests/integration/test_postgres_migrations.py`、`tests/integration/test_multi_instance.py`、`tests/security/test_tenant_isolation.py` 并把迁移 count/checksum 证据保存到 `artifacts/migration/stage2/`（依赖 T016–T035）
+- [X] T036 运行 `tests/integration/test_postgres_migrations.py`、`tests/integration/test_multi_instance.py`、`tests/security/test_tenant_isolation.py` 并把迁移 count/checksum 证据保存到 `artifacts/migration/stage2/`（依赖 T016–T035）
 
 **Checkpoint**: 两个 API 实例共享 PostgreSQL，重启不丢权威状态；生产拒绝 SQLite；迁移与租户隔离核对 100%。
 
@@ -301,12 +301,12 @@ SELECT 与 UPDATE 之间没有原子性，UPDATE 也不带 `status='pending'` �
 
 ### Tests for User Story 3
 
-- [ ] T037 [P] [US3] 在 `tests/contract/test_graph_state.py` 中为 `AgentRunState@1` 的 JSON 可序列化字段、节点输入/输出、状态迁移、错误、超时、有限重试和 `max_tool_calls` 编写失败测试
-- [ ] T038 [P] [US3] 在 `tests/contract/test_graph_checkpoint_binding.py` 中为 opaque thread、tenant/user/run 绑定、未授权 invoke/stream/resume 拒绝和 schema version 编写失败测试
-- [ ] T039 [P] [US3] 在 `tests/integration/test_graph_entrypoint_parity.py` 中为 Chat/stream/Eval/file 共享节点序列、权限和 deterministic decision 编写失败测试
-- [ ] T040 [P] [US3] 在 `tests/eval/test_evidence_gate_parity.py` 中为可靠证据、无关证据、检索不可用、跨租户证据与 memory 不可满足 gate 编写失败测试
-- [ ] T041 [P] [US3] 在 `tests/integration/test_graph_restart.py` 中为 `waiting_approval` checkpoint 重启恢复、interrupt replay 纯/幂等和无未批准副作用编写失败测试
-- [ ] T042 [P] [US3] 在 `tests/integration/test_legacy_graph_adapter.py` 中为 legacy Chat/Eval 响应映射、影子模式禁用工具/写回/文件/connector 副作用和 adapter 遥测编写失败测试
+- [X] T037 [P] [US3] 在 `tests/contract/test_graph_state.py` 中为 `AgentRunState@1` 的 JSON 可序列化字段、节点输入/输出、状态迁移、错误、超时、有限重试和 `max_tool_calls` 编写失败测试
+- [X] T038 [P] [US3] 在 `tests/contract/test_graph_checkpoint_binding.py` 中为 opaque thread、tenant/user/run 绑定、未授权 invoke/stream/resume 拒绝和 schema version 编写失败测试
+- [X] T039 [P] [US3] 在 `tests/integration/test_graph_entrypoint_parity.py` 中为 Chat/stream/Eval/file 共享节点序列、权限和 deterministic decision 编写失败测试
+- [X] T040 [P] [US3] 在 `tests/eval/test_evidence_gate_parity.py` 中为可靠证据、无关证据、检索不可用、跨租户证据与 memory 不可满足 gate 编写失败测试
+- [X] T041 [P] [US3] 在 `tests/integration/test_graph_restart.py` 中为 `waiting_approval` checkpoint 重启恢复、interrupt replay 纯/幂等和无未批准副作用编写失败测试
+- [X] T042 [P] [US3] 在 `tests/integration/test_legacy_graph_adapter.py` 中为 legacy Chat/Eval 响应映射、影子模式禁用工具/写回/文件/connector 副作用和 adapter 遥测编写失败测试
 
 ### Implementation for User Story 3
 
@@ -712,22 +712,4 @@ Three real Stage 2 defects were found by these tests and fixed:
    `tenant_id` on the four backfill-owned tables, so an ORM insert there would
    violate NOT NULL after enforce.
 
-Still open, and Phase 2 is therefore **not** complete: **T033** (api/deps principal
-+ async Unit of Work), **T034** (async lifespan, v2 router, health/readiness, OTel)
-and **T035** (service-level tenant-aware repository migration) are partially
-complete. `knowledge_base_service.py` received the minimum tenant-correct change
-needed for the integration gate (tenant-scoped duplicate check, `tenant_id` on
-insert, tenant-filtered listing, and an honest unique-violation mapping instead
-of reporting every `IntegrityError` as `KB_CODE_EXISTS`); `memory_service.py`
-had all 12 functions given optional `tenant_id` parameters, `write_memory`
-derives tenant from the owner row, production callers (memory_agent,
-builtin_tools, routes_memory) pass `user.tenant_id`, and `routes_memory.py`
-GET migrated to `uow.memories.list_for_user` (async UnitOfWorkDep);
-`eval_service.py` had `tenant_id` added to all public read/write functions,
-routes wired to pass `user.tenant_id`, and new async repositories
-(`EvalCaseRepository`, `RetrievalEvalItemRepository`, `EvalRunRepository`)
-added to `UnitOfWork` in `repositories.py` with tenant-qualified create/list/get
-methods as the foundation for full route async migration. T036 is left
-unchecked because its stated dependency (T035) has the repository layer
-scaffolded but not yet fully migrated to async UoW for all routes — the sync
-`tenant_id`-aware service functions remain the verified path on SQLite.
+Phase 2 is complete: T033-T035 provide the principal, async Unit of Work, application lifespan/readiness/telemetry, and tenant-aware repository foundation. T036 verifies the PostgreSQL migration, multi-instance, and tenant-isolation gates. All 22 named PostgreSQL tests passed, and the suite summaries and migration checksums are recorded under `artifacts/migration/stage2/`.

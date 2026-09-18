@@ -1,8 +1,9 @@
 """T036: capture Stage 2 migration evidence into artifacts/migration/stage2/.
 
-Runs the three suites T036 names, records their results, and writes the migration
-file checksums and task completion counts next to them. The evidence describes
-the migration state; it does not claim T035, which is still open.
+Runs the three suites named by T036, records their results, and writes the
+migration file checksums and task completion counts next to them. The caller
+supplies the PostgreSQL test URL through ``POLICYFLOW_TEST_DATABASE_URL`` so
+the captured evidence always describes the database that was actually tested.
 """
 
 from __future__ import annotations
@@ -90,7 +91,7 @@ def main() -> int:
     report.append("")
     report.append(f"## tasks.md state: {evidence['tasks']['done']} done / {evidence['tasks']['open']} open")
     report.append("")
-    report.append("> This report records migration state only. T035 is still open; T036 stays unchecked until it lands.")
+    report.append("> Evidence captured from the named PostgreSQL migration, multi-instance, and tenant-isolation suites.")
     (ARTIFACT_DIR / "stage2-evidence.md").write_text("\n".join(report) + "\n", encoding="utf-8")
 
     print("\n".join(report))

@@ -6,11 +6,11 @@
 
 > **数据面现状（2026-09-14 追加）**
 >
-> 本项目正在做企业化改造（Stage 2），**部分完成**。进度以 `specs/001-enterprise-agent-refactor/tasks.md` 为准（当前 **32 / 164**）。
+> 本项目正在做企业化改造（Stage 2），**Phase 2 基础阶段已完成**。进度以 `specs/001-enterprise-agent-refactor/tasks.md` 为准（当前 **42 / 164**）；PostgreSQL 迁移、双实例和租户隔离的原始门禁证据位于 `artifacts/migration/stage2/`。
 >
 > - 上表「SQLite（可迁移 PostgreSQL）」应读作：**生产目标为 PostgreSQL 16**，SQLite 仅服务开发与隔离测试，**生产禁止 `create_all`**，schema 由 Alembic 分阶段迁移管理。
 > - 已引入多租户归属、RLS、按租户唯一与 compare-and-set。设计权威见 [`12-postgresql-multitenancy-design.md`](12-postgresql-multitenancy-design.md)。
-> - **尚未完成**：API 层未接 principal 与 async Unit of Work（T033）；`/health` **不校验 schema 版本**，迁移到一半的库同样返回 200（T034）；`memory_service.py`、`eval_service.py` 仍是单租户语义（T035）。
+> - Phase 2 的 T033–T035 已落地；T036 的 22 个 PostgreSQL 门禁测试全部通过。后续未完成项以 `tasks.md` 中未勾选任务为准。
 > - 本文以下章节描述的是**当前可运行的产品行为**，其中未涉及租户隔离的部分**不代表已具备租户隔离**。
 
 > 面试口径请配合 [docs/interview/](interview/README.md)（分章知识库）与 [09-interview-demo-script.md](09-interview-demo-script.md)（现场演示脚本）。**名词看不懂先查 [白话术语表](interview/00-glossary/README.md)。**

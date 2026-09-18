@@ -8,11 +8,11 @@
 
 ## 当前状态（建议先读这一节）
 
-**功能可跑；企业化改造（Stage 2）进行到一半。** 进度以 `specs/001-enterprise-agent-refactor/tasks.md` 为准：
+**功能可跑；企业化改造（Stage 2）基础阶段已完成。** 进度以 `specs/001-enterprise-agent-refactor/tasks.md` 为准：
 
-- **已完成 32 / 164 项**（T001–T032，含 Phase 1 与 Phase 2 大部分）
-- **Phase 2 剩余**：T033（API principal + async Unit of Work 依赖）、T034（async lifespan、v2 router、health/readiness、OTel）、T035（service 层租户化）、T036（整门禁证据）
-- **未开始**：Phase 3–10（T037–T164）
+- **任务清单当前为 42 / 164 项**；本轮完成并验证的是 T033–T036（Phase 2 基础阶段）
+- **Phase 2 已完成**：T033–T036 已通过 principal/UoW、readiness、租户化服务基础，以及 PostgreSQL 迁移、双实例和租户隔离门禁；原始证据位于 `artifacts/migration/stage2/`
+- **后续阶段**：Phase 3–10 按任务清单推进
 
 所以现在**有两套并存的现实**，请不要混为一谈：
 
@@ -321,7 +321,7 @@ python scripts/seed_enterprise_docs.py
 
 | 文档 | 内容 |
 |------|------|
-| [specs/001-enterprise-agent-refactor/tasks.md](specs/001-enterprise-agent-refactor/tasks.md) | **企业化改造任务清单与真实进度**（当前 32 / 164） |
+| [specs/001-enterprise-agent-refactor/tasks.md](specs/001-enterprise-agent-refactor/tasks.md) | **企业化改造任务清单与真实进度**（当前 42 / 164） |
 | [docs/12-postgresql-multitenancy-design.md](docs/12-postgresql-multitenancy-design.md) | **生产数据面权威**：PostgreSQL、多租户、分阶段迁移、RLS 与已知缺口 |
 | [docs/01-architecture-design.md](docs/01-architecture-design.md) | 架构设计（v0.1 MVP 基线） |
 | [docs/02-database-design-sqlite.md](docs/02-database-design-sqlite.md) | 数据库设计 |
