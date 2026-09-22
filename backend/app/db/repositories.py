@@ -2684,6 +2684,108 @@ class MemoryItemRepository:
         await self._session.delete(item)
         await self._session.flush()
 
+    async def get_for_user(
+        self,
+        tenant_id: str,
+        user_id: str,
+        memory_id: str,
+    ) -> MemoryItem:
+        """Return one memory this member may manage, or a not-found error.
+
+        A member may reach a memory they own directly (``owner_type == "user"``
+        and ``owner_id`` is theirs) or a conversation-scoped memory belonging to
+        one of their own conversations. Both branches are qualified by the tenant,
+        so an id that belongs to another tenant is indistinguishable from a
+        missing one - the refusal never enumerates. Ownership is part of the
+        lookup rather than a check applied after the fetch, so there is no window
+        in which a foreign row is loaded and then rejected.
+
+        Raises:
+            TenantScopeError: when ``tenant_id`` is empty or missing.
+            ValueError: when a required text field is empty.
+            ResourceNotFoundError: when no such memory is visible to the member.
+        """
+        tenant = require_tenant(tenant_id, "MemoryItemRepository.get_for_user")
+        member = _require_text(user_id, "user_id")
+        identifier = _require_text(memory_id, "memory_id")
+        rows = await _fetch_all(
+            self._session,
+            select(MemoryItem).where(
+                _tenant_predicate(MemoryItem, tenant),
+                MemoryItem.id == identifier,
+            ),
+        )
+        item = rows[0] if rows else None
+        if item is None:
+            raise ResourceNotFoundError("memory", identifier)
+        if item.owner_type == "user" and item.owner_id == member:
+            return item
+        if item.owner_type == "conversation":
+            owning = await _fetch_all(
+                self._session,
+                select(Conversation.id).where(
+                    _tenant_predicate(Conversation, tenant),
+                    Conversation.id == item.owner_id,
+                    Conversation.user_id == member,
+                ),
+            )
+            if owning:
+                return item
+        # A memory that exists but is not this member's reads as not-found rather
+        # than forbidden, so the response cannot be used to probe other members.
+        raise ResourceNotFoundError("memory", identifier)
+
+    async def delete_for_user(
+        self,
+        tenant_id: str,
+        user_id: str,
+        memory_id: str,
+    ) -> None:
+        """Remove one memory this member may manage.
+
+        The caller commits: a unit of work owns the transaction, so deleting does
+        not quietly decide the outcome of the rest of the request.
+
+        Raises:
+            TenantScopeError: when ``tenant_id`` is empty or missing.
+            ResourceNotFoundError: when no such memory is visible to the member.
+        """
+        item = await self.get_for_user(tenant_id, user_id, memory_id)
+        await self._session.delete(item)
+        await self._session.flush()
+
+    async def record_access(
+        self,
+        tenant_id: str,
+        items: list[MemoryItem],
+        *,
+        now: datetime | None = None,
+    ) -> None:
+        """Bump the access heat of already-loaded, tenant-owned memories.
+
+        ``access_count`` and ``last_accessed_at`` live in ``meta_json`` and feed
+        the recall ranking; they are request-scoped bookkeeping, not authoritative
+        content. Only rows that belong to ``tenant_id`` are touched, so an item
+        loaded on another tenant's behalf can never have its heat rewritten here.
+        The meta mapping is reassigned rather than mutated in place so the JSON
+        column is tracked as dirty.
+        """
+        tenant = require_tenant(tenant_id, "MemoryItemRepository.record_access")
+        moment = _as_utc(now) if now is not None else utc_now()
+        touched = False
+        for item in items:
+            if item.tenant_id != tenant:
+                continue
+            meta = dict(item.meta_json or {})
+            meta["last_accessed_at"] = moment.isoformat()
+            meta["access_count"] = int(meta.get("access_count") or 0) + 1
+            item.meta_json = meta
+            item.updated_at = moment
+            self._session.add(item)
+            touched = True
+        if touched:
+            await self._session.flush()
+
 
 class EvalCaseRepository:
     """Tenant-qualified eval-case reads and writes."""

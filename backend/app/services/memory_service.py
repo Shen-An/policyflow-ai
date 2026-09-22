@@ -1,17 +1,31 @@
-"""Memory storage with policy-fact guards, vector search, and entity upsert."""
+"""Memory storage with policy-fact guards, vector search, and entity upsert.
+
+Every function that touches the database does so through the tenant-qualified
+asynchronous :class:`~backend.app.db.repositories.MemoryItemRepository`. Memory is
+*not* authoritative - it never overrides the evidence retrieved for the current
+turn - but it is still tenant-owned data, so ``tenant_id`` is required on every
+read and write rather than an optional filter. The legacy synchronous service
+filtered by owner alone, which let two tenants that shared an owner id read each
+other's memories, and its inserts omitted ``tenant_id`` entirely, which the
+enforced PostgreSQL schema rejects outright. Both defects are closed by routing
+through the repository with a mandatory tenant.
+
+The pure ranking helpers (cosine similarity, keyword overlap, the fused rank
+score) carry no database dependency and stay synchronous so they remain trivially
+testable.
+"""
 
 from __future__ import annotations
 
 import math
 import re
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlmodel import Session, col, select
-
 from backend.app.core.exceptions import ApplicationError
-from backend.app.db.models import MemoryItem, utc_now
+from backend.app.db.models import MemoryItem
+from backend.app.db.repositories import MemoryItemRepository
 
 POLICY_FACT_TERMS = ("制度", "规定", "标准", "必须", "应当", "policy requires")
 
@@ -30,145 +44,16 @@ SEARCHABLE_TYPES = (
 )
 
 
-def _is_active(item: MemoryItem, now: datetime) -> bool:
-    if item.expires_at is None:
-        return True
-    expires = item.expires_at
-    if expires.tzinfo is None:
-        expires = expires.replace(tzinfo=UTC)
-    return expires > now
+def _clamp01(value: float) -> float:
+    return max(0.0, min(float(value), 1.0))
 
 
-def _tenant_for_owner(session: Session, owner_type: str, owner_id: str) -> str | None:
-    """Look up the tenant that owns ``owner_id``.
-
-    ``tenant_id`` is NOT NULL on PostgreSQL and the enforced schema rejects a write
-    that omits it, so a production write always supplies a tenant. This lookup is
-    only a convenience for callers that do not: it returns the owner's tenant when
-    the owner row exists, and ``None`` otherwise. Returning ``None`` - rather than
-    raising - keeps the legacy call sites whose owners are not real database rows
-    working on SQLite, where the column is nullable. On PostgreSQL such a caller
-    must pass an explicit tenant or it will be refused by the constraint.
-
-    Raises:
-        ApplicationError: when ``owner_type`` names a type this helper does not
-            know how to look up.
-    """
-    from backend.app.db.models import Conversation, User
-
-    if owner_type == "user":
-        owner = session.get(User, owner_id)
-    elif owner_type == "conversation":
-        owner = session.get(Conversation, owner_id)
-    else:
-        raise ApplicationError(
-            "MEMORY_OWNER_UNSUPPORTED",
-            f"Unsupported memory owner type: {owner_type}",
-            422,
-        )
-    return getattr(owner, "tenant_id", None) if owner is not None else None
-
-
-def write_memory(
-    session: Session,
-    owner_type: str,
-    owner_id: str,
-    memory_type: str,
-    content: str,
-    source: str = "manual",
-    confidence: float = 0.5,
-    *,
-    embedding: list[float] | None = None,
-    meta_json: dict[str, Any] | None = None,
-    expires_at: datetime | None = None,
-    tenant_id: str | None = None,
-) -> MemoryItem:
-    cleaned = (content or "").strip()
-    if not cleaned:
-        raise ApplicationError("VALIDATION_ERROR", "Memory content is required", 422)
-    if memory_type == MEMORY_TYPE_PREFERENCE and any(
-        term in cleaned.lower() for term in POLICY_FACT_TERMS
-    ):
-        raise ApplicationError(
-            "MEMORY_POLICY_FACT_FORBIDDEN",
-            "Policy facts cannot be stored as user preferences",
-            422,
-        )
-    tenant = tenant_id if tenant_id else _tenant_for_owner(session, owner_type, owner_id)
-    item = MemoryItem(
-        tenant_id=tenant,
-        owner_type=owner_type,
-        owner_id=owner_id,
-        memory_type=memory_type,
-        content=cleaned[:2000],
-        source=source,
-        confidence=max(0.0, min(confidence, 1.0)),
-        embedding=embedding,
-        meta_json=dict(meta_json or {}),
-        expires_at=expires_at,
-    )
-    session.add(item)
-    session.commit()
-    session.refresh(item)
-    return item
-
-
-def read_memory(
-    session: Session,
-    owner_type: str,
-    owner_id: str,
-    *,
-    memory_types: Iterable[str] | None = None,
-    tenant_id: str | None = None,
-) -> list[MemoryItem]:
-    now = datetime.now(UTC)
-    statement = select(MemoryItem).where(
-        MemoryItem.owner_type == owner_type,
-        MemoryItem.owner_id == owner_id,
-    )
-    if tenant_id is not None:
-        statement = statement.where(MemoryItem.tenant_id == tenant_id)
-    if memory_types is not None:
-        allowed = list(memory_types)
-        if allowed:
-            statement = statement.where(col(MemoryItem.memory_type).in_(allowed))
-    items = session.exec(statement.order_by(col(MemoryItem.updated_at).desc())).all()
-    return [item for item in items if _is_active(item, now)]
-
-
-def list_fixed_memories(
-    session: Session,
-    user_id: str,
-    *,
-    prefs_limit: int = 10,
-    entity_limit: int = 8,
-    tenant_id: str | None = None,
-) -> list[MemoryItem]:
-    """Always-on user preferences and high-confidence entities."""
-    now = datetime.now(UTC)
-    base = [MemoryItem.owner_type == "user", MemoryItem.owner_id == user_id]
-    if tenant_id is not None:
-        base.append(MemoryItem.tenant_id == tenant_id)
-    prefs = [
-        item
-        for item in session.exec(
-            select(MemoryItem)
-            .where(*base, MemoryItem.memory_type == MEMORY_TYPE_PREFERENCE)
-            .order_by(col(MemoryItem.confidence).desc(), col(MemoryItem.updated_at).desc())
-        ).all()
-        if _is_active(item, now)
-    ][: max(prefs_limit, 0)]
-
-    entities = [
-        item
-        for item in session.exec(
-            select(MemoryItem)
-            .where(*base, MemoryItem.memory_type == MEMORY_TYPE_ENTITY)
-            .order_by(col(MemoryItem.confidence).desc(), col(MemoryItem.updated_at).desc())
-        ).all()
-        if _is_active(item, now)
-    ][: max(entity_limit, 0)]
-    return prefs + entities
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def cosine_similarity(left: list[float], right: list[float]) -> float:
@@ -195,18 +80,6 @@ def _keyword_score(query: str, content: str) -> float:
     return hits / len(tokens)
 
 
-def _clamp01(value: float) -> float:
-    return max(0.0, min(float(value), 1.0))
-
-
-def _as_utc(value: datetime | None) -> datetime | None:
-    if value is None:
-        return None
-    if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
-    return value.astimezone(UTC)
-
-
 def memory_rank_score(
     item: MemoryItem,
     *,
@@ -219,7 +92,7 @@ def memory_rank_score(
     """Fuse relevance, importance, recency, and access heat into one rank score.
 
     final = relevance * (0.55 + 0.35 * importance + 0.10 * recency) + access_boost
-    Score is request-scoped only — never persisted to the row.
+    Score is request-scoped only - never persisted to the row.
     """
     vector_score = 0.0
     if query_embedding and item.embedding:
@@ -253,8 +126,102 @@ def memory_rank_score(
     return relevance * (0.55 + 0.35 * importance + 0.10 * recency) + access_boost
 
 
-def search_memories_scored(
-    session: Session,
+async def write_memory(
+    repo: MemoryItemRepository,
+    tenant_id: str,
+    *,
+    owner_type: str,
+    owner_id: str,
+    memory_type: str,
+    content: str,
+    source: str = "manual",
+    confidence: float = 0.5,
+    embedding: list[float] | None = None,
+    meta_json: dict[str, Any] | None = None,
+    expires_at: datetime | None = None,
+) -> MemoryItem:
+    """Persist one memory for ``tenant_id`` after the policy-fact guard.
+
+    A user preference may not smuggle a policy statement into memory, because a
+    preference outranks nothing and must never be mistaken for authoritative
+    policy. The tenant is required and stamped on the row by the repository.
+    """
+    cleaned = (content or "").strip()
+    if not cleaned:
+        raise ApplicationError("VALIDATION_ERROR", "Memory content is required", 422)
+    if memory_type == MEMORY_TYPE_PREFERENCE and any(
+        term in cleaned.lower() for term in POLICY_FACT_TERMS
+    ):
+        raise ApplicationError(
+            "MEMORY_POLICY_FACT_FORBIDDEN",
+            "Policy facts cannot be stored as user preferences",
+            422,
+        )
+    return await repo.create(
+        tenant_id,
+        owner_type=owner_type,
+        owner_id=owner_id,
+        memory_type=memory_type,
+        content=cleaned,
+        source=source,
+        confidence=confidence,
+        embedding=embedding,
+        meta_json=dict(meta_json or {}),
+        expires_at=expires_at,
+    )
+
+
+async def read_memory(
+    repo: MemoryItemRepository,
+    tenant_id: str,
+    owner_type: str,
+    owner_id: str,
+    *,
+    memory_types: Iterable[str] | None = None,
+) -> list[MemoryItem]:
+    """Return this tenant's live memories for one owner (expired rows excluded)."""
+    types = list(memory_types) if memory_types is not None else None
+    return await repo.list_for_owner(
+        tenant_id, owner_type, owner_id, memory_types=types
+    )
+
+
+async def list_fixed_memories(
+    repo: MemoryItemRepository,
+    tenant_id: str,
+    user_id: str,
+    *,
+    prefs_limit: int = 10,
+    entity_limit: int = 8,
+) -> list[MemoryItem]:
+    """Always-on user preferences and high-confidence entities for one member."""
+
+    def _by_confidence(items: list[MemoryItem]) -> list[MemoryItem]:
+        return sorted(
+            items,
+            key=lambda item: (
+                item.confidence if item.confidence is not None else 0.0,
+                item.updated_at or item.created_at,
+            ),
+            reverse=True,
+        )
+
+    prefs = _by_confidence(
+        await repo.list_for_owner(
+            tenant_id, "user", user_id, memory_types=[MEMORY_TYPE_PREFERENCE]
+        )
+    )[: max(prefs_limit, 0)]
+    entities = _by_confidence(
+        await repo.list_for_owner(
+            tenant_id, "user", user_id, memory_types=[MEMORY_TYPE_ENTITY]
+        )
+    )[: max(entity_limit, 0)]
+    return prefs + entities
+
+
+async def search_memories_scored(
+    repo: MemoryItemRepository,
+    tenant_id: str,
     *,
     owner_specs: list[tuple[str, str]],
     query: str,
@@ -264,31 +231,28 @@ def search_memories_scored(
     now: datetime | None = None,
     decay_lambda: float = 0.08,
     access_boost_cap: float = 0.15,
-    tenant_id: str | None = None,
 ) -> list[tuple[float, MemoryItem]]:
-    """Search memories and return (rank_score, item) pairs, highest first.
+    """Search this tenant's memories and return (rank_score, item), highest first.
 
-    When ``tenant_id`` is supplied, every owner spec is restricted to that tenant,
-    so an owner id that belongs to another tenant cannot return another tenant's
-    rows. Omitting it keeps the legacy unscoped behaviour.
+    Every owner spec is qualified by ``tenant_id`` at the repository, so an owner
+    id that belongs to another tenant cannot pull that tenant's rows into the
+    result.
     """
     if top_k <= 0 or not owner_specs:
         return []
     clock = _as_utc(now) or datetime.now(UTC)
     types = list(memory_types) if memory_types is not None else list(SEARCHABLE_TYPES)
     candidates: list[MemoryItem] = []
+    seen: set[str] = set()
     for owner_type, owner_id in owner_specs:
-        statement = select(MemoryItem).where(
-            MemoryItem.owner_type == owner_type,
-            MemoryItem.owner_id == owner_id,
+        rows = await repo.list_for_owner(
+            tenant_id, owner_type, owner_id, memory_types=types, now=clock
         )
-        if tenant_id is not None:
-            statement = statement.where(MemoryItem.tenant_id == tenant_id)
-        if types:
-            statement = statement.where(col(MemoryItem.memory_type).in_(types))
-        for item in session.exec(statement).all():
-            if _is_active(item, clock):
-                candidates.append(item)
+        for item in rows:
+            if item.id in seen:
+                continue
+            seen.add(item.id)
+            candidates.append(item)
 
     scored: list[tuple[float, MemoryItem]] = []
     for item in candidates:
@@ -306,8 +270,9 @@ def search_memories_scored(
     return scored[:top_k]
 
 
-def search_memories(
-    session: Session,
+async def search_memories(
+    repo: MemoryItemRepository,
+    tenant_id: str,
     *,
     owner_specs: list[tuple[str, str]],
     query: str,
@@ -317,11 +282,11 @@ def search_memories(
     now: datetime | None = None,
     decay_lambda: float = 0.08,
     access_boost_cap: float = 0.15,
-    tenant_id: str | None = None,
 ) -> list[MemoryItem]:
     """Search memories by fused relevance / importance / recency ranking."""
-    scored = search_memories_scored(
-        session,
+    scored = await search_memories_scored(
+        repo,
+        tenant_id,
         owner_specs=owner_specs,
         query=query,
         query_embedding=query_embedding,
@@ -330,28 +295,24 @@ def search_memories(
         now=now,
         decay_lambda=decay_lambda,
         access_boost_cap=access_boost_cap,
-        tenant_id=tenant_id,
     )
     return [item for _, item in scored]
 
 
-def touch_access(session: Session, items: Iterable[MemoryItem]) -> None:
-    now = utc_now()
-    changed = False
-    for item in items:
-        meta = dict(item.meta_json or {})
-        meta["last_accessed_at"] = now.isoformat()
-        meta["access_count"] = int(meta.get("access_count") or 0) + 1
-        item.meta_json = meta
-        item.updated_at = now
-        session.add(item)
-        changed = True
-    if changed:
-        session.commit()
+async def touch_access(
+    repo: MemoryItemRepository,
+    tenant_id: str,
+    items: Iterable[MemoryItem],
+    *,
+    now: datetime | None = None,
+) -> None:
+    """Record that ``items`` were recalled, so access heat feeds future ranking."""
+    await repo.record_access(tenant_id, list(items), now=now)
 
 
-def upsert_entity(
-    session: Session,
+async def upsert_entity(
+    repo: MemoryItemRepository,
+    tenant_id: str,
     *,
     user_id: str,
     entity_type: str,
@@ -362,22 +323,21 @@ def upsert_entity(
     confidence: float = 0.7,
     embedding: list[float] | None = None,
     extra_meta: dict[str, Any] | None = None,
-    tenant_id: str | None = None,
 ) -> MemoryItem:
+    """Create or merge one entity memory for this tenant's member.
+
+    A matching entity is found within the tenant's own rows and merged in place;
+    the mutated row persists when the caller's unit of work commits. A new entity
+    is created through :func:`write_memory`, which flushes immediately.
+    """
     cleaned_name = (name or "").strip()
     cleaned_type = (entity_type or "generic").strip() or "generic"
     if not cleaned_name:
         raise ApplicationError("VALIDATION_ERROR", "Entity name is required", 422)
     entity_key = f"{cleaned_type}:{cleaned_name}".lower()
-    existing = session.exec(
-        select(MemoryItem).where(
-            MemoryItem.owner_type == "user",
-            MemoryItem.owner_id == user_id,
-            MemoryItem.memory_type == MEMORY_TYPE_ENTITY,
-        )
-    ).all()
-    if tenant_id is not None:
-        existing = [item for item in existing if item.tenant_id == tenant_id]
+    existing = await repo.list_for_owner(
+        tenant_id, "user", user_id, memory_types=[MEMORY_TYPE_ENTITY]
+    )
     matched: MemoryItem | None = None
     for item in existing:
         meta = item.meta_json or {}
@@ -413,8 +373,9 @@ def upsert_entity(
         **dict(extra_meta or {}),
     }
     if matched is None:
-        return write_memory(
-            session,
+        return await write_memory(
+            repo,
+            tenant_id,
             owner_type="user",
             owner_id=user_id,
             memory_type=MEMORY_TYPE_ENTITY,
@@ -423,7 +384,6 @@ def upsert_entity(
             confidence=confidence,
             embedding=embedding,
             meta_json=meta,
-            tenant_id=tenant_id,
         )
 
     matched.content = summary
@@ -432,30 +392,26 @@ def upsert_entity(
     if embedding is not None:
         matched.embedding = embedding
     matched.meta_json = {**(matched.meta_json or {}), **meta}
-    matched.updated_at = utc_now()
-    session.add(matched)
-    session.commit()
-    session.refresh(matched)
+    await repo.record_access(tenant_id, [matched])
     return matched
 
 
-def find_similar_preference(
-    session: Session,
+async def find_similar_preference(
+    repo: MemoryItemRepository,
+    tenant_id: str,
     user_id: str,
     content: str,
-    *,
-    tenant_id: str | None = None,
 ) -> MemoryItem | None:
     """Return an existing preference that is essentially the same statement."""
     normalized = re.sub(r"\s+", "", content.lower())
     if not normalized:
         return None
-    for item in read_memory(
-        session,
+    for item in await read_memory(
+        repo,
+        tenant_id,
         "user",
         user_id,
         memory_types=[MEMORY_TYPE_PREFERENCE],
-        tenant_id=tenant_id,
     ):
         existing = re.sub(r"\s+", "", item.content.lower())
         if not existing:
@@ -465,7 +421,7 @@ def find_similar_preference(
     return None
 
 
-MANAGEABLE_TYPES = (
+MANAGEABLE_TYPES: Collection[str] = (
     MEMORY_TYPE_PREFERENCE,
     MEMORY_TYPE_LONG_TERM,
     MEMORY_TYPE_ENTITY,
@@ -492,8 +448,9 @@ def to_memory_read(item: MemoryItem) -> dict[str, Any]:
     }
 
 
-def list_user_memories(
-    session: Session,
+async def list_user_memories(
+    repo: MemoryItemRepository,
+    tenant_id: str,
     user_id: str,
     *,
     page: int = 1,
@@ -501,115 +458,40 @@ def list_user_memories(
     memory_type: str | None = None,
     keyword: str | None = None,
     include_expired: bool = False,
-    tenant_id: str | None = None,
 ) -> tuple[list[MemoryItem], int]:
-    """List memories owned by the user (user-scoped + conversation-scoped trail).
+    """List a member's memories (user-owned plus their conversation trail).
 
-    When ``tenant_id`` is supplied every query is restricted to that tenant, so a
-    conversation or owner id that belongs to another tenant can never surface rows
-    from it. Omitting it keeps the legacy, unscoped behaviour for callers that have
-    not yet migrated.
+    Every query the repository issues is qualified by ``tenant_id``, so a
+    conversation or owner id belonging to another tenant can never surface its
+    rows here.
     """
-    safe_page = max(page, 1)
-    safe_page_size = min(max(page_size, 1), 100)
-    now = datetime.now(UTC)
-
-    user_predicate = [MemoryItem.owner_type == "user", MemoryItem.owner_id == user_id]
-    conv_predicate = [MemoryItem.owner_type == "conversation"]
-    if tenant_id is not None:
-        user_predicate.append(MemoryItem.tenant_id == tenant_id)
-        conv_predicate.append(MemoryItem.tenant_id == tenant_id)
-
-    # User-owned memories.
-    user_items = list(
-        session.exec(
-            select(MemoryItem)
-            .where(*user_predicate)
-            .order_by(col(MemoryItem.updated_at).desc())
-        ).all()
+    return await repo.list_for_user(
+        tenant_id,
+        user_id,
+        allowed_types=MANAGEABLE_TYPES,
+        page=page,
+        page_size=page_size,
+        memory_type=memory_type,
+        keyword=keyword,
+        include_expired=include_expired,
     )
 
-    # Conversation-scoped summaries for this user's conversations (optional trail).
-    from backend.app.db.models import Conversation
 
-    conversation_query = select(Conversation).where(Conversation.user_id == user_id)
-    if tenant_id is not None:
-        conversation_query = conversation_query.where(Conversation.tenant_id == tenant_id)
-    conversation_ids = [
-        conversation.id for conversation in session.exec(conversation_query).all()
-    ]
-    conversation_items: list[MemoryItem] = []
-    if conversation_ids:
-        conversation_predicate = [
-            MemoryItem.owner_type == "conversation",
-            col(MemoryItem.owner_id).in_(conversation_ids),
-        ]
-        if tenant_id is not None:
-            conversation_predicate.append(MemoryItem.tenant_id == tenant_id)
-        conversation_items = list(
-            session.exec(
-                select(MemoryItem)
-                .where(*conversation_predicate)
-                .order_by(col(MemoryItem.updated_at).desc())
-            ).all()
-        )
-
-    items = [*user_items, *conversation_items]
-    # Stable de-dupe by id, keep first (already time-ordered within groups).
-    seen: set[str] = set()
-    unique: list[MemoryItem] = []
-    for item in sorted(items, key=lambda row: row.updated_at or row.created_at, reverse=True):
-        if item.id in seen:
-            continue
-        seen.add(item.id)
-        unique.append(item)
-
-    filtered: list[MemoryItem] = []
-    type_filter = (memory_type or "").strip()
-    keyword_filter = (keyword or "").strip().lower()
-    for item in unique:
-        if type_filter and item.memory_type != type_filter:
-            continue
-        if not include_expired and not _is_active(item, now):
-            continue
-        if keyword_filter and keyword_filter not in item.content.lower():
-            continue
-        if item.memory_type not in MANAGEABLE_TYPES and type_filter != item.memory_type:
-            # Still show known types; ignore unknown unless explicitly filtered.
-            continue
-        filtered.append(item)
-
-    total = len(filtered)
-    start = (safe_page - 1) * safe_page_size
-    return filtered[start : start + safe_page_size], total
-
-
-def get_user_memory(
-    session: Session, user_id: str, memory_id: str, *, tenant_id: str | None = None
+async def get_user_memory(
+    repo: MemoryItemRepository,
+    tenant_id: str,
+    user_id: str,
+    memory_id: str,
 ) -> MemoryItem:
-    item = session.get(MemoryItem, memory_id)
-    if item is None:
-        raise ApplicationError("MEMORY_NOT_FOUND", "Memory not found", 404)
-    if tenant_id is not None and item.tenant_id != tenant_id:
-        raise ApplicationError("MEMORY_NOT_FOUND", "Memory not found", 404)
-    if item.owner_type == "user" and item.owner_id == user_id:
-        return item
-    if item.owner_type == "conversation":
-        from backend.app.db.models import Conversation
-
-        conversation = session.get(Conversation, item.owner_id)
-        if (
-            conversation is not None
-            and conversation.user_id == user_id
-            and (tenant_id is None or conversation.tenant_id == tenant_id)
-        ):
-            return item
-    raise ApplicationError("PERMISSION_DENIED", "Memory access denied", 403)
+    """Return one memory the member may manage, or a not-found error."""
+    return await repo.get_for_user(tenant_id, user_id, memory_id)
 
 
-def delete_user_memory(
-    session: Session, user_id: str, memory_id: str, *, tenant_id: str | None = None
+async def delete_user_memory(
+    repo: MemoryItemRepository,
+    tenant_id: str,
+    user_id: str,
+    memory_id: str,
 ) -> None:
-    item = get_user_memory(session, user_id, memory_id, tenant_id=tenant_id)
-    session.delete(item)
-    session.commit()
+    """Delete one memory the member may manage (user-owned or their conversation)."""
+    await repo.delete_for_user(tenant_id, user_id, memory_id)

@@ -162,3 +162,14 @@ def expand_retrieval_query(
     if not extras:
         return current
     return _clean(f"{current} {' '.join(extras)}")
+
+
+# -- Graph-callable adapter (T047) --------------------------------------------
+# The shared graph's ``rewrite`` node calls this thin async wrapper. Rewriting
+# only expands the retrieval query with prior-turn topic; it never rewrites the
+# user's intent into a different policy question, and it touches no policy
+# evidence. Memory/history is context for phrasing the query, never authority.
+async def graph_rewrite_query(
+    *, query: str, history: list[dict[str, Any]] | None = None, rolling_summary: str | None = None
+) -> str:
+    return expand_retrieval_query(query, history=history or [], rolling_summary=rolling_summary)

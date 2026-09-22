@@ -4,7 +4,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, Response, status
 
-from backend.app.api.deps import CurrentUser, SessionDep, UnitOfWorkDep
+from backend.app.api.deps import CurrentUser, UnitOfWorkDep
+from backend.app.db.repositories import require_tenant
 from backend.app.schemas.memory import MemoryItemRead, MemoryListResponse
 from backend.app.services.memory_service import (
     MANAGEABLE_TYPES,
@@ -36,7 +37,7 @@ async def list_memories_route(
     which keeps the data layer free of service-level knowledge.
     """
     items, total = await uow.memories.list_for_user(
-        user.tenant_id,
+        require_tenant(user.tenant_id, "list_memories_route"),
         user.id,
         allowed_types=MANAGEABLE_TYPES,
         page=page,
@@ -60,18 +61,24 @@ async def list_memories_route(
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
 )
-def delete_memory_route(
+async def delete_memory_route(
     memory_id: str,
     user: CurrentUser,
-    session: SessionDep,
+    uow: UnitOfWorkDep,
 ) -> Response:
-    """Delete a memory owned by the current user.
+    """Delete a memory the current user may manage.
 
-    This handler still runs on the legacy synchronous path. The repository delete
-    is owner-and-tenant qualified but not yet conversation-aware, and the legacy
-    handler accepts deleting a conversation-scoped memory belonging to the user's
-    own conversation; moving this route now would silently drop that case. It
-    follows once the repository covers it.
+    The delete runs on the tenant-qualified asynchronous repository. It is
+    conversation-aware: the member may remove a memory they own directly or a
+    conversation-scoped memory belonging to one of their own conversations, and a
+    memory outside the tenant reads as not-found rather than forbidden, so the
+    response cannot be used to probe another tenant's ids.
     """
-    delete_user_memory(session, user.id, memory_id, tenant_id=user.tenant_id)
+    await delete_user_memory(
+        uow.memories,
+        require_tenant(user.tenant_id, "delete_memory_route"),
+        user.id,
+        memory_id,
+    )
+    await uow.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

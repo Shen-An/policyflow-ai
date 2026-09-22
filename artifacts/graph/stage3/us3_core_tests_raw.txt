@@ -1,0 +1,140 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.9, pytest-8.4.2, pluggy-1.5.0 -- E:\Coding\Anaconda\python.exe
+cachedir: .pytest_cache
+rootdir: E:\Coding\Code\Python\policyflow-ai
+configfile: pyproject.toml
+plugins: anyio-4.10.0, Faker-40.32.0, asyncio-1.4.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collecting ... collected 63 items
+
+tests/contract/test_graph_state.py::test_agent_run_state_is_json_serializable_and_versioned PASSED [  1%]
+tests/contract/test_graph_state.py::test_declared_state_transitions_are_allowed[created-running] PASSED [  3%]
+tests/contract/test_graph_state.py::test_declared_state_transitions_are_allowed[running-waiting_approval] PASSED [  4%]
+tests/contract/test_graph_state.py::test_declared_state_transitions_are_allowed[waiting_approval-running] PASSED [  6%]
+tests/contract/test_graph_state.py::test_declared_state_transitions_are_allowed[running-succeeded] PASSED [  7%]
+tests/contract/test_graph_state.py::test_declared_state_transitions_are_allowed[running-failed] PASSED [  9%]
+tests/contract/test_graph_state.py::test_declared_state_transitions_are_allowed[running-cancelled] PASSED [ 11%]
+tests/contract/test_graph_state.py::test_invalid_or_terminal_state_transitions_are_rejected[created-succeeded] PASSED [ 12%]
+tests/contract/test_graph_state.py::test_invalid_or_terminal_state_transitions_are_rejected[succeeded-running] PASSED [ 14%]
+tests/contract/test_graph_state.py::test_invalid_or_terminal_state_transitions_are_rejected[failed-running] PASSED [ 15%]
+tests/contract/test_graph_state.py::test_invalid_or_terminal_state_transitions_are_rejected[cancelled-running] PASSED [ 17%]
+tests/contract/test_graph_state.py::test_node_input_and_output_must_be_json_values PASSED [ 19%]
+tests/contract/test_graph_state.py::test_errors_preserve_code_retryability_node_and_attempt PASSED [ 20%]
+tests/contract/test_graph_state.py::test_expired_deadline_is_detected PASSED [ 22%]
+tests/contract/test_graph_state.py::test_retry_budget_is_finite_and_scoped_per_node PASSED [ 23%]
+tests/contract/test_graph_state.py::test_max_tool_calls_is_enforced PASSED [ 25%]
+tests/contract/test_graph_checkpoint_binding.py::test_thread_identifier_is_opaque_and_not_derived_from_identity PASSED [ 26%]
+tests/contract/test_graph_checkpoint_binding.py::test_binding_carries_tenant_user_run_and_schema_versions PASSED [ 28%]
+tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal0-invoke] PASSED [ 30%]
+tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal0-stream] PASSED [ 31%]
+tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal0-resume] PASSED [ 33%]
+tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal1-invoke] PASSED [ 34%]
+tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal1-stream] PASSED [ 36%]
+tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal1-resume] PASSED [ 38%]
+tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal2-invoke] PASSED [ 39%]
+tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal2-stream] PASSED [ 41%]
+tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal2-resume] PASSED [ 42%]
+tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_unknown_thread_without_disclosure[invoke] PASSED [ 44%]
+tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_unknown_thread_without_disclosure[stream] PASSED [ 46%]
+tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_unknown_thread_without_disclosure[resume] PASSED [ 47%]
+tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_stale_authorization_version[invoke] PASSED [ 49%]
+tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_stale_authorization_version[stream] PASSED [ 50%]
+tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_stale_authorization_version[resume] PASSED [ 52%]
+tests/contract/test_graph_checkpoint_binding.py::test_unknown_checkpoint_schema_version_is_rejected PASSED [ 53%]
+tests/contract/test_graph_checkpoint_binding.py::test_unknown_graph_state_schema_version_is_rejected PASSED [ 55%]
+tests/integration/test_graph_entrypoint_parity.py::test_entrypoints_share_node_sequence_and_deterministic_decision[chat] PASSED [ 57%]
+tests/integration/test_graph_entrypoint_parity.py::test_entrypoints_share_node_sequence_and_deterministic_decision[stream] PASSED [ 58%]
+tests/integration/test_graph_entrypoint_parity.py::test_entrypoints_share_node_sequence_and_deterministic_decision[eval] PASSED [ 60%]
+tests/integration/test_graph_entrypoint_parity.py::test_entrypoints_share_node_sequence_and_deterministic_decision[file_workflow] PASSED [ 61%]
+tests/integration/test_graph_entrypoint_parity.py::test_entrypoints_reject_missing_permission[chat-graph:invoke] PASSED [ 63%]
+tests/integration/test_graph_entrypoint_parity.py::test_entrypoints_reject_missing_permission[stream-graph:stream] PASSED [ 65%]
+tests/integration/test_graph_entrypoint_parity.py::test_entrypoints_reject_missing_permission[eval-graph:eval] PASSED [ 66%]
+tests/integration/test_graph_entrypoint_parity.py::test_entrypoints_reject_missing_permission[file_workflow-graph:file_workflow] PASSED [ 68%]
+tests/eval/test_evidence_gate_parity.py::test_reliable_current_tenant_evidence_satisfies_gate[chat] PASSED [ 69%]
+tests/eval/test_evidence_gate_parity.py::test_reliable_current_tenant_evidence_satisfies_gate[stream] PASSED [ 71%]
+tests/eval/test_evidence_gate_parity.py::test_reliable_current_tenant_evidence_satisfies_gate[eval] PASSED [ 73%]
+tests/eval/test_evidence_gate_parity.py::test_reliable_current_tenant_evidence_satisfies_gate[file_workflow] PASSED [ 74%]
+tests/eval/test_evidence_gate_parity.py::test_irrelevant_evidence_is_insufficient_for_every_entrypoint[chat] PASSED [ 76%]
+tests/eval/test_evidence_gate_parity.py::test_irrelevant_evidence_is_insufficient_for_every_entrypoint[stream] PASSED [ 77%]
+tests/eval/test_evidence_gate_parity.py::test_irrelevant_evidence_is_insufficient_for_every_entrypoint[eval] PASSED [ 79%]
+tests/eval/test_evidence_gate_parity.py::test_irrelevant_evidence_is_insufficient_for_every_entrypoint[file_workflow] PASSED [ 80%]
+tests/eval/test_evidence_gate_parity.py::test_retrieval_unavailable_fails_closed PASSED [ 82%]
+tests/eval/test_evidence_gate_parity.py::test_cross_tenant_evidence_never_satisfies_gate PASSED [ 84%]
+tests/eval/test_evidence_gate_parity.py::test_non_authoritative_memory_never_satisfies_policy_evidence_gate PASSED [ 85%]
+tests/eval/test_evidence_gate_parity.py::test_non_retrievable_evidence_never_satisfies_gate PASSED [ 87%]
+tests/integration/test_graph_restart.py::test_waiting_approval_checkpoint_survives_runtime_restart PASSED [ 88%]
+tests/integration/test_graph_restart.py::test_interrupt_replay_is_pure_and_idempotent PASSED [ 90%]
+tests/integration/test_graph_restart.py::test_unapproved_or_rejected_resume_has_no_side_effect PASSED [ 92%]
+tests/integration/test_graph_restart.py::test_approved_resume_executes_side_effect_exactly_once_after_restart PASSED [ 93%]
+tests/integration/test_legacy_graph_adapter.py::test_legacy_chat_response_maps_from_shared_graph_result PASSED [ 95%]
+tests/integration/test_legacy_graph_adapter.py::test_legacy_eval_response_maps_deterministic_graph_decision PASSED [ 96%]
+tests/integration/test_legacy_graph_adapter.py::test_shadow_mode_disables_every_side_effect_capability PASSED [ 98%]
+tests/integration/test_legacy_graph_adapter.py::test_adapter_emits_compatibility_telemetry_without_payload_content PASSED [100%]
+
+=================================== PASSES ====================================
+=========================== short test summary info ===========================
+PASSED tests/contract/test_graph_state.py::test_agent_run_state_is_json_serializable_and_versioned
+PASSED tests/contract/test_graph_state.py::test_declared_state_transitions_are_allowed[created-running]
+PASSED tests/contract/test_graph_state.py::test_declared_state_transitions_are_allowed[running-waiting_approval]
+PASSED tests/contract/test_graph_state.py::test_declared_state_transitions_are_allowed[waiting_approval-running]
+PASSED tests/contract/test_graph_state.py::test_declared_state_transitions_are_allowed[running-succeeded]
+PASSED tests/contract/test_graph_state.py::test_declared_state_transitions_are_allowed[running-failed]
+PASSED tests/contract/test_graph_state.py::test_declared_state_transitions_are_allowed[running-cancelled]
+PASSED tests/contract/test_graph_state.py::test_invalid_or_terminal_state_transitions_are_rejected[created-succeeded]
+PASSED tests/contract/test_graph_state.py::test_invalid_or_terminal_state_transitions_are_rejected[succeeded-running]
+PASSED tests/contract/test_graph_state.py::test_invalid_or_terminal_state_transitions_are_rejected[failed-running]
+PASSED tests/contract/test_graph_state.py::test_invalid_or_terminal_state_transitions_are_rejected[cancelled-running]
+PASSED tests/contract/test_graph_state.py::test_node_input_and_output_must_be_json_values
+PASSED tests/contract/test_graph_state.py::test_errors_preserve_code_retryability_node_and_attempt
+PASSED tests/contract/test_graph_state.py::test_expired_deadline_is_detected
+PASSED tests/contract/test_graph_state.py::test_retry_budget_is_finite_and_scoped_per_node
+PASSED tests/contract/test_graph_state.py::test_max_tool_calls_is_enforced
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_thread_identifier_is_opaque_and_not_derived_from_identity
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_binding_carries_tenant_user_run_and_schema_versions
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal0-invoke]
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal0-stream]
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal0-resume]
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal1-invoke]
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal1-stream]
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal1-resume]
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal2-invoke]
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal2-stream]
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_mismatched_binding_identity[principal2-resume]
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_unknown_thread_without_disclosure[invoke]
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_unknown_thread_without_disclosure[stream]
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_unknown_thread_without_disclosure[resume]
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_stale_authorization_version[invoke]
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_stale_authorization_version[stream]
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_graph_operations_reject_stale_authorization_version[resume]
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_unknown_checkpoint_schema_version_is_rejected
+PASSED tests/contract/test_graph_checkpoint_binding.py::test_unknown_graph_state_schema_version_is_rejected
+PASSED tests/integration/test_graph_entrypoint_parity.py::test_entrypoints_share_node_sequence_and_deterministic_decision[chat]
+PASSED tests/integration/test_graph_entrypoint_parity.py::test_entrypoints_share_node_sequence_and_deterministic_decision[stream]
+PASSED tests/integration/test_graph_entrypoint_parity.py::test_entrypoints_share_node_sequence_and_deterministic_decision[eval]
+PASSED tests/integration/test_graph_entrypoint_parity.py::test_entrypoints_share_node_sequence_and_deterministic_decision[file_workflow]
+PASSED tests/integration/test_graph_entrypoint_parity.py::test_entrypoints_reject_missing_permission[chat-graph:invoke]
+PASSED tests/integration/test_graph_entrypoint_parity.py::test_entrypoints_reject_missing_permission[stream-graph:stream]
+PASSED tests/integration/test_graph_entrypoint_parity.py::test_entrypoints_reject_missing_permission[eval-graph:eval]
+PASSED tests/integration/test_graph_entrypoint_parity.py::test_entrypoints_reject_missing_permission[file_workflow-graph:file_workflow]
+PASSED tests/eval/test_evidence_gate_parity.py::test_reliable_current_tenant_evidence_satisfies_gate[chat]
+PASSED tests/eval/test_evidence_gate_parity.py::test_reliable_current_tenant_evidence_satisfies_gate[stream]
+PASSED tests/eval/test_evidence_gate_parity.py::test_reliable_current_tenant_evidence_satisfies_gate[eval]
+PASSED tests/eval/test_evidence_gate_parity.py::test_reliable_current_tenant_evidence_satisfies_gate[file_workflow]
+PASSED tests/eval/test_evidence_gate_parity.py::test_irrelevant_evidence_is_insufficient_for_every_entrypoint[chat]
+PASSED tests/eval/test_evidence_gate_parity.py::test_irrelevant_evidence_is_insufficient_for_every_entrypoint[stream]
+PASSED tests/eval/test_evidence_gate_parity.py::test_irrelevant_evidence_is_insufficient_for_every_entrypoint[eval]
+PASSED tests/eval/test_evidence_gate_parity.py::test_irrelevant_evidence_is_insufficient_for_every_entrypoint[file_workflow]
+PASSED tests/eval/test_evidence_gate_parity.py::test_retrieval_unavailable_fails_closed
+PASSED tests/eval/test_evidence_gate_parity.py::test_cross_tenant_evidence_never_satisfies_gate
+PASSED tests/eval/test_evidence_gate_parity.py::test_non_authoritative_memory_never_satisfies_policy_evidence_gate
+PASSED tests/eval/test_evidence_gate_parity.py::test_non_retrievable_evidence_never_satisfies_gate
+PASSED tests/integration/test_graph_restart.py::test_waiting_approval_checkpoint_survives_runtime_restart
+PASSED tests/integration/test_graph_restart.py::test_interrupt_replay_is_pure_and_idempotent
+PASSED tests/integration/test_graph_restart.py::test_unapproved_or_rejected_resume_has_no_side_effect
+PASSED tests/integration/test_graph_restart.py::test_approved_resume_executes_side_effect_exactly_once_after_restart
+PASSED tests/integration/test_legacy_graph_adapter.py::test_legacy_chat_response_maps_from_shared_graph_result
+PASSED tests/integration/test_legacy_graph_adapter.py::test_legacy_eval_response_maps_deterministic_graph_decision
+PASSED tests/integration/test_legacy_graph_adapter.py::test_shadow_mode_disables_every_side_effect_capability
+PASSED tests/integration/test_legacy_graph_adapter.py::test_adapter_emits_compatibility_telemetry_without_payload_content
+============================= 63 passed in 0.27s ==============================
+849b92dd9ea72e3cc0f89b4bbbde10def9bd2a24

@@ -11,6 +11,7 @@ both sessions read the same pending row before either writes can tell the two ap
 from __future__ import annotations
 
 from collections.abc import Iterator
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -46,20 +47,26 @@ def _set_tenant(session: Session, tenant_id: str) -> None:
 
 
 def _pending_index_job(url: str) -> tuple[str, str]:
-    """Create one pending index job and return its id with its document id."""
+    """Create one pending index job and return its id with its document id.
+
+    The claim_url database is module-scoped, so every call must seed rows with
+    distinct natural keys; a fixed department/base code collides on the second
+    call under ``ix_departments_code``.
+    """
+    suffix = uuid4().hex[:8]
     engine = create_engine(url)
     try:
         with Session(engine) as setup:
             _set_tenant(setup, LEGACY_TENANT_ID)
-            department = Department(name="Claim Test", code="claim-test-department")
+            department = Department(name="Claim Test", code=f"claim-test-department-{suffix}")
             setup.add(department)
             setup.flush()
             knowledge_base = KnowledgeBase(
                 tenant_id=LEGACY_TENANT_ID,
                 name="Claim Test",
-                code="claim-test-base",
+                code=f"claim-test-base-{suffix}",
                 department_id=department.id,
-                rag_workspace="claim-test-workspace",
+                rag_workspace=f"claim-test-workspace-{suffix}",
             )
             setup.add(knowledge_base)
             setup.flush()
@@ -67,9 +74,9 @@ def _pending_index_job(url: str) -> tuple[str, str]:
                 tenant_id=LEGACY_TENANT_ID,
                 knowledge_base_id=knowledge_base.id,
                 title="claim test document",
-                file_path="claim-test.md",
+                file_path=f"claim-test-{suffix}.md",
                 file_type="md",
-                content_hash="claim-test-content-hash",
+                content_hash=f"claim-test-content-hash-{suffix}",
                 created_by="system",
             )
             setup.add(document)

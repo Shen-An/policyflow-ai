@@ -130,8 +130,17 @@ def build_memory_app(tmp_path: Path, llm: CapturingLLM | None = None) -> FastAPI
         settings,
         llm_service=language_model,
         embedding_service=FakeEmbedding(),
+        uow_factory=app.state.uow_factory,
     )
     return app
+
+
+def get_tenant_id(app: FastAPI) -> str:
+    """Return the seeded tenant id (FK-enforced on memory_items writes)."""
+    with Session(app.state.engine) as session:
+        user = session.exec(select(User)).first()
+        assert user is not None
+        return str(user.tenant_id)
 
 
 def login(client: TestClient, username: str, password: str) -> str:
@@ -147,30 +156,37 @@ def headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_cosine_and_keyword_search(tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_cosine_and_keyword_search(tmp_path: Path) -> None:
     app = build_memory_app(tmp_path)
     with TestClient(app):
-        with Session(app.state.engine) as session:
-            write_memory(
-                session,
-                "user",
-                "u1",
-                MEMORY_TYPE_LONG_TERM,
-                "用户偏好使用表格回答差旅问题",
+        tenant_id = get_tenant_id(app)
+        async with app.state.uow_factory() as uow:
+            repo = uow.memories
+            await write_memory(
+                repo,
+                tenant_id,
+                owner_type="user",
+                owner_id="u1",
+                memory_type=MEMORY_TYPE_LONG_TERM,
+                content="用户偏好使用表格回答差旅问题",
                 embedding=[1.0, 0.0, 0.0],
                 meta_json={"event_type": "preference"},
             )
-            write_memory(
-                session,
-                "user",
-                "u1",
-                MEMORY_TYPE_LONG_TERM,
-                "用户默认打印机在3楼",
+            await write_memory(
+                repo,
+                tenant_id,
+                owner_type="user",
+                owner_id="u1",
+                memory_type=MEMORY_TYPE_LONG_TERM,
+                content="用户默认打印机在3楼",
                 embedding=[0.0, 1.0, 0.0],
                 meta_json={"event_type": "conversation_fact"},
             )
-            hits = search_memories(
-                session,
+            await uow.commit()
+            hits = await search_memories(
+                repo,
+                tenant_id,
                 owner_specs=[("user", "u1")],
                 query="差旅 表格",
                 query_embedding=[1.0, 0.0, 0.0],
@@ -181,45 +197,56 @@ def test_cosine_and_keyword_search(tmp_path: Path) -> None:
             assert cosine_similarity([1.0, 0.0], [1.0, 0.0]) == pytest.approx(1.0)
 
 
-def test_entity_upsert_merges_facts(tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_entity_upsert_merges_facts(tmp_path: Path) -> None:
     app = build_memory_app(tmp_path)
     with TestClient(app):
-        with Session(app.state.engine) as session:
-            first = upsert_entity(
-                session,
+        tenant_id = get_tenant_id(app)
+        async with app.state.uow_factory() as uow:
+            repo = uow.memories
+            first = await upsert_entity(
+                repo,
+                tenant_id,
                 user_id="u1",
                 entity_type="department",
                 name="财务部",
                 facts=["默认部门是财务部"],
             )
-            second = upsert_entity(
-                session,
+            second = await upsert_entity(
+                repo,
+                tenant_id,
                 user_id="u1",
                 entity_type="department",
                 name="财务部",
                 facts=["报销对接人是张三"],
             )
+            await uow.commit()
             assert first.id == second.id
             facts = second.meta_json.get("facts") or []
             assert "默认部门是财务部" in facts
             assert "报销对接人是张三" in facts
+        with Session(app.state.engine) as session:
             items = session.exec(
                 select(MemoryItem).where(MemoryItem.memory_type == MEMORY_TYPE_ENTITY)
             ).all()
             assert len(items) == 1
 
 
-def test_policy_fact_forbidden_in_preference(tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_policy_fact_forbidden_in_preference(tmp_path: Path) -> None:
     app = build_memory_app(tmp_path)
     with TestClient(app):
-        with Session(app.state.engine) as session:
+        tenant_id = get_tenant_id(app)
+        async with app.state.uow_factory() as uow:
+            repo = uow.memories
             with pytest.raises(ApplicationError) as exc:
-                write_memory(
-                    session,
-                    "user",
-                    "u1",
-                    MEMORY_TYPE_PREFERENCE,
-                    "制度规定必须经理审批",
+                await write_memory(
+                    repo,
+                    tenant_id,
+                    owner_type="user",
+                    owner_id="u1",
+                    memory_type=MEMORY_TYPE_PREFERENCE,
+                    content="制度规定必须经理审批",
                 )
             assert exc.value.code == "MEMORY_POLICY_FACT_FORBIDDEN"
 
@@ -245,24 +272,30 @@ def test_summary_parse_and_compress_threshold() -> None:
     assert "hello" in dumped
 
 
-def test_context_partitions_memory(tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_context_partitions_memory(tmp_path: Path) -> None:
     app = build_memory_app(tmp_path)
     with TestClient(app):
-        with Session(app.state.engine) as session:
-            pref = write_memory(
-                session,
-                "user",
-                "u1",
-                MEMORY_TYPE_PREFERENCE,
-                "Prefers bullet points",
+        tenant_id = get_tenant_id(app)
+        async with app.state.uow_factory() as uow:
+            repo = uow.memories
+            pref = await write_memory(
+                repo,
+                tenant_id,
+                owner_type="user",
+                owner_id="u1",
+                memory_type=MEMORY_TYPE_PREFERENCE,
+                content="Prefers bullet points",
             )
-            ltm = write_memory(
-                session,
-                "user",
-                "u1",
-                MEMORY_TYPE_LONG_TERM,
-                "上次讨论过差旅上限",
+            ltm = await write_memory(
+                repo,
+                tenant_id,
+                owner_type="user",
+                owner_id="u1",
+                memory_type=MEMORY_TYPE_LONG_TERM,
+                content="上次讨论过差旅上限",
             )
+            await uow.commit()
             evidence = [
                 Evidence(
                     knowledge_base_id="kb",
@@ -287,7 +320,7 @@ def test_context_partitions_memory(tmp_path: Path) -> None:
     assert "must not replace" in context["rules"][0]
 
 
-def test_chat_uses_history_and_writes_preference(tmp_path: Path) -> None:
+async def test_chat_uses_history_and_writes_preference(tmp_path: Path) -> None:
     llm = CapturingLLM()
     app = build_memory_app(tmp_path, llm)
     with TestClient(app) as client:
@@ -338,50 +371,56 @@ def test_chat_uses_history_and_writes_preference(tmp_path: Path) -> None:
 
         with Session(app.state.engine) as session:
             user = session.exec(select(User).where(User.username == "admin")).one()
+            user_id = user.id
+            tenant_id = user.tenant_id
             user_memories = session.exec(
-                select(MemoryItem).where(MemoryItem.owner_id == user.id)
+                select(MemoryItem).where(MemoryItem.owner_id == user_id)
             ).all()
             all_memories = session.exec(select(MemoryItem)).all()
             assert any(item.memory_type == MEMORY_TYPE_PREFERENCE for item in user_memories)
             assert any(item.memory_type == "conversation_summary" for item in all_memories)
-            fixed = list_fixed_memories(session, user.id)
+        async with app.state.uow_factory() as uow:
+            fixed = await list_fixed_memories(uow.memories, tenant_id, user_id)
             assert any(item.memory_type == MEMORY_TYPE_PREFERENCE for item in fixed)
 
 
-def test_memory_rank_prefers_salient_and_recent(tmp_path: Path) -> None:
+async def test_memory_rank_prefers_salient_and_recent(tmp_path: Path) -> None:
     app = build_memory_app(tmp_path)
     now = datetime(2026, 7, 18, 12, 0, tzinfo=UTC)
     with TestClient(app):
-        with Session(app.state.engine) as session:
-            high = write_memory(
-                session,
-                "user",
-                "u1",
-                MEMORY_TYPE_LONG_TERM,
-                "差旅偏好使用表格",
+        tenant_id = get_tenant_id(app)
+        async with app.state.uow_factory() as uow:
+            repo = uow.memories
+            high = await write_memory(
+                repo,
+                tenant_id,
+                owner_type="user",
+                owner_id="u1",
+                memory_type=MEMORY_TYPE_LONG_TERM,
+                content="差旅偏好使用表格",
                 confidence=0.9,
                 embedding=[1.0, 0.0, 0.0],
                 meta_json={"salience": 0.95, "event_type": "conversation_fact"},
             )
             high.updated_at = now
-            session.add(high)
 
-            low = write_memory(
-                session,
-                "user",
-                "u1",
-                MEMORY_TYPE_LONG_TERM,
-                "差旅偏好使用列表",
+            low = await write_memory(
+                repo,
+                tenant_id,
+                owner_type="user",
+                owner_id="u1",
+                memory_type=MEMORY_TYPE_LONG_TERM,
+                content="差旅偏好使用列表",
                 confidence=0.4,
                 embedding=[1.0, 0.0, 0.0],
                 meta_json={"salience": 0.2, "event_type": "conversation_fact"},
             )
             low.updated_at = now - timedelta(days=40)
-            session.add(low)
-            session.commit()
+            await uow.commit()
 
-            hits = search_memories(
-                session,
+            hits = await search_memories(
+                repo,
+                tenant_id,
                 owner_specs=[("user", "u1")],
                 query="差旅 表格",
                 query_embedding=[1.0, 0.0, 0.0],
@@ -405,40 +444,43 @@ def test_memory_rank_prefers_salient_and_recent(tmp_path: Path) -> None:
             assert high_score > low_score
 
 
-def test_memory_rank_access_boost(tmp_path: Path) -> None:
+async def test_memory_rank_access_boost(tmp_path: Path) -> None:
     app = build_memory_app(tmp_path)
     now = datetime(2026, 7, 18, 12, 0, tzinfo=UTC)
     with TestClient(app):
-        with Session(app.state.engine) as session:
-            hot = write_memory(
-                session,
-                "user",
-                "u1",
-                MEMORY_TYPE_LONG_TERM,
-                "报销需要电子发票",
+        tenant_id = get_tenant_id(app)
+        async with app.state.uow_factory() as uow:
+            repo = uow.memories
+            hot = await write_memory(
+                repo,
+                tenant_id,
+                owner_type="user",
+                owner_id="u1",
+                memory_type=MEMORY_TYPE_LONG_TERM,
+                content="报销需要电子发票",
                 confidence=0.6,
                 embedding=[1.0, 0.0, 0.0],
                 meta_json={"salience": 0.6, "access_count": 40, "event_type": "conversation_fact"},
             )
             hot.updated_at = now
-            session.add(hot)
 
-            cold = write_memory(
-                session,
-                "user",
-                "u1",
-                MEMORY_TYPE_LONG_TERM,
-                "报销需要电子发票副本",
+            cold = await write_memory(
+                repo,
+                tenant_id,
+                owner_type="user",
+                owner_id="u1",
+                memory_type=MEMORY_TYPE_LONG_TERM,
+                content="报销需要电子发票副本",
                 confidence=0.6,
                 embedding=[1.0, 0.0, 0.0],
                 meta_json={"salience": 0.6, "access_count": 0, "event_type": "conversation_fact"},
             )
             cold.updated_at = now
-            session.add(cold)
-            session.commit()
+            await uow.commit()
 
-            hits = search_memories(
-                session,
+            hits = await search_memories(
+                repo,
+                tenant_id,
                 owner_specs=[("user", "u1")],
                 query="报销 电子发票",
                 query_embedding=[1.0, 0.0, 0.0],
@@ -448,33 +490,39 @@ def test_memory_rank_access_boost(tmp_path: Path) -> None:
             assert hits[0].id == hot.id
 
 
-def test_expired_memory_not_recalled(tmp_path: Path) -> None:
+async def test_expired_memory_not_recalled(tmp_path: Path) -> None:
     app = build_memory_app(tmp_path)
     now = datetime(2026, 7, 18, 12, 0, tzinfo=UTC)
     with TestClient(app):
-        with Session(app.state.engine) as session:
-            write_memory(
-                session,
-                "user",
-                "u1",
-                MEMORY_TYPE_LONG_TERM,
-                "过期的差旅备注",
+        tenant_id = get_tenant_id(app)
+        async with app.state.uow_factory() as uow:
+            repo = uow.memories
+            await write_memory(
+                repo,
+                tenant_id,
+                owner_type="user",
+                owner_id="u1",
+                memory_type=MEMORY_TYPE_LONG_TERM,
+                content="过期的差旅备注",
                 embedding=[1.0, 0.0, 0.0],
                 expires_at=now - timedelta(hours=1),
                 meta_json={"salience": 0.9},
             )
-            alive = write_memory(
-                session,
-                "user",
-                "u1",
-                MEMORY_TYPE_LONG_TERM,
-                "有效的差旅备注",
+            alive = await write_memory(
+                repo,
+                tenant_id,
+                owner_type="user",
+                owner_id="u1",
+                memory_type=MEMORY_TYPE_LONG_TERM,
+                content="有效的差旅备注",
                 embedding=[1.0, 0.0, 0.0],
                 expires_at=now + timedelta(days=3),
                 meta_json={"salience": 0.5},
             )
-            hits = search_memories(
-                session,
+            await uow.commit()
+            hits = await search_memories(
+                repo,
+                tenant_id,
                 owner_specs=[("user", "u1")],
                 query="差旅",
                 query_embedding=[1.0, 0.0, 0.0],

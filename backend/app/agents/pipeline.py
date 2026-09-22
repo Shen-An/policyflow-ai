@@ -502,24 +502,77 @@ class AgentPipeline:
         turn_state: TurnState | None = None,
         budget: TurnBudget | None = None,
     ) -> PipelineResult:
+        """Drive one turn through the shared orchestration graph.
+
+        The turn's control flow (route → tot? → execute) lives in the compiled
+        graph assembled by :func:`build_pipeline_graph`; the node bodies are the
+        stage logic relocated verbatim into :meth:`_pnode_route`,
+        :meth:`_pnode_tot` and :meth:`_pnode_execute`. This method now only sets
+        up the run-wide budget/flags and initial blackboard, then invokes the
+        graph and returns the ``PipelineResult`` its terminal node assembled.
+        """
+        from backend.app.graph.pipeline_graph import build_pipeline_graph
+
         active_budget = budget or current_turn_budget.get()
         if active_budget is None:
             active_budget = TurnBudget()
-        planning_enabled = bool(getattr(self.settings, "CHAT_PLANNING_ENABLED", True))
-        max_steps = int(getattr(self.settings, "CHAT_PLAN_MAX_STEPS", 5) or 5)
-        tot_enabled = bool(getattr(self.settings, "CHAT_TOT_ENABLED", True))
-        tot_auto = bool(getattr(self.settings, "CHAT_TOT_AUTO_TRIGGER", True))
-        tot_min = int(getattr(self.settings, "CHAT_TOT_MIN_OPTIONS", 2) or 2)
-        tot_max = int(getattr(self.settings, "CHAT_TOT_MAX_OPTIONS", 3) or 3)
-        l2_enabled = bool(getattr(self.settings, "CHAT_PLAN_EXECUTOR", True))
-        parallel_enabled = bool(getattr(self.settings, "CHAT_PLAN_PARALLEL", True))
 
         state = turn_state or TurnState(question=question, status="running")
         state.budget = active_budget.snapshot()
         if not state.question:
             state.question = question
 
+        graph = build_pipeline_graph(self)
+        graph_state = {
+            "question": question,
+            "knowledge_bases": knowledge_bases,
+            "retrieval_request": retrieval_request,
+            "enable_skill": enable_skill,
+            "working_set": working_set,
+            "on_stage": on_stage,
+            "on_event": on_event,
+            "session": session,
+            "user": user,
+            "tool_executor": tool_executor,
+            "execute_skills": execute_skills,
+            "selected_plan_steps": selected_plan_steps,
+            "selected_router_result": selected_router_result,
+            "hitl": hitl,
+            "allow_reflection": allow_reflection,
+            "turn_state": state,
+            "budget": active_budget,
+            "planning_enabled": bool(getattr(self.settings, "CHAT_PLANNING_ENABLED", True)),
+            "max_steps": int(getattr(self.settings, "CHAT_PLAN_MAX_STEPS", 5) or 5),
+            "tot_enabled": bool(getattr(self.settings, "CHAT_TOT_ENABLED", True)),
+            "tot_auto": bool(getattr(self.settings, "CHAT_TOT_AUTO_TRIGGER", True)),
+            "tot_min": int(getattr(self.settings, "CHAT_TOT_MIN_OPTIONS", 2) or 2),
+            "tot_max": int(getattr(self.settings, "CHAT_TOT_MAX_OPTIONS", 3) or 3),
+            "l2_enabled": bool(getattr(self.settings, "CHAT_PLAN_EXECUTOR", True)),
+            "parallel_enabled": bool(getattr(self.settings, "CHAT_PLAN_PARALLEL", True)),
+        }
+        final_state = await graph.ainvoke(graph_state)
+        return final_state["result"]
+
+    # -- graph node bodies (relocated verbatim from the former _run_impl) ----
+
+    async def _pnode_route(self, state: dict[str, Any]) -> dict[str, Any]:
+        """Router + plan normalization, or the resume shortcut.
+
+        On a ToT resume (selected steps present) this shortcuts straight to the
+        execute node. Otherwise it runs the router, normalizes the plan, emits
+        the RouterAgent stage/diagnostics, and decides whether the turn branches
+        into the ToT pause node or proceeds directly to execution.
+        """
+        question = state["question"]
+        knowledge_bases = state["knowledge_bases"]
+        on_stage = state["on_stage"]
+        on_event = state["on_event"]
+        turn_state = state["turn_state"]
+        l2_enabled = state["l2_enabled"]
+
         # ---------- Resume path: user-selected ToT option ----------
+        selected_plan_steps = state.get("selected_plan_steps")
+        selected_router_result = state.get("selected_router_result")
         if selected_plan_steps and selected_router_result is not None:
             router_result = selected_router_result.model_copy(
                 update={
@@ -533,10 +586,10 @@ class AgentPipeline:
             plan_steps = list(selected_plan_steps)
             multi_step = bool(plan_steps)
             use_l2 = multi_step and should_use_plan_executor(plan_steps, enabled=l2_enabled)
-            state.router_result = router_result
-            state.plan = plan_steps
-            state.reasoning_mode = "tot_select"
-            state.plan_options = list(getattr(router_result, "plan_options", None) or [])
+            turn_state.router_result = router_result
+            turn_state.plan = plan_steps
+            turn_state.reasoning_mode = "tot_select"
+            turn_state.plan_options = list(getattr(router_result, "plan_options", None) or [])
             await self._emit_stage(
                 on_stage,
                 "RouterAgent",
@@ -557,45 +610,32 @@ class AgentPipeline:
                     ]
                 },
             )
-            return await self._execute_plan(
-                question,
-                knowledge_bases,
-                retrieval_request,
-                router_result=router_result,
-                plan_steps=plan_steps,
-                multi_step=multi_step,
-                use_l2=use_l2,
-                parallel_enabled=parallel_enabled,
-                enable_skill=enable_skill,
-                execute_skills=execute_skills,
-                working_set=working_set,
-                tool_executor=tool_executor,
-                on_stage=on_stage,
-                on_event=on_event,
-                session=session,
-                user=user,
-                turn_state=state,
-                allow_reflection=allow_reflection,
-            )
+            return {
+                "router_result": router_result,
+                "plan_steps": plan_steps,
+                "multi_step": multi_step,
+                "use_l2": use_l2,
+                "route_kind": "execute",
+            }
 
         await self._emit_stage(on_stage, "RouterAgent", "running", "正在分析问题领域与风险…")
         router_result = await self.router_agent.run(question, knowledge_bases)
         router_result = normalize_plan(
             question,
             router_result,
-            enabled=planning_enabled,
-            max_steps=max_steps,
-            tot_enabled=tot_enabled,
-            tot_auto_trigger=tot_auto,
+            enabled=state["planning_enabled"],
+            max_steps=state["max_steps"],
+            tot_enabled=state["tot_enabled"],
+            tot_auto_trigger=state["tot_auto"],
         )
         plan_steps = list(router_result.plan_steps or [])
         multi_step = router_result.complexity == "multi_step" and bool(plan_steps)
         use_l2 = multi_step and should_use_plan_executor(plan_steps, enabled=l2_enabled)
         reasoning_mode = getattr(router_result, "reasoning_mode", "cot_direct") or "cot_direct"
         difficulty = getattr(router_result, "difficulty", "simple") or "simple"
-        state.router_result = router_result
-        state.plan = plan_steps
-        state.reasoning_mode = reasoning_mode  # type: ignore[assignment]
+        turn_state.router_result = router_result
+        turn_state.plan = plan_steps
+        turn_state.reasoning_mode = reasoning_mode  # type: ignore[assignment]
 
         await self._emit_stage(
             on_stage,
@@ -627,126 +667,168 @@ class AgentPipeline:
             },
         )
 
-        # ---------- ToT pause: generate options, stop before retrieve ----------
-        if difficulty == "branched" and reasoning_mode == "tot_select" and tot_enabled:
-            await self._emit_stage(
-                on_stage,
-                "PlanBranch",
-                "running",
-                "生成候选执行路径供选择…",
-            )
-            llm = getattr(self.router_agent, "llm_service", None)
-            plan_options = await generate_plan_options(
-                question,
-                router_result,
-                llm_service=llm,
-                min_options=tot_min,
-                max_options=tot_max,
-                max_steps=max_steps,
-            )
-            router_result = router_result.model_copy(
-                update={
-                    "plan_options": plan_options,
-                    "reasoning_mode": "tot_select",
-                    "difficulty": "branched",
-                }
-            )
-            state.router_result = router_result
-            state.plan_options = list(plan_options)
-            state.reasoning_mode = "tot_select"
-            await self._emit_event(
-                on_event,
-                "plan_options",
-                {
-                    "difficulty": "branched",
-                    "reasoning_mode": "tot_select",
-                    "plan_source": router_result.plan_source,
-                    "options": [opt.model_dump(mode="json") for opt in plan_options],
-                    "recommended_option_id": next(
-                        (opt.id for opt in plan_options if opt.recommended),
-                        plan_options[0].id if plan_options else None,
-                    ),
-                },
-            )
-            await self._emit_stage(
-                on_stage,
-                "PlanBranch",
-                "success",
-                f"已生成 {len(plan_options)} 条候选路径，等待用户选择",
-            )
-            await self._emit_event(
-                on_event,
-                "diagnostics_partial",
-                {
-                    "commands": [
-                        {
-                            "name": "PlanBranch",
-                            "status": "success",
-                            "summary": f"ToT 选路 · {len(plan_options)} options · awaiting",
-                            "output": {
-                                "options": [o.model_dump(mode="json") for o in plan_options],
-                                "hitl": hitl,
-                            },
-                        }
-                    ]
-                },
-            )
-            if hitl:
-                return self._awaiting_result(
-                    router_result, plan_options, turn_state=state, question=question
-                )
+        # Route into the ToT pause node only when the router branched.
+        if difficulty == "branched" and reasoning_mode == "tot_select" and state["tot_enabled"]:
+            return {
+                "router_result": router_result,
+                "plan_steps": plan_steps,
+                "multi_step": multi_step,
+                "use_l2": use_l2,
+                "route_kind": "tot",
+            }
+        return {
+            "router_result": router_result,
+            "plan_steps": plan_steps,
+            "multi_step": multi_step,
+            "use_l2": use_l2,
+            "route_kind": "execute",
+        }
 
-            # Non-interactive (eval): auto-pick recommended and continue.
-            chosen = pick_recommended_option(plan_options)
-            if chosen is None:
-                state.record_error(
-                    code="TOT_NO_RECOMMENDED_OPTION",
-                    message="无推荐路径可自动选用",
-                    source="PlanBranch",
-                    severity="error",
-                )
-                return self._awaiting_result(
-                    router_result, plan_options, turn_state=state, question=question
-                )
-            plan_steps = list(chosen.steps)
-            multi_step = bool(plan_steps)
-            use_l2 = multi_step and should_use_plan_executor(plan_steps, enabled=l2_enabled)
-            router_result = router_result.model_copy(
-                update={
-                    "plan_steps": plan_steps,
-                    "plan_source": "user_selected",
-                    "plan_options": plan_options,
-                }
-            )
-            state.router_result = router_result
-            state.plan = plan_steps
-            await self._emit_stage(
-                on_stage,
-                "PlanBranch",
-                "success",
-                f"非交互自动选用推荐路径 {chosen.id}",
-            )
+    async def _pnode_tot(self, state: dict[str, Any]) -> dict[str, Any]:
+        """Tree-of-Thought pause: generate options, then pause or auto-pick.
 
-        return await self._execute_plan(
-            question,
-            knowledge_bases,
-            retrieval_request,
-            router_result=router_result,
-            plan_steps=plan_steps,
-            multi_step=multi_step,
-            use_l2=use_l2,
-            parallel_enabled=parallel_enabled,
-            enable_skill=enable_skill,
-            execute_skills=execute_skills,
-            working_set=working_set,
-            tool_executor=tool_executor,
-            on_stage=on_stage,
-            on_event=on_event,
-            session=session,
-            user=user,
-            turn_state=state,
-            allow_reflection=allow_reflection,
+        With ``hitl`` the turn stops before retrieve and returns the awaiting
+        result (dual-request protocol). Non-interactive (eval) auto-picks the
+        recommended branch and continues to execution.
+        """
+        question = state["question"]
+        on_stage = state["on_stage"]
+        on_event = state["on_event"]
+        turn_state = state["turn_state"]
+        router_result = state["router_result"]
+        hitl = state["hitl"]
+        l2_enabled = state["l2_enabled"]
+
+        await self._emit_stage(
+            on_stage,
+            "PlanBranch",
+            "running",
+            "生成候选执行路径供选择…",
         )
+        llm = getattr(self.router_agent, "llm_service", None)
+        plan_options = await generate_plan_options(
+            question,
+            router_result,
+            llm_service=llm,
+            min_options=state["tot_min"],
+            max_options=state["tot_max"],
+            max_steps=state["max_steps"],
+        )
+        router_result = router_result.model_copy(
+            update={
+                "plan_options": plan_options,
+                "reasoning_mode": "tot_select",
+                "difficulty": "branched",
+            }
+        )
+        turn_state.router_result = router_result
+        turn_state.plan_options = list(plan_options)
+        turn_state.reasoning_mode = "tot_select"
+        await self._emit_event(
+            on_event,
+            "plan_options",
+            {
+                "difficulty": "branched",
+                "reasoning_mode": "tot_select",
+                "plan_source": router_result.plan_source,
+                "options": [opt.model_dump(mode="json") for opt in plan_options],
+                "recommended_option_id": next(
+                    (opt.id for opt in plan_options if opt.recommended),
+                    plan_options[0].id if plan_options else None,
+                ),
+            },
+        )
+        await self._emit_stage(
+            on_stage,
+            "PlanBranch",
+            "success",
+            f"已生成 {len(plan_options)} 条候选路径，等待用户选择",
+        )
+        await self._emit_event(
+            on_event,
+            "diagnostics_partial",
+            {
+                "commands": [
+                    {
+                        "name": "PlanBranch",
+                        "status": "success",
+                        "summary": f"ToT 选路 · {len(plan_options)} options · awaiting",
+                        "output": {
+                            "options": [o.model_dump(mode="json") for o in plan_options],
+                            "hitl": hitl,
+                        },
+                    }
+                ]
+            },
+        )
+        if hitl:
+            result = self._awaiting_result(
+                router_result, plan_options, turn_state=turn_state, question=question
+            )
+            return {"router_result": router_result, "result": result, "route_after_tot": "end"}
+
+        # Non-interactive (eval): auto-pick recommended and continue.
+        chosen = pick_recommended_option(plan_options)
+        if chosen is None:
+            turn_state.record_error(
+                code="TOT_NO_RECOMMENDED_OPTION",
+                message="无推荐路径可自动选用",
+                source="PlanBranch",
+                severity="error",
+            )
+            result = self._awaiting_result(
+                router_result, plan_options, turn_state=turn_state, question=question
+            )
+            return {"router_result": router_result, "result": result, "route_after_tot": "end"}
+        plan_steps = list(chosen.steps)
+        multi_step = bool(plan_steps)
+        use_l2 = multi_step and should_use_plan_executor(plan_steps, enabled=l2_enabled)
+        router_result = router_result.model_copy(
+            update={
+                "plan_steps": plan_steps,
+                "plan_source": "user_selected",
+                "plan_options": plan_options,
+            }
+        )
+        turn_state.router_result = router_result
+        turn_state.plan = plan_steps
+        await self._emit_stage(
+            on_stage,
+            "PlanBranch",
+            "success",
+            f"非交互自动选用推荐路径 {chosen.id}",
+        )
+        return {
+            "router_result": router_result,
+            "plan_steps": plan_steps,
+            "multi_step": multi_step,
+            "use_l2": use_l2,
+            "route_after_tot": "execute",
+        }
+
+    async def _pnode_execute(self, state: dict[str, Any]) -> dict[str, Any]:
+        """Run the shared plan → answer → compliance stage body."""
+        result = await self._execute_plan(
+            state["question"],
+            state["knowledge_bases"],
+            state["retrieval_request"],
+            router_result=state["router_result"],
+            plan_steps=state["plan_steps"],
+            multi_step=state["multi_step"],
+            use_l2=state["use_l2"],
+            parallel_enabled=state["parallel_enabled"],
+            enable_skill=state["enable_skill"],
+            execute_skills=state["execute_skills"],
+            working_set=state["working_set"],
+            tool_executor=state["tool_executor"],
+            on_stage=state["on_stage"],
+            on_event=state["on_event"],
+            session=state["session"],
+            user=state["user"],
+            turn_state=state["turn_state"],
+            allow_reflection=state["allow_reflection"],
+        )
+        return {"result": result}
 
     async def _execute_plan(
         self,

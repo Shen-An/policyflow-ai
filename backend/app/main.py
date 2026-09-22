@@ -21,6 +21,8 @@ from backend.app.agents.critique_agent import CritiqueAgent
 from backend.app.agents.improve_agent import ImproveAgent
 from backend.app.agents.memory_agent import MemoryAgent
 from backend.app.agents.pipeline import AgentPipeline
+from backend.app.graph.compat import AdapterUsageTelemetry
+from backend.app.graph.service import GraphService
 from backend.app.agents.reflection_loop import ReflectionLoop
 from backend.app.agents.retrieval_agent import RetrievalAgent
 from backend.app.agents.router_agent import RouterAgent
@@ -142,11 +144,28 @@ def create_app(
     )
     skill_registry = SkillRegistry(language_model)
     mcp_manager = MCPManager(app_settings)
+
+    # The async plane is built alongside the synchronous one. It owns its own
+    # engine because async connections cannot be shared with synchronous callers,
+    # and it is what every unit of work runs on. It is defined before the tools and
+    # the memory agent because those now do their tenant-owned reads and writes
+    # through a unit of work rather than the synchronous session.
+    async_engine = build_async_engine(app_settings.DATABASE_URL, app_settings)
+    async_session_factory = async_sessionmaker(async_engine, expire_on_commit=False)
+
+    def build_unit_of_work() -> UnitOfWork:
+        """Return a unit of work bound to this application's async engine.
+
+        The factory is published on the application so that a request neither
+        reaches for a process-wide engine nor invents its own transaction scope.
+        """
+        return UnitOfWork(factory=async_session_factory)
+
     tool_registry = ToolRegistry()
     tool_registry.register("draft.create", draft_create_tool)
     tool_registry.register("draft.update", draft_update_tool)
-    tool_registry.register("memory.read", memory_read_tool)
-    tool_registry.register("memory.write", memory_write_tool)
+    tool_registry.register("memory.read", memory_read_tool(build_unit_of_work))
+    tool_registry.register("memory.write", memory_write_tool(build_unit_of_work))
     tool_registry.register("mcp.call", mcp_call_tool(mcp_manager))
     reflection_loop = ReflectionLoop(
         CritiqueAgent(language_model, app_settings),
@@ -166,21 +185,8 @@ def create_app(
         app_settings,
         llm_service=language_model,
         embedding_service=embedding_service,
+        uow_factory=build_unit_of_work,
     )
-
-    # The async plane is built alongside the synchronous one. It owns its own
-    # engine because async connections cannot be shared with synchronous callers,
-    # and it is what every unit of work runs on.
-    async_engine = build_async_engine(app_settings.DATABASE_URL, app_settings)
-    async_session_factory = async_sessionmaker(async_engine, expire_on_commit=False)
-
-    def build_unit_of_work() -> UnitOfWork:
-        """Return a unit of work bound to this application's async engine.
-
-        The factory is published on the application so that a request neither
-        reaches for a process-wide engine nor invents its own transaction scope.
-        """
-        return UnitOfWork(factory=async_session_factory)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -223,6 +229,11 @@ def create_app(
     application.state.reranker = rerankers["local_lexical_fusion"]
     application.state.agent_pipeline = pipeline
     application.state.memory_agent = memory_agent
+    # Stage 3 shared graph: the unified authorized-run/parity surface, plus the
+    # legacy-adapter usage sink that gates Stage 9 removal. Published additively;
+    # routes cut over to it behind the removal ledger (see graph/compat.py).
+    application.state.graph_service = GraphService()
+    application.state.adapter_usage_telemetry = AdapterUsageTelemetry()
     application.state.skill_registry = skill_registry
     application.state.tool_registry = tool_registry
     application.state.mcp_manager = mcp_manager

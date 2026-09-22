@@ -6,13 +6,12 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from backend.app.core.config import Settings
-from backend.app.db.models import KnowledgeBase, KnowledgeDocument, User
+from backend.app.db.models import KnowledgeBase, KnowledgeDocument, MemoryItem, User
 from backend.app.main import create_app
 from backend.app.schemas.retrieval import Evidence, RetrievalRequest
 from backend.app.services.memory_service import (
     MEMORY_TYPE_LONG_TERM,
     MEMORY_TYPE_PREFERENCE,
-    write_memory,
 )
 
 
@@ -77,27 +76,40 @@ def test_list_and_delete_memory(tmp_path: Path) -> None:
         with Session(app.state.engine) as session:
             user = session.get(User, client.get("/api/auth/me", headers=headers).json()["id"])
             assert user is not None
-            write_memory(
-                session,
-                "user",
-                user.id,
-                MEMORY_TYPE_PREFERENCE,
-                "Prefers concise answers",
+            tenant_id = user.tenant_id
+            # Seed rows directly with the tenant stamped, so the read/delete API -
+            # which is what this test exercises - runs against realistic data. A
+            # same-tenant memory owned by another user proves owner-level
+            # invisibility within the tenant.
+            session.add_all(
+                [
+                    MemoryItem(
+                        tenant_id=tenant_id,
+                        owner_type="user",
+                        owner_id=user.id,
+                        memory_type=MEMORY_TYPE_PREFERENCE,
+                        content="Prefers concise answers",
+                        source="manual",
+                    ),
+                    MemoryItem(
+                        tenant_id=tenant_id,
+                        owner_type="user",
+                        owner_id=user.id,
+                        memory_type=MEMORY_TYPE_LONG_TERM,
+                        content="Discussed travel budget last week",
+                        source="manual",
+                    ),
+                    MemoryItem(
+                        tenant_id=tenant_id,
+                        owner_type="user",
+                        owner_id="other-user",
+                        memory_type=MEMORY_TYPE_PREFERENCE,
+                        content="Should not be visible",
+                        source="manual",
+                    ),
+                ]
             )
-            write_memory(
-                session,
-                "user",
-                user.id,
-                MEMORY_TYPE_LONG_TERM,
-                "Discussed travel budget last week",
-            )
-            write_memory(
-                session,
-                "user",
-                "other-user",
-                MEMORY_TYPE_PREFERENCE,
-                "Should not be visible",
-            )
+            session.commit()
 
         listed = client.get("/api/memory", headers=headers)
         assert listed.status_code == 200

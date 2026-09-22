@@ -310,32 +310,58 @@ def test_deleting_a_foreign_memory_is_refused(memory_url: str) -> None:
     assert asyncio.run(store_then_delete_from_alpha()) is True
 
 
-def test_the_legacy_memory_write_is_rejected_by_the_enforced_schema(
+def test_the_service_write_now_stamps_the_tenant_and_succeeds(
     memory_url: str,
 ) -> None:
-    """Characterise the defect T035 removes, so the premise is observed not assumed.
+    """The premise this module documented is now fixed rather than merely asserted.
 
-    The legacy synchronous helper builds a ``MemoryItem`` without a tenant, and the
-    enforced schema makes that column NOT NULL, so the insert is rejected outright.
-    The memory layer is therefore not merely unscoped on the authoritative
-    database: it cannot store anything at all.
+    Before T035, the synchronous service built a ``MemoryItem`` without a tenant
+    and the enforced schema (``memory_items.tenant_id`` NOT NULL) rejected the
+    insert outright. The service now runs on the tenant-qualified asynchronous
+    repository with the tenant required, so the write lands on the authoritative
+    database and is scoped to that tenant. A second tenant sharing the owner id
+    sees none of it.
 
-    This test asserts the broken behaviour on purpose, because that behaviour is
-    the evidence behind T035. Delete it when T035 lands: the rejection is the thing
-    being fixed, so this test will fail loudly at that point rather than rot into a
-    misleading comment.
+    This replaces the earlier test that asserted the broken behaviour on purpose;
+    the rejection was the defect, and the defect is gone.
     """
-    from sqlalchemy.exc import IntegrityError
-    from sqlmodel import Session, create_engine
+    from backend.app.services.memory_service import read_memory, write_memory
 
-    from backend.app.services.memory_service import write_memory
+    async def store_then_read() -> tuple[str, list[str], list[str]]:
+        engine = build_async_engine(memory_url)
+        try:
+            factory = async_sessionmaker(engine, expire_on_commit=False)
+            async with UnitOfWork(factory=factory) as uow:
+                await uow.set_tenant_context(TENANT_ALPHA)
+                stored = await write_memory(
+                    uow.memories,
+                    TENANT_ALPHA,
+                    owner_type="user",
+                    owner_id=OWNER,
+                    memory_type="preference",
+                    content="service write with tenant",
+                )
+                await uow.commit()
+            async with UnitOfWork(factory=factory) as uow:
+                await uow.set_tenant_context(TENANT_ALPHA)
+                alpha = [
+                    item.content
+                    for item in await read_memory(uow.memories, TENANT_ALPHA, "user", OWNER)
+                ]
+            async with UnitOfWork(factory=factory) as uow:
+                await uow.set_tenant_context(TENANT_BETA)
+                beta = [
+                    item.content
+                    for item in await read_memory(uow.memories, TENANT_BETA, "user", OWNER)
+                ]
+            return stored.tenant_id, alpha, beta
+        finally:
+            await engine.dispose()
 
-    engine = create_engine(memory_url)
-    try:
-        with pytest.raises(IntegrityError) as rejected:
-            with Session(engine) as session:
-                write_memory(session, "user", OWNER, "preference", "legacy write")
-    finally:
-        engine.dispose()
+    stamped_tenant, alpha_contents, beta_contents = asyncio.run(store_then_read())
 
-    assert "tenant_id" in str(rejected.value)
+    assert stamped_tenant == TENANT_ALPHA
+    assert "service write with tenant" in alpha_contents
+    # The module's database is shared, so beta may hold its own rows from other
+    # tests; what matters is that alpha's write never crosses into beta.
+    assert "service write with tenant" not in beta_contents

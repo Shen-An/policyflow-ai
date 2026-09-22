@@ -1,0 +1,51 @@
+{
+  "pg_reachable": true,
+  "pg_url_host": "127.0.0.1:55432",
+  "compared_keys": [
+    "evidence_gate",
+    "answer_startswith",
+    "run_status",
+    "run_kind",
+    "run_evidence_gate",
+    "event_types",
+    "sequences_monotonic"
+  ],
+  "sqlite": {
+    "evidence_gate": "supported",
+    "answer_startswith": "Based on polic",
+    "run_status": "succeeded",
+    "run_kind": "chat",
+    "run_evidence_gate": "supported",
+    "event_types": [
+      "run.created",
+      "evidence.gate",
+      "run.finalized"
+    ],
+    "event_sequences": [
+      1,
+      2,
+      3
+    ],
+    "sequences_monotonic": true
+  },
+  "postgres": {
+    "evidence_gate": "supported",
+    "answer_startswith": "Based on polic",
+    "run_status": "succeeded",
+    "run_kind": "chat",
+    "run_evidence_gate": "supported",
+    "event_types": [
+      "run.created",
+      "evidence.gate",
+      "run.finalized"
+    ],
+    "event_sequences": [
+      1,
+      2,
+      3
+    ],
+    "sequences_monotonic": true
+  },
+  "parity_match": true,
+  "note": "Deterministic dependencies stand in for LightRAG/Milvus retrieval; this proves storage-independent run/decision parity, not production-corpus answer parity (see docs/08 §10)."
+}

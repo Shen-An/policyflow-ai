@@ -184,3 +184,28 @@ def messages_outside_window(
         }
         for message in older
     ]
+
+
+# -- Graph-callable adapter (T047) --------------------------------------------
+def assemble_memory_prompt_snapshot(
+    *,
+    hot_window: list[dict[str, Any]] | None = None,
+    warm_summary: dict[str, Any] | None = None,
+    fixed_preferences: list[dict[str, Any]] | None = None,
+    cold_selected: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Assemble the non-authoritative memory snapshot the graph's memory_load
+    node consumes.
+
+    Cold/hot is a *prompt-assembly* concern, not separate storage: hot = recent
+    window, warm = rolling summary + fixed preference entities, cold = selected
+    top-k recall. The result can shape phrasing but is never retrieval evidence
+    and can never satisfy the policy evidence gate (see docs/08).
+    """
+    return {
+        "window": list(hot_window or []),
+        "summary": warm_summary,
+        "fixed_preferences": list(fixed_preferences or []),
+        "selected_items": list(cold_selected or []),
+        "authoritative": False,
+    }

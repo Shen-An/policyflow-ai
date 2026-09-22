@@ -1086,8 +1086,8 @@ async def iter_chat_events(
                 },
             )
     else:
-        MemoryAgent(settings=settings).run(
-            session,
+        await MemoryAgent(settings=settings).run(
+            user.tenant_id,
             conversation.id,
             question,
             pipeline_result.answer_result.answer,

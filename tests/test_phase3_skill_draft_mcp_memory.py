@@ -14,6 +14,7 @@ from backend.app.db.models import (
     KnowledgeBase,
     KnowledgeDocument,
     MemoryItem,
+    Tenant,
     ToolCallLog,
 )
 from backend.app.main import create_app
@@ -253,7 +254,7 @@ def test_phase3_end_to_end_flow(tmp_path: Path) -> None:
     assert {log.status for log in logs} >= {"success", "failed"}
 
 
-def test_context_keeps_memory_non_authoritative(tmp_path: Path) -> None:
+async def test_context_keeps_memory_non_authoritative(tmp_path: Path) -> None:
     settings = Settings(
         DATABASE_URL=f"sqlite:///{(tmp_path / 'memory.db').as_posix()}",
         LOG_DIR=tmp_path / "logs",
@@ -262,22 +263,28 @@ def test_context_keeps_memory_non_authoritative(tmp_path: Path) -> None:
     app = create_app(settings, lightrag_adapter=Phase3LightRAG(), llm_service=Phase3LLM())
     with TestClient(app):
         with Session(app.state.engine) as session:
-            preference = write_memory(
-                session,
-                "user",
-                "user-1",
-                "user_preference",
-                "Prefers bullet points",
+            tenant_id = session.exec(select(Tenant)).first().id
+        async with app.state.uow_factory() as uow:
+            repo = uow.memories
+            written = await write_memory(
+                repo,
+                tenant_id,
+                owner_type="user",
+                owner_id="user-1",
+                memory_type="user_preference",
+                content="Prefers bullet points",
             )
-            preference = MemoryItem.model_validate(preference.model_dump())
+            preference = MemoryItem.model_validate(written.model_dump())
             with pytest.raises(ApplicationError):
-                write_memory(
-                    session,
-                    "user",
-                    "user-1",
-                    "user_preference",
-                    "制度规定必须审批",
+                await write_memory(
+                    repo,
+                    tenant_id,
+                    owner_type="user",
+                    owner_id="user-1",
+                    memory_type="user_preference",
+                    content="制度规定必须审批",
                 )
+            await uow.commit()
     evidence = [
         Evidence(
             knowledge_base_id="kb",
