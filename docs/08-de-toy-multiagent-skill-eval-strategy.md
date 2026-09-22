@@ -539,6 +539,8 @@ CRUD import ── id 对齐 ── Hit@K 看板
 | LLM Reflection 闭环 | **已完成（基础）** | 2026-07-20 | `CritiqueAgent`+`ImproveAgent` 双 prompt；`ReflectionLoop` 硬顶 2 轮；6 维 + PASS 出口；仅高风险触发；Eval 默认关；hard refuse 永不反思；非 peer 群聊 |
 | 负样本评测集 | **已完成** | 2026-08-28 | 企业套件 40 条（20 off_topic + 20 near_miss）；标记在 `relevance_judgement.negative`；不进 Hit@K/MRR，单独算 `negative_gate` |
 | 跑题门控分数化 | **已完成（诚实）** | 2026-08-28 | cross-encoder 分数优先、词面覆盖率兜底；阈值 `-8.0` 为保守默认，见 §12 标定流程 |
+| 编排跑在真图上（Option A） | **已完成（诚实）** | 2026-09-22 | `AgentPipeline.run` 体内驱动真 `StateGraph`（`backend/app/graph/pipeline_graph.py`：`route→tot?→execute`），节点体从旧 `_run_impl` 逐字迁移；Chat/Eval 同经此图；`PipelineResult` 形状与 SSE 顺序不变，全套契约绿。**边界**：与 `builder.py` durable 证据路径图**并存的第二个图**（共享 fail-closed 证据门语义，非同一节点词表；本图不 checkpoint，ToT 靠 service 层双请求恢复） |
+| 存储无关 run parity（PG） | **已完成（诚实）** | 2026-09-22 | `scripts/graph_pg_parity.py` → `GraphService.run` 在 aiosqlite 与活库 PostgreSQL(55432) 得同一 evidence_gate/终态/有序 RunEvent（`artifacts/graph/stage3/pg_parity.json`，PARITY_OK）。**边界**：确定性依赖替身检索，**非**生产语料答案 parity；生产 Chat/Eval 端点仍走 `AgentPipeline`（现为图驱动，未切到 `GraphService`），详见 `specs/001-enterprise-agent-refactor/tasks.md` Phase 3 落地状态 |
 
 ---
 
@@ -555,6 +557,7 @@ CRUD import ── id 对齐 ── Hit@K 看板
 | v1.6 | 2026-07-20 | 正式 `TurnState` 共享记录 + `errors[]` 集中写入；PlanExecutor/Pipeline/L1 接线；diagnostics 透出；面试文档诚实边界 |
 | v1.7 | 2026-07-20 | Critique→Improve 反思闭环：双 prompt、6 维 + PASS、硬 max_rounds=2、高风险触发、Eval 默认关；Compliance 仍为规则门 |
 | v1.8 | 2026-08-28 | 负样本评测集（40 条）+ 跑题门控从纯词面覆盖率升级为「cross-encoder 分数优先、词面兜底」；新增 §12 |
+| v1.9 | 2026-09-22 | 编排层忠实移植到真 LangGraph（Option A）：`AgentPipeline.run` 体内驱动 `StateGraph`，Chat/Eval 同图；`GraphService.run` 在活库 PostgreSQL 验证存储无关 run parity。诚实边界：与 durable 证据路径图并存的第二个图；确定性替身检索非生产语料答案 parity（详见 `specs/001-enterprise-agent-refactor/tasks.md`）|
 
 ### Rerank implementation update (2026-08-02)
 
