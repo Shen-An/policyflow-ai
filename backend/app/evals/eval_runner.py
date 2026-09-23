@@ -21,7 +21,7 @@ from backend.app.evals.retrieval_metrics import (
     calculate_negative_gate_metrics,
     calculate_retrieval_metrics,
 )
-from backend.app.rag.quality_gate import assess_retrieval_quality
+from backend.app.retrieval.evidence_gate import assess_retrieval_quality
 from backend.app.schemas.eval import EvalRunCreate
 from backend.app.schemas.retrieval import RetrievalRequest
 from backend.app.services.rag_service import RAGService

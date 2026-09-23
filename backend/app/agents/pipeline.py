@@ -27,7 +27,7 @@ from backend.app.agents.turn_budget import TurnBudget, current_turn_budget
 from backend.app.core.config import Settings, get_settings
 from backend.app.core.exceptions import ApplicationError
 from backend.app.db.models import KnowledgeBase, User
-from backend.app.rag.quality_gate import assess_retrieval_quality, off_topic_reason
+from backend.app.retrieval.evidence_gate import assess_retrieval_quality, off_topic_reason
 from backend.app.schemas.chat import ComplianceResult, PlanOption, PlanStep, RouterResult
 from backend.app.schemas.reflection import CritiqueIssue, CritiqueResult
 from backend.app.schemas.retrieval import RetrievalRequest, RetrievalResult

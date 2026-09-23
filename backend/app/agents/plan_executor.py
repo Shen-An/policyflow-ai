@@ -19,7 +19,7 @@ from backend.app.agents.retrieval_agent import RetrievalAgent
 from backend.app.agents.skill_agent import SkillAgent
 from backend.app.core.config import Settings
 from backend.app.db.models import KnowledgeBase, User
-from backend.app.rag.quality_gate import assess_retrieval_quality
+from backend.app.retrieval.evidence_gate import assess_retrieval_quality
 from backend.app.schemas.chat import PlanStep, RouterResult
 from backend.app.schemas.retrieval import Evidence, RetrievalRequest, RetrievalResult
 from backend.app.skills.catalog import resolve_skill_name

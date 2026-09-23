@@ -215,13 +215,15 @@ class Settings(BaseSettings):
     # Chat grounding: refuse when retrieval returns no evidence (no soft LLM fallback).
     CHAT_HARD_REFUSE_WITHOUT_EVIDENCE: bool = True
     # Route production Chat/Eval through the shared-graph route adapter (T051/T052).
-    # Off by default → verified legacy path is byte-identical and fully reversible.
-    # When on, endpoints go through backend.app.graph.route_adapter.GraphRouteAdapter,
-    # which records the Stage 9 removal-ledger telemetry and delegates to the shared
-    # pipeline graph. NOTE: the underlying execution is the pipeline orchestration
-    # graph (Option A), not the durable evidence-path GraphService; real-corpus
-    # conclusion parity is unverified without the retrieval stack (docs/08 §10).
-    ROUTE_VIA_GRAPH_ADAPTER: bool = False
+    # ON by default (2026-09-23 cut-over): endpoints go through
+    # backend.app.graph.route_adapter.GraphRouteAdapter, which records the Stage 9
+    # removal-ledger telemetry and delegates to the shared pipeline graph. Set to
+    # False to roll back to the byte-identical legacy direct path (kept until the
+    # Stage 9 zero-use window clears — see T053). NOTE: the underlying execution is
+    # the pipeline orchestration graph (Option A), not the durable evidence-path
+    # GraphService; real-corpus conclusion parity is unverified without the retrieval
+    # stack (docs/08 §10, scripts/graph_realcorpus_parity.py).
+    ROUTE_VIA_GRAPH_ADAPTER: bool = True
     # Off-topic gate. Preferred signal is the cross-encoder relevance score, which is
     # semantic; the lexical bigram-coverage ratio is only the fallback for retrieval
     # paths that produced no real rerank score (rerank off, or local lexical fusion).
