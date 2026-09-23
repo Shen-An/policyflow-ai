@@ -233,14 +233,26 @@ async def post_eval_run(
         reranker_backend=reranker_backend,
         reranker_method=reranker_method,
     )
-    background_tasks.add_task(
-        execute_eval_run,
-        request.app.state.engine,
-        rag_service,
-        pipeline,
-        eval_run.id,
-        data,
-    )
+    adapter = getattr(request.app.state, "graph_route_adapter", None)
+    if request.app.state.settings.ROUTE_VIA_GRAPH_ADAPTER and adapter is not None:
+        background_tasks.add_task(
+            adapter.run_eval,
+            engine=request.app.state.engine,
+            rag_service=rag_service,
+            pipeline=pipeline,
+            run_id=eval_run.id,
+            data=data,
+            tenant_id=getattr(user, "tenant_id", ""),
+        )
+    else:
+        background_tasks.add_task(
+            execute_eval_run,
+            request.app.state.engine,
+            rag_service,
+            pipeline,
+            eval_run.id,
+            data,
+        )
     return eval_run
 
 

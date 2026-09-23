@@ -39,16 +39,19 @@ async def post_chat(
     user: CurrentUser,
     session: SessionDep,
 ) -> ChatResponse:
-    return await send_chat_message(
-        session,
-        user,
-        data,
-        request.app.state.agent_pipeline,
+    deps = dict(
         memory_agent=getattr(request.app.state, "memory_agent", None),
         tool_registry=getattr(request.app.state, "tool_registry", None),
         skill_registry=getattr(request.app.state, "skill_registry", None),
         rag_service=getattr(request.app.state, "rag_service", None),
     )
+    pipeline = request.app.state.agent_pipeline
+    adapter = getattr(request.app.state, "graph_route_adapter", None)
+    if request.app.state.settings.ROUTE_VIA_GRAPH_ADAPTER and adapter is not None:
+        return await adapter.chat(
+            session=session, user=user, data=data, pipeline=pipeline, **deps
+        )
+    return await send_chat_message(session, user, data, pipeline, **deps)
 
 
 @router.post("/api/chat/stream")
@@ -61,17 +64,22 @@ async def post_chat_stream(
     """Stream thinking stages (memory/tools/commands) then the final answer as SSE."""
 
     async def event_generator():
+        deps = dict(
+            memory_agent=getattr(request.app.state, "memory_agent", None),
+            tool_registry=getattr(request.app.state, "tool_registry", None),
+            skill_registry=getattr(request.app.state, "skill_registry", None),
+            rag_service=getattr(request.app.state, "rag_service", None),
+        )
+        pipeline = request.app.state.agent_pipeline
+        adapter = getattr(request.app.state, "graph_route_adapter", None)
+        if request.app.state.settings.ROUTE_VIA_GRAPH_ADAPTER and adapter is not None:
+            source = adapter.chat_events(
+                session=session, user=user, data=data, pipeline=pipeline, **deps
+            )
+        else:
+            source = iter_chat_events(session, user, data, pipeline, **deps)
         try:
-            async for event_name, payload in iter_chat_events(
-                session,
-                user,
-                data,
-                request.app.state.agent_pipeline,
-                memory_agent=getattr(request.app.state, "memory_agent", None),
-                tool_registry=getattr(request.app.state, "tool_registry", None),
-                skill_registry=getattr(request.app.state, "skill_registry", None),
-                rag_service=getattr(request.app.state, "rag_service", None),
-            ):
+            async for event_name, payload in source:
                 yield _sse(event_name, payload if isinstance(payload, dict) else {"value": payload})
         except ApplicationError as exc:
             yield _sse(

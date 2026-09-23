@@ -22,6 +22,7 @@ from backend.app.agents.improve_agent import ImproveAgent
 from backend.app.agents.memory_agent import MemoryAgent
 from backend.app.agents.pipeline import AgentPipeline
 from backend.app.graph.compat import AdapterUsageTelemetry
+from backend.app.graph.route_adapter import GraphRouteAdapter
 from backend.app.graph.service import GraphService
 from backend.app.agents.reflection_loop import ReflectionLoop
 from backend.app.agents.retrieval_agent import RetrievalAgent
@@ -234,6 +235,12 @@ def create_app(
     # routes cut over to it behind the removal ledger (see graph/compat.py).
     application.state.graph_service = GraphService()
     application.state.adapter_usage_telemetry = AdapterUsageTelemetry()
+    # Live-endpoint route adapter (T051/T052): when ROUTE_VIA_GRAPH_ADAPTER is on,
+    # Chat/Eval go through this instead of calling the services directly, feeding
+    # the removal-ledger telemetry above. Delegates to the shared pipeline graph.
+    application.state.graph_route_adapter = GraphRouteAdapter(
+        application.state.adapter_usage_telemetry
+    )
     application.state.skill_registry = skill_registry
     application.state.tool_registry = tool_registry
     application.state.mcp_manager = mcp_manager
