@@ -352,6 +352,9 @@ SELECT 与 UPDATE 之间没有原子性，UPDATE 也不带 `status='pending'` �
 - [~] T054 [US3] 运行 `tests/contract/test_graph_state.py`、`tests/integration/test_graph_entrypoint_parity.py`、`tests/eval/test_evidence_gate_parity.py` 并将 parity 明细保存到 `artifacts/graph/stage3/`（依赖 T037–T053）
   - **`[~]` = 六个 US3 契约测试文件（含上述三个）已跑通并存证 `artifacts/graph/stage3/us3_core_tests_raw.txt`（63 passed）。但依赖链 T045–T053 未完成，故本任务的"依赖 T037–T053"前提未满足；证据只覆盖 test-defined 契约核心，不代表生产入口已收敛到图。**
   - **2026-09-22 第五轮：新增 `artifacts/graph/stage3/pg_parity.json`（`scripts/graph_pg_parity.py`）——`GraphService.run` 在 **in-memory aiosqlite 与活库 PostgreSQL（55432）** 上得到**同一** evidence_gate（supported）/终态（succeeded）/有序 RunEvent（`run.created`→`evidence.gate`→`run.finalized`，单调无缺口）→ 存储无关 parity 成立。诚实边界：确定性依赖替身检索，非生产语料答案 parity。**
+  - **2026-09-23 第六轮：新增 `tests/integration/test_entrypoint_conclusion_parity.py` + 证据 `artifacts/graph/stage3/entrypoint_conclusion_parity.json`（`PARITY_OK`）——**生产入口级结论 parity**：同一 app / 同一库、运行时切换 `ROUTE_VIA_GRAPH_ADAPTER`（flag 为唯一变量），对「有证据」与「无证据→硬拒答」两问，`/api/chat` 与 `/api/chat/stream` 的**结论字段**（answer/citations/confidence/router/compliance/status/reasoning_mode/plan_options，剔除 conversation/message/query_log 等易变 id）在 **flag on == flag off** 且 **chat == stream** 下逐字相等；只有 flag-ON 记 removal-ledger 遥测。**这是本机可验证的 parity 最强形态**。诚实边界：确定性替身检索（F4LightRAG/F4LLM），**非**真实语料答案 parity；Eval 入口的真实语料 parity 仍需运行栈，未验证。**
+
+> **Phase 3 Checkpoint 诚实状态（2026-09-23）**：可验证部分已达成——所有生产入口（chat/stream/eval）共享单一图、经可回退 flag 切换、证据门控 parity 在确定性替身层 100%、durable PG checkpoint 重启可恢复（T050）、无未批准副作用（eval deterministic + 禁副作用）。**尚未达成（硬阻塞，非跳过）**：① 真实语料 100% 结论 parity——本机无 LightRAG/Milvus 检索栈，需运行栈 + CRUD 金标语料方可验证；② T053 删除第二套 stage 执行——按 removal-ledger 纪律须先在真实部署将 flag 默认打开、观察窗口内 `AdapterUsageTelemetry.zero_use_over_window()` 证明旧路径零使用，方可安全删除（否则删除的是当前默认在用路径，破坏契约）。二者均不可在本环境诚实完成，故 Checkpoint 暂不宣布达成。
 
 **Checkpoint**: US3 可独立演示：所有入口共享单一 graph，证据门控 parity 100%，重启可恢复且无未经批准的副作用。
 

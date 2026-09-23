@@ -1,0 +1,250 @@
+{
+  "verdict": "PARITY_OK",
+  "scope": "deterministic-stub (F4LightRAG/F4LLM); NOT real-corpus",
+  "entrypoints": [
+    "/api/chat",
+    "/api/chat/stream"
+  ],
+  "questions": [
+    "What is the travel approval process?",
+    "unknown policy question"
+  ],
+  "route_chat_uses": 2,
+  "route_chat_stream_uses": 2,
+  "conclusions": {
+    "chat_0": {
+      "answer": "Travel requests require manager approval [1].",
+      "citations": [
+        {
+          "knowledge_base_id": "f459233c-209f-4ee5-aeb3-f9f687a65228",
+          "knowledge_base_name": "HR",
+          "document_id": "document-f4",
+          "document_title": "Travel Policy",
+          "chunk_id": "chunk-f4",
+          "snippet": "Travel requests require manager approval.",
+          "score": 0.01639344262295082
+        }
+      ],
+      "confidence_score": 0.67,
+      "query_mode": "hybrid",
+      "router_result": {
+        "domain": "hr",
+        "task_type": "process_checklist",
+        "risk_level": "low",
+        "need_skill": true,
+        "tool_hints": [
+          "skill.run"
+        ],
+        "rewrite_query": null,
+        "complexity": "multi_step",
+        "difficulty": "multi_step",
+        "reasoning_mode": "cot_steps",
+        "plan_steps": [
+          {
+            "id": "s1",
+            "title": "检索相关制度证据",
+            "kind": "retrieve",
+            "query": "What is the travel approval process?",
+            "skill_hint": null,
+            "tool_hints": [],
+            "depends_on": [],
+            "status": "success"
+          },
+          {
+            "id": "s2",
+            "title": "执行业务规程（process_checklist）",
+            "kind": "skill",
+            "query": "What is the travel approval process?",
+            "skill_hint": "process_checklist",
+            "tool_hints": [
+              "skill.run"
+            ],
+            "depends_on": [
+              "s1"
+            ],
+            "status": "success"
+          },
+          {
+            "id": "s3",
+            "title": "基于证据生成回答",
+            "kind": "answer",
+            "query": null,
+            "skill_hint": null,
+            "tool_hints": [],
+            "depends_on": [
+              "s1",
+              "s2"
+            ],
+            "status": "success"
+          }
+        ],
+        "plan_options": [],
+        "plan_source": "router"
+      },
+      "suggested_skills": [
+        {
+          "name": "process_checklist",
+          "description": "process_checklist"
+        }
+      ],
+      "draft": null,
+      "compliance": {
+        "passed": true,
+        "warnings": [],
+        "decision": "PASS"
+      },
+      "status": "completed",
+      "reasoning_mode": "cot_steps",
+      "plan_options": []
+    },
+    "stream_0": {
+      "answer": "Travel requests require manager approval [1].",
+      "citations": [
+        {
+          "knowledge_base_id": "f459233c-209f-4ee5-aeb3-f9f687a65228",
+          "knowledge_base_name": "HR",
+          "document_id": "document-f4",
+          "document_title": "Travel Policy",
+          "chunk_id": "chunk-f4",
+          "snippet": "Travel requests require manager approval.",
+          "score": 0.01639344262295082
+        }
+      ],
+      "confidence_score": 0.67,
+      "query_mode": "hybrid",
+      "router_result": {
+        "domain": "hr",
+        "task_type": "process_checklist",
+        "risk_level": "low",
+        "need_skill": true,
+        "tool_hints": [
+          "skill.run"
+        ],
+        "rewrite_query": null,
+        "complexity": "multi_step",
+        "difficulty": "multi_step",
+        "reasoning_mode": "cot_steps",
+        "plan_steps": [
+          {
+            "id": "s1",
+            "title": "检索相关制度证据",
+            "kind": "retrieve",
+            "query": "What is the travel approval process?",
+            "skill_hint": null,
+            "tool_hints": [],
+            "depends_on": [],
+            "status": "success"
+          },
+          {
+            "id": "s2",
+            "title": "执行业务规程（process_checklist）",
+            "kind": "skill",
+            "query": "What is the travel approval process?",
+            "skill_hint": "process_checklist",
+            "tool_hints": [
+              "skill.run"
+            ],
+            "depends_on": [
+              "s1"
+            ],
+            "status": "success"
+          },
+          {
+            "id": "s3",
+            "title": "基于证据生成回答",
+            "kind": "answer",
+            "query": null,
+            "skill_hint": null,
+            "tool_hints": [],
+            "depends_on": [
+              "s1",
+              "s2"
+            ],
+            "status": "success"
+          }
+        ],
+        "plan_options": [],
+        "plan_source": "router"
+      },
+      "suggested_skills": [
+        {
+          "name": "process_checklist",
+          "description": "process_checklist"
+        }
+      ],
+      "draft": null,
+      "compliance": {
+        "passed": true,
+        "warnings": [],
+        "decision": "PASS"
+      },
+      "status": "completed",
+      "reasoning_mode": "cot_steps",
+      "plan_options": []
+    },
+    "chat_1": {
+      "answer": "当前授权知识库没有检索到可靠制度证据，无法给出可作为制度依据的回答。请补充更具体的制度问题、选择正确知识库，或联系归口部门确认。",
+      "citations": [],
+      "confidence_score": 0.0,
+      "query_mode": "hybrid",
+      "router_result": {
+        "domain": "hr",
+        "task_type": "knowledge_qa",
+        "risk_level": "low",
+        "need_skill": false,
+        "tool_hints": [],
+        "rewrite_query": null,
+        "complexity": "simple",
+        "difficulty": "simple",
+        "reasoning_mode": "cot_direct",
+        "plan_steps": [],
+        "plan_options": [],
+        "plan_source": "none"
+      },
+      "suggested_skills": [],
+      "draft": null,
+      "compliance": {
+        "passed": false,
+        "warnings": [
+          "NO_RELIABLE_EVIDENCE"
+        ],
+        "decision": "REFUSE"
+      },
+      "status": "completed",
+      "reasoning_mode": "cot_direct",
+      "plan_options": []
+    },
+    "stream_1": {
+      "answer": "当前授权知识库没有检索到可靠制度证据，无法给出可作为制度依据的回答。请补充更具体的制度问题、选择正确知识库，或联系归口部门确认。",
+      "citations": [],
+      "confidence_score": 0.0,
+      "query_mode": "hybrid",
+      "router_result": {
+        "domain": "hr",
+        "task_type": "knowledge_qa",
+        "risk_level": "low",
+        "need_skill": false,
+        "tool_hints": [],
+        "rewrite_query": null,
+        "complexity": "simple",
+        "difficulty": "simple",
+        "reasoning_mode": "cot_direct",
+        "plan_steps": [],
+        "plan_options": [],
+        "plan_source": "none"
+      },
+      "suggested_skills": [],
+      "draft": null,
+      "compliance": {
+        "passed": false,
+        "warnings": [
+          "NO_RELIABLE_EVIDENCE"
+        ],
+        "decision": "REFUSE"
+      },
+      "status": "completed",
+      "reasoning_mode": "cot_direct",
+      "plan_options": []
+    }
+  }
+}
