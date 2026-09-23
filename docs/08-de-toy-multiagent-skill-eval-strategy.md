@@ -543,6 +543,8 @@ CRUD import ── id 对齐 ── Hit@K 看板
 | 存储无关 run parity（PG） | **已完成（诚实）** | 2026-09-22 | `scripts/graph_pg_parity.py` → `GraphService.run` 在 aiosqlite 与活库 PostgreSQL(55432) 得同一 evidence_gate/终态/有序 RunEvent（`artifacts/graph/stage3/pg_parity.json`，PARITY_OK）。**边界**：确定性依赖替身检索，**非**生产语料答案 parity；生产 Chat/Eval 端点仍走 `AgentPipeline`（现为图驱动，未切到 `GraphService`），详见 `specs/001-enterprise-agent-refactor/tasks.md` Phase 3 落地状态 |
 | 生产路由经 adapter（可回退 flag） | **部分（诚实）** | 2026-09-23 | `ROUTE_VIA_GRAPH_ADAPTER`（默认 `False`）开时，`routes_chat`/`routes_eval` 经 `backend/app/graph/route_adapter.py::GraphRouteAdapter` 记录 removal-ledger 遥测（`route_chat`/`route_chat_stream`/`route_eval`）并委派共享 pipeline 图；关时字节等价旧路径。flag-ON `/api/chat` 富 `ChatResponse` 形状不变 + 遥测计数（`tests/integration/test_graph_route_adapter_live.py`），f4/f5/f6 绿。**边界**：底层是 pipeline 图（Option A），**非** durable `GraphService`；「Chat/Eval 结论一致率 100%」需运行栈 + 真实语料，本机缺检索栈**未验证**，仍属 Stage-3 收尾 |
 | 生产入口结论 parity（chat/stream） | **部分（诚实）** | 2026-09-23 | `tests/integration/test_entrypoint_conclusion_parity.py` → 同库运行时切 flag，有证据/无证据两问下 `/api/chat` 与 `/api/chat/stream` 结论字段 flag-on==flag-off 且 chat==stream 逐字相等（`artifacts/graph/stage3/entrypoint_conclusion_parity.json`，PARITY_OK）。**边界**：确定性替身检索（F4LightRAG/F4LLM），**非**真实语料答案 parity；Eval 真实语料 parity 仍需运行栈 |
+| 真实语料 parity 可运行入口（凭据外部化） | **入口就绪·待凭据** | 2026-09-23 | `scripts/graph_realcorpus_parity.py`：真栈 arm。硬门控——provider 为占位符/缺 key 时 `PROVIDER_NOT_CONFIGURED` 退 2、不写证据（今日本机验证结果，绝不伪造绿）。配好真实 OpenAI 兼容 embedding/LLM 后经真实 HTTP 路由：导入随机 CRUD `questanswer_1doc` + 干扰进 `eval_test` → `eval_types=["retrieval"]` 确定性检索评测跑两遍（flag OFF/ON）→ 逐例比有序 doc id + Hit@K/MRR/passed/score，写 `artifacts/graph/stage3/realcorpus_parity.json`。不比生成答案文本（LLM 采样与 flag 独立）。**运行栈+凭据到位前外部依赖阻塞，未验证** |
+| T053 删除第二套 stage（Stage 9） | **有意推迟（用户裁定）** | 2026-09-23 | 用户裁定「保持门控」：`ROUTE_VIA_GRAPH_ADAPTER` 默认 OFF，旧直连路径仍是当前生产默认；须先真实部署开 flag、观察窗口内 `AdapterUsageTelemetry.zero_use_over_window()` 证零使用方可删。现删会移除在用默认路径、破坏契约。故留作 Stage 9 动作，非遗漏 |
 
 ---
 
@@ -561,6 +563,7 @@ CRUD import ── id 对齐 ── Hit@K 看板
 | v1.8 | 2026-08-28 | 负样本评测集（40 条）+ 跑题门控从纯词面覆盖率升级为「cross-encoder 分数优先、词面兜底」；新增 §12 |
 | v1.9 | 2026-09-22 | 编排层忠实移植到真 LangGraph（Option A）：`AgentPipeline.run` 体内驱动 `StateGraph`，Chat/Eval 同图；`GraphService.run` 在活库 PostgreSQL 验证存储无关 run parity。诚实边界：与 durable 证据路径图并存的第二个图；确定性替身检索非生产语料答案 parity（详见 `specs/001-enterprise-agent-refactor/tasks.md`）|
 | v1.10 | 2026-09-23 | 生产 Chat/Eval 路由经 `GraphRouteAdapter`，behind 可回退 flag `ROUTE_VIA_GRAPH_ADAPTER`（默认关）：开时记录 removal-ledger 遥测并委派共享 pipeline 图，关时字节等价旧路径。诚实边界：底层是 pipeline 图非 durable `GraphService`；真实语料结论 parity 因本机缺检索栈未验证 |
+| v1.11 | 2026-09-23 | 新增真实语料 parity 可运行入口 `scripts/graph_realcorpus_parity.py`（硬门控 `PROVIDER_NOT_CONFIGURED`，待用户补齐 OpenAI 兼容凭据即可跑真栈确定性检索 parity）；T053 经用户裁定「保持门控」列为 Stage 9 有意推迟。二者写入 §10 状态表，Checkpoint 仍不宣布达成 |
 
 ### Rerank implementation update (2026-08-02)
 
