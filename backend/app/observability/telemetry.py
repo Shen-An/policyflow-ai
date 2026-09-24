@@ -73,6 +73,20 @@ METRIC_DB_POOL_SIZE = "policyflow.db.pool.size"
 METRIC_ERRORS = "policyflow.errors"
 METRIC_AUTHORIZATION_DECISIONS = "policyflow.authorization.decisions"
 
+# -- Stage 4 (US2) concurrency / durability metrics (T071) ------------------
+# These make the "stable under large-scale concurrency" story observable: how
+# many SSE streams are live, how deep the durable-job queue is, how many leases
+# and LLM calls are in flight, per-graph-node latency/failure, and how long
+# resource cleanup takes. All are label-policed like the others: no identifiers.
+METRIC_SSE_ACTIVE = "policyflow.sse.connections.active"
+METRIC_JOB_QUEUE_DEPTH = "policyflow.jobs.queue.depth"
+METRIC_JOB_LEASES_HELD = "policyflow.jobs.leases.held"
+METRIC_LLM_CONCURRENCY = "policyflow.llm.concurrency"
+METRIC_LLM_TOKENS = "policyflow.llm.tokens"
+METRIC_GRAPH_NODE_DURATION = "policyflow.graph.node.duration"
+METRIC_GRAPH_NODE_FAILURES = "policyflow.graph.node.failures"
+METRIC_CLEANUP_DURATION = "policyflow.cleanup.duration"
+
 ATTR_RUN_ID = "policyflow.run_id"
 ATTR_REQUEST_ID = "policyflow.request_id"
 ATTR_TRACE_ID = "policyflow.trace_id"
@@ -555,6 +569,14 @@ class _Instruments:
     db_pool_size: Any
     errors: Any
     authorization_decisions: Any
+    sse_active: Any
+    job_queue_depth: Any
+    job_leases_held: Any
+    llm_concurrency: Any
+    llm_tokens: Any
+    graph_node_duration: Any
+    graph_node_failures: Any
+    cleanup_duration: Any
 
 
 def _resolve_meter() -> Any:
@@ -637,6 +659,46 @@ def _instruments() -> _Instruments:
                     METRIC_AUTHORIZATION_DECISIONS,
                     unit="{decision}",
                     description="Authorization decisions by action and decision",
+                ),
+                sse_active=meter.create_up_down_counter(
+                    METRIC_SSE_ACTIVE,
+                    unit="{connection}",
+                    description="Currently open SSE streams",
+                ),
+                job_queue_depth=meter.create_up_down_counter(
+                    METRIC_JOB_QUEUE_DEPTH,
+                    unit="{job}",
+                    description="Queued durable jobs awaiting a lease, by lane",
+                ),
+                job_leases_held=meter.create_up_down_counter(
+                    METRIC_JOB_LEASES_HELD,
+                    unit="{lease}",
+                    description="Durable-job leases currently held by workers",
+                ),
+                llm_concurrency=meter.create_up_down_counter(
+                    METRIC_LLM_CONCURRENCY,
+                    unit="{call}",
+                    description="LLM calls currently in flight",
+                ),
+                llm_tokens=meter.create_counter(
+                    METRIC_LLM_TOKENS,
+                    unit="{token}",
+                    description="LLM tokens consumed by direction (prompt/completion)",
+                ),
+                graph_node_duration=meter.create_histogram(
+                    METRIC_GRAPH_NODE_DURATION,
+                    unit="s",
+                    description="Agent-graph node execution duration by node",
+                ),
+                graph_node_failures=meter.create_counter(
+                    METRIC_GRAPH_NODE_FAILURES,
+                    unit="{failure}",
+                    description="Agent-graph node failures by node",
+                ),
+                cleanup_duration=meter.create_histogram(
+                    METRIC_CLEANUP_DURATION,
+                    unit="s",
+                    description="Resource-cleanup duration by scope",
                 ),
             )
         return _INSTRUMENTS
@@ -820,7 +882,94 @@ def record_authorization_decision(
     )
 
 
-# --- configuration ---------------------------------------------------------
+# --- Stage 4 (US2) concurrency / durability recording helpers (T071) -------
+
+
+def _require_non_negative_number(value: Any, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        raise TelemetryPolicyError(
+            "measurement",
+            "not_a_non_negative_number",
+            f"{name} must be a non-negative number",
+        )
+    return float(value)
+
+
+def record_sse_connection(*, delta: int) -> None:
+    """Adjust the live-SSE gauge. ``delta`` is ``+1`` on open, ``-1`` on close."""
+    if isinstance(delta, bool) or not isinstance(delta, int) or delta not in (-1, 1):
+        raise TelemetryPolicyError(
+            "measurement", "sse_delta_invalid", "delta must be +1 or -1"
+        )
+    _instruments().sse_active.add(delta)
+
+
+def record_job_queue_depth(*, lane: str = "default", delta: int) -> None:
+    """Adjust the queued-jobs gauge for ``lane`` (``+1`` enqueue, ``-1`` leased)."""
+    if isinstance(delta, bool) or not isinstance(delta, int) or delta == 0:
+        raise TelemetryPolicyError(
+            "measurement", "queue_delta_invalid", "delta must be a non-zero integer"
+        )
+    labels = validate_metric_labels({"lane": lane})
+    _instruments().job_queue_depth.add(delta, attributes=labels)
+
+
+def record_job_lease(*, delta: int) -> None:
+    """Adjust the held-lease gauge (``+1`` on acquire, ``-1`` on release/expiry)."""
+    if isinstance(delta, bool) or not isinstance(delta, int) or delta not in (-1, 1):
+        raise TelemetryPolicyError(
+            "measurement", "lease_delta_invalid", "delta must be +1 or -1"
+        )
+    _instruments().job_leases_held.add(delta)
+
+
+def record_llm_concurrency(*, delta: int) -> None:
+    """Adjust the in-flight-LLM-call gauge (``+1`` on start, ``-1`` on finish)."""
+    if isinstance(delta, bool) or not isinstance(delta, int) or delta not in (-1, 1):
+        raise TelemetryPolicyError(
+            "measurement", "llm_delta_invalid", "delta must be +1 or -1"
+        )
+    _instruments().llm_concurrency.add(delta)
+
+
+def record_llm_tokens(*, prompt: int = 0, completion: int = 0) -> None:
+    """Count LLM tokens consumed, split into prompt and completion directions."""
+    prompt = _require_non_negative_int(prompt, "prompt")
+    completion = _require_non_negative_int(completion, "completion")
+    instruments = _instruments()
+    if prompt:
+        instruments.llm_tokens.add(
+            prompt, attributes=validate_metric_labels({"direction": "prompt"})
+        )
+    if completion:
+        instruments.llm_tokens.add(
+            completion, attributes=validate_metric_labels({"direction": "completion"})
+        )
+
+
+def record_graph_node(
+    *,
+    node: str,
+    duration_seconds: float,
+    failed: bool = False,
+) -> None:
+    """Record one agent-graph node execution: its latency and, if it failed, a failure.
+
+    ``node`` is a stable node name (``retrieve``, ``answer``), never an id.
+    """
+    duration = _require_non_negative_number(duration_seconds, "duration_seconds")
+    labels = validate_metric_labels({"node": node})
+    instruments = _instruments()
+    instruments.graph_node_duration.record(duration, attributes=labels)
+    if failed:
+        instruments.graph_node_failures.add(1, attributes=labels)
+
+
+def record_cleanup_duration(*, scope: str, duration_seconds: float) -> None:
+    """Record how long a resource-cleanup pass took, by ``scope`` (e.g. ``sse``)."""
+    duration = _require_non_negative_number(duration_seconds, "duration_seconds")
+    labels = validate_metric_labels({"scope": scope})
+    _instruments().cleanup_duration.record(duration, attributes=labels)
 
 
 def otel_available() -> bool:

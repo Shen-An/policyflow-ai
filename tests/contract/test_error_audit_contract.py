@@ -1106,6 +1106,14 @@ def test_metric_helpers_only_send_bounded_labels(recorder: _TelemetryRecorder) -
         "policyflow.db.pool.size",
         "policyflow.errors",
         "policyflow.authorization.decisions",
+        "policyflow.sse.connections.active",
+        "policyflow.jobs.queue.depth",
+        "policyflow.jobs.leases.held",
+        "policyflow.llm.concurrency",
+        "policyflow.llm.tokens",
+        "policyflow.graph.node.duration",
+        "policyflow.graph.node.failures",
+        "policyflow.cleanup.duration",
     ]
     forbidden_keys = {"tenant_id", "user_id", "run_id", "request_id", "trace_id", "actor_ref"}
     for measurement in recorder.measurements:
