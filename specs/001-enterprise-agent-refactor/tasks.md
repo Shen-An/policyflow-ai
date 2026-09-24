@@ -426,23 +426,23 @@ SELECT 与 UPDATE 之间没有原子性，UPDATE 也不带 `status='pending'` �
 
 ### Tests for User Story 2
 
-- [ ] T055 [P] [US2] 在 `tests/contract/test_job_state_machine.py` 中为 DurableJob、OutboxEvent、lease token、expected state/version、有限 retry/timeout 和幂等发布编写失败测试
-- [ ] T056 [P] [US2] 在 `tests/recovery/test_run_restart.py` 中为 running/waiting_approval/cancel_requested 的 API 重启恢复编写失败测试
-- [ ] T057 [P] [US2] 在 `tests/recovery/test_job_redelivery.py` 中为 publisher confirm、重复消息、worker 崩溃、lease 过期、DLQ 和 unknown attempt 编写失败测试
-- [ ] T058 [P] [US2] 在 `tests/integration/test_quota_admission.py` 中为 tenant/user/global token bucket、租期 semaphore、bounded queue、429/503 与 `Retry-After` 编写失败测试
-- [ ] T059 [P] [US2] 在 `tests/integration/test_sse_resume.py` 中为 ordered sequence、heartbeat、`Last-Event-ID`、Redis replay expiry snapshot、bounded backpressure 和不可丢 terminal/approval/error 事件编写失败测试
-- [ ] T060 [P] [US2] 在 `tests/recovery/test_sse_cleanup.py` 中为断连、cancel、send timeout、slow consumer 和优雅停机后 30 秒内释放 producer/subscription/lease 编写失败测试
+- [X] T055 [P] [US2] 在 `tests/contract/test_job_state_machine.py` 中为 DurableJob、OutboxEvent、lease token、expected state/version、有限 retry/timeout 和幂等发布编写失败测试 — 13 tests GREEN（SQLite，始终可用路径；R13）
+- [X] T056 [P] [US2] 在 `tests/recovery/test_run_restart.py` 中为 running/waiting_approval/cancel_requested 的 API 重启恢复编写失败测试 — 实际文件 `tests/recovery/test_run_restart_recovery.py`（+conftest.py）；5 tests GREEN（SQLite 文件库模拟重启；R13）
+- [X] T057 [P] [US2] 在 `tests/recovery/test_job_redelivery.py` 中为 publisher confirm、重复消息、worker 崩溃、lease 过期、DLQ 和 unknown attempt 编写失败测试 — 5 tests GREEN（SQLite；重复投递不重复 transition/side-effect，唯一约束在 DB 兜底；R13）
+- [X] T058 [P] [US2] 在 `tests/integration/test_quota_admission.py` 中为 tenant/user/global token bucket、租期 semaphore、bounded queue、429/503 与 `Retry-After` 编写失败测试 — 实际文件 `tests/contract/test_quota_admission.py`；7 tests GREEN（真实 Redis 8.2.0，无则 skip）。429/503 的 HTTP 表层仍待 T069（R13）
+- [X] T059 [P] [US2] 在 `tests/integration/test_sse_resume.py` 中为 ordered sequence、heartbeat、`Last-Event-ID`、Redis replay expiry snapshot、bounded backpressure 和不可丢 terminal/approval/error 事件编写失败测试 — 实际文件 `tests/contract/test_sse_resume.py`；6 tests GREEN（真实 Redis Streams；R13）
+- [X] T060 [P] [US2] 在 `tests/recovery/test_sse_cleanup.py` 中为断连、cancel、send timeout、slow consumer 和优雅停机后 30 秒内释放 producer/subscription/lease 编写失败测试 — 实际文件 `tests/contract/test_sse_cleanup.py`；5 tests GREEN（纯 asyncio；R13）
 
 ### Implementation for User Story 2
 
-- [ ] T061 [P] [US2] 在 `backend/app/db/models.py` 中增加 DurableJob、OutboxEvent、QuotaPolicy、QuotaLease、UsageRecord 和 CapacityTestRun，严格实现 `data-model.md` 的状态枚举、attempt/deadline、唯一幂等与 raw artifact hash 约束
-- [ ] T062 [P] [US2] 在 `backend/app/jobs/celery_app.py` 中配置固定 workload queues、RabbitMQ quorum、publisher confirms、manual late ack、`prefetch=1`、DLQ、jitter 和软硬 timeout
-- [ ] T063 [US2] 在 `backend/app/jobs/service.py` 中实现 PostgreSQL 权威 DurableJob + transactional outbox 的 enqueue/lease/heartbeat/complete/fail/cancel compare-and-set 流程（依赖 T061）
-- [ ] T064 [US2] 在 `backend/app/jobs/workers.py` 中实现仅由 RabbitMQ 唤醒、每个 bounded step 检查取消、重复消息无重复 transition 的 Celery consumers（依赖 T062、T063）
-- [ ] T065 [P] [US2] 在 `backend/app/jobs/outbox_publisher.py` 中实现 outbox claim、publisher confirm、有限重试、dead-letter 和唯一 aggregate-version-event 投递
-- [ ] T066 [P] [US2] 在 `backend/app/jobs/quota.py` 中实现 Redis Lua tenant/user/global token bucket 与租期 semaphore，并把 policy/final usage/audit 写回 PostgreSQL
-- [ ] T067 [P] [US2] 在 `backend/app/streaming/events.py` 中实现 durable milestone、单调 `(run_id, sequence)`、Redis Streams 有界 TTL replay 和 snapshot fallback
-- [ ] T068 [US2] 在 `backend/app/streaming/sse.py` 中使用 `sse-starlette` + 有界 AnyIO channel 实现 heartbeat、send timeout、背压、进度合并、disconnect/cancel/cleanup（依赖 T067）
+- [X] T061 [P] [US2] 在 `backend/app/db/models.py` 中增加 DurableJob、OutboxEvent、QuotaPolicy、QuotaLease、UsageRecord 和 CapacityTestRun，严格实现 `data-model.md` 的状态枚举、attempt/deadline、唯一幂等与 raw artifact hash 约束 — 已提交 bc42ad7；唯一约束 `uq_durable_jobs_idem`、`uq_outbox_aggregate_version_event`（R12/R13）
+- [~] T062 [P] [US2] 在 `backend/app/jobs/celery_app.py` 中配置固定 workload queues、RabbitMQ quorum、publisher confirms、manual late ack、`prefetch=1`、DLQ、jitter 和软硬 timeout — 拓扑经 config introspection 验证（7 tests GREEN，无需 broker，dee187b）：quorum/confirms/late-ack+reject_on_worker_lost/prefetch=1/DLQ/软硬 timeout 齐备。**gated**：本机无 RabbitMQ，实况 publish/consume/redeliver 归 T072；retry jitter 尚未加（R13）
+- [~] T063 [US2] 在 `backend/app/jobs/service.py` 中实现 PostgreSQL 权威 DurableJob + transactional outbox 的 enqueue/lease/heartbeat/complete/fail/cancel compare-and-set 流程（依赖 T061）— 逻辑完整并在 SQLite 全绿（bc42ad7，version CAS + 同事务 outbox）。**gated**：本机无 PG server（55432 关闭），`FOR UPDATE SKIP LOCKED` 权威路径未在真实 PG 跑（R12/R13）
+- [ ] T064 [US2] 在 `backend/app/jobs/workers.py` 中实现仅由 RabbitMQ 唤醒、每个 bounded step 检查取消、重复消息无重复 transition 的 Celery consumers（依赖 T062、T063）— 未建 `workers.py`；「重复消息无重复 transition」语义已由 T057 证明（SQLite），consumer 装配 gated on broker（R13）
+- [~] T065 [P] [US2] 在 `backend/app/jobs/outbox_publisher.py` 中实现 outbox claim、publisher confirm、有限重试、dead-letter 和唯一 aggregate-version-event 投递 — 实际文件 `backend/app/jobs/publisher.py`；relay（claim pending->publishing->delivered / 有限重试后 dead_letter）在 SQLite + MockTransport(status=mock) 全绿（5 tests，dee187b）。**gated**：真实 RabbitMQ transport（publisher confirm 属 T062 配置）归 T072（R13）
+- [~] T066 [P] [US2] 在 `backend/app/jobs/quota.py` 中实现 Redis Lua tenant/user/global token bucket 与租期 semaphore，并把 policy/final usage/audit 写回 PostgreSQL — 实际文件 `backend/app/quota/coordinator.py`；token bucket + lease semaphore 经真实 Redis 全绿（7 tests，4663c53）。**待补**：policy/usage/audit 写回 PostgreSQL 未实现（R13）
+- [~] T067 [P] [US2] 在 `backend/app/streaming/events.py` 中实现 durable milestone、单调 `(run_id, sequence)`、Redis Streams 有界 TTL replay 和 snapshot fallback — 实际文件 `backend/app/sse/stream.py`；Redis Streams 有界 replay（MAXLEN exact + TTL）+ Last-Event-ID resume + 裁剪 gap→snapshot fallback 经真实 Redis 全绿（6 tests，aa3033c）。**待补**：DB 侧持久 milestone 与显式 `(run_id, sequence)` 列（R13）
+- [~] T068 [US2] 在 `backend/app/streaming/sse.py` 中使用 `sse-starlette` + 有界 AnyIO channel 实现 heartbeat、send timeout、背压、进度合并、disconnect/cancel/cleanup（依赖 T067）— 实际文件 `backend/app/sse/channel.py`（BoundedEventChannel）：heartbeat / send-timeout 背压(SlowConsumer) / close 即释放 subscription 经 asyncio 全绿（5 tests，aa3033c）。**待补**：`sse-starlette` EventSourceResponse HTTP 端点（组合 RunEventStream+channel）（R13）
 - [ ] T069 [US2] 在 `backend/app/api/routes_runs.py` 中实现 `POST /api/v2/runs`、`GET /runs/{run_id}`、events 和 cancel 契约，`Idempotency-Key` 约束为 min 16/max 128 且过载返回受控 retry delay（依赖 T049、T063、T066、T068）
 - [ ] T070 [P] [US2] 将 `backend/app/api/routes_kb.py`、`backend/app/api/routes_eval.py` 和 `backend/app/api/routes_faq.py` 的长时间 `BackgroundTasks` 替换为 DurableJob/outbox 提交
 - [ ] T071 [P] [US2] 在 `backend/app/observability/telemetry.py` 中增加 active SSE、queue depth、lease、LLM concurrency/tokens、graph node latency/failure 和 cleanup duration 指标
@@ -450,9 +450,27 @@ SELECT 与 UPDATE 之间没有原子性，UPDATE 也不带 `status='pending'` �
 
 **Checkpoint**: US2 的持久任务和连接生命周期可独立验收；重启、重复投递和过载都不会丢任务、无限等待或重复副作用。
 
----
+### Phase 4 落地状态（2026-09-24，R13，诚实边界）
 
-## Phase 5: User Story 1A — 材料版本与存储权威 (Priority: P1, Stage 5)
+**本机基础设施实况**：Redis 6379 真实开放（v8.2.0，Lua EVAL 已验证）；**RabbitMQ 5672 关闭**（无 docker/erlang，testcontainers 也起不来）；**PostgreSQL 55432 关闭**。SQLite（aiosqlite）为可用 dev/test 路径。
+
+**已在可用基础设施上真跑通（GREEN）**：
+- 状态机 / 恢复 / 重复投递逻辑（T055/T056/T057，SQLite 文件库模拟重启）——共 23+ tests。
+- 配额准入 token bucket + lease semaphore（T058/T066，真实 Redis）——7 tests。
+- SSE 有界 replay + resume + gap→snapshot（T059/T067，真实 Redis）——6 tests。
+- SSE 通道 heartbeat / 背压 / cleanup（T060/T068-channel，asyncio）——5 tests。
+- 模型（T061）、JobService CAS+outbox（T063，SQLite）、outbox relay（T065，SQLite+MockTransport status=mock）——5 tests。
+- Celery 拓扑（T062，config introspection，无 broker）——7 tests：quorum / publisher confirms / late-ack+reject_on_worker_lost / prefetch=1 / DLQ / 软硬 timeout。
+
+**gated / 未完成（诚实标 [~] 或 [ ]，绝不谎报绿）**：
+- 无 RabbitMQ：实况 publish/consume/redeliver（T062 broker 往返、T064 consumer 装配、T065 真实 transport）→ 归 T072，未跑。
+- 无 PG server：`FOR UPDATE SKIP LOCKED` 权威路径（T063）、配额 policy/usage 写回 PG（T066）未在真实 PG 验证。
+- 未建端点：`POST /api/v2/runs` 契约（T069）、sse-starlette HTTP 端点（T068 余项）。
+- 未开始：BackgroundTasks→DurableJob 迁移（T070）、遥测指标（T071）、Locust sse/saturation 负载与 artifacts/recovery/stage4/ 证据（T072）。
+
+**Checkpoint 状态：未达成。** Independent Test（1,000 SSE、队列饱和、RabbitMQ redelivery、Redis 短时故障）需要 T069–T072 与真实 RabbitMQ/PG，本机不具备；不宣布 Checkpoint 达成。
+
+
 
 **Goal**: 在真实文件工作流前建立 PostgreSQL 元数据、Milvus 向量和 MinIO/S3 字节的单一职责、不可变版本、租户过滤、可恢复 saga 与物理删除核对。
 
