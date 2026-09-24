@@ -104,6 +104,54 @@ async def test_gap_emits_snapshot_required_before_events() -> None:
     assert stream.seen_after == "3-0"
 
 
+async def test_gap_with_durable_snapshot_replays_pg_milestones() -> None:
+    """On a gap, a durable snapshot supersedes the partial Redis backlog.
+
+    When Redis was trimmed/flushed the retained Redis events are an incomplete
+    tail; the authoritative history is the PostgreSQL durable snapshot. The
+    generator must emit ``snapshot_required`` and then the durable milestones,
+    NOT the partial Redis events, so no milestone is silently skipped.
+    """
+    stream = _FakeStream(
+        ReplayResult(
+            events=[StreamEvent(id="9-0", event_type="run.progress", data={"n": 9})],
+            gap=True,
+        )
+    )
+
+    async def _snapshot() -> list[StreamEvent]:
+        return [
+            StreamEvent(id="d1", event_type="run.created", data={"sequence": 1}),
+            StreamEvent(id="d2", event_type="run.finalized", data={"sequence": 2}),
+        ]
+
+    frames = await _drain(
+        sse_event_source(
+            stream=stream, run_id="r", last_event_id="3-0", channel=None, snapshot=_snapshot
+        )
+    )
+    assert frames[0]["event"] == CONTROL_SNAPSHOT_REQUIRED
+    assert [f["event"] for f in frames[1:]] == ["run.created", "run.finalized"]
+    assert [f["id"] for f in frames[1:]] == ["d1", "d2"]
+    # The partial Redis tail is NOT double-delivered when the snapshot is authoritative.
+    assert "run.progress" not in [f["event"] for f in frames]
+
+
+async def test_gap_without_snapshot_falls_back_to_retained_redis() -> None:
+    """With no durable source wired, gap behaviour is unchanged (retained events)."""
+    stream = _FakeStream(
+        ReplayResult(
+            events=[StreamEvent(id="9-0", event_type="run.progress", data={"n": 9})],
+            gap=True,
+        )
+    )
+    frames = await _drain(
+        sse_event_source(stream=stream, run_id="r", last_event_id="3-0", channel=None)
+    )
+    assert frames[0]["event"] == CONTROL_SNAPSHOT_REQUIRED
+    assert frames[1]["event"] == "run.progress"
+
+
 async def test_none_last_event_id_replays_from_start() -> None:
     stream = _FakeStream(ReplayResult(events=[], gap=False))
     await _drain(

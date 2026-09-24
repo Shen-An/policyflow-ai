@@ -44,6 +44,7 @@ from backend.app.db.models import DurableJob
 from backend.app.jobs.service import JobIdempotencyConflict, JobService
 from backend.app.observability import telemetry
 from backend.app.sse.endpoint import sse_event_source
+from backend.app.sse.snapshot import DurableRunSnapshot
 from backend.app.sse.stream import RunEventStream
 
 router = APIRouter(prefix="/api/v2", tags=["v2", "runs"])
@@ -119,6 +120,23 @@ def _run_event_stream(request: Request) -> RunEventStream:
     )
     request.app.state.run_event_stream = stream
     return stream
+
+
+def _durable_snapshot(request: Request) -> DurableRunSnapshot:
+    """Return the durable PG snapshot reader, honouring a test/prod override.
+
+    Tests inject ``app.state.run_snapshot``; otherwise one is built over the app
+    engine and cached. It is the authoritative source the SSE recovery path reads
+    when Redis reports a gap, so a trimmed or flushed stream never silently drops
+    a milestone.
+    """
+    override = getattr(request.app.state, "run_snapshot", None)
+    if override is not None:
+        return override
+    factory = async_sessionmaker(request.app.state.async_engine, expire_on_commit=False)
+    snapshot = DurableRunSnapshot(factory=factory)
+    request.app.state.run_snapshot = snapshot
+    return snapshot
 
 
 class RunRequest(BaseModel):
@@ -225,8 +243,10 @@ async def stream_run_events(
     The tenant is authorised the same way as :func:`get_run` -- an unknown run,
     or one owned by another tenant, is a ``404`` before any stream is opened, so
     the event log never leaks across tenants. The response then replays every
-    event retained since the client's ``Last-Event-ID`` (``snapshot_required``
-    first when the resume point was trimmed) and returns once the backlog drains.
+    event retained since the client's ``Last-Event-ID``; when the resume point was
+    trimmed (or Redis was flushed) it emits ``snapshot_required`` and replays the
+    authoritative durable milestones from PostgreSQL, then returns once the backlog
+    drains.
 
     This is the **replay/catch-up** surface, verifiable end-to-end against a real
     Redis with no worker running. The live tail (a producer fanning worker events
@@ -241,11 +261,16 @@ async def stream_run_events(
         raise NotFoundError("run not found")
 
     stream = _run_event_stream(request)
+    public_run_id = job.run_id or job.id
+    snapshot = _durable_snapshot(request).bind(
+        tenant_id=principal.tenant_id, run_id=public_run_id
+    )
     generator = sse_event_source(
         stream=stream,
-        run_id=job.run_id or job.id,
+        run_id=public_run_id,
         last_event_id=last_event_id,
         channel=None,
+        snapshot=snapshot,
     )
     return EventSourceResponse(_instrumented_stream(generator))
 
