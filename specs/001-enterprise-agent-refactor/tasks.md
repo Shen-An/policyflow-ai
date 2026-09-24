@@ -437,7 +437,7 @@ SELECT 与 UPDATE 之间没有原子性，UPDATE 也不带 `status='pending'` �
 
 - [X] T061 [P] [US2] 在 `backend/app/db/models.py` 中增加 DurableJob、OutboxEvent、QuotaPolicy、QuotaLease、UsageRecord 和 CapacityTestRun，严格实现 `data-model.md` 的状态枚举、attempt/deadline、唯一幂等与 raw artifact hash 约束 — 已提交 bc42ad7；唯一约束 `uq_durable_jobs_idem`、`uq_outbox_aggregate_version_event`（R12/R13）
 - [~] T062 [P] [US2] 在 `backend/app/jobs/celery_app.py` 中配置固定 workload queues、RabbitMQ quorum、publisher confirms、manual late ack、`prefetch=1`、DLQ、jitter 和软硬 timeout — 拓扑经 config introspection 验证（7 tests GREEN，无需 broker，dee187b）：quorum/confirms/late-ack+reject_on_worker_lost/prefetch=1/DLQ/软硬 timeout 齐备。**gated**：本机无 RabbitMQ，实况 publish/consume/redeliver 归 T072；retry jitter 尚未加（R13）
-- [~] T063 [US2] 在 `backend/app/jobs/service.py` 中实现 PostgreSQL 权威 DurableJob + transactional outbox 的 enqueue/lease/heartbeat/complete/fail/cancel compare-and-set 流程（依赖 T061）— 逻辑完整并在 SQLite 全绿（bc42ad7，version CAS + 同事务 outbox）。**gated**：本机无 PG server（55432 关闭），`FOR UPDATE SKIP LOCKED` 权威路径未在真实 PG 跑（R12/R13）
+- [~] T063 [US2] 在 `backend/app/jobs/service.py` 中实现 PostgreSQL 权威 DurableJob + transactional outbox 的 enqueue/lease/heartbeat/complete/fail/cancel compare-and-set 流程（依赖 T061）— 逻辑完整并在 SQLite 全绿（bc42ad7，version CAS + 同事务 outbox）。**已在真实 PostgreSQL 17.10（55432）验证权威 claim 路径**：`tests/integration/test_job_lease_pg_concurrency.py`（30 jobs / 8 并发 worker，READ COMMITTED 下 version-CAS 恰好一次领取，attempts==1 无重复 transition，PG 关停即 skip；R16）。注：实现用乐观 version-CAS 候选循环，**非** `FOR UPDATE SKIP LOCKED`（docstring 措辞待订正）。**新发现缺口（诚实记录）**：Stage-4 表（`durable_jobs`/`outbox_events`/`quota_policies`/`quota_leases`/`usage_records`/`capacity_test_runs`）无 Alembic 迁移，仅由 `SQLModel.metadata.create_all` 建；迁移链 001/002 不含它们，生产 `alembic upgrade head` 不会建表——归 T072 前置或独立迁移任务（R16）
 - [ ] T064 [US2] 在 `backend/app/jobs/workers.py` 中实现仅由 RabbitMQ 唤醒、每个 bounded step 检查取消、重复消息无重复 transition 的 Celery consumers（依赖 T062、T063）— 未建 `workers.py`；「重复消息无重复 transition」语义已由 T057 证明（SQLite），consumer 装配 gated on broker（R13）
 - [~] T065 [P] [US2] 在 `backend/app/jobs/outbox_publisher.py` 中实现 outbox claim、publisher confirm、有限重试、dead-letter 和唯一 aggregate-version-event 投递 — 实际文件 `backend/app/jobs/publisher.py`；relay（claim pending->publishing->delivered / 有限重试后 dead_letter）在 SQLite + MockTransport(status=mock) 全绿（5 tests，dee187b）。**gated**：真实 RabbitMQ transport（publisher confirm 属 T062 配置）归 T072（R13）
 - [~] T066 [P] [US2] 在 `backend/app/jobs/quota.py` 中实现 Redis Lua tenant/user/global token bucket 与租期 semaphore，并把 policy/final usage/audit 写回 PostgreSQL — 实际文件 `backend/app/quota/coordinator.py`；token bucket + lease semaphore 经真实 Redis 全绿（7 tests，4663c53）。**待补**：policy/usage/audit 写回 PostgreSQL 未实现（R13）
@@ -452,7 +452,7 @@ SELECT 与 UPDATE 之间没有原子性，UPDATE 也不带 `status='pending'` �
 
 ### Phase 4 落地状态（2026-09-24，R13，诚实边界）
 
-**本机基础设施实况**：Redis 6379 真实开放（v8.2.0，Lua EVAL 已验证）；**RabbitMQ 5672 关闭**（无 docker/erlang，testcontainers 也起不来）；**PostgreSQL 55432 关闭**。SQLite（aiosqlite）为可用 dev/test 路径。
+**本机基础设施实况**：Redis 6379 真实开放（v8.2.0，Lua EVAL 已验证）；**RabbitMQ 5672 关闭**（无 docker/erlang，testcontainers 也起不来）；**PostgreSQL 55432：R13 关闭，R16 已从 `.pgdata` 启动 PostgreSQL 17.10（trust 本地认证）并真跑通全部 PG 依赖套件**（见 R16 增量）。SQLite（aiosqlite）为可用 dev/test 路径。
 
 **已在可用基础设施上真跑通（GREEN）**：
 - 状态机 / 恢复 / 重复投递逻辑（T055/T056/T057，SQLite 文件库模拟重启）——共 23+ tests。
@@ -471,6 +471,14 @@ SELECT 与 UPDATE 之间没有原子性，UPDATE 也不带 `status='pending'` �
 **R14 增量（2026-09-24）**：T069 `POST /api/v2/runs` + `GET /runs/{run_id}` 落地并验证（`tests/contract/test_runs_api.py`，10 tests GREEN，SQLite，PG-/broker-free）。过载 429/503 的 HTTP 表层由可注入 `RunAdmission` 覆盖（默认 allow-all；生产 Redis 配额协调器绑定 gated 到有可达 Redis + T072）。T071 Stage-4 遥测 instrument（active SSE / queue depth / lease / LLM concurrency+tokens / graph node latency+failure / cleanup duration）+ 记录 helper 落地并经 in-memory OTel meter 验证（`tests/contract/test_stage4_telemetry.py`，8 tests GREEN）；**gated**：instrument 尚未接入实时调用点（SSE/JobService/graph/cleanup），call-site 装配为余项。
 
 **R15 增量（2026-09-24）**：T068 SSE HTTP 端点落地并验证——`backend/app/sse/endpoint.py` 的 `sse_event_source` 组合 RunEventStream 回放（gap→`snapshot_required` 控制帧）与 BoundedEventChannel 实时尾（heartbeat 透传、channel 关闭即净收），`GET /api/v2/runs/{run_id}/events` 租户域授权（未知/跨租户 run 在开流前即 404）。`tests/contract/test_sse_endpoint.py` 9 tests GREEN：5 个生成器级单测（无依赖，覆盖回放顺序 / gap→snapshot / 实时+heartbeat / 关闭净收）+ 4 个 HTTP 端点测（打真实 Redis 127.0.0.1:6379/15，unreachable 即 skip，覆盖回放为 SSE 帧 / Last-Event-ID resume / 跨租户 404 / 未知 run 404）。**gated**：实时尾的 producer（worker 事件扇入每连接 channel）依赖 Celery 消费者（T064），端点当前只跑回放/追赶模式，backlog 排空即返回；1,000 SSE/饱和/Locust 归 T072。
+
+**R16 增量（2026-09-24，真实 PostgreSQL 起立）**：从既有 `.pgdata` 用 conda 环境 `pg_ctl.exe` 启动 **PostgreSQL 17.10 于 127.0.0.1:55432**（`pg_hba.conf` 本地/127.0.0.1 为 `trust`，角色 `policyflow`、库 `policyflow`/`policyflow_test` 就绪）。以 `POLICYFLOW_TEST_DATABASE_URL=postgresql+psycopg://policyflow:<any>@127.0.0.1:55432/policyflow_test` 指向后，**先前因 PG 关闭而 skip 的套件现全部真跑通、零 skip**：
+- PG 集成 + 安全套件 **39 passed / 0 skipped**：`test_postgres_migrations`、`test_multi_instance`、`test_index_claim`（真实 `FOR UPDATE SKIP LOCKED` 交错）、`test_graph_pg_checkpoint`、`test_graph_restart`、`test_v2_dependencies`、`test_tenant_isolation`。
+- Stage-4 契约套件 **61 passed**（含真实 Redis：T066 quota Lua、T067/T068 SSE Streams；及 job_state_machine/outbox/runs_api/celery_config/telemetry）。
+- Recovery 套件 **10 passed**（重启恢复 + 重复投递逻辑，SQLite 文件库设计路径）。
+- **新增 T063 PG 权威验证**：`tests/integration/test_job_lease_pg_concurrency.py`——30 jobs / 8 并发 worker 在真实 PG（READ COMMITTED）下 version-CAS **恰好一次领取**（`len==distinct==30`，每 job `attempts==1`、`version==2`、单一 `lease_owner`），PG 关停即 skip。这把 T063「权威 claim 路径未在真实 PG 跑」从 gated 转为真绿。
+- **诚实新缺口**：Stage-4 六张表无 Alembic 迁移，仅 `metadata.create_all` 建表；迁移链 001/002 不含它们（`grep durable/outbox/quota migrations/` 为空），生产 `alembic upgrade head` **不会**建 `durable_jobs` 等——需补迁移，记为 T072 前置/独立任务。
+- **仍 gated（未伪造）**：RabbitMQ 仍关（无 broker→T064 consumer、T062/T065 真实往返、T072 broker 部分）；1,000 并发**实时** SSE 依赖 T064 producer（现有 Locust `sse` profile 打的是 Stage-1 `/api/chat/stream`，非 `/api/v2/runs/{id}/events`）；T070 需 inline/dev executor 设计决策。
 
 **Checkpoint 状态：未达成。** Independent Test（1,000 SSE、队列饱和、RabbitMQ redelivery、Redis 短时故障）需要 T069–T072 与真实 RabbitMQ/PG，本机不具备；不宣布 Checkpoint 达成。
 
