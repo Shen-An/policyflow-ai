@@ -27,7 +27,9 @@ live quota path ran.
 from __future__ import annotations
 
 import math
+from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Any, Protocol
 
 from fastapi import APIRouter, Header, Request
@@ -40,6 +42,7 @@ from backend.app.api.deps import PrincipalDep
 from backend.app.core.exceptions import ApplicationError, NotFoundError
 from backend.app.db.models import DurableJob
 from backend.app.jobs.service import JobIdempotencyConflict, JobService
+from backend.app.observability import telemetry
 from backend.app.sse.endpoint import sse_event_source
 from backend.app.sse.stream import RunEventStream
 
@@ -244,4 +247,27 @@ async def stream_run_events(
         last_event_id=last_event_id,
         channel=None,
     )
-    return EventSourceResponse(generator)
+    return EventSourceResponse(_instrumented_stream(generator))
+
+
+async def _instrumented_stream(
+    generator: AsyncIterator[Mapping[str, Any]],
+) -> AsyncIterator[Mapping[str, Any]]:
+    """Wrap an SSE frame source so a connection moves the live-SSE gauge.
+
+    The gauge goes ``+1`` when the connection opens and ``-1`` when it unwinds
+    (backlog drained, client gone, or error), and the teardown cost is timed
+    into the ``sse`` cleanup histogram -- so a leaked connection or a slow
+    release is visible rather than silent. Telemetry is a no-op unless a meter
+    is configured, so this is safe on the default (unconfigured) path.
+    """
+    telemetry.record_sse_connection(delta=1)
+    opened_at = perf_counter()
+    try:
+        async for frame in generator:
+            yield frame
+    finally:
+        telemetry.record_sse_connection(delta=-1)
+        telemetry.record_cleanup_duration(
+            scope="sse", duration_seconds=perf_counter() - opened_at
+        )

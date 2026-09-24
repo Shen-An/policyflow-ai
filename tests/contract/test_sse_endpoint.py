@@ -414,3 +414,38 @@ def test_events_unknown_run_is_not_found(client: TestClient) -> None:
         "/api/v2/runs/does-not-exist/events", headers=_alpha()
     )
     assert resp.status_code == 404, resp.text
+
+
+def test_events_endpoint_moves_sse_gauge_and_times_cleanup(client: TestClient) -> None:
+    """T071 wiring: an events connection opens/closes the gauge and times teardown."""
+    pytest.importorskip("opentelemetry.sdk.metrics")
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import InMemoryMetricReader
+
+    from backend.app.observability import telemetry as tm
+
+    reader = InMemoryMetricReader()
+    provider = MeterProvider(metric_readers=[reader])
+    tm.reset_telemetry()
+    tm.configure_telemetry(enabled=True, meter=provider.get_meter("test"))
+    try:
+        run_id = _create_run(client)
+        prefix = client.app.state.run_event_stream._prefix
+        asyncio.run(_publish(prefix, run_id, [("run.started", {"n": 1})]))
+        resp = client.get(f"/api/v2/runs/{run_id}/events", headers=_alpha())
+        assert resp.status_code == 200, resp.text
+
+        data = reader.get_metrics_data()
+        seen: dict[str, list] = {}
+        for rm in data.resource_metrics:
+            for sm in rm.scope_metrics:
+                for metric in sm.metrics:
+                    seen.setdefault(metric.name, []).extend(metric.data.data_points)
+        # Gauge touched (net 0 after open+close, but the point exists).
+        assert tm.METRIC_SSE_ACTIVE in seen
+        # Cleanup timed exactly once for scope "sse".
+        cleanup = seen.get(tm.METRIC_CLEANUP_DURATION, [])
+        sse_points = [p for p in cleanup if p.attributes.get("scope") == "sse"]
+        assert sse_points and sse_points[0].count >= 1
+    finally:
+        tm.reset_telemetry()
