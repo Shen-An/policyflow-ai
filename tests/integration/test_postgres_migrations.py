@@ -155,7 +155,11 @@ def _stage(pg_url: str, name: str, *steps: str) -> Iterator[str]:
                 result = run_legacy_backfill(url)
                 assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
             elif step == "enforce":
-                result = alembic_upgrade(url, "head")
+                # Pinned to 002, not head: head now reaches the Stage-4 expand
+                # revision 003, whose durable tables are not what the enforce
+                # contract asserts. The Stage-4 head schema is covered by
+                # tests/integration/test_stage4_migration.py.
+                result = alembic_upgrade(url, "002")
                 assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
             else:  # pragma: no cover - guards a typo in a test's step list
                 raise AssertionError(f"unknown stage step {step!r}")
@@ -229,7 +233,7 @@ def test_enforce_refuses_before_the_backfill_has_run(expanded: str) -> None:
 
 def test_second_enforce_revision_is_idempotent_once_applied(enforced: str) -> None:
     """Re-running the chain after enforce must be a no-op, not a failure."""
-    again = alembic_upgrade(enforced, "head")
+    again = alembic_upgrade(enforced, "002")
     assert again.returncode == 0, f"{again.stdout}\n{again.stderr}"
     with connect(enforced) as cursor:
         assert scalar(cursor, "SELECT version_num FROM alembic_version") == "002"
