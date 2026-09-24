@@ -88,7 +88,7 @@ def _configure_provider(
         "api_style": api_style,
         "api_key": api_key,
         "model": model,
-        "timeout_seconds": 120.0,
+        "timeout_seconds": 300.0,
         "enabled": True,
     }
     if capability == "embedding" and embedding_dimension is not None:
@@ -155,7 +155,7 @@ def _ensure_providers(client: TestClient) -> None:
     )
 
 
-def _wait_for_indexing(app, timeout_seconds: float = 900.0) -> dict[str, int]:
+def _wait_for_indexing(app, timeout_seconds: float = 1800.0) -> dict[str, int]:
     """Block until every eval_test document leaves pending/indexing, then tally.
 
     LightRAG indexing runs in the background; the embedding-arm parity is only
