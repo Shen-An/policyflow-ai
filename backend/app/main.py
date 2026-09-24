@@ -43,6 +43,7 @@ from backend.app.api.routes_settings import router as settings_router
 from backend.app.api.routes_skill import router as skill_router
 from backend.app.api.routes_tool import router as tool_router
 from backend.app.api.routes_users import router as users_router
+from backend.app.api.routes_runs import router as runs_router
 from backend.app.api.routes_v2 import router as v2_router
 from backend.app.core.config import Settings, get_settings
 from backend.app.core.exceptions import (
@@ -298,6 +299,7 @@ def create_app(
     application.include_router(tool_router)
     application.include_router(users_router)
     application.include_router(v2_router)
+    application.include_router(runs_router)
 
     @application.get("/health", tags=["system"])
     async def health_check() -> dict[str, str]:

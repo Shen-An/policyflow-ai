@@ -443,7 +443,7 @@ SELECT 与 UPDATE 之间没有原子性，UPDATE 也不带 `status='pending'` �
 - [~] T066 [P] [US2] 在 `backend/app/jobs/quota.py` 中实现 Redis Lua tenant/user/global token bucket 与租期 semaphore，并把 policy/final usage/audit 写回 PostgreSQL — 实际文件 `backend/app/quota/coordinator.py`；token bucket + lease semaphore 经真实 Redis 全绿（7 tests，4663c53）。**待补**：policy/usage/audit 写回 PostgreSQL 未实现（R13）
 - [~] T067 [P] [US2] 在 `backend/app/streaming/events.py` 中实现 durable milestone、单调 `(run_id, sequence)`、Redis Streams 有界 TTL replay 和 snapshot fallback — 实际文件 `backend/app/sse/stream.py`；Redis Streams 有界 replay（MAXLEN exact + TTL）+ Last-Event-ID resume + 裁剪 gap→snapshot fallback 经真实 Redis 全绿（6 tests，aa3033c）。**待补**：DB 侧持久 milestone 与显式 `(run_id, sequence)` 列（R13）
 - [~] T068 [US2] 在 `backend/app/streaming/sse.py` 中使用 `sse-starlette` + 有界 AnyIO channel 实现 heartbeat、send timeout、背压、进度合并、disconnect/cancel/cleanup（依赖 T067）— 实际文件 `backend/app/sse/channel.py`（BoundedEventChannel）：heartbeat / send-timeout 背压(SlowConsumer) / close 即释放 subscription 经 asyncio 全绿（5 tests，aa3033c）。**待补**：`sse-starlette` EventSourceResponse HTTP 端点（组合 RunEventStream+channel）（R13）
-- [ ] T069 [US2] 在 `backend/app/api/routes_runs.py` 中实现 `POST /api/v2/runs`、`GET /runs/{run_id}`、events 和 cancel 契约，`Idempotency-Key` 约束为 min 16/max 128 且过载返回受控 retry delay（依赖 T049、T063、T066、T068）
+- [~] T069 [US2] 在 `backend/app/api/routes_runs.py` 中实现 `POST /api/v2/runs`、`GET /runs/{run_id}`、events 和 cancel 契约，`Idempotency-Key` 约束为 min 16/max 128 且过载返回受控 retry delay（依赖 T049、T063、T066、T068）— `POST /runs` + `GET /runs/{run_id}` 已建并在 SQLite 全绿（10 tests，R14）：Idempotency-Key 16–128 长度门（越界 400）、同 key 同 payload 幂等返回同 run、同 key 异 payload 409、跨租户读 404、过载经可注入 `RunAdmission` 返回 429/503 + 数值 `Retry-After`（直返 JSONResponse，因 error handler 不透传 header）。**gated**：`events`（SSE 端点归 T068 余项）与 `cancel` 端点未建；生产 admission 绑定 Redis 配额协调器（T066）未接线，默认 allow-all，实况 429/503 决策归 T072（R14）
 - [ ] T070 [P] [US2] 将 `backend/app/api/routes_kb.py`、`backend/app/api/routes_eval.py` 和 `backend/app/api/routes_faq.py` 的长时间 `BackgroundTasks` 替换为 DurableJob/outbox 提交
 - [ ] T071 [P] [US2] 在 `backend/app/observability/telemetry.py` 中增加 active SSE、queue depth、lease、LLM concurrency/tokens、graph node latency/failure 和 cleanup duration 指标
 - [ ] T072 [US2] 运行 restart/redelivery/SSE/quota 测试及 Locust `sse`、`saturation` profile，把终态一致性与资源清理证据保存到 `artifacts/recovery/stage4/`（依赖 T055–T071）
@@ -465,8 +465,10 @@ SELECT 与 UPDATE 之间没有原子性，UPDATE 也不带 `status='pending'` �
 **gated / 未完成（诚实标 [~] 或 [ ]，绝不谎报绿）**：
 - 无 RabbitMQ：实况 publish/consume/redeliver（T062 broker 往返、T064 consumer 装配、T065 真实 transport）→ 归 T072，未跑。
 - 无 PG server：`FOR UPDATE SKIP LOCKED` 权威路径（T063）、配额 policy/usage 写回 PG（T066）未在真实 PG 验证。
-- 未建端点：`POST /api/v2/runs` 契约（T069）、sse-starlette HTTP 端点（T068 余项）。
+- 端点部分落地：`POST /api/v2/runs` + `GET /runs/{run_id}`（T069）已在 SQLite 全绿（10 tests，含 Idempotency-Key 门 / 幂等 / 409 / 跨租户 404 / 429·503+Retry-After via 可注入 admission）；`events`（SSE HTTP 端点，T068 余项）与 `cancel` 端点、生产 Redis 配额绑定仍 gated。
 - 未开始：BackgroundTasks→DurableJob 迁移（T070）、遥测指标（T071）、Locust sse/saturation 负载与 artifacts/recovery/stage4/ 证据（T072）。
+
+**R14 增量（2026-09-24）**：T069 `POST /api/v2/runs` + `GET /runs/{run_id}` 落地并验证（`tests/contract/test_runs_api.py`，10 tests GREEN，SQLite，PG-/broker-free）。过载 429/503 的 HTTP 表层由可注入 `RunAdmission` 覆盖（默认 allow-all；生产 Redis 配额协调器绑定 gated 到有可达 Redis + T072）。
 
 **Checkpoint 状态：未达成。** Independent Test（1,000 SSE、队列饱和、RabbitMQ redelivery、Redis 短时故障）需要 T069–T072 与真实 RabbitMQ/PG，本机不具备；不宣布 Checkpoint 达成。
 
