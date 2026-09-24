@@ -49,6 +49,42 @@ EVIDENCE_GATES: frozenset[str] = frozenset(
 IDEMPOTENCY_STATES: frozenset[str] = frozenset({"in_progress", "completed", "failed"})
 AUDIT_OUTCOMES: frozenset[str] = frozenset({"allowed", "denied", "succeeded", "failed"})
 
+#: DurableJob lifecycle. ``queued`` rows are eligible for lease; ``leased`` and
+#: ``running`` are owned by a worker with a live lease; the three ``*_failed`` /
+#: ``cancelled`` / ``succeeded`` states are terminal. ``recoverable_failed`` is a
+#: transient parking state the service re-queues under a bounded attempt budget.
+JOB_STATES: frozenset[str] = frozenset(
+    {
+        "queued",
+        "leased",
+        "running",
+        "cancel_requested",
+        "succeeded",
+        "recoverable_failed",
+        "terminal_failed",
+        "cancelled",
+    }
+)
+JOB_TERMINAL_STATES: frozenset[str] = frozenset(
+    {"succeeded", "terminal_failed", "cancelled"}
+)
+#: Transactional-outbox delivery lifecycle. A row is created ``pending`` inside
+#: the business transaction, claimed to ``publishing`` by the publisher, and then
+#: ``delivered`` after a broker publisher-confirm or ``dead_letter`` after the
+#: bounded retry budget is exhausted.
+OUTBOX_DELIVERY_STATES: frozenset[str] = frozenset(
+    {"pending", "publishing", "delivered", "dead_letter"}
+)
+#: Quota admission scopes. A policy applies to exactly one scope; global rows
+#: carry a null ``tenant_id``.
+QUOTA_SCOPES: frozenset[str] = frozenset({"global", "tenant", "user"})
+#: QuotaLease outcome once released or reaped.
+QUOTA_LEASE_OUTCOMES: frozenset[str] = frozenset({"held", "released", "expired"})
+#: CapacityTestRun LLM mode; a mock run and a real-provider run measure different
+#: systems and their numbers must never be merged into one claim.
+CAPACITY_LLM_MODES: frozenset[str] = frozenset({"deterministic_mock", "real_provider"})
+CAPACITY_VERDICTS: frozenset[str] = frozenset({"pass", "fail", "inconclusive"})
+
 #: The tenant that owns every row which predates multi-tenancy. The staged
 #: migrations seed exactly this id/code, and ``seed_initial_data`` must join the
 #: same tenant rather than invent a second root: a database whose reference data
@@ -745,4 +781,203 @@ class AuditEvent(SQLModel, table=True):
         default_factory=dict, sa_column=Column(JSON, nullable=False)
     )
     occurred_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+
+
+class DurableJob(SQLModel, table=True):
+    """PostgreSQL-authoritative unit of durable background work.
+
+    RabbitMQ only *wakes* a worker; this row is the source of truth for whether
+    work is owed, owned or done. State transitions are compare-and-set on
+    ``version`` so a redelivered message or a second worker can never advance a
+    job twice. ``idempotency_key`` is unique per ``(tenant, kind)`` so enqueuing
+    the same logical work twice returns the first job instead of creating a
+    duplicate. Payload never carries secrets or file bytes.
+    """
+
+    __tablename__ = "durable_jobs"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "kind", "idempotency_key", name="uq_durable_jobs_idem"),
+    )
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    tenant_id: str = Field(foreign_key="tenants.id", index=True, max_length=36)
+    run_id: str | None = Field(default=None, index=True, max_length=36)
+    kind: str = Field(index=True, max_length=60)
+    idempotency_key: str = Field(index=True, max_length=128)
+    payload_schema_version: int = Field(default=1, ge=1)
+    payload_digest: str = Field(max_length=64)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    state: str = Field(default="queued", index=True, max_length=20)
+    priority_lane: str = Field(default="default", index=True, max_length=40)
+    lease_owner: str | None = Field(default=None, max_length=64)
+    lease_expires_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
+    heartbeat_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
+    attempts: int = Field(default=0, ge=0)
+    max_attempts: int = Field(default=5, ge=1)
+    available_at: datetime = Field(default_factory=utc_now, index=True, sa_type=UTCDateTime)
+    deadline_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
+    result_ref: str | None = Field(default=None, max_length=256)
+    last_error_code: str | None = Field(default=None, max_length=80)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    version: int = Field(default=1, ge=1)
+
+
+class OutboxEvent(SQLModel, table=True):
+    """Transactional-outbox row written in the same transaction as a job change.
+
+    The unique ``(aggregate_type, aggregate_id, aggregate_version, event_type)``
+    constraint is the idempotent-publication guarantee: a transition that has
+    already produced its outbox row cannot produce a second one, so a retried
+    business operation does not double-publish. The publisher claims rows, emits
+    them to RabbitMQ with publisher confirms, and only then marks ``delivered``.
+    """
+
+    __tablename__ = "outbox_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "aggregate_type",
+            "aggregate_id",
+            "aggregate_version",
+            "event_type",
+            name="uq_outbox_aggregate_version_event",
+        ),
+    )
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    tenant_id: str = Field(foreign_key="tenants.id", index=True, max_length=36)
+    aggregate_type: str = Field(index=True, max_length=60)
+    aggregate_id: str = Field(index=True, max_length=36)
+    aggregate_version: int = Field(ge=1)
+    event_type: str = Field(index=True, max_length=80)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    delivery_state: str = Field(default="pending", index=True, max_length=20)
+    attempts: int = Field(default=0, ge=0)
+    max_attempts: int = Field(default=8, ge=1)
+    available_at: datetime = Field(default_factory=utc_now, index=True, sa_type=UTCDateTime)
+    delivered_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
+    last_error_code: str | None = Field(default=None, max_length=80)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    version: int = Field(default=1, ge=1)
+
+
+class QuotaPolicy(SQLModel, table=True):
+    """Versioned admission limits for a scope (global / tenant / user).
+
+    Redis performs the atomic per-request admission decision, but PostgreSQL is
+    the authority for the policy itself: the numbers here are what the Lua token
+    buckets and lease semaphores are seeded from. A global policy carries a null
+    ``tenant_id``; only one row per ``(scope, tenant, workload)`` is ``active``.
+    """
+
+    __tablename__ = "quota_policies"
+    __table_args__ = (
+        UniqueConstraint(
+            "scope", "tenant_id", "workload", "version", name="uq_quota_policy_version"
+        ),
+    )
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    scope: str = Field(index=True, max_length=20)
+    tenant_id: str | None = Field(default=None, foreign_key="tenants.id", index=True, max_length=36)
+    workload: str | None = Field(default=None, index=True, max_length=40)
+    requests_per_window: int = Field(default=0, ge=0)
+    window_seconds: int = Field(default=60, ge=1)
+    tokens_per_window: int = Field(default=0, ge=0)
+    max_concurrency: int = Field(default=0, ge=0)
+    queue_admission_limit: int = Field(default=0, ge=0)
+    active: bool = Field(default=True, index=True)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    version: int = Field(default=1, ge=1)
+
+
+class QuotaLease(SQLModel, table=True):
+    """Durable audit correlate of a short-lived Redis concurrency lease.
+
+    Redis holds the live semaphore slot; this row records that a slot was taken,
+    by whom, for which resource, and how it ended. Lease expiry is recorded here
+    but is *not* permission to duplicate a non-idempotent side effect — that
+    remains gated by the DurableJob / idempotency-key machinery.
+    """
+
+    __tablename__ = "quota_leases"
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    tenant_id: str = Field(foreign_key="tenants.id", index=True, max_length=36)
+    run_id: str | None = Field(default=None, index=True, max_length=36)
+    owner: str = Field(index=True, max_length=64)
+    resource: str = Field(index=True, max_length=120)
+    acquired_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    expires_at: datetime = Field(sa_type=UTCDateTime)
+    released_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
+    outcome: str | None = Field(default=None, index=True, max_length=20)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+
+
+class UsageRecord(SQLModel, table=True):
+    """Append-only actual/reserved usage tied to a run and tenant.
+
+    There is no ``version`` and no ``updated_at``: usage is never edited, only
+    appended. Reserved vs actual are kept apart so an over-reservation that is
+    later trued-up does not corrupt the billed figure.
+    """
+
+    __tablename__ = "usage_records"
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    tenant_id: str = Field(foreign_key="tenants.id", index=True, max_length=36)
+    run_id: str | None = Field(default=None, index=True, max_length=36)
+    user_id: str | None = Field(default=None, index=True, max_length=36)
+    kind: str = Field(index=True, max_length=30)
+    provider: str | None = Field(default=None, max_length=60)
+    model: str | None = Field(default=None, max_length=80)
+    requests: int = Field(default=0, ge=0)
+    reserved_tokens: int = Field(default=0, ge=0)
+    actual_tokens: int = Field(default=0, ge=0)
+    latency_ms: int | None = Field(default=None, ge=0)
+    occurred_at: datetime = Field(default_factory=utc_now, index=True, sa_type=UTCDateTime)
+
+
+class CapacityTestRun(SQLModel, table=True):
+    """Immutable evidence for a capacity/load claim.
+
+    A row without ``raw_artifact_sha256`` and complete environment metadata
+    cannot back a capacity claim, and mock vs real-provider results are kept in
+    separate rows (``llm_mode``) so they are never merged. Not tenant-scoped: a
+    capacity run measures the platform, not a customer.
+    """
+
+    __tablename__ = "capacity_test_runs"
+    __table_args__ = (
+        UniqueConstraint("raw_artifact_sha256", name="uq_capacity_raw_artifact"),
+    )
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    commit_sha: str = Field(index=True, max_length=40)
+    scenario: str = Field(index=True, max_length=60)
+    suite_version: str = Field(max_length=40)
+    environment_manifest: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False)
+    )
+    topology: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    hardware: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    dataset_manifest: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False)
+    )
+    llm_mode: str = Field(index=True, max_length=30)
+    target_profile: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False)
+    )
+    started_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    duration_seconds: int = Field(default=0, ge=0)
+    raw_artifact_uri: str = Field(max_length=512)
+    raw_artifact_sha256: str = Field(max_length=64)
+    summary_metrics: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False)
+    )
+    verdict: str = Field(default="inconclusive", index=True, max_length=20)
+    known_limits: str | None = Field(default=None, max_length=2000)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
 
