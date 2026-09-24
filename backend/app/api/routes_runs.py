@@ -34,11 +34,14 @@ from fastapi import APIRouter, Header, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import async_sessionmaker
+from sse_starlette.sse import EventSourceResponse
 
 from backend.app.api.deps import PrincipalDep
 from backend.app.core.exceptions import ApplicationError, NotFoundError
 from backend.app.db.models import DurableJob
 from backend.app.jobs.service import JobIdempotencyConflict, JobService
+from backend.app.sse.endpoint import sse_event_source
+from backend.app.sse.stream import RunEventStream
 
 router = APIRouter(prefix="/api/v2", tags=["v2", "runs"])
 
@@ -87,6 +90,32 @@ def _job_service(request: Request) -> JobService:
         request.app.state.async_engine, expire_on_commit=False
     )
     return JobService(factory=factory)
+
+
+def _run_event_stream(request: Request) -> RunEventStream:
+    """Return the run event stream, honouring an injected test/prod override.
+
+    Tests inject ``app.state.run_event_stream`` (a :class:`RunEventStream` over a
+    real Redis) directly. In a deployment we build one lazily from the configured
+    ``REDIS_URL`` and cache it on ``app.state`` so a client is not created per
+    request. ``redis.asyncio`` is imported here rather than at module import so
+    the runs contract stays importable on hosts without the optional dependency.
+    """
+    override = getattr(request.app.state, "run_event_stream", None)
+    if override is not None:
+        return override
+    import redis.asyncio as redis_asyncio  # optional infra dependency
+
+    settings = request.app.state.settings
+    client = redis_asyncio.from_url(settings.REDIS_URL)
+    stream = RunEventStream(
+        client,
+        prefix=settings.REDIS_SSE_STREAM_PREFIX,
+        max_events=settings.SSE_REPLAY_MAX_EVENTS_PER_RUN,
+        ttl_seconds=settings.SSE_REPLAY_TTL_SECONDS,
+    )
+    request.app.state.run_event_stream = stream
+    return stream
 
 
 class RunRequest(BaseModel):
@@ -179,3 +208,40 @@ async def get_run(run_id: str, principal: PrincipalDep, request: Request) -> Any
     if job is None or job.tenant_id != principal.tenant_id:
         raise NotFoundError("run not found")
     return _run_view(job)
+
+
+@router.get("/runs/{run_id}/events")
+async def stream_run_events(
+    run_id: str,
+    principal: PrincipalDep,
+    request: Request,
+    last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
+) -> EventSourceResponse:
+    """Stream a run's SSE events for the caller's tenant: replay, then close.
+
+    The tenant is authorised the same way as :func:`get_run` -- an unknown run,
+    or one owned by another tenant, is a ``404`` before any stream is opened, so
+    the event log never leaks across tenants. The response then replays every
+    event retained since the client's ``Last-Event-ID`` (``snapshot_required``
+    first when the resume point was trimmed) and returns once the backlog drains.
+
+    This is the **replay/catch-up** surface, verifiable end-to-end against a real
+    Redis with no worker running. The live tail (a producer fanning worker events
+    into a per-connection :class:`~backend.app.sse.channel.BoundedEventChannel`)
+    is implemented at the generator level but not wired here: it depends on the
+    Celery consumers (T064) and is gated on the broker, so this endpoint does not
+    pretend to hold a connection open for events that nothing is producing yet.
+    """
+    service = _job_service(request)
+    job = await service.get(run_id)
+    if job is None or job.tenant_id != principal.tenant_id:
+        raise NotFoundError("run not found")
+
+    stream = _run_event_stream(request)
+    generator = sse_event_source(
+        stream=stream,
+        run_id=job.run_id or job.id,
+        last_event_id=last_event_id,
+        channel=None,
+    )
+    return EventSourceResponse(generator)
