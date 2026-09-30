@@ -31,6 +31,7 @@ from backend.app.core.config import Settings
 from backend.app.core.security import create_access_token
 from backend.app.db.models import Role, Tenant, User, UserRoleGrant
 from backend.app.db.session import build_async_engine
+from backend.app.jobs.service import JobService
 from backend.app.main import create_app
 
 TENANT_ALPHA = "11111111-1111-1111-1111-111111111111"
@@ -246,3 +247,66 @@ def test_saturated_returns_503_with_retry_after(client: TestClient) -> None:
     assert resp.status_code == 503, resp.text
     assert resp.headers["Retry-After"] == "5"
     assert resp.json()["error"]["code"] == "CONCURRENCY_SATURATED"
+
+
+# --------------------------------------------------------------------------- #
+# Cancel contract: cooperative, tenant-scoped, idempotent, terminal-safe.
+# Broker-free -- request_cancel is a durable CAS transition + outbox event; the
+# worker that observes the flag between steps is gated on the broker (T064/T072).
+# --------------------------------------------------------------------------- #
+
+
+def _create_run(client: TestClient) -> str:
+    resp = client.post(
+        "/api/v2/runs",
+        headers={**_alpha(), "Idempotency-Key": GOOD_KEY},
+        json={"kind": "kb_reindex", "payload": {}},
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["run_id"]
+
+
+def test_cancel_requests_cooperative_cancel(client: TestClient) -> None:
+    run_id = _create_run(client)
+    resp = client.post(f"/api/v2/runs/{run_id}/cancel", headers=_alpha())
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["state"] == "cancel_requested"
+
+
+def test_cancel_is_idempotent(client: TestClient) -> None:
+    run_id = _create_run(client)
+    first = client.post(f"/api/v2/runs/{run_id}/cancel", headers=_alpha())
+    second = client.post(f"/api/v2/runs/{run_id}/cancel", headers=_alpha())
+    assert first.status_code == 200 and second.status_code == 200, second.text
+    assert second.json()["state"] == "cancel_requested"
+
+
+def test_cancel_cross_tenant_is_not_found(client: TestClient) -> None:
+    run_id = _create_run(client)
+    resp = client.post(
+        f"/api/v2/runs/{run_id}/cancel", headers=_headers(TENANT_BETA, USER_BETA)
+    )
+    assert resp.status_code == 404, resp.text
+
+
+def test_cancel_unknown_run_is_not_found(client: TestClient) -> None:
+    resp = client.post("/api/v2/runs/does-not-exist/cancel", headers=_alpha())
+    assert resp.status_code == 404, resp.text
+
+
+def test_cancel_terminal_run_conflicts(client: TestClient, tmp_path: Path) -> None:
+    run_id = _create_run(client)
+    url = f"sqlite:///{(tmp_path / 'runs.db').as_posix()}"
+
+    async def _drive_to_cancelled() -> None:
+        engine = build_async_engine(url, None)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        service = JobService(factory=factory)
+        await service.request_cancel(job_id=run_id)
+        await service.finalize_cancel(job_id=run_id)
+        await engine.dispose()
+
+    asyncio.run(_drive_to_cancelled())
+    resp = client.post(f"/api/v2/runs/{run_id}/cancel", headers=_alpha())
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["error"]["code"] == "RUN_NOT_CANCELLABLE"

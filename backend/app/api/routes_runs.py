@@ -41,7 +41,11 @@ from sse_starlette.sse import EventSourceResponse
 from backend.app.api.deps import PrincipalDep
 from backend.app.core.exceptions import ApplicationError, NotFoundError
 from backend.app.db.models import DurableJob
-from backend.app.jobs.service import JobIdempotencyConflict, JobService
+from backend.app.jobs.service import (
+    JobIdempotencyConflict,
+    JobService,
+    JobStateError,
+)
 from backend.app.observability import telemetry
 from backend.app.sse.endpoint import sse_event_source
 from backend.app.sse.snapshot import DurableRunSnapshot
@@ -228,6 +232,33 @@ async def get_run(run_id: str, principal: PrincipalDep, request: Request) -> Any
     job = await service.get(run_id)
     if job is None or job.tenant_id != principal.tenant_id:
         raise NotFoundError("run not found")
+    return _run_view(job)
+
+
+@router.post("/runs/{run_id}/cancel")
+async def cancel_run(run_id: str, principal: PrincipalDep, request: Request) -> Any:
+    """Request cooperative cancellation of a run the caller's tenant owns.
+
+    Tenant scoping matches :func:`get_run`: an unknown run, or one owned by
+    another tenant, is a ``404`` before any transition, so cancellation cannot be
+    used to probe another tenant's runs. This is a durable state change -- a
+    version-CAS to ``cancel_requested`` plus a ``job.cancel_requested`` outbox
+    event in the same transaction (:meth:`JobService.request_cancel`) -- not a
+    hard kill: a leased worker observes the flag between steps and stops
+    cooperatively (that worker loop is gated on the broker, T064/T072). Repeating
+    the request is idempotent; a run already in a terminal state
+    (succeeded / failed / cancelled) is a ``409``.
+    """
+    service = _job_service(request)
+    job = await service.get(run_id)
+    if job is None or job.tenant_id != principal.tenant_id:
+        raise NotFoundError("run not found")
+    try:
+        job = await service.request_cancel(job_id=job.id)
+    except JobStateError as exc:
+        raise ApplicationError(
+            "RUN_NOT_CANCELLABLE", str(exc), status_code=409
+        ) from exc
     return _run_view(job)
 
 
