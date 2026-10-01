@@ -16,7 +16,7 @@ infrastructure that is **not** up here.
 | Redis      | **UP** — `127.0.0.1:6379` (`PING` → `+PONG`) | **Yes** — quota coordinator / admission paths |
 | RabbitMQ   | **DOWN** — `5672`/`15672` both time out (no erlang, no broker binary, docker daemon not running) | **No** — this is the honest gate |
 
-## What this evidence DOES cover (137 tests, all green on live PG + Redis)
+## What this evidence DOES cover (139 tests, all green on live PG + Redis)
 
 Ran with `POLICYFLOW_TEST_DATABASE_URL=postgresql+psycopg://policyflow:***@127.0.0.1:55432/policyflow_test`.
 
@@ -30,12 +30,14 @@ Ran with `POLICYFLOW_TEST_DATABASE_URL=postgresql+psycopg://policyflow:***@127.0
   coordinator admission (429/503 + `Retry-After`), job-state observable gauge,
   LLM concurrency/token telemetry call-site (R26), durable-job runner, Celery
   config shape, Stage-4 telemetry, document-index & eval-run durable submission.
-- **SUITE 3 — recovery (10 passed)**: redelivery **idempotency** (same payload
+- **SUITE 3 — recovery (12 passed)**: redelivery **idempotency** (same payload
   re-enqueue is a no-op; completion does not re-transition; redelivery after a
   terminal state does not reopen; cancel-finalize is a no-op; duplicate outbox
-  publication is rejected **at the database**) and **restart recovery** (dead
+  publication is rejected **at the database**), **restart recovery** (dead
   worker's leased job reclaimed/reassigned; running job reaped on restart; reap
-  at attempt-budget is terminal; succeeded job untouched; sweep is idempotent).
+  at attempt-budget is terminal; succeeded job untouched; sweep is idempotent),
+  and **reap telemetry** (the lease-expiry recovery sweep times itself under
+  `cleanup.duration` scope `job_lease_reap`, including on an empty sweep).
 
 These directly exercise the goal's core invariants — *重复投递不重复副作用* and
 *重启可恢复* — at the DB / state-machine layer that the broker would drive.

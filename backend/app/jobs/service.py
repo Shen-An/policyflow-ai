@@ -21,6 +21,7 @@ import hashlib
 import json
 from collections.abc import Sequence
 from datetime import datetime, timedelta
+from time import perf_counter
 from typing import Any
 
 from sqlalchemy import select, update
@@ -32,6 +33,7 @@ from backend.app.db.models import (
     OutboxEvent,
     utc_now,
 )
+from backend.app.observability.telemetry import record_cleanup_duration
 
 AGGREGATE_TYPE = "durable_job"
 
@@ -342,38 +344,48 @@ class JobService:
         """
         now = utc_now()
         reaped: list[DurableJob] = []
-        async with self._factory() as session:
-            rows = await session.execute(
-                select(DurableJob).where(
-                    DurableJob.state.in_(_ACTIVE_STATES),
-                    DurableJob.lease_expires_at.is_not(None),
-                    DurableJob.lease_expires_at < now,
+        started = perf_counter()
+        try:
+            async with self._factory() as session:
+                rows = await session.execute(
+                    select(DurableJob).where(
+                        DurableJob.state.in_(_ACTIVE_STATES),
+                        DurableJob.lease_expires_at.is_not(None),
+                        DurableJob.lease_expires_at < now,
+                    )
                 )
+                for job in rows.scalars().all():
+                    if job.attempts < job.max_attempts:
+                        new_version = await self._cas(
+                            session, job, state="recoverable_failed",
+                            last_error_code="LEASE_EXPIRED", lease_owner=None,
+                            lease_expires_at=None, available_at=now, updated_at=now,
+                        )
+                        if new_version is None:
+                            continue
+                        self._emit(session, job, "job.recoverable_failed", new_version)
+                    else:
+                        new_version = await self._cas(
+                            session, job, state="terminal_failed",
+                            last_error_code="LEASE_EXPIRED", lease_owner=None,
+                            lease_expires_at=None, updated_at=now,
+                        )
+                        if new_version is None:
+                            continue
+                        self._emit(session, job, "job.terminal_failed", new_version)
+                    reaped.append(job)
+                await session.commit()
+                for job in reaped:
+                    await session.refresh(job)
+                return reaped
+        finally:
+            # Time the recovery sweep as a resource-cleanup pass -- a sweep that
+            # reaped nothing is still a real pass, so this records even when the
+            # try block raises or returns an empty list (never a fabricated gap).
+            record_cleanup_duration(
+                scope="job_lease_reap",
+                duration_seconds=perf_counter() - started,
             )
-            for job in rows.scalars().all():
-                if job.attempts < job.max_attempts:
-                    new_version = await self._cas(
-                        session, job, state="recoverable_failed",
-                        last_error_code="LEASE_EXPIRED", lease_owner=None,
-                        lease_expires_at=None, available_at=now, updated_at=now,
-                    )
-                    if new_version is None:
-                        continue
-                    self._emit(session, job, "job.recoverable_failed", new_version)
-                else:
-                    new_version = await self._cas(
-                        session, job, state="terminal_failed",
-                        last_error_code="LEASE_EXPIRED", lease_owner=None,
-                        lease_expires_at=None, updated_at=now,
-                    )
-                    if new_version is None:
-                        continue
-                    self._emit(session, job, "job.terminal_failed", new_version)
-                reaped.append(job)
-            await session.commit()
-            for job in reaped:
-                await session.refresh(job)
-            return reaped
 
     async def _force_lease_expiry(self, job_id: str, when: datetime) -> None:
         """Test hook: set a lease into the past without waiting on the clock.
