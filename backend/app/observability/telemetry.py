@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import os
 import threading
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
@@ -81,6 +81,14 @@ METRIC_AUTHORIZATION_DECISIONS = "policyflow.authorization.decisions"
 METRIC_SSE_ACTIVE = "policyflow.sse.connections.active"
 METRIC_JOB_QUEUE_DEPTH = "policyflow.jobs.queue.depth"
 METRIC_JOB_LEASES_HELD = "policyflow.jobs.leases.held"
+# Authoritative, cross-instance-correct durable-job state gauge (T071, R25).
+# An *observable* gauge whose callback queries the database at collection time:
+# unlike the process-local ``job_queue_depth``/``job_leases_held`` up-down
+# counters above -- which only sum deltas seen in one process and so drift when
+# a job is enqueued on one instance and leased on another -- this reports the
+# absolute ``COUNT(*) GROUP BY state, lane`` every instance agrees on. The
+# counters stay for per-process rate signals; this gauge is the source of truth.
+METRIC_JOB_STATE = "policyflow.jobs.state"
 METRIC_LLM_CONCURRENCY = "policyflow.llm.concurrency"
 METRIC_LLM_TOKENS = "policyflow.llm.tokens"
 METRIC_GRAPH_NODE_DURATION = "policyflow.graph.node.duration"
@@ -216,6 +224,11 @@ class _TelemetryState:
     meter_provider: Any = None
     tracer_provider: Any = None
     configuration_signature: tuple[Any, ...] | None = None
+    # T071 observable job-state gauge: the DB-backed counts provider and the
+    # created gauge handle (kept to avoid re-registering a callback on the same
+    # meter). Both are cleared on reset and on a meter change.
+    job_state_provider: Any = None
+    job_state_gauge: Any = None
 
 
 _STATE = _TelemetryState()
@@ -558,6 +571,10 @@ class _NullMeter:
         return _NullInstrument()
 
     def create_up_down_counter(self, name: str, **kwargs: Any) -> _NullInstrument:
+        return _NullInstrument()
+
+    def create_observable_gauge(self, name: str, **kwargs: Any) -> _NullInstrument:
+        # No collector drives the callback in degraded mode; a handle is enough.
         return _NullInstrument()
 
 
@@ -972,6 +989,61 @@ def record_cleanup_duration(*, scope: str, duration_seconds: float) -> None:
     _instruments().cleanup_duration.record(duration, attributes=labels)
 
 
+#: Returns authoritative durable-job counts as ``(state, lane, count)`` triples
+#: -- the live ``COUNT(*) GROUP BY state, priority_lane``.
+JobStateCountsProvider = Callable[[], Iterable[tuple[str, str, int]]]
+
+
+def register_job_state_gauge(provider: JobStateCountsProvider) -> None:
+    """Register (or replace) the DB-backed provider for the job-state gauge.
+
+    The provider is invoked synchronously at every metric collection and returns
+    ``(state, lane, count)`` triples. The observable gauge is created once on the
+    current meter; replacing the provider just swaps what the stable callback
+    reads. Safe when OpenTelemetry is unavailable -- the gauge handle is a no-op
+    and the callback never runs.
+    """
+    with _STATE_LOCK:
+        _STATE.job_state_provider = provider
+        if _STATE.job_state_gauge is None:
+            meter = _resolve_meter()
+            _STATE.job_state_gauge = meter.create_observable_gauge(
+                METRIC_JOB_STATE,
+                callbacks=[_job_state_callback],
+                unit="{job}",
+                description=(
+                    "Durable jobs by state and lane, read from the database at "
+                    "collection time (authoritative, cross-instance-correct)"
+                ),
+            )
+
+
+def _job_state_callback(_options: Any) -> list[Any]:
+    """Observable-gauge callback: one observation per authoritative ``(state, lane)``.
+
+    Reads the registered provider under the state lock, so after
+    :func:`reset_telemetry` clears it this yields nothing even though the gauge
+    handle still lives on the meter (OpenTelemetry offers no unregister). A
+    provider error degrades to an empty reading -- a metrics callback must never
+    break collection.
+    """
+    with _STATE_LOCK:
+        provider = _STATE.job_state_provider
+    if provider is None:
+        return []
+    try:
+        counts = list(provider())
+    except Exception:  # noqa: BLE001 - collection must not raise
+        return []
+    from opentelemetry.metrics import Observation
+
+    observations: list[Any] = []
+    for state, lane, count in counts:
+        labels = validate_metric_labels({"state": state, "lane": lane})
+        observations.append(Observation(int(count), attributes=labels))
+    return observations
+
+
 def otel_available() -> bool:
     """Return True when the OpenTelemetry API is importable."""
     return OTEL_AVAILABLE
@@ -1071,6 +1143,10 @@ def configure_telemetry(
         _STATE.tracer_provider = tracer_provider
         _STATE.configuration_signature = signature
         _INSTRUMENTS = None
+        # A new meter needs its own observable gauge; drop the stale handle (and
+        # its provider) so a following ``register_job_state_gauge`` recreates it.
+        _STATE.job_state_gauge = None
+        _STATE.job_state_provider = None
         _install_global_providers(meter_provider, tracer_provider)
         return _configuration_locked()
 
@@ -1135,6 +1211,8 @@ def reset_telemetry() -> None:
         _STATE.meter_provider = None
         _STATE.tracer_provider = None
         _STATE.configuration_signature = None
+        _STATE.job_state_provider = None
+        _STATE.job_state_gauge = None
         _INSTRUMENTS = None
         _POOL_SNAPSHOTS.clear()
     _CORRELATION.set(_EMPTY_CORRELATION)

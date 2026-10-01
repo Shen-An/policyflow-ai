@@ -21,9 +21,6 @@ from backend.app.agents.critique_agent import CritiqueAgent
 from backend.app.agents.improve_agent import ImproveAgent
 from backend.app.agents.memory_agent import MemoryAgent
 from backend.app.agents.pipeline import AgentPipeline
-from backend.app.graph.compat import AdapterUsageTelemetry
-from backend.app.graph.route_adapter import GraphRouteAdapter
-from backend.app.graph.service import GraphService
 from backend.app.agents.reflection_loop import ReflectionLoop
 from backend.app.agents.retrieval_agent import RetrievalAgent
 from backend.app.agents.router_agent import RouterAgent
@@ -39,11 +36,11 @@ from backend.app.api.routes_kb import departments_router, documents_router
 from backend.app.api.routes_kb import router as knowledge_base_router
 from backend.app.api.routes_mcp import router as mcp_router
 from backend.app.api.routes_memory import router as memory_router
+from backend.app.api.routes_runs import router as runs_router
 from backend.app.api.routes_settings import router as settings_router
 from backend.app.api.routes_skill import router as skill_router
 from backend.app.api.routes_tool import router as tool_router
 from backend.app.api.routes_users import router as users_router
-from backend.app.api.routes_runs import router as runs_router
 from backend.app.api.routes_v2 import router as v2_router
 from backend.app.core.config import Settings, get_settings
 from backend.app.core.exceptions import (
@@ -65,6 +62,10 @@ from backend.app.db.session import (
     get_engine,
 )
 from backend.app.frontend import mount_frontend
+from backend.app.graph.compat import AdapterUsageTelemetry
+from backend.app.graph.route_adapter import GraphRouteAdapter
+from backend.app.graph.service import GraphService
+from backend.app.jobs.metrics import install_job_state_gauge
 from backend.app.mcp.manager import MCPManager
 from backend.app.observability.telemetry import configure_telemetry
 from backend.app.rag.bm25_retriever import BM25Retriever
@@ -194,6 +195,10 @@ def create_app(
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         configure_telemetry(service_name=app_settings.PROJECT_NAME)
         summary = initialize_database(engine, app_settings)
+        # Authoritative durable-job queue-depth gauge (T071): the observable
+        # gauge reads ``durable_jobs`` at collection time, so it must be wired
+        # after the schema is ensured and against the synchronous engine.
+        install_job_state_gauge(engine)
         logger.info(
             "Application started",
             extra={
