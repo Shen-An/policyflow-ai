@@ -18,6 +18,10 @@ from backend.app.core.exceptions import ApplicationError
 from backend.app.core.logging import get_logger
 from backend.app.core.mcp_security import decrypt_secret
 from backend.app.db.models import ModelProvider
+from backend.app.observability.telemetry import (
+    record_llm_concurrency,
+    record_llm_tokens,
+)
 from backend.app.rag.protocols import LLMCompletion, LLMMessage, ToolCallRequest
 
 logger = get_logger(__name__)
@@ -241,6 +245,29 @@ def _to_openai_messages(messages: list[LLMMessage]) -> list[dict[str, Any]]:
     return payload
 
 
+def _record_usage_tokens(data: dict[str, Any]) -> None:
+    """Count prompt/completion tokens from a provider ``usage`` block, defensively.
+
+    Supports both chat.completions (``prompt_tokens``/``completion_tokens``) and
+    the Responses API (``input_tokens``/``output_tokens``). Telemetry must never
+    break an LLM call, so any malformed/missing usage is simply not counted --
+    never a fabricated zero and never a raised exception.
+    """
+    usage = data.get("usage")
+    if not isinstance(usage, dict):
+        return
+    prompt = usage.get("prompt_tokens", usage.get("input_tokens"))
+    completion = usage.get("completion_tokens", usage.get("output_tokens"))
+
+    def _as_count(value: Any) -> int:
+        return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+    try:
+        record_llm_tokens(prompt=_as_count(prompt), completion=_as_count(completion))
+    except Exception:  # noqa: BLE001 - observability must not break the call path
+        logger.debug("Failed to record LLM token usage", exc_info=True)
+
+
 class OpenAICompatibleLLMService:
     def __init__(
         self,
@@ -290,79 +317,87 @@ class OpenAICompatibleLLMService:
         client = self._client or httpx.AsyncClient(timeout=timeout)
         owns_client = self._client is None
         try:
-            async with self._request_semaphore:
-                response: httpx.Response | None = None
-                last_error: Exception | None = None
-                # Count one logical LLM call against the turn budget. Provider
-                # retries (network / 429) share this slot instead of each
-                # consuming one, so a flaky provider no longer exhausts the turn.
-                reserve_current("llm")
-                for attempt in range(self._max_attempts):
-                    try:
-                        response = await client.post(endpoint, headers=headers, json=payload)
-                    except (
-                        httpx.ConnectError,
-                        httpx.ConnectTimeout,
-                        httpx.ReadTimeout,
-                        httpx.WriteTimeout,
-                        httpx.PoolTimeout,
-                        httpx.ProxyError,
-                        httpx.RemoteProtocolError,
-                        httpx.NetworkError,
-                        httpx.TimeoutException,
-                    ) as exc:
-                        last_error = exc
-                        if attempt >= self._max_attempts - 1:
+            # Count this call as in flight for the duration of the request so the
+            # concurrency gauge reflects live provider load; the ``finally`` below
+            # drains it even when the provider errors or times out.
+            record_llm_concurrency(delta=1)
+            try:
+                async with self._request_semaphore:
+                    response: httpx.Response | None = None
+                    last_error: Exception | None = None
+                    # Count one logical LLM call against the turn budget. Provider
+                    # retries (network / 429) share this slot instead of each
+                    # consuming one, so a flaky provider no longer exhausts the turn.
+                    reserve_current("llm")
+                    for attempt in range(self._max_attempts):
+                        try:
+                            response = await client.post(endpoint, headers=headers, json=payload)
+                        except (
+                            httpx.ConnectError,
+                            httpx.ConnectTimeout,
+                            httpx.ReadTimeout,
+                            httpx.WriteTimeout,
+                            httpx.PoolTimeout,
+                            httpx.ProxyError,
+                            httpx.RemoteProtocolError,
+                            httpx.NetworkError,
+                            httpx.TimeoutException,
+                        ) as exc:
+                            last_error = exc
+                            if attempt >= self._max_attempts - 1:
+                                break
+                            delay = _retry_delay_seconds(
+                                None,
+                                attempt,
+                                base_seconds=self._retry_base_seconds,
+                                max_seconds=self._retry_max_seconds,
+                            )
+                            logger.warning(
+                                "LLM network error; retrying",
+                                extra={
+                                    "attempt": attempt + 1,
+                                    "max_attempts": self._max_attempts,
+                                    "delay_seconds": delay,
+                                    "error_type": type(exc).__name__,
+                                },
+                            )
+                            await asyncio.sleep(delay)
+                            continue
+
+                        if (
+                            response.status_code not in _RETRYABLE_STATUS_CODES
+                            or attempt >= self._max_attempts - 1
+                        ):
                             break
                         delay = _retry_delay_seconds(
-                            None,
+                            response,
                             attempt,
                             base_seconds=self._retry_base_seconds,
                             max_seconds=self._retry_max_seconds,
                         )
                         logger.warning(
-                            "LLM network error; retrying",
+                            "LLM provider rate-limited or unavailable; retrying",
                             extra={
                                 "attempt": attempt + 1,
                                 "max_attempts": self._max_attempts,
+                                "status_code": response.status_code,
                                 "delay_seconds": delay,
-                                "error_type": type(exc).__name__,
                             },
                         )
                         await asyncio.sleep(delay)
-                        continue
 
-                    if (
-                        response.status_code not in _RETRYABLE_STATUS_CODES
-                        or attempt >= self._max_attempts - 1
-                    ):
-                        break
-                    delay = _retry_delay_seconds(
-                        response,
-                        attempt,
-                        base_seconds=self._retry_base_seconds,
-                        max_seconds=self._retry_max_seconds,
-                    )
-                    logger.warning(
-                        "LLM provider rate-limited or unavailable; retrying",
-                        extra={
-                            "attempt": attempt + 1,
-                            "max_attempts": self._max_attempts,
-                            "status_code": response.status_code,
-                            "delay_seconds": delay,
-                        },
-                    )
-                    await asyncio.sleep(delay)
-
-            if response is None:
-                if last_error is not None:
-                    raise last_error
-                raise ValueError("LLM provider returned no response")
-            response.raise_for_status()
-            data = response.json()
-            if not isinstance(data, dict):
-                raise ValueError("LLM response is not a JSON object")
-            return data
+                if response is None:
+                    if last_error is not None:
+                        raise last_error
+                    raise ValueError("LLM provider returned no response")
+                response.raise_for_status()
+                data = response.json()
+                if not isinstance(data, dict):
+                    raise ValueError("LLM response is not a JSON object")
+                _record_usage_tokens(data)
+                return data
+            finally:
+                record_llm_concurrency(delta=-1)
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
             message = _llm_provider_error_message(exc, response)
             raise ApplicationError("LLM_PROVIDER_ERROR", message, 502) from exc
