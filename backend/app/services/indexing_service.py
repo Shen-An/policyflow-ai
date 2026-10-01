@@ -63,6 +63,26 @@ def claim_pending_index_job(session: Session, document_id: str) -> str | None:
     return str(candidate.id)
 
 
+def pending_index_job_id(session: Session, document_id: str) -> str | None:
+    """Return the newest pending index job id of a document without claiming it.
+
+    Read-only companion to :func:`claim_pending_index_job`: the durable-job
+    submission path (T070) needs a stable idempotency key per queued index attempt
+    (the ``RagIndexJob`` id), but must not move the row to ``running`` -- that
+    transition still belongs to :func:`process_document_index` when the job runs.
+    Returns None when the document has nothing pending.
+    """
+    candidate = session.exec(
+        select(RagIndexJob)
+        .where(
+            RagIndexJob.knowledge_document_id == document_id,
+            RagIndexJob.status == "pending",
+        )
+        .order_by(col(RagIndexJob.created_at).desc())
+    ).first()
+    return str(candidate.id) if candidate is not None else None
+
+
 async def process_document_index(
     engine: Engine,
     indexer: DocumentIndexer,

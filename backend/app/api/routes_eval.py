@@ -7,10 +7,10 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, status
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 
-from backend.app.agents.pipeline import AgentPipeline
 from backend.app.api.deps import SessionDep
 from backend.app.core.permissions import require_roles
 from backend.app.db.models import User
+from backend.app.jobs.runner import submit_document_index_batch, submit_eval_run
 from backend.app.schemas.eval import (
     EnterpriseEvalSeedResult,
     EvalCaseCreate,
@@ -39,7 +39,6 @@ from backend.app.services.eval_service import (
     create_eval_run,
     create_retrieval_item,
     delete_eval_run,
-    execute_eval_run,
     export_eval_run_csv,
     export_eval_run_payload,
     get_eval_run,
@@ -154,10 +153,10 @@ async def post_crud_import(
 ) -> CrudImportResult:
     """Import CRUD-RAG questanswer samples into documents + retrieval eval items.
 
-    Document indexing is queued in the background so the UI does not hang on
-    long LightRAG inserts.
+    Document indexing is submitted as durable jobs (DurableJob/outbox) and drained
+    broker-free so the UI does not hang on long LightRAG inserts.
     """
-    from backend.app.services.indexing_service import process_document_index
+    from backend.app.services.indexing_service import pending_index_job_id
 
     indexer = getattr(request.app.state, "lightrag_adapter", None)
     result = await import_crud_dataset(
@@ -169,13 +168,19 @@ async def post_crud_import(
         settings=request.app.state.settings,
     )
     if data.index_documents and indexer is not None:
-        for document_id in result.pending_index_document_ids:
-            background_tasks.add_task(
-                process_document_index,
-                request.app.state.engine,
-                indexer,
-                document_id,
-            )
+        # The RagIndexJob id (one pending job per document) keys idempotency so a
+        # redelivered submit dedups while each real import attempt enqueues its own.
+        items = [
+            (document_id, job_id)
+            for document_id in result.pending_index_document_ids
+            if (job_id := pending_index_job_id(session, document_id)) is not None
+        ]
+        await submit_document_index_batch(
+            app=request.app,
+            background_tasks=background_tasks,
+            tenant_id=getattr(user, "tenant_id", ""),
+            items=items,
+        )
     # Exclude internal pending list from response model dump via model fields.
     return result
 
@@ -200,15 +205,19 @@ async def post_enterprise_eval_seed(
         settings=request.app.state.settings,
     )
     if indexer is not None:
-        from backend.app.services.indexing_service import process_document_index
+        from backend.app.services.indexing_service import pending_index_job_id
 
-        for document_id in result.pending_index_document_ids:
-            background_tasks.add_task(
-                process_document_index,
-                request.app.state.engine,
-                indexer,
-                document_id,
-            )
+        items = [
+            (document_id, job_id)
+            for document_id in result.pending_index_document_ids
+            if (job_id := pending_index_job_id(session, document_id)) is not None
+        ]
+        await submit_document_index_batch(
+            app=request.app,
+            background_tasks=background_tasks,
+            tenant_id=getattr(user, "tenant_id", ""),
+            items=items,
+        )
     return result
 
 
@@ -221,7 +230,6 @@ async def post_eval_run(
     session: SessionDep,
 ) -> EvalRunRead:
     rag_service: RAGService = request.app.state.rag_service
-    pipeline: AgentPipeline = request.app.state.agent_pipeline
     reranker_method = data.retrieval_config.reranker_method
     reranker_backend = "cross_encoder" if reranker_method == "cross_encoder" else "local"
     eval_run = create_eval_run(
@@ -233,26 +241,17 @@ async def post_eval_run(
         reranker_backend=reranker_backend,
         reranker_method=reranker_method,
     )
-    adapter = getattr(request.app.state, "graph_route_adapter", None)
-    if request.app.state.settings.ROUTE_VIA_GRAPH_ADAPTER and adapter is not None:
-        background_tasks.add_task(
-            adapter.run_eval,
-            engine=request.app.state.engine,
-            rag_service=rag_service,
-            pipeline=pipeline,
-            run_id=eval_run.id,
-            data=data,
-            tenant_id=getattr(user, "tenant_id", ""),
-        )
-    else:
-        background_tasks.add_task(
-            execute_eval_run,
-            request.app.state.engine,
-            rag_service,
-            pipeline,
-            eval_run.id,
-            data,
-        )
+    # T070: durable submission replaces the ephemeral BackgroundTask. The eval-run
+    # id keys idempotency; the handler resolves the live route adapter vs legacy
+    # execute_eval_run from app state at run time (the ROUTE_VIA_GRAPH_ADAPTER
+    # branch moved into _handle_eval_run), so a redelivery drives no duplicate run.
+    await submit_eval_run(
+        app=request.app,
+        background_tasks=background_tasks,
+        tenant_id=getattr(user, "tenant_id", ""),
+        run_id=eval_run.id,
+        data=data,
+    )
     return eval_run
 
 

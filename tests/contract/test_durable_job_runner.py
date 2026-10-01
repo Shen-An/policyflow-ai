@@ -144,3 +144,12 @@ async def test_document_index_kind_is_registered_by_default() -> None:
     from backend.app.jobs.runner import default_registry
 
     assert default_registry().get(DOCUMENT_INDEX_KIND) is not None
+
+
+async def test_eval_run_kind_is_registered_by_default() -> None:
+    """T070 routes_eval slice: the long eval run is a durable kind, not a
+    BackgroundTask. The default registry must resolve its handler so the drain
+    (and the future broker consumer) can execute an enqueued eval_run."""
+    from backend.app.jobs.runner import EVAL_RUN_KIND, default_registry
+
+    assert default_registry().get(EVAL_RUN_KIND) is not None

@@ -34,16 +34,21 @@ from backend.app.jobs.service import JobService, JobStateError
 
 __all__ = [
     "DOCUMENT_INDEX_KIND",
+    "EVAL_RUN_KIND",
     "JobContext",
     "JobHandler",
     "JobHandlerRegistry",
     "LocalJobRunner",
     "default_registry",
     "submit_document_index",
+    "submit_document_index_batch",
+    "submit_eval_run",
 ]
 
 #: Durable job kind for the document-indexing work T070 lifts off BackgroundTasks.
 DOCUMENT_INDEX_KIND = "document_index"
+#: Durable job kind for the long-running evaluation run T070 lifts off BackgroundTasks.
+EVAL_RUN_KIND = "eval_run"
 
 
 @dataclass
@@ -97,10 +102,52 @@ async def _handle_document_index(ctx: JobContext, payload: dict[str, Any]) -> st
     return None
 
 
+async def _handle_eval_run(ctx: JobContext, payload: dict[str, Any]) -> str | None:
+    """Execute one evaluation run, resolving live services from the context.
+
+    The durable payload carries only JSON ids and the serialized ``EvalRunCreate``
+    request; the RAG service, agent pipeline and optional graph route adapter are
+    resolved from ``ctx.app_state`` at execution time (never serialized). Like the
+    document-index handler this mirrors the legacy BackgroundTask semantics:
+    ``execute_eval_run`` / ``run_eval`` own the domain outcome and record
+    success/failure onto the ``EvalRun`` row without re-raising, so the durable job
+    tracks "the eval attempt ran" and never retries a run on a domain failure.
+    Returning without ``app_state`` is an honest no-op -- the live services the run
+    needs are not resolvable.
+    """
+    app_state = ctx.app_state
+    if app_state is None:
+        return None
+    # Imported lazily to keep this module free of the service/schema import graph.
+    from backend.app.schemas.eval import EvalRunCreate
+    from backend.app.services.eval_service import execute_eval_run
+
+    data = EvalRunCreate.model_validate(payload["data"])
+    run_id = payload["run_id"]
+    tenant_id = payload.get("tenant_id", "")
+    rag_service = app_state.rag_service
+    pipeline = app_state.agent_pipeline
+    settings = app_state.settings
+    adapter = getattr(app_state, "graph_route_adapter", None)
+    if settings.ROUTE_VIA_GRAPH_ADAPTER and adapter is not None:
+        await adapter.run_eval(
+            engine=ctx.engine,
+            rag_service=rag_service,
+            pipeline=pipeline,
+            run_id=run_id,
+            data=data,
+            tenant_id=tenant_id,
+        )
+    else:
+        await execute_eval_run(ctx.engine, rag_service, pipeline, run_id, data)
+    return None
+
+
 def default_registry() -> JobHandlerRegistry:
     """Build the registry wired for the kinds T070 migrates off BackgroundTasks."""
     registry = JobHandlerRegistry()
     registry.register(DOCUMENT_INDEX_KIND, _handle_document_index)
+    registry.register(EVAL_RUN_KIND, _handle_eval_run)
     return registry
 
 
@@ -225,6 +272,69 @@ async def submit_document_index(
         kind=DOCUMENT_INDEX_KIND,
         payload={"document_id": document_id},
         idempotency_key=idempotency_key,
+    )
+    runner = _resolve_runner(app, service)
+    background_tasks.add_task(runner.drain_once)
+
+
+async def submit_document_index_batch(
+    *,
+    app: Any,
+    background_tasks: Any,
+    tenant_id: str,
+    items: Any,
+) -> int:
+    """Durably submit many document-index jobs, then nudge the drain *once*.
+
+    ``items`` is an iterable of ``(document_id, idempotency_key)`` pairs (one per
+    pending ``RagIndexJob``). Every intent is persisted inline before the response
+    returns; a single drain nudge then drains the whole batch (``drain_once`` runs
+    every eligible job), so an import of many documents does not schedule one
+    BackgroundTask per document. Returns the number of jobs enqueued.
+    """
+    service = _resolve_job_service(app)
+    enqueued = 0
+    for document_id, idempotency_key in items:
+        await service.enqueue(
+            tenant_id=tenant_id or "",
+            kind=DOCUMENT_INDEX_KIND,
+            payload={"document_id": document_id},
+            idempotency_key=idempotency_key,
+        )
+        enqueued += 1
+    if enqueued:
+        runner = _resolve_runner(app, service)
+        background_tasks.add_task(runner.drain_once)
+    return enqueued
+
+
+async def submit_eval_run(
+    *,
+    app: Any,
+    background_tasks: Any,
+    tenant_id: str,
+    run_id: str,
+    data: Any,
+) -> None:
+    """Durably submit a long-running evaluation run and nudge the drain.
+
+    Replaces ``background_tasks.add_task(execute_eval_run / adapter.run_eval, ...)``.
+    The ``EvalRun`` id keys idempotency so a redelivered submit of the same run
+    dedups, while each freshly created run (new ``EvalRun``) enqueues its own
+    durable job. The ``EvalRunCreate`` request is serialized into the payload
+    (JSON only); the live RAG service / pipeline / route adapter are resolved from
+    app state when the job runs. The drain nudge keeps the request non-blocking.
+    """
+    service = _resolve_job_service(app)
+    await service.enqueue(
+        tenant_id=tenant_id or "",
+        kind=EVAL_RUN_KIND,
+        payload={
+            "run_id": str(run_id),
+            "tenant_id": tenant_id or "",
+            "data": data.model_dump(mode="json"),
+        },
+        idempotency_key=str(run_id),
     )
     runner = _resolve_runner(app, service)
     background_tasks.add_task(runner.drain_once)
