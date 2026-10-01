@@ -26,15 +26,51 @@ release gate, off-topic drop, diagnostics/event emission) stay green.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+from time import perf_counter
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
+from backend.app.observability import telemetry
+
 if TYPE_CHECKING:
     from backend.app.agents.pipeline import AgentPipeline
 
 __all__ = ["PipelineGraphState", "build_pipeline_graph"]
+
+
+def _instrument_node(
+    name: str,
+    fn: Callable[[Any], Awaitable[dict[str, Any]]],
+) -> Callable[[Any], Awaitable[dict[str, Any]]]:
+    """Wrap a graph node so each traversal records its latency and failures.
+
+    The node name is a stable, bounded label (``route`` / ``tot`` / ``execute``),
+    never an identifier, so it satisfies the metric-label policy. Timing is
+    process-local by construction -- a node runs start-to-finish in one process --
+    so a histogram/counter is the correct instrument here. Telemetry is a no-op
+    unless a meter is configured, so this is safe on the default path and does not
+    change the node's return value or the exceptions it raises.
+    """
+
+    async def _wrapped(state: Any) -> dict[str, Any]:
+        started = perf_counter()
+        failed = False
+        try:
+            return await fn(state)
+        except BaseException:
+            failed = True
+            raise
+        finally:
+            telemetry.record_graph_node(
+                node=name,
+                duration_seconds=perf_counter() - started,
+                failed=failed,
+            )
+
+    return _wrapped
 
 
 class PipelineGraphState(TypedDict, total=False):
@@ -105,9 +141,9 @@ def build_pipeline_graph(pipeline: AgentPipeline) -> CompiledStateGraph:
     """
     graph: StateGraph = StateGraph(PipelineGraphState)
 
-    graph.add_node("route", pipeline._pnode_route)
-    graph.add_node("tot", pipeline._pnode_tot)
-    graph.add_node("execute", pipeline._pnode_execute)
+    graph.add_node("route", _instrument_node("route", pipeline._pnode_route))
+    graph.add_node("tot", _instrument_node("tot", pipeline._pnode_tot))
+    graph.add_node("execute", _instrument_node("execute", pipeline._pnode_execute))
 
     graph.add_edge(START, "route")
     graph.add_conditional_edges(
