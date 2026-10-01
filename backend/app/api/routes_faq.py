@@ -7,6 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, status
 from backend.app.api.deps import SessionDep
 from backend.app.core.permissions import require_roles
 from backend.app.db.models import User
+from backend.app.jobs.runner import submit_document_index
 from backend.app.schemas.faq import (
     FAQApproveResponse,
     FAQDraftListResponse,
@@ -20,7 +21,6 @@ from backend.app.services.faq_service import (
     list_faq_drafts,
     reject_faq,
 )
-from backend.app.services.indexing_service import process_document_index
 
 router = APIRouter(prefix="/api/faq-drafts", tags=["faq"])
 KnowledgeAdmin = Annotated[User, Depends(require_roles("kb_admin", "sys_admin"))]
@@ -54,7 +54,7 @@ def get_faq_drafts(
 
 
 @router.post("/{faq_id}/approve", response_model=FAQApproveResponse)
-def post_faq_approve(
+async def post_faq_approve(
     faq_id: str,
     request: Request,
     background_tasks: BackgroundTasks,
@@ -69,11 +69,12 @@ def post_faq_approve(
         ip_address,
         getattr(request.state, "request_id", None),
     )
-    background_tasks.add_task(
-        process_document_index,
-        request.app.state.engine,
-        request.app.state.lightrag_adapter,
-        response.document_id,
+    await submit_document_index(
+        app=request.app,
+        background_tasks=background_tasks,
+        tenant_id=getattr(user, "tenant_id", ""),
+        document_id=response.document_id,
+        idempotency_key=response.index_job_id,
     )
     return response
 

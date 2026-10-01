@@ -18,6 +18,7 @@ from fastapi import (
 from backend.app.api.deps import CurrentUser, SessionDep
 from backend.app.core.permissions import require_roles
 from backend.app.db.models import User
+from backend.app.jobs.runner import submit_document_index
 from backend.app.schemas.knowledge import (
     DepartmentListResponse,
     DocumentDeleteResponse,
@@ -43,7 +44,6 @@ from backend.app.services.document_service import (
     update_document,
     upload_document,
 )
-from backend.app.services.indexing_service import process_document_index
 from backend.app.services.knowledge_base_service import (
     create_knowledge_base,
     delete_knowledge_base,
@@ -163,11 +163,15 @@ async def post_document(
         title,
         _client_ip(request),
     )
-    background_tasks.add_task(
-        process_document_index,
-        request.app.state.engine,
-        request.app.state.lightrag_adapter,
-        response.document_id,
+    # T070: durable submission replaces the ephemeral BackgroundTask. The index
+    # job id keys idempotency, so a redelivered submit of this attempt dedups
+    # while a later re-index (a new RagIndexJob) enqueues its own durable job.
+    await submit_document_index(
+        app=request.app,
+        background_tasks=background_tasks,
+        tenant_id=getattr(user, "tenant_id", ""),
+        document_id=response.document_id,
+        idempotency_key=response.index_job_id,
     )
     return response
 
@@ -184,7 +188,7 @@ def get_documents(
 
 
 @documents_router.post("/{document_id}/index", response_model=IndexJobResponse)
-def post_document_index(
+async def post_document_index(
     document_id: str,
     request: Request,
     background_tasks: BackgroundTasks,
@@ -192,11 +196,12 @@ def post_document_index(
     session: SessionDep,
 ) -> IndexJobResponse:
     response = create_index_job(session, user, document_id, _client_ip(request))
-    background_tasks.add_task(
-        process_document_index,
-        request.app.state.engine,
-        request.app.state.lightrag_adapter,
-        document_id,
+    await submit_document_index(
+        app=request.app,
+        background_tasks=background_tasks,
+        tenant_id=getattr(user, "tenant_id", ""),
+        document_id=document_id,
+        idempotency_key=response.job_id,
     )
     return response
 
