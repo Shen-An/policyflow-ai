@@ -1,0 +1,13 @@
+# Stage-4 infrastructure probe
+## captured: 2026-10-01T14:11:17Z
+
+## PostgreSQL (expected UP on 127.0.0.1:55432)
+PostgreSQL 17.10 on x86_64-windows, compiled by msvc-19.44.35228, 64-bit
+databases: policyflow, policyflow_test
+
+## Redis (expected UP on 127.0.0.1:6379)
+redis: +PONG
+
+## RabbitMQ (expected DOWN -- Phase-4 broker gate)
+rabbitmq:5672: DOWN (TimeoutError)
+rabbitmq:15672: DOWN (TimeoutError)

@@ -1,0 +1,37 @@
+# Stage-4 broker-free + PG-backed test evidence
+## captured: 2026-10-01T14:11:35Z
+## POLICYFLOW_TEST_DATABASE_URL=postgresql+psycopg://policyflow:***@127.0.0.1:55432/policyflow_test
+## python: E:/Coding/Anaconda/envs/policyflow/python.exe
+
+============================================================
+SUITE 1/3  integration (PG-authoritative paths)
+============================================================
+............................                                             [100%]
+28 passed in 30.86s
+
+============================================================
+SUITE 2/3  contract (Stage-4 job/outbox/SSE/quota/telemetry)
+============================================================
+........................................................................ [ 72%]
+...........................                                              [100%]
+99 passed in 29.53s
+
+============================================================
+SUITE 3/3  recovery (redelivery idempotency + restart reap)
+============================================================
+plugins: anyio-4.14.1, langsmith-0.12.4, locust-2.46.5, asyncio-1.4.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collecting ... collected 10 items
+
+tests/recovery/test_job_redelivery.py::test_redelivered_enqueue_same_payload_is_idempotent PASSED [ 10%]
+tests/recovery/test_job_redelivery.py::test_redelivered_completion_does_not_re_transition PASSED [ 20%]
+tests/recovery/test_job_redelivery.py::test_redelivery_after_terminal_does_not_reopen PASSED [ 30%]
+tests/recovery/test_job_redelivery.py::test_redelivered_cancel_finalize_is_noop PASSED [ 40%]
+tests/recovery/test_job_redelivery.py::test_duplicate_outbox_publication_is_rejected_at_the_database PASSED [ 50%]
+tests/recovery/test_run_restart_recovery.py::test_leased_job_of_dead_worker_is_reclaimed_and_reassigned PASSED [ 60%]
+tests/recovery/test_run_restart_recovery.py::test_running_job_is_reaped_on_restart PASSED [ 70%]
+tests/recovery/test_run_restart_recovery.py::test_reap_at_attempt_budget_is_terminal PASSED [ 80%]
+tests/recovery/test_run_restart_recovery.py::test_succeeded_job_is_untouched_by_recovery_sweep PASSED [ 90%]
+tests/recovery/test_run_restart_recovery.py::test_recovery_sweep_is_idempotent PASSED [100%]
+
+============================= 10 passed in 4.84s ==============================
