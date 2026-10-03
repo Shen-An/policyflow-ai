@@ -1,0 +1,22 @@
+# Stage-4 LIVE-BROKER evidence (T062 topology / T064 consumer / T065 transport / kill-redelivery)
+## captured: 2026-10-03T05:03:14Z
+## broker: RabbitMQ 3.13.7 (Docker container policyflow-rabbit), amqp://policyflow:***@localhost:5672//
+## durable state: SQLite shared file (authority path); PG-authoritative concurrency covered by test_job_lease_pg_concurrency
+
+=== T065 real AMQP outbox transport (live broker) ===
+...                                                                      [100%]
+3 passed in 1.47s
+
+=== T064 consumer drain-cycle logic (broker-free) ===
+...                                                                      [100%]
+3 passed in 1.60s
+
+=== T064/T072 LIVE round-trip + kill/redelivery -> exactly-once (live broker + real worker subprocesses) ===
+plugins: anyio-4.14.1, langsmith-0.12.4, locust-2.46.5, asyncio-1.4.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collecting ... collected 2 items
+
+tests/integration/test_consumer_live.py::test_live_round_trip_consumes_and_completes PASSED [ 50%]
+tests/integration/test_consumer_live.py::test_kill_mid_flight_redelivers_and_stays_exactly_once PASSED [100%]
+
+============================= 2 passed in 11.90s ==============================

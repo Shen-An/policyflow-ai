@@ -1,0 +1,26 @@
+# Stage-4 live-broker topology verification (T062 on real RabbitMQ)
+## captured: 2026-10-03T03:41:25Z
+## broker: RabbitMQ 3.13-management in Docker (container policyflow-rabbit), amqp://policyflow:***@localhost:5672//
+## image pulled via docker.m.daocloud.io mirror (Docker Hub unreachable); no daemon config change
+
+## Declared via the project's own build_celery_app / build_job_queue / build_dead_letter_queue:
+   policyflow.default + policyflow.dead  -> declared OK, connection.connected=True
+
+## rabbitmqctl list_queues name type durable arguments (authoritative, from the broker):
+Timeout: 60.0 seconds ...
+Listing queues for vhost / ...
+name	type	durable	arguments
+policyflow.dead	quorum	true	[{"x-queue-type","quorum"}]
+policyflow.default	quorum	true	[{"x-queue-type","quorum"},{"x-max-length",10000},{"x-max-length-bytes",268435456},{"x-dead-letter-exchange",[]},{"x-dead-letter-routing-key","policyflow.dead"},{"x-overflow","reject-publish"}]
+
+## RabbitMQ version:
+3.13.7
+
+## NOTE: this file verifies T062 topology declares + persists as quorum on a LIVE broker.
+## The publish->consume->redeliver round-trip is now ALSO implemented and verified -- see
+## pytest-broker-stage4.txt: the real AMQP transport (T065, CeleryOutboxTransport) and the
+## Celery consumer (T064, consumer.py/worker.py) now exist, and tests/integration/
+## test_consumer_live.py exercises a live round-trip and a kill-mid-flight -> redelivery ->
+## exactly-once drill on this broker. Still pending for full T072/Checkpoint: per-bounded-step
+## cooperative cancellation in the consumer, production relay-loop wiring into the app
+## lifecycle, the Locust 1000-SSE / saturation profiles, and the Redis short-outage drill.
