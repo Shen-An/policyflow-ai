@@ -145,6 +145,12 @@ class Settings(BaseSettings):
     ADMISSION_QUEUE_WAIT_TIMEOUT_SECONDS: PositiveFloat = 5.0
     QUOTA_LEASE_DURATION_SECONDS: PositiveInt = 120
     QUOTA_LEASE_HEARTBEAT_SECONDS: PositiveInt = 30
+    # Durable-job retry backoff (JobService.fail re-queue delay). Jitter spreads a
+    # batch of simultaneous failures so they do not retry in lockstep. Jitter is a
+    # fraction in [0, 1] scaling the exponential backoff by [1-j, 1+j].
+    JOB_RETRY_BACKOFF_BASE_SECONDS: float = 2.0
+    JOB_RETRY_BACKOFF_MAX_SECONDS: float = 600.0
+    JOB_RETRY_BACKOFF_JITTER: float = 0.2
     SSE_CHANNEL_CAPACITY: PositiveInt = 128
     SSE_REPLAY_MAX_EVENTS_PER_RUN: PositiveInt = 1000
     SSE_REPLAY_TTL_SECONDS: PositiveInt = 3600

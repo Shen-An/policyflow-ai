@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import random
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from time import perf_counter
@@ -58,6 +59,21 @@ def _digest(payload: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def retry_tuning_from_settings(settings: Any) -> dict[str, float]:
+    """Extract JobService retry-backoff kwargs from app settings, defensively.
+
+    Returns ``backoff_base_seconds``/``max_backoff_seconds``/``backoff_jitter`` read
+    from settings (``getattr`` with safe defaults so a minimal test settings stub
+    without these keys still works). Passed as ``**kwargs`` to ``JobService`` at the
+    production construction sites so deployment-configured jitter actually applies.
+    """
+    return {
+        "backoff_base_seconds": float(getattr(settings, "JOB_RETRY_BACKOFF_BASE_SECONDS", 0.0)),
+        "max_backoff_seconds": float(getattr(settings, "JOB_RETRY_BACKOFF_MAX_SECONDS", 600.0)),
+        "backoff_jitter": float(getattr(settings, "JOB_RETRY_BACKOFF_JITTER", 0.0)),
+    }
+
+
 class JobService:
     """Durable job orchestration over an async session factory.
 
@@ -74,10 +90,28 @@ class JobService:
         factory: async_sessionmaker[AsyncSession],
         backoff_base_seconds: float = 0.0,
         max_backoff_seconds: float = 600.0,
+        backoff_jitter: float = 0.0,
+        rng: random.Random | None = None,
     ) -> None:
         self._factory = factory
         self._backoff_base = backoff_base_seconds
         self._max_backoff = max_backoff_seconds
+        # Retry jitter spreads re-queue times so a batch of jobs that fail together
+        # (e.g. a provider blip, or redelivery after a broker reconnect) does not
+        # retry in lockstep and create a synchronized thundering herd. ``jitter`` is
+        # a fraction in [0, 1]: the exponential backoff is scaled by a random factor
+        # in ``[1 - jitter, 1 + jitter]``. 0 keeps the deterministic backoff that the
+        # recovery contracts assert against; a deployment sets a positive fraction.
+        self._backoff_jitter = max(0.0, min(1.0, backoff_jitter))
+        self._rng = rng or random.Random()
+
+    def _backoff_seconds(self, attempts: int) -> float:
+        """Exponential backoff for ``attempts`` prior tries, with optional jitter."""
+        base = min(self._backoff_base * (2 ** max(attempts - 1, 0)), self._max_backoff)
+        if self._backoff_jitter and base > 0:
+            factor = 1.0 + self._rng.uniform(-self._backoff_jitter, self._backoff_jitter)
+            base = min(max(base * factor, 0.0), self._max_backoff)
+        return base
 
     # -- reads ---------------------------------------------------------------
 
@@ -266,10 +300,7 @@ class JobService:
         async with self._factory() as session:
             job = await self._load_owned(session, job_id, worker_id, _ACTIVE_STATES)
             if recoverable and job.attempts < job.max_attempts:
-                backoff = min(
-                    self._backoff_base * (2 ** max(job.attempts - 1, 0)),
-                    self._max_backoff,
-                )
+                backoff = self._backoff_seconds(job.attempts)
                 new_version = await self._cas(
                     session,
                     job,

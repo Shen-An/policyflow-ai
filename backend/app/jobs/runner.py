@@ -286,8 +286,12 @@ def _resolve_job_service(app: Any) -> JobService:
         return override
     from sqlalchemy.ext.asyncio import async_sessionmaker
 
+    from backend.app.jobs.service import retry_tuning_from_settings
+
     factory = async_sessionmaker(app.state.async_engine, expire_on_commit=False)
-    return JobService(factory=factory)
+    settings = getattr(app.state, "settings", None)
+    tuning = retry_tuning_from_settings(settings) if settings is not None else {}
+    return JobService(factory=factory, **tuning)
 
 
 def _resolve_runner(app: Any, service: JobService) -> LocalJobRunner:

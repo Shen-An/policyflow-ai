@@ -45,6 +45,7 @@ from backend.app.jobs.service import (
     JobIdempotencyConflict,
     JobService,
     JobStateError,
+    retry_tuning_from_settings,
 )
 from backend.app.observability import telemetry
 from backend.app.sse.endpoint import sse_event_source
@@ -97,7 +98,10 @@ def _job_service(request: Request) -> JobService:
     factory = async_sessionmaker(
         request.app.state.async_engine, expire_on_commit=False
     )
-    return JobService(factory=factory)
+    return JobService(
+        factory=factory,
+        **retry_tuning_from_settings(request.app.state.settings),
+    )
 
 
 def _run_event_stream(request: Request) -> RunEventStream:
