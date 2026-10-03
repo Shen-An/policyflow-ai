@@ -12,6 +12,7 @@ the row stuck ``running`` under a dead owner.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import timedelta
 
 from backend.app.db.models import utc_now
@@ -90,3 +91,48 @@ async def test_cycle_with_no_eligible_job_is_a_noop(jobs) -> None:
     assert count == 0
     assert ran == []
     await runtime.engine.dispose()
+
+
+async def test_cycle_cancels_a_running_job_cooperatively(jobs) -> None:
+    # A long-running handler is cancelled mid-flight when request_cancel moves the
+    # job to cancel_requested; the consumer observes it at its bounded poll step and
+    # finalizes the job as cancelled rather than completing it.
+    completed: list[str] = []
+
+    async def _slow(ctx: JobContext, payload: dict) -> str | None:
+        await asyncio.sleep(payload.get("sleep_ms", 0) / 1000)
+        completed.append("finished")  # must NOT run: we cancel before the sleep ends
+        return "done"
+
+    registry = JobHandlerRegistry()
+    registry.register(PROBE_KIND, _slow)
+    runtime = build_worker_runtime(
+        database_url=jobs.url, registry=registry, worker_id="celery-worker-test",
+        lease_seconds=30, cancel_poll_seconds=0.1,
+    )
+    producer = jobs.fresh_service()
+    job = await producer.enqueue(
+        tenant_id=TENANT, kind=PROBE_KIND, payload={"sleep_ms": 10000},
+        idempotency_key="cancel", max_attempts=3,
+    )
+    cycle = asyncio.ensure_future(drain_one_cycle(runtime))
+    try:
+        svc = jobs.fresh_service()
+        running = None
+        for _ in range(50):
+            await asyncio.sleep(0.1)
+            running = await svc.get(job.id)
+            if running is not None and running.state == "running":
+                break
+        assert running is not None and running.state == "running"
+
+        await jobs.fresh_service().request_cancel(job_id=job.id)
+        await asyncio.wait_for(cycle, timeout=10)
+
+        final = await jobs.fresh_service().get(job.id)
+        assert final is not None and final.state == "cancelled"
+        assert completed == []  # the handler was cancelled before finishing
+    finally:
+        if not cycle.done():
+            cycle.cancel()
+        await runtime.engine.dispose()

@@ -1,22 +1,26 @@
-# Stage-4 LIVE-BROKER evidence (T062 topology / T064 consumer / T065 transport / kill-redelivery)
-## captured: 2026-10-03T05:03:14Z
+# Stage-4 LIVE-BROKER evidence (T062 topology / T064 consumer+cancel / T065 transport+relay / kill-redelivery)
+## captured: 2026-10-03T05:35:45Z
 ## broker: RabbitMQ 3.13.7 (Docker container policyflow-rabbit), amqp://policyflow:***@localhost:5672//
-## durable state: SQLite shared file (authority path); PG-authoritative concurrency covered by test_job_lease_pg_concurrency
+## durable state: SQLite shared file (authority path); PG-authoritative concurrency -> test_job_lease_pg_concurrency
 
 === T065 real AMQP outbox transport (live broker) ===
 ...                                                                      [100%]
-3 passed in 1.47s
+3 passed in 1.48s
 
-=== T064 consumer drain-cycle logic (broker-free) ===
-...                                                                      [100%]
-3 passed in 1.60s
+=== T064 consumer cycle + cooperative cancel (broker-free) + T065 relay loop (broker-free) ===
+......                                                                   [100%]
+6 passed in 3.12s
 
-=== T064/T072 LIVE round-trip + kill/redelivery -> exactly-once (live broker + real worker subprocesses) ===
-plugins: anyio-4.14.1, langsmith-0.12.4, locust-2.46.5, asyncio-1.4.0
-asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
-collecting ... collected 2 items
+=== T064/T065/T072 LIVE round-trip / kill-redelivery->exactly-once / cooperative-cancel / full-relay round-trip (live broker + real worker subprocesses) ===
+collecting ... collected 4 items
 
-tests/integration/test_consumer_live.py::test_live_round_trip_consumes_and_completes PASSED [ 50%]
-tests/integration/test_consumer_live.py::test_kill_mid_flight_redelivers_and_stays_exactly_once PASSED [100%]
+tests/integration/test_consumer_live.py::test_live_round_trip_consumes_and_completes PASSED [ 25%]
+tests/integration/test_consumer_live.py::test_kill_mid_flight_redelivers_and_stays_exactly_once PASSED [ 50%]
+tests/integration/test_consumer_live.py::test_live_cancel_mid_flight_finalizes_cancelled PASSED [ 75%]
+tests/integration/test_consumer_live.py::test_live_full_outbox_relay_round_trip PASSED [100%]
 
-============================= 2 passed in 11.90s ==============================
+============================= 4 passed in 17.64s ==============================
+
+=== T065/T070 app lifespan wires + stops the outbox relay ===
+..                                                                       [100%]
+2 passed in 1.68s

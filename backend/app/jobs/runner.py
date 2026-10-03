@@ -26,6 +26,7 @@ runs, never serialized into the row.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
@@ -166,6 +167,7 @@ class LocalJobRunner:
         worker_id: str = "local-runner",
         lease_seconds: int = 300,
         max_jobs: int = 1000,
+        cancel_poll_seconds: float | None = None,
     ) -> None:
         self._service = service
         self._registry = registry or _DEFAULT_REGISTRY
@@ -173,6 +175,11 @@ class LocalJobRunner:
         self._worker_id = worker_id
         self._lease_seconds = lease_seconds
         self._max_jobs = max_jobs
+        # When set, a running job is checked for cooperative cancellation every
+        # ``cancel_poll_seconds`` (the "bounded step"): if ``request_cancel`` has
+        # moved it to ``cancel_requested`` the handler is cancelled and the job is
+        # finalized ``cancelled`` instead of completed. None keeps the plain path.
+        self._cancel_poll_seconds = cancel_poll_seconds
 
     async def drain_once(self) -> int:
         """Lease and run eligible jobs until none remain. Returns the count run.
@@ -200,7 +207,15 @@ class LocalJobRunner:
             return
         try:
             await self._service.start(job_id=job_id, worker_id=self._worker_id)
-            result_ref = await handler(self._context, payload)
+            if self._cancel_poll_seconds is not None:
+                result_ref, cancelled = await self._run_with_cancellation(
+                    job_id, handler, payload
+                )
+                if cancelled:
+                    await self._safe_finalize_cancel(job_id)
+                    return
+            else:
+                result_ref = await handler(self._context, payload)
         except Exception as exc:  # handler (or start) failure -> recoverable retry
             await self._safe_fail(job_id, type(exc).__name__, recoverable=True)
             return
@@ -211,6 +226,45 @@ class LocalJobRunner:
         except JobStateError:
             # Lost the lease (e.g. reaped) between running and completing; the
             # authoritative row already moved on. Nothing to force here.
+            pass
+
+    async def _run_with_cancellation(
+        self, job_id: str, handler: JobHandler, payload: dict[str, Any]
+    ) -> tuple[str | None, bool]:
+        """Run ``handler`` while polling for a cooperative cancel request.
+
+        Returns ``(result_ref, cancelled)``. The handler runs as a task; every
+        ``cancel_poll_seconds`` the job's authoritative state is checked. If it has
+        moved to ``cancel_requested`` the handler task is cancelled and ``cancelled``
+        is True. A handler that finishes first wins, except that a cancel requested
+        in the same window is still honoured (so a late finish does not slip past a
+        requested cancel and then fail to ``complete`` out of ``cancel_requested``).
+        A genuine handler exception propagates to the caller's failure path.
+        """
+        handler_task = asyncio.ensure_future(handler(self._context, payload))
+        while True:
+            done, _ = await asyncio.wait(
+                {handler_task}, timeout=self._cancel_poll_seconds
+            )
+            if handler_task in done:
+                result_ref = handler_task.result()  # re-raises a handler exception
+                job = await self._service.get(job_id)
+                if job is not None and job.state == "cancel_requested":
+                    return None, True
+                return result_ref, False
+            job = await self._service.get(job_id)
+            if job is not None and job.state == "cancel_requested":
+                handler_task.cancel()
+                try:
+                    await handler_task
+                except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                    pass
+                return None, True
+
+    async def _safe_finalize_cancel(self, job_id: str) -> None:
+        try:
+            await self._service.finalize_cancel(job_id=job_id)
+        except JobStateError:
             pass
 
     async def _safe_fail(self, job_id: str, error_code: str, *, recoverable: bool) -> None:

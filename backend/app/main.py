@@ -65,7 +65,11 @@ from backend.app.frontend import mount_frontend
 from backend.app.graph.compat import AdapterUsageTelemetry
 from backend.app.graph.route_adapter import GraphRouteAdapter
 from backend.app.graph.service import GraphService
+from backend.app.jobs.celery_app import build_celery_app
 from backend.app.jobs.metrics import install_job_state_gauge
+from backend.app.jobs.publisher import OutboxPublisher
+from backend.app.jobs.relay import OutboxRelayLoop
+from backend.app.jobs.transport import CeleryOutboxTransport
 from backend.app.mcp.manager import MCPManager
 from backend.app.observability.telemetry import configure_telemetry
 from backend.app.rag.bm25_retriever import BM25Retriever
@@ -199,14 +203,31 @@ def create_app(
         # gauge reads ``durable_jobs`` at collection time, so it must be wired
         # after the schema is ensured and against the synchronous engine.
         install_job_state_gauge(engine)
+        # Background outbox relay (T065/T070): only when a broker is configured.
+        # It carries committed ``job.*`` outbox rows to RabbitMQ so a worker (T064)
+        # is nudged. Without a broker the in-process LocalJobRunner nudge drains
+        # jobs over the same durable rows, so the loop is not started.
+        relay: OutboxRelayLoop | None = None
+        if app_settings.CELERY_BROKER_URL:
+            relay = OutboxRelayLoop(
+                OutboxPublisher(
+                    factory=async_session_factory,
+                    transport=CeleryOutboxTransport(build_celery_app(app_settings)),
+                )
+            )
+            relay.start()
+        application.state.outbox_relay = relay
         logger.info(
             "Application started",
             extra={
                 "environment": app_settings.ENVIRONMENT,
                 "database_seed": asdict(summary),
+                "outbox_relay": relay is not None,
             },
         )
         yield
+        if relay is not None:
+            await relay.stop()
         close_adapter = getattr(adapter, "close", None)
         if close_adapter is not None:
             await close_adapter()

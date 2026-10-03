@@ -88,6 +88,7 @@ class WorkerRuntime:
     registry: JobHandlerRegistry
     worker_id: str
     lease_seconds: int
+    cancel_poll_seconds: float = 0.5
 
     def session_factory(self) -> async_sessionmaker:
         return async_sessionmaker(self.engine, expire_on_commit=False)
@@ -110,6 +111,7 @@ async def drain_one_cycle(runtime: WorkerRuntime) -> int:
         worker_id=runtime.worker_id,
         lease_seconds=runtime.lease_seconds,
         max_jobs=1,
+        cancel_poll_seconds=runtime.cancel_poll_seconds,
     )
     return await runner.drain_once()
 
@@ -138,6 +140,7 @@ def build_worker_runtime(
     context: JobContext | None = None,
     worker_id: str = "celery-worker",
     lease_seconds: int = 30,
+    cancel_poll_seconds: float = 0.5,
     settings: Any | None = None,
 ) -> WorkerRuntime:
     """Build a :class:`WorkerRuntime` over ``database_url`` with ``registry``.
@@ -145,7 +148,8 @@ def build_worker_runtime(
     ``context`` defaults to a bare context carrying only the async engine; a
     deployment that runs handlers needing live services (document index, eval)
     supplies a context wired to those. ``lease_seconds`` is short by default so a
-    crashed worker's lease is reclaimable within one cycle.
+    crashed worker's lease is reclaimable within one cycle. ``cancel_poll_seconds``
+    is the bounded step at which a running job is checked for a cancel request.
     """
     engine = build_async_engine(database_url, settings)
     ctx = context or JobContext(engine=engine)
@@ -155,4 +159,5 @@ def build_worker_runtime(
         registry=registry,
         worker_id=worker_id,
         lease_seconds=lease_seconds,
+        cancel_poll_seconds=cancel_poll_seconds,
     )

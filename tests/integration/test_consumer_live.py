@@ -40,6 +40,7 @@ from backend.app.core.config import Settings
 from backend.app.db.models import OutboxEvent, Tenant
 from backend.app.db.session import build_async_engine
 from backend.app.jobs.celery_app import build_celery_app
+from backend.app.jobs.publisher import OutboxPublisher
 from backend.app.jobs.service import JobService
 from backend.app.jobs.transport import CeleryOutboxTransport
 
@@ -201,4 +202,60 @@ async def test_kill_mid_flight_redelivers_and_stays_exactly_once(broker_url) -> 
         _kill(worker_a)
         if worker_b is not None:
             _kill(worker_b)
+        await engine.dispose()
+
+
+async def test_live_cancel_mid_flight_finalizes_cancelled(broker_url) -> None:
+    db_url = _make_db()
+    app = build_celery_app(Settings(CELERY_BROKER_URL=broker_url, _env_file=None))
+    engine = build_async_engine(db_url)
+    svc = JobService(factory=async_sessionmaker(engine, expire_on_commit=False))
+    # Long lease so the job is not reaped mid-run -- we want a cooperative cancel,
+    # not a lease expiry. The worker polls cancel_requested at its bounded step.
+    worker = _start_worker(db_url, broker_url, lease_seconds=60)
+    try:
+        assert _wait_consumers(app, 1), "worker never began consuming"
+        job = await svc.enqueue(
+            tenant_id=TENANT, kind=PROBE_KIND, payload={"sleep_ms": 10000},
+            idempotency_key="live-cancel", max_attempts=3,
+        )
+        await _nudge(app, job.id)
+        running = await _wait_state(svc, job.id, {"running"}, 20)
+        assert running is not None and running.state == "running"
+
+        await svc.request_cancel(job_id=job.id)  # cooperative cancel while in flight
+        done = await _wait_state(
+            svc, job.id, {"cancelled", "succeeded", "terminal_failed"}, 20
+        )
+        assert done is not None and done.state == "cancelled", f"ended {done and done.state}"
+    finally:
+        _kill(worker)
+        await engine.dispose()
+
+
+async def test_live_full_outbox_relay_round_trip(broker_url) -> None:
+    # The full production path: enqueue writes a job.enqueued outbox row; the real
+    # OutboxPublisher relay (not a hand-published nudge) claims it and publishes
+    # through the real AMQP transport; a live worker consumes and completes it.
+    db_url = _make_db()
+    app = build_celery_app(Settings(CELERY_BROKER_URL=broker_url, _env_file=None))
+    engine = build_async_engine(db_url)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    svc = JobService(factory=factory)
+    worker = _start_worker(db_url, broker_url, lease_seconds=30)
+    try:
+        assert _wait_consumers(app, 1), "worker never began consuming"
+        job = await svc.enqueue(
+            tenant_id=TENANT, kind=PROBE_KIND, payload={"token": "relay"},
+            idempotency_key="relay-rt", max_attempts=3,
+        )
+        publisher = OutboxPublisher(factory=factory, transport=CeleryOutboxTransport(app))
+        delivered = await publisher.relay_once()
+        assert delivered >= 1, "relay published nothing"
+
+        done = await _wait_state(svc, job.id, {"succeeded", "terminal_failed"}, 30)
+        assert done is not None and done.state == "succeeded"
+        assert done.result_ref == f"probe-ok:pid={worker.pid}"
+    finally:
+        _kill(worker)
         await engine.dispose()
