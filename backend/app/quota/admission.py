@@ -34,7 +34,21 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from backend.app.api.routes_runs import AdmissionOutcome
+from backend.app.core.logging import get_logger
 from backend.app.quota.coordinator import QuotaCoordinator
+
+logger = get_logger(__name__)
+
+# Errors that mean "the admission backend (Redis) is unreachable or failed",
+# as opposed to a normal decline. On these the gate fails *closed* (503) rather
+# than letting the exception surface as a 500: with the backing store down the
+# gate cannot verify capacity, so it sheds load instead of over-admitting.
+try:  # redis is an optional infra dependency; degrade gracefully if absent.
+    from redis.exceptions import RedisError as _RedisError
+
+    _ADMISSION_BACKEND_ERRORS: tuple[type[BaseException], ...] = (_RedisError, OSError)
+except Exception:  # pragma: no cover - redis not installed
+    _ADMISSION_BACKEND_ERRORS = (OSError,)
 
 #: Maps a coordinator decline reason to the stable API error code the route
 #: surfaces as ``error.code`` (kept in lockstep with the T069 contract tests).
@@ -77,30 +91,49 @@ class CoordinatorAdmission:
         coordinator: QuotaCoordinator,
         *,
         limits_provider: LimitsProvider,
+        fail_closed_retry_seconds: float = 5.0,
     ) -> None:
         self._coordinator = coordinator
         self._limits_provider = limits_provider
+        self._fail_closed_retry_seconds = fail_closed_retry_seconds
 
     async def admit(self, *, resource: str, identity: str) -> AdmissionOutcome:
         """Admit, or decline with the HTTP shape the route maps 1:1 to a response.
 
-        Never raises for a decline -- the coordinator's :class:`QuotaDecision` is
-        translated into an :class:`AdmissionOutcome`, carrying the ``429``/``503``
-        status, the advisory ``retry_after_seconds`` and the stable error code.
+        Never raises -- a normal decline is translated into an
+        :class:`AdmissionOutcome` carrying ``429``/``503`` + ``Retry-After``; and if
+        the admission backend (Redis) is unreachable the gate **fails closed** with
+        ``503`` + ``Retry-After`` (``ADMISSION_UNAVAILABLE``) rather than letting the
+        error surface as a ``500``, because an overload gate that cannot verify
+        capacity must shed load, not wave traffic through.
         """
         limits = self._limits_provider(resource, identity)
         if inspect.isawaitable(limits):
             limits = await limits
 
-        decision = await self._coordinator.admit(
-            resource=resource,
-            identity=identity,
-            capacity=limits.capacity,
-            refill_per_sec=limits.refill_per_sec,
-            max_concurrency=limits.max_concurrency,
-            lease_ms=limits.lease_ms,
-            cost=limits.cost,
-        )
+        try:
+            decision = await self._coordinator.admit(
+                resource=resource,
+                identity=identity,
+                capacity=limits.capacity,
+                refill_per_sec=limits.refill_per_sec,
+                max_concurrency=limits.max_concurrency,
+                lease_ms=limits.lease_ms,
+                cost=limits.cost,
+            )
+        except _ADMISSION_BACKEND_ERRORS:
+            logger.warning(
+                "Admission backend unavailable; failing closed with 503",
+                exc_info=True,
+                extra={"resource": resource},
+            )
+            return AdmissionOutcome(
+                admitted=False,
+                reason="admission backend unavailable",
+                http_status=503,
+                error_code="ADMISSION_UNAVAILABLE",
+                retry_after_seconds=self._fail_closed_retry_seconds,
+            )
         if decision.admitted:
             # The lease is intentionally held (TTL-reclaimed); see module docstring.
             return AdmissionOutcome(admitted=True)

@@ -1,75 +1,70 @@
-# Stage-4 Recovery Evidence (broker-free + PG-backed subset)
+# Stage-4 Recovery & Capacity Evidence (Phase 4 / User Story 2)
 
-**Captured:** 2026-10-01 (UTC) · branch `master` · see `pytest-pg-stage4.txt`, `infra-probe.txt`.
+**Scope:** honest, reproducible evidence for Phase 4「大规模并发下稳定使用」(T055–T072).
+This directory records what was exercised against **real infrastructure** and names
+precisely what remains, so nothing here overstates. The Checkpoint is **not**
+declared (see the assessment at the end).
 
-This directory holds **honest, partial** evidence for Phase 4 / User Story 2
-「大规模并发下稳定使用」(tasks T055–T072). It is deliberately **not** a Checkpoint
-declaration. It records exactly what was exercised against **real infrastructure
-that is up on this machine**, and names precisely what is **still gated** on
-infrastructure that is **not** up here.
+## Infrastructure (all live during the latest capture — see `pytest-t072-stage4.txt`)
 
-## Infrastructure reality at capture time (see `infra-probe.txt`)
+| Component  | State | Brought up how |
+|------------|-------|----------------|
+| PostgreSQL | 17.10 @ `127.0.0.1:55432` | local `.pgdata` via conda `pg_ctl` |
+| Redis      | @ `127.0.0.1:6379` | pre-existing |
+| RabbitMQ   | 3.13.7 @ `127.0.0.1:5672` | Docker (`policyflow-rabbit`, image via `docker.m.daocloud.io` mirror; no daemon.json change) |
 
-| Component  | State on this machine | Used by this evidence? |
-|------------|-----------------------|------------------------|
-| PostgreSQL | **UP** — 17.10 on `127.0.0.1:55432`, DBs `policyflow` + `policyflow_test`, role `policyflow` | **Yes** — every suite below ran against it |
-| Redis      | **UP** — `127.0.0.1:6379` (`PING` → `+PONG`) | **Yes** — quota coordinator / admission paths |
-| RabbitMQ   | **DOWN** — `5672`/`15672` both time out (no erlang, no broker binary, docker daemon not running) | **No** — this is the honest gate |
+## Evidence files
 
-## What this evidence DOES cover (139 tests, all green on live PG + Redis)
+- `infra-probe.txt` — PG/Redis up, (earlier) RabbitMQ down snapshot.
+- `broker-topology-live.txt` — T062 quorum topology declared + verified via `rabbitmqctl` on the live broker.
+- `pytest-broker-stage4.txt` — the 15 live-broker-path tests (transport / consumer cycle+cancel / relay-loop / live round-trip / kill-redelivery→exactly-once / full-relay / lifespan wiring).
+- `pytest-pg-stage4.txt` — PG-authoritative suites (R27): integration 28 + contract 99 + recovery 12 = 139 passed on real PG+Redis.
+- `pytest-t072-stage4.txt` — consolidated T072 capture: recovery 21 + SSE/quota 49 + live-broker 9 + capacity 3 = **82 passed** on live infra (PG-concurrency referenced from R27; see its footer).
+- `capacity-saturation.json` / `capacity-sse-cleanup.json` / `redis-outage-drill.json` — Stage-4 capacity summaries.
 
-Ran with `POLICYFLOW_TEST_DATABASE_URL=postgresql+psycopg://policyflow:***@127.0.0.1:55432/policyflow_test`.
+## Goal acceptance — what is PROVEN on real infrastructure
 
-- **SUITE 1 — integration, PG-authoritative (28 passed)**: durable-job lease
-  concurrency under real PG row locks, quota ledger on PG, run-snapshot
-  persistence, Stage-4 migration against a real PG schema, multi-instance
-  behaviour, document-index claim. These prove the authoritative state machine
-  on the **production-shaped** database, not SQLite.
-- **SUITE 2 — contract (99 passed)**: job state machine, outbox publisher &
-  dedupe, `/api/runs` API, SSE resume / endpoint / cleanup, quota admission &
-  coordinator admission (429/503 + `Retry-After`), job-state observable gauge,
-  LLM concurrency/token telemetry call-site (R26), durable-job runner, Celery
-  config shape, Stage-4 telemetry, document-index & eval-run durable submission.
-- **SUITE 3 — recovery (12 passed)**: redelivery **idempotency** (same payload
-  re-enqueue is a no-op; completion does not re-transition; redelivery after a
-  terminal state does not reopen; cancel-finalize is a no-op; duplicate outbox
-  publication is rejected **at the database**), **restart recovery** (dead
-  worker's leased job reclaimed/reassigned; running job reaped on restart; reap
-  at attempt-budget is terminal; succeeded job untouched; sweep is idempotent),
-  and **reap telemetry** (the lease-expiry recovery sweep times itself under
-  `cleanup.duration` scope `job_lease_reap`, including on an empty sweep).
+| Goal / Independent-Test element | Proven? | Where |
+|---|---|---|
+| API/worker kill + RabbitMQ redelivery → **exactly-once** (重复投递不重复副作用) | ✅ | `test_consumer_live.py::test_kill_mid_flight_redelivers_and_stays_exactly_once` — worker `taskkill /F` mid-flight, peer reaps + re-runs, one terminal `succeeded`, `attempts==2`, one `job.succeeded` event (real RabbitMQ) |
+| Lease expiry → reclaim/reassign; restart recoverable | ✅ | `tests/recovery/` (real worker + SQLite/PG), `test_job_lease_pg_concurrency` (R27, real PG) |
+| Cooperative cancellation mid-flight | ✅ | `test_consumer_live.py::test_live_cancel_mid_flight_finalizes_cancelled` |
+| Queue saturation → **429/503 + Retry-After, no 5xx** (过载明确返回) | ✅ | `test_stage4_capacity.py::test_overload_burst_sheds_load_without_5xx` (100 concurrent, real Redis) |
+| **Redis short outage** → fail closed 503, then recover | ✅ | `test_stage4_capacity.py::test_redis_outage_fails_closed_then_recovers` |
+| Disconnected SSE resources freed (gauge→0, teardown timed) | ✅ | `test_stage4_capacity.py::test_concurrent_sse_replay_frees_resources` + `test_sse_endpoint` (unit) |
+| Cross-instance quota atomicity | ✅ | `test_coordinator_admission.py` (real Redis Lua) |
+| SSE resume / Redis-trim → PG durable snapshot | ✅ | `test_sse_resume` / `test_run_snapshot_pg` (R27) |
+| Retry backoff jitter (no synchronized retry storm) | ✅ | `test_retry_jitter.py` |
 
-These directly exercise the goal's core invariants — *重复投递不重复副作用* and
-*重启可恢复* — at the DB / state-machine layer that the broker would drive.
+## What is NOT covered — the honest remaining gap (why Checkpoint is withheld)
 
-## What this evidence does NOT cover (genuinely gated on RabbitMQ — stays `[~]`/`[ ]`)
+**1000 concurrent *held-open* SSE connections** (the Independent Test's headline
+scenario) is **not** achieved, for two honest reasons:
 
-The recovery suites above **simulate** redelivery and worker death by driving the
-state machine directly; they do **not** run a live broker consumer. The following
-require a real RabbitMQ (quorum queues) + Celery worker and are **not** claimed
-green here:
+1. **Live-tail producer not wired.** `/api/v2/runs/{run_id}/events` is a
+   *replay-then-close* endpoint: it passes `channel=None`. The live tail that would
+   hold a connection open — fanning worker-produced events into each connection's
+   `BoundedEventChannel` — is implemented at the generator level but not wired to a
+   producer. It was gated on the Celery consumer (T064); T064 now exists, so this is
+   *unblocked* but still **unbuilt** (needs a worker→connection fan-out, e.g. Redis
+   pub/sub, plus the endpoint holding open until run-terminal/disconnect).
+2. **Per-connection DB pool pinning.** Each in-flight SSE pins a DB connection (via
+   the principal dependency) for the request lifetime, so concurrent SSE is bounded
+   by `DATABASE_POOL_SIZE`/`MAX_OVERFLOW`. Concurrent SSE *replay* cleanup is proven
+   at N=10 (reliably within the pool); a 1000-held-open run needs the live tail +
+   a tuned PG pool.
 
-- **T062 (live transport) / T064 (consumers + worker-side lease release) /
-  T065 (real broker transport)** — need a live broker + worker loop.
-- **T072 full** — Locust 1000-SSE / queue-saturation 429/503 load profile, and
-  live-broker redelivery under `kill -9`. Only the **broker-free + PG subset** of
-  T072's evidence is produced here.
-- **Independent Test** — API/worker kill, RabbitMQ redelivery, lease expiry under
-  a live broker, Redis short-outage drill, 1000 concurrent SSE. Not run.
+The legacy **Locust** `sse`/`saturation` profiles target the v1 `/api/chat` surface
+(need a live LLM, not the Stage-4 run/SSE/quota surface) and were **not** run; they
+are superseded for this phase by the in-process `test_stage4_capacity.py`, which
+tests the correct surface without faking an LLM.
 
-RabbitMQ is **not mocked** to manufacture a pass. It is honestly absent, so the
-broker-dependent tasks remain `[~]`/`[ ]` in `tasks.md` and the Checkpoint is
-**not** declared.
+## Checkpoint assessment
 
-## Reproduce
-
-```bash
-export POLICYFLOW_TEST_DATABASE_URL="postgresql+psycopg://policyflow:<pw>@127.0.0.1:55432/policyflow_test"
-python -m pytest tests/integration/test_job_lease_pg_concurrency.py \
-  tests/integration/test_quota_ledger_pg.py tests/integration/test_run_snapshot_pg.py \
-  tests/integration/test_stage4_migration.py tests/integration/test_multi_instance.py \
-  tests/integration/test_index_claim.py tests/contract/ tests/recovery/ -q
-```
-
-(`policyflow` role is `trust`-authed for localhost in this `.pgdata`, so any
-password string connects; the real value is never recorded here.)
+**NOT declared.** Nearly every Phase-4 invariant — exactly-once redelivery under a
+real `kill -9`, lease reclaim, restart recovery, 429/503 + Retry-After overload
+shedding, Redis-outage fail-closed, SSE resource cleanup, cross-instance quota
+atomicity — is proven on real infrastructure. The one unmet acceptance scenario is
+**1000 concurrent held-open SSE connections**, which requires building the live-tail
+fan-out producer (now unblocked by T064) and running it against a tuned PG pool.
+Until that exists and passes, the Checkpoint is honestly withheld.

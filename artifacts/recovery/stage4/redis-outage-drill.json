@@ -1,0 +1,7 @@
+{
+  "scenario": "admission backend outage then recovery",
+  "during_outage_status": 503,
+  "error_code": "ADMISSION_UNAVAILABLE",
+  "after_recovery_status": 201,
+  "behavior": "fail closed (shed load), then recover"
+}

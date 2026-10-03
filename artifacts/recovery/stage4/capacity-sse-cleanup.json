@@ -1,0 +1,8 @@
+{
+  "scenario": "concurrent GET /runs/{id}/events replay-and-close (real Redis)",
+  "concurrent_connections": 10,
+  "all_200": true,
+  "live_sse_gauge_after": 0.0,
+  "sse_cleanup_timings": 10,
+  "note": "replay-then-close endpoint; live-tail hold-open is T064-gated. Each in-flight SSE pins a DB connection (principal dependency) for the request lifetime, so concurrent SSE is bounded by the async DB pool (DATABASE_POOL_SIZE/MAX_OVERFLOW); SQLite ignores those (~15), production is a tuned PG pool. Invariant proven under concurrency: every opened connection unwinds, the live-SSE gauge returns to 0 (no leak), and every teardown is timed into the sse cleanup histogram."
+}

@@ -1,0 +1,10 @@
+{
+  "scenario": "POST /api/v2/runs concurrent burst vs quota (real Redis)",
+  "burst": 100,
+  "budget_max_concurrency": 8,
+  "admitted_201": 8,
+  "shed_429": 0,
+  "shed_503": 92,
+  "server_errors_5xx": 0,
+  "all_rejections_have_retry_after": true
+}
