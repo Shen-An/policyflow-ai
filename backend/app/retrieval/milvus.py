@@ -33,6 +33,7 @@ Design rules this module exists to enforce:
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -440,9 +441,47 @@ class MilvusVectorStore:
         )
         if not rows:
             return 0
-        ids = [row[_ID_FIELD] for row in rows]
+        return await self.delete_ids(
+            tenant_id=tenant_id, vector_ids=[str(row[_ID_FIELD]) for row in rows]
+        )
+
+    async def delete_ids(self, *, tenant_id: str, vector_ids: Sequence[str]) -> int:
+        """Delete specific rows by primary key.
+
+        Used by reconciliation repairs, which must be able to remove an exact set
+        of rows rather than everything sharing a prefix. ``tenant_id`` is accepted
+        and asserted against the ids' own prefix so a caller cannot delete across
+        tenants by handing over a foreign id list.
+        """
+        ids = [str(value) for value in vector_ids]
+        if not ids:
+            return 0
+        owned = await self._query_ids(tenant_id=tenant_id, vector_ids=ids)
+        if len(owned) != len(set(ids)):
+            raise ValueError(
+                "refusing to delete vector ids this tenant does not own "
+                f"({len(owned)} of {len(set(ids))} resolved)"
+            )
         await self._call("delete", collection_name=self._config.collection, ids=ids)
         return len(ids)
+
+    async def _query_ids(
+        self, *, tenant_id: str, vector_ids: Sequence[str]
+    ) -> list[str]:
+        """Return which of ``vector_ids`` exist and belong to ``tenant_id``."""
+        literals = _literal_list(tuple(str(value) for value in vector_ids))
+        rows = await self._call(
+            "query",
+            collection_name=self._config.collection,
+            filter=(
+                f'{self._config.tenant_partition_key} == "{_quote(tenant_id)}" and '
+                f"{_ID_FIELD} in {literals}"
+            ),
+            output_fields=[_ID_FIELD],
+            limit=16_384,
+            consistency_level=_CONSISTENCY_LEVEL,
+        )
+        return [str(row[_ID_FIELD]) for row in rows or []]
 
     # -- reads ----------------------------------------------------------------
 

@@ -22,6 +22,7 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import Any, Final
 from uuid import uuid4
+
 from sqlalchemy import JSON, Column, DateTime, TypeDecorator, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
@@ -1131,6 +1132,15 @@ class Material(SQLModel, table=True):
     status: str = Field(default="pending_upload", index=True, max_length=20)
     active_version_id: str | None = Field(default=None, index=True, max_length=36)
     read_only: bool = Field(default=False)
+    # Recovery fields required of every recoverable step (``data-model.md``
+    # Modeling Rules): the material *is* the saga's recoverable unit, so the
+    # attempt budget for its current cross-store step lives here. It is reset when
+    # the saga moves to a new step, so a later version does not inherit an earlier
+    # version's failures.
+    attempts: int = Field(default=0, ge=0)
+    max_attempts: int = Field(default=5, ge=1)
+    next_attempt_at: datetime | None = Field(default=None, index=True, sa_type=UTCDateTime)
+    last_error_code: str | None = Field(default=None, max_length=80)
     created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
     updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
     version: int = Field(default=1, ge=1)

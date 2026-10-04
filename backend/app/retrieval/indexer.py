@@ -159,12 +159,26 @@ class VectorIndexer:
                 document_id=document_id,
             )
             if existing is not None:
+                if existing.content_hash and existing.content_hash != content_hash:
+                    # A MaterialVersion is immutable, so the same (version,
+                    # embedding version) pair can never legitimately produce
+                    # different content. Re-staging with a different hash means the
+                    # caller is reusing a version id for new bytes, which would
+                    # retroactively change what a completed run cited.
+                    raise ManifestStateError(
+                        f"manifest {existing.id} already holds different content for "
+                        "this immutable version; an edit must create a new version"
+                    )
                 existing.expected_count = len(chunks)
-                # A re-stage invalidates the previous count: it must be re-verified
-                # against Milvus before it can be activated again.
-                existing.indexed_count = 0
-                existing.content_hash = content_hash
                 existing.chunk_ids = [chunk.chunk_id for chunk in chunks]
+                existing.content_hash = content_hash
+                # ``indexed_count`` is deliberately left alone. It is owned by
+                # ``verify``, which reads it back from Milvus, and the saga always
+                # verifies before activating. Zeroing it here would violate
+                # ``ck_vector_manifests_retrievable_complete`` when the manifest is
+                # currently serving -- and the activation guard already refuses a
+                # count that disagrees with ``expected_count``, so a stale value
+                # cannot let a truncated index through.
                 existing.updated_at = utc_now()
                 existing.version += 1
                 await session.commit()

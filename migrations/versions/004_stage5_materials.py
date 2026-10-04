@@ -237,6 +237,10 @@ def _create_materials() -> None:
             'active_version_id', sqlmodel.sql.sqltypes.AutoString(length=36), nullable=True
         ),
         sa.Column('read_only', sa.Boolean(), nullable=False),
+        sa.Column('attempts', sa.Integer(), nullable=False),
+        sa.Column('max_attempts', sa.Integer(), nullable=False),
+        sa.Column('next_attempt_at', backend.app.db.models.UTCDateTime(), nullable=True),
+        sa.Column('last_error_code', sqlmodel.sql.sqltypes.AutoString(length=80), nullable=True),
         sa.Column('created_at', backend.app.db.models.UTCDateTime(), nullable=False),
         sa.Column('updated_at', backend.app.db.models.UTCDateTime(), nullable=False),
         sa.Column('version', sa.Integer(), nullable=False),
@@ -256,6 +260,9 @@ def _create_materials() -> None:
     op.create_index(op.f('ix_materials_status'), 'materials', ['status'], unique=False)
     op.create_index(
         op.f('ix_materials_active_version_id'), 'materials', ['active_version_id'], unique=False
+    )
+    op.create_index(
+        op.f('ix_materials_next_attempt_at'), 'materials', ['next_attempt_at'], unique=False
     )
 
 
