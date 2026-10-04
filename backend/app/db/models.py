@@ -18,10 +18,10 @@ constraint visible in the database and avoids native PostgreSQL ENUM types that
 are expensive to alter.
 """
 
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import Any, Final
 from uuid import uuid4
-
 from sqlalchemy import JSON, Column, DateTime, TypeDecorator, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
@@ -84,6 +84,121 @@ QUOTA_LEASE_OUTCOMES: frozenset[str] = frozenset({"held", "released", "expired"}
 #: systems and their numbers must never be merged into one claim.
 CAPACITY_LLM_MODES: frozenset[str] = frozenset({"deterministic_mock", "real_provider"})
 CAPACITY_VERDICTS: frozenset[str] = frozenset({"pass", "fail", "inconclusive"})
+
+# --- Stage 5: materials, object versions and vector manifests ---------------
+
+#: Where a material came from. A ``policy`` item is a formal enterprise original
+#: and its versions are never directly editable; a ``generated_draft`` is agent
+#: output and is excluded from formal retrieval until a separate publish
+#: workflow approves it (``data-model.md`` Cross-Entity Invariant #9).
+MATERIAL_SOURCE_TYPES: frozenset[str] = frozenset({"policy", "user_upload", "generated_draft"})
+
+#: Material lifecycle -- this is the cross-store saga in ``tasks.md`` T083:
+#: ``pending_upload -> scanning -> indexing -> available -> deleting ->
+#: deleted/error``. It is deliberately *not* the same vocabulary as
+#: ``MATERIAL_VERSION_STATUSES``: the material tracks the saga that is currently
+#: running for it, a version tracks its own publication state.
+MATERIAL_STATUSES: frozenset[str] = frozenset(
+    {
+        "pending_upload",
+        "scanning",
+        "indexing",
+        "available",
+        "deleting",
+        "deleted",
+        "error",
+    }
+)
+
+#: Allowed material saga transitions. ``deleted`` is terminal because physical
+#: deletion is irreversible; ``error`` is a parking state the saga can resume
+#: from, so a transient object-store or Milvus fault is never fatal.
+MATERIAL_SAGA_TRANSITIONS: dict[str, frozenset[str]] = {
+    "pending_upload": frozenset({"scanning", "deleting", "error"}),
+    "scanning": frozenset({"indexing", "deleting", "error"}),
+    "indexing": frozenset({"available", "deleting", "error"}),
+    "available": frozenset({"indexing", "deleting", "error"}),
+    "deleting": frozenset({"deleted", "error"}),
+    "deleted": frozenset(),
+    # Resume goes back to the step that failed; the saga decides which by
+    # replaying its own progress, so every non-terminal state is reachable.
+    "error": frozenset({"pending_upload", "scanning", "indexing", "available", "deleting"}),
+}
+
+#: MaterialVersion publication state, quoted verbatim from ``data-model.md``.
+MATERIAL_VERSION_STATUSES: frozenset[str] = frozenset(
+    {
+        "staging",
+        "scanning",
+        "indexing",
+        "available",
+        "quarantined",
+        "superseded",
+        "deleting",
+    }
+)
+
+#: Fields that are frozen once a version row exists. ``status`` is excluded on
+#: purpose: it is the lifecycle column the saga advances. Everything else
+#: describes the immutable bytes a completed run may already have cited as
+#: evidence, so an edit must create a new version row instead.
+MATERIAL_VERSION_PUBLISHED_FIELDS: frozenset[str] = frozenset(
+    {
+        "tenant_id",
+        "material_id",
+        "version_number",
+        "source_version_id",
+        "object_version_id",
+        "sha256",
+        "size_bytes",
+        "media_type",
+        "created_by",
+        "created_at",
+    }
+)
+
+#: Malware/content scan outcome for a stored object version.
+OBJECT_SCAN_STATUSES: frozenset[str] = frozenset(
+    {"pending", "scanning", "clean", "infected", "failed"}
+)
+#: Retention/deletion state of a stored object version. ``deleting`` is the
+#: recoverable middle state physical deletion parks in.
+OBJECT_DELETION_STATES: frozenset[str] = frozenset({"retained", "deleting", "deleted"})
+
+#: EmbeddingVersion lifecycle, quoted verbatim from ``data-model.md``.
+EMBEDDING_VERSION_STATUSES: frozenset[str] = frozenset({"building", "active", "retired"})
+
+#: Deletion state of a vector manifest, mirroring the object-store vocabulary.
+VECTOR_DELETION_STATES: frozenset[str] = frozenset({"retained", "deleting", "deleted"})
+
+#: Which two stores a reconciliation issue compares. The *direction* is carried
+#: by the issue kind (``missing_*`` vs ``orphan_*``), so the pair is unordered.
+RECONCILIATION_STORE_PAIRS: frozenset[str] = frozenset(
+    {"postgres_object", "postgres_milvus", "object_milvus"}
+)
+#: Issue kinds, quoted verbatim from ``data-model.md``.
+RECONCILIATION_ISSUE_KINDS: frozenset[str] = frozenset(
+    {
+        "missing_object",
+        "orphan_object",
+        "missing_vector",
+        "orphan_vector",
+        "missing_chunk",
+        "version_drift",
+    }
+)
+RECONCILIATION_SEVERITIES: frozenset[str] = frozenset({"info", "warning", "critical"})
+#: Issue lifecycle. An issue ends either repaired automatically or escalated to
+#: a human; it is never silently dropped.
+RECONCILIATION_STATES: frozenset[str] = frozenset(
+    {"open", "repairing", "repaired", "manual_required"}
+)
+RECONCILIATION_TERMINAL_STATES: frozenset[str] = frozenset({"repaired", "manual_required"})
+
+#: Sentinel for "this issue is not about one specific version". A real NULL
+#: cannot be used: PostgreSQL treats NULLs as distinct in a unique constraint,
+#: which would let a periodic sweep insert a duplicate row every pass.
+NO_VERSION_SENTINEL: Final = ""
 
 #: The tenant that owns every row which predates multi-tenancy. The staged
 #: migrations seed exactly this id/code, and ``seed_initial_data`` must join the
@@ -980,4 +1095,317 @@ class CapacityTestRun(SQLModel, table=True):
     verdict: str = Field(default="inconclusive", index=True, max_length=20)
     known_limits: str | None = Field(default=None, max_length=2000)
     created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+
+
+# --- Stage 5 entities -------------------------------------------------------
+
+
+class Material(SQLModel, table=True):
+    """A logical enterprise item: the stable identity an active version hangs off.
+
+    ``active_version_id`` is a *pointer*, not a foreign key. A real FK here would
+    be mutually dependent with ``material_versions.material_id``: PostgreSQL
+    cannot create a cycle in one pass and SQLite cannot ``ALTER TABLE ... ADD
+    CONSTRAINT`` to close it afterwards. The authority for "which version may be
+    retrieved" is therefore the compare-and-set-activated ``VectorManifest``
+    (one ``retrievable`` row per material), and reconciliation reports a pointer
+    that disagrees with it as ``version_drift`` -- which is strictly better than
+    an FK, because an FK could not have detected that class of drift at all.
+
+    ``read_only`` marks a formal policy original: its versions never become
+    writable workspace outputs (``data-model.md`` Cross-Entity Invariant #8).
+    """
+
+    __tablename__ = "materials"
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    tenant_id: str = Field(foreign_key="tenants.id", index=True, max_length=36)
+    knowledge_base_id: str | None = Field(
+        default=None, foreign_key="knowledge_bases.id", index=True, max_length=36
+    )
+    owner_user_id: str | None = Field(
+        default=None, foreign_key="users.id", index=True, max_length=36
+    )
+    name: str = Field(max_length=255)
+    source_type: str = Field(index=True, max_length=30)
+    status: str = Field(default="pending_upload", index=True, max_length=20)
+    active_version_id: str | None = Field(default=None, index=True, max_length=36)
+    read_only: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    version: int = Field(default=1, ge=1)
+
+
+class ObjectVersion(SQLModel, table=True):
+    """One immutable provider object version in the versioned object store.
+
+    The row records the *opaque* key the service derived plus the provider's own
+    ``version_id``; API clients never choose or see either (they address material
+    and version IDs). ``material_version_id`` is a plain column rather than a
+    foreign key for the same cycle reason as ``Material.active_version_id``: the
+    authoritative link is ``material_versions.object_version_id``, and a
+    disagreement between the two directions is exactly what the
+    ``missing_object`` / ``orphan_object`` reconciliation checks look for.
+    """
+
+    __tablename__ = "object_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "bucket_alias",
+            "object_key",
+            "provider_version_id",
+            name="uq_object_versions_provider",
+        ),
+    )
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    tenant_id: str = Field(foreign_key="tenants.id", index=True, max_length=36)
+    material_id: str = Field(foreign_key="materials.id", index=True, max_length=36)
+    material_version_id: str | None = Field(default=None, index=True, max_length=36)
+    bucket_alias: str = Field(max_length=63)
+    object_key: str = Field(index=True, max_length=512)
+    provider_version_id: str = Field(max_length=256)
+    sha256: str = Field(max_length=64)
+    size_bytes: int = Field(ge=0)
+    media_type: str = Field(max_length=180)
+    encryption_algorithm: str = Field(default="AES256", max_length=40)
+    encryption_key_id: str | None = Field(default=None, max_length=256)
+    scan_status: str = Field(default="pending", index=True, max_length=20)
+    deletion_state: str = Field(default="retained", index=True, max_length=20)
+    retention_until: datetime | None = Field(default=None, sa_type=UTCDateTime)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    version: int = Field(default=1, ge=1)
+
+
+class MaterialVersion(SQLModel, table=True):
+    """An immutable version of a material; editing appends, never mutates.
+
+    ``version_number`` is unique per material and monotonically increasing.
+    Only the root (``version_number == 1``) may omit ``source_version_id``; a
+    later version without a parent would fork the chain invisibly, which the
+    ``ck_material_versions_root_chain`` CHECK and
+    :func:`material_version_chain_error` both reject.
+
+    ``sha256`` / ``size_bytes`` / ``media_type`` restate the object's metadata so
+    the database can be checked against the bytes; :func:`object_metadata_error`
+    is the single place that comparison lives.
+    """
+
+    __tablename__ = "material_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "material_id", "version_number", name="uq_material_versions_number"
+        ),
+    )
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    tenant_id: str = Field(foreign_key="tenants.id", index=True, max_length=36)
+    material_id: str = Field(foreign_key="materials.id", index=True, max_length=36)
+    version_number: int = Field(ge=1, index=True)
+    source_version_id: str | None = Field(
+        default=None, foreign_key="material_versions.id", index=True, max_length=36
+    )
+    object_version_id: str | None = Field(
+        default=None, foreign_key="object_versions.id", index=True, max_length=36
+    )
+    sha256: str = Field(max_length=64)
+    size_bytes: int = Field(ge=0)
+    media_type: str = Field(max_length=180)
+    status: str = Field(default="staging", index=True, max_length=20)
+    created_by: str = Field(max_length=36)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    version: int = Field(default=1, ge=1)
+
+
+class EmbeddingVersion(SQLModel, table=True):
+    """The retrieval contract a set of vectors was produced under.
+
+    Exactly one row per ``(tenant, knowledge base, cohort)`` may be ``active``,
+    enforced by the partial unique index ``uq_embedding_versions_active`` rather
+    than by convention: two simultaneously-active embedding versions would mean
+    a query mixes vector spaces, which silently destroys ranking.
+    """
+
+    __tablename__ = "embedding_versions"
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    tenant_id: str = Field(foreign_key="tenants.id", index=True, max_length=36)
+    knowledge_base_id: str = Field(
+        foreign_key="knowledge_bases.id", index=True, max_length=36
+    )
+    cohort: str = Field(default="default", index=True, max_length=60)
+    provider: str = Field(max_length=60)
+    model_identifier: str = Field(max_length=200)
+    dimensions: int = Field(ge=1)
+    normalization: str = Field(default="l2", max_length=20)
+    chunking_policy_version: str = Field(default="1", max_length=20)
+    status: str = Field(default="building", index=True, max_length=20)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    version: int = Field(default=1, ge=1)
+
+
+class VectorManifest(SQLModel, table=True):
+    """The PostgreSQL-side record of what a material/document owns in Milvus.
+
+    ``retrievable`` is the switch a query filters on, and at most one manifest
+    per subject may carry it (``uq_vector_manifests_active_material`` /
+    ``..._document``). Activation is therefore a compare-and-set: the new
+    manifest is staged and verified first, and only the flag flip makes it
+    authoritative, so the previous version keeps serving until that instant and
+    the two are never simultaneously authoritative.
+
+    A manifest describes a material version *or* a knowledge document, never
+    both and never neither (``ck_vector_manifests_one_subject``).
+    """
+
+    __tablename__ = "vector_manifests"
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    tenant_id: str = Field(foreign_key="tenants.id", index=True, max_length=36)
+    knowledge_base_id: str = Field(
+        foreign_key="knowledge_bases.id", index=True, max_length=36
+    )
+    material_id: str | None = Field(
+        default=None, foreign_key="materials.id", index=True, max_length=36
+    )
+    material_version_id: str | None = Field(
+        default=None, foreign_key="material_versions.id", index=True, max_length=36
+    )
+    document_id: str | None = Field(
+        default=None, foreign_key="knowledge_documents.id", index=True, max_length=36
+    )
+    embedding_version_id: str = Field(
+        foreign_key="embedding_versions.id", index=True, max_length=36
+    )
+    milvus_database: str = Field(max_length=120)
+    milvus_collection: str = Field(max_length=200)
+    vector_id_prefix: str = Field(index=True, max_length=200)
+    chunk_ids: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    expected_count: int = Field(default=0, ge=0)
+    indexed_count: int = Field(default=0, ge=0)
+    content_hash: str = Field(default="", max_length=64)
+    retrievable: bool = Field(default=False, index=True)
+    activated_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
+    deletion_state: str = Field(default="retained", index=True, max_length=20)
+    deleted_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    version: int = Field(default=1, ge=1)
+
+
+class ReconciliationIssue(SQLModel, table=True):
+    """One detected disagreement between two stores.
+
+    The natural key ``(tenant, store_pair, issue_kind, resource_kind,
+    resource_id, version_id)`` is unique so a periodic sweep *re-finds* an open
+    issue instead of inserting a duplicate on every pass -- which is what makes
+    "100% detection" a stable number rather than a growing pile. ``version_id``
+    is NOT NULL with the :data:`NO_VERSION_SENTINEL` empty string for the same
+    reason: PostgreSQL treats NULLs as distinct in a unique constraint.
+    """
+
+    __tablename__ = "reconciliation_issues"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "store_pair",
+            "issue_kind",
+            "resource_kind",
+            "resource_id",
+            "version_id",
+            name="uq_reconciliation_issues_natural",
+        ),
+    )
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    tenant_id: str = Field(foreign_key="tenants.id", index=True, max_length=36)
+    store_pair: str = Field(index=True, max_length=30)
+    issue_kind: str = Field(index=True, max_length=30)
+    resource_kind: str = Field(max_length=60)
+    resource_id: str = Field(index=True, max_length=256)
+    version_id: str = Field(default=NO_VERSION_SENTINEL, max_length=256)
+    observed_fingerprint: str | None = Field(default=None, max_length=256)
+    expected_fingerprint: str | None = Field(default=None, max_length=256)
+    severity: str = Field(default="warning", index=True, max_length=20)
+    state: str = Field(default="open", index=True, max_length=20)
+    attempts: int = Field(default=0, ge=0)
+    max_attempts: int = Field(default=5, ge=1)
+    next_attempt_at: datetime | None = Field(default=None, index=True, sa_type=UTCDateTime)
+    last_error_code: str | None = Field(default=None, max_length=80)
+    resolution: str | None = Field(default=None, max_length=500)
+    detected_at: datetime = Field(default_factory=utc_now, index=True, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    resolved_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
+    version: int = Field(default=1, ge=1)
+
+
+# --- Stage 5 invariant helpers ----------------------------------------------
+
+
+def next_version_number(existing: Iterable[int]) -> int:
+    """Return the next monotonic ``version_number`` after ``existing``.
+
+    Monotonic rather than "count + 1": a gap (a superseded version that was
+    physically deleted) must never let a new version reuse a smaller number,
+    because an evidence row may still cite the larger one.
+    """
+    numbers = list(existing)
+    return (max(numbers) + 1) if numbers else 1
+
+
+def material_version_chain_error(
+    *, version_number: int, source_version_id: str | None
+) -> str | None:
+    """Validate the root/parent rule; return a reason or ``None`` when valid."""
+    if version_number == 1 and source_version_id is not None:
+        return "the root version (version_number=1) cannot declare source_version_id"
+    if version_number > 1 and source_version_id is None:
+        return f"version_number={version_number} requires source_version_id"
+    return None
+
+
+def object_metadata_error(
+    version: "MaterialVersion", object_version: "ObjectVersion"
+) -> str | None:
+    """Compare a version's claim about the bytes with the object's own metadata.
+
+    Returns a reason naming the first disagreeing field, or ``None`` when the
+    database and the object store agree. Tenant ownership is checked first: a
+    version must never point at another tenant's object, and that is a harder
+    failure than a hash mismatch.
+    """
+    if version.tenant_id != object_version.tenant_id:
+        return (
+            "tenant_id mismatch between material version and object version; "
+            "cross-tenant object references are forbidden"
+        )
+    if version.material_id != object_version.material_id:
+        return "material_id mismatch between material version and object version"
+    for field in ("sha256", "size_bytes", "media_type"):
+        claimed = getattr(version, field)
+        actual = getattr(object_version, field)
+        if claimed != actual:
+            return f"{field} mismatch: row claims {claimed!r}, object reports {actual!r}"
+    return None
+
+
+def published_field_violations(
+    before: "MaterialVersion", after: "MaterialVersion"
+) -> list[str]:
+    """Return the published fields ``after`` changed relative to ``before``.
+
+    An empty list means the write only touched mutable lifecycle columns. A
+    non-empty list must abort the write: a published version is evidence, and
+    rewriting it in place would retroactively change what a completed run cited.
+    """
+    return sorted(
+        field
+        for field in MATERIAL_VERSION_PUBLISHED_FIELDS
+        if getattr(before, field, None) != getattr(after, field, None)
+    )
+
 

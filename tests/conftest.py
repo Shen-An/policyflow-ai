@@ -43,6 +43,14 @@ _COMPOSE_DEFAULTS = {
     "POSTGRES_USER": "policyflow",
     "POSTGRES_PASSWORD": "policyflow-dev",
     "POSTGRES_PORT": "5432",
+    # Stage 5 object store / vector store. The credentials here are the compose
+    # file's own development defaults, not secrets: infra/dev/.env is gitignored,
+    # so a developer who never wrote one still gets a working stack.
+    "MINIO_PORT": "9000",
+    "MINIO_ROOT_USER": "policyflow",
+    "MINIO_ROOT_PASSWORD": "policyflow-dev-secret",
+    "OBJECT_STORE_BUCKET": "policyflow-materials",
+    "MILVUS_PORT": "19530",
 }
 
 
@@ -80,6 +88,11 @@ def _build_default_test_url() -> str:
     return (
         f"postgresql+psycopg://{user}:{password}@127.0.0.1:{port}/{TEST_DATABASE_NAME}"
     )
+
+
+def _infra_value(key: str) -> str:
+    """Resolve one infrastructure knob: environment, then env file, then default."""
+    return os.environ.get(key) or _read_env_file().get(key) or _COMPOSE_DEFAULTS[key]
 
 
 def test_database_url() -> str:
@@ -307,3 +320,118 @@ def scratch_database(base_url: str, name: str) -> Iterator[str]:
         with psycopg.connect(maintenance, autocommit=True) as conn:
             with conn.cursor() as cur:
                 cur.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+
+
+# --- Stage 5: object store and vector store -------------------------------
+#
+# These mirror the ``pg_url`` contract exactly: they hand out a live endpoint or
+# skip cleanly. Stage 5's guarantees (immutable versions, provider VersionIds,
+# delete markers, pre-ANN tenant filters) cannot be proven against a fake, so the
+# suites either run on the real compose stack or do not claim a verdict at all.
+
+#: Env overrides so a developer can point the suites at another stack.
+TEST_OBJECT_STORE_ENDPOINT_ENV = "POLICYFLOW_TEST_OBJECT_STORE_ENDPOINT"
+TEST_MILVUS_URI_ENV = "POLICYFLOW_TEST_MILVUS_URI"
+
+
+def _default_object_store_endpoint() -> str:
+    """Plain-HTTP MinIO endpoint for the dev stack (TLS is a production knob)."""
+    return f"http://127.0.0.1:{_infra_value('MINIO_PORT')}"
+
+
+def _default_milvus_uri() -> str:
+    return f"http://127.0.0.1:{_infra_value('MILVUS_PORT')}"
+
+
+@pytest.fixture(scope="session")
+def object_store_config():
+    """Live object-store configuration, skipping cleanly when MinIO is down.
+
+    Versioning is asserted rather than enabled here: the compose ``minio-init``
+    service owns turning it on, and a bucket that lost versioning must fail the
+    suite loudly instead of being silently repaired, because physical deletion of
+    "all versions and delete markers" is meaningless without it.
+    """
+    from backend.app.storage.object_store import ObjectStoreConfig
+
+    endpoint = os.environ.get(TEST_OBJECT_STORE_ENDPOINT_ENV) or _default_object_store_endpoint()
+    config = ObjectStoreConfig(
+        endpoint_url=endpoint,
+        region="us-east-1",
+        bucket=_infra_value("OBJECT_STORE_BUCKET"),
+        access_key_id=_infra_value("MINIO_ROOT_USER"),
+        secret_access_key=_infra_value("MINIO_ROOT_PASSWORD"),
+        session_token=None,
+        tls_enabled=endpoint.startswith("https://"),
+        versioning_required=True,
+        connect_timeout_seconds=5.0,
+        read_timeout_seconds=15.0,
+    )
+    try:
+        import boto3
+        from botocore.config import Config as BotoConfig
+
+        client = boto3.client(
+            "s3",
+            endpoint_url=config.endpoint_url,
+            region_name=config.region,
+            aws_access_key_id=config.access_key_id,
+            aws_secret_access_key=config.secret_access_key,
+            config=BotoConfig(
+                connect_timeout=3,
+                read_timeout=5,
+                retries={"max_attempts": 1},
+            ),
+        )
+        status = client.get_bucket_versioning(Bucket=config.bucket).get("Status")
+    except Exception as exc:  # noqa: BLE001 - any failure to reach it means skip
+        pytest.skip(
+            f"object store is not reachable at {endpoint} "
+            f"({type(exc).__name__}); start infra/dev/compose.yaml"
+        )
+    if status != "Enabled":
+        pytest.fail(
+            f"bucket {config.bucket} reports versioning={status!r}; Stage 5 requires "
+            "Enabled (the compose minio-init service turns it on)"
+        )
+    return config
+
+
+@pytest.fixture(scope="session")
+def milvus_uri() -> str:
+    """Live Milvus URI, skipping cleanly when no server is running."""
+    uri = os.environ.get(TEST_MILVUS_URI_ENV) or _default_milvus_uri()
+    try:
+        from pymilvus import MilvusClient
+
+        client = MilvusClient(uri=uri, timeout=5.0)
+        client.list_collections()
+        client.close()
+    except Exception as exc:  # noqa: BLE001 - any failure to reach it means skip
+        pytest.skip(
+            f"Milvus is not reachable at {uri} ({type(exc).__name__}); "
+            "start infra/dev/compose.yaml"
+        )
+    return uri
+
+
+def load_stage5_migration():
+    """Import the Stage-5 expand migration (004) by path.
+
+    Alembic addresses revisions by file path, so ``004_stage5_materials`` is not
+    an importable module name. Suites read ``CHECK_CONSTRAINTS``,
+    ``ROW_CHECK_CONSTRAINTS`` and ``PARTIAL_UNIQUE_INDEXES`` from here rather than
+    restating the SQL, so a predicate can never drift between the migration
+    production runs and the schema a test asserts against.
+    """
+    import importlib.util
+
+    matches = sorted((REPO_ROOT / "migrations" / "versions").glob("004_*.py"))
+    if len(matches) != 1:
+        raise RuntimeError(f"expected exactly one 004 migration, found {matches}")
+    spec = importlib.util.spec_from_file_location("stage5_migration", matches[0])
+    if spec is None or spec.loader is None:  # pragma: no cover - import plumbing
+        raise RuntimeError("could not load the Stage-5 migration")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module

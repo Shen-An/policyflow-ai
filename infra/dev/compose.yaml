@@ -105,8 +105,17 @@ services:
     restart: unless-stopped
 
   minio:
-    image: minio/minio:RELEASE.2025-05-24T17-08-30Z
-    command: ["server", "/data", "--console-address", ":9001"]
+    # Upstream `minio/minio` and `minio/mc` on Docker Hub (and quay.io/minio/*)
+    # now answer anonymous pulls with 401/"pull access denied", so the pinned
+    # RELEASE.2025-05-24T17-08-30Z tag is no longer fetchable on a clean host.
+    # `bitnamilegacy/minio:2025.5.24` is the *same* MinIO build (the server
+    # reports 2025-05-24T17-08-30Z) and bundles `mc` 2025-05-21, so both the
+    # server and the init step below keep their original versions. Bitnami
+    # conventions differ from upstream: no `server` command is passed (the
+    # image's own entrypoint starts it), the data dir is /bitnami/minio/data,
+    # and the `local` mc alias is pre-configured, which is what `mc ready local`
+    # in the healthcheck relies on.
+    image: bitnamilegacy/minio:2025.5.24
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-policyflow}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-policyflow-dev-secret}
@@ -114,7 +123,7 @@ services:
       - "${MINIO_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
-      - policyflow-minio:/data
+      - policyflow-minio:/bitnami/minio/data
     healthcheck:
       test: ["CMD-SHELL", "mc ready local || curl -fsS http://127.0.0.1:9000/minio/health/live"]
       interval: 10s
@@ -124,14 +133,21 @@ services:
     restart: unless-stopped
 
   minio-init:
-    image: minio/mc:RELEASE.2025-05-21T01-59-45Z
+    # Same image as the server because it ships the `mc` client; the dedicated
+    # `minio/mc` image is no longer anonymously pullable (see the note above).
+    # Object-store *versioning* is a hard Stage-5 requirement
+    # (OBJECT_STORE_VERSIONING_REQUIRED): physical deletion must be able to
+    # remove every object version and delete marker, so the bucket is useless to
+    # us unversioned.
+    image: bitnamilegacy/minio:2025.5.24
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >-
-        mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}"
+        mc alias set target http://minio:9000 "$${MINIO_ROOT_USER}"
         "$${MINIO_ROOT_PASSWORD}" &&
-        mc mb --ignore-existing "local/$${OBJECT_STORE_BUCKET}" &&
-        mc version enable "local/$${OBJECT_STORE_BUCKET}"
+        mc mb --ignore-existing "target/$${OBJECT_STORE_BUCKET}" &&
+        mc version enable "target/$${OBJECT_STORE_BUCKET}" &&
+        mc version info "target/$${OBJECT_STORE_BUCKET}"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-policyflow}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-policyflow-dev-secret}
@@ -147,6 +163,13 @@ services:
     environment:
       ETCD_ENDPOINTS: etcd:2379
       MINIO_ADDRESS: minio:9000
+      # Milvus keeps its own segment/index objects in MinIO under a separate
+      # bucket (`a-bucket`, auto-created) and must authenticate as the same root
+      # identity the compose stack configures; without these it falls back to the
+      # `minioadmin` default and never reaches healthy.
+      MINIO_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-policyflow}
+      MINIO_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-policyflow-dev-secret}
+      MINIO_USE_SSL: "false"
     ports:
       - "${MILVUS_PORT:-19530}:19530"
       - "${MILVUS_METRICS_PORT:-9091}:9091"

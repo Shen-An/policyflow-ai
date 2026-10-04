@@ -590,25 +590,27 @@ SELECT 与 UPDATE 之间没有原子性，UPDATE 也不带 `status='pending'` �
 
 
 
+## Phase 5: User Story 1A — 安全存储企业材料 (Priority: P1, Stage 5)
+
 **Goal**: 在真实文件工作流前建立 PostgreSQL 元数据、Milvus 向量和 MinIO/S3 字节的单一职责、不可变版本、租户过滤、可恢复 saga 与物理删除核对。
 
 **Independent Test**: 两租户同名材料更新期间只检索当前 active immutable version；Milvus 不可用时返回 `RETRIEVAL_UNAVAILABLE` 并 fail closed；预置 missing/orphan/drift 100% 检出且物理删除清空向量、对象所有版本/delete markers 和 SQL 引用。
 
 ### Tests for User Story 1A
 
-- [ ] T073 [P] [US1] 在 `tests/contract/test_material_model.py` 中为 Material/MaterialVersion/ObjectVersion/EmbeddingVersion/VectorManifest/ReconciliationIssue 的字段、枚举、不可变发布字段和版本关系编写失败测试
-- [ ] T074 [P] [US1] 在 `tests/integration/test_milvus_versions.py` 中为 ANN 前 tenant + allowed KB + active document/material version + embedding version + `retrievable=true` 过滤和 CAS activation 编写失败测试
-- [ ] T075 [P] [US1] 在 `tests/integration/test_object_versions.py` 中为短期受限 upload、provider VersionId、size/SHA-256/media/scan 核验、opaque key 和跨租户拒绝编写失败测试
+- [X] T073 [P] [US1] 在 `tests/contract/test_material_model.py` 中为 Material/MaterialVersion/ObjectVersion/EmbeddingVersion/VectorManifest/ReconciliationIssue 的字段、枚举、不可变发布字段和版本关系编写失败测试 — **完成（R34）**：`tests/contract/test_material_model.py` 22 passed。覆盖六实体字段/枚举（逐字比对 data-model.md）、CAS version 列、租户归属、unique 约束，并把 004 的行级 CHECK 谓词**真跑 SQLite 接受/拒绝用例**（防谓词写反）。
+- [X] T074 [P] [US1] 在 `tests/integration/test_milvus_versions.py` 中为 ANN 前 tenant + allowed KB + active document/material version + embedding version + `retrievable=true` 过滤和 CAS activation 编写失败测试 — **完成（R34）**：`tests/integration/test_milvus_versions.py` **15 passed（真 Milvus 2.5.15 + 真 PostgreSQL）**。强制 pre-ANN 五项过滤（tenant/KB/version/embedding/retrievable）、scope 无法构造出不收窄的过滤、search 不接受调用方 filter 串、两租户同名材料零交叉、staged 版本不可检索→CAS 翻转才切换、每材料恰一个 retrievable、未 verify 拒绝 activate、跨 embedding version 过滤、**projection 漂移 fail-closed**、Milvus 不可达 typed RETRIEVAL_UNAVAILABLE(503/retryable，不泄端点)、index 元数据取自 describe_index、tenant partition key、确定性 ID 幂等重索引。
+- [X] T075 [P] [US1] 在 `tests/integration/test_object_versions.py` 中为短期受限 upload、provider VersionId、size/SHA-256/media/scan 核验、opaque key 和跨租户拒绝编写失败测试 — **完成（R34）**：`tests/integration/test_object_versions.py` **14 passed（真 MinIO，桶已开版本控制）**。短期 grant（含有效期/字节上限/单对象 presigned PUT）、key 不透明且确定（不泄文件名/租户/版本号）、`create_upload` 签名无 bucket/key 参数、size+SHA-256+media 三项各自错配均拒、未上传不通过、range read 字节精确+越界收敛、superseded provider 版本仍可读、**delete_all_versions 清空所有版本与 delete markers 且幂等**、跨租户读/删在到达 provider 前拒绝、无版本控制桶拒绝启动。
 - [ ] T076 [P] [US1] 在 `tests/recovery/test_cross_store_saga.py` 中为 upload/index/activate/delete 部分失败、幂等恢复和禁止永久双写编写失败测试
 - [ ] T077 [P] [US1] 在 `tests/reconciliation/test_cross_store_issues.py` 中为 `missing_object/orphan_object/missing_vector/orphan_vector/missing_chunk/version_drift` 100% 检出编写失败测试
 - [ ] T078 [P] [US1] 在 `tests/reconciliation/test_physical_delete.py` 中为先禁检索、删除所有对象版本/delete markers、清 SQL 及失败保持 `deleting` 可恢复编写失败测试
 
 ### Implementation for User Story 1A
 
-- [ ] T079 [P] [US1] 在 `backend/app/db/models.py` 中增加 Material、MaterialVersion、ObjectVersion、EmbeddingVersion、VectorManifest 与 ReconciliationIssue，约束 `version_number` 单调且每 Material 唯一、`source_version_id` 根版本外必填、对象元数据必须一致、状态严格使用 `data-model.md` 枚举
-- [ ] T080 [P] [US1] 在 `backend/app/storage/object_store.py` 中实现只接受 material/version ID 的 create_upload、verify_upload、range read 与 delete_all_versions；客户端不得选择 bucket/key
-- [ ] T081 [P] [US1] 在 `backend/app/retrieval/milvus.py` 中实现共享 collection、tenant partition key、mandatory pre-ANN filters、typed unavailable 和真实策略/索引元数据
-- [ ] T082 [US1] 在 `backend/app/retrieval/indexer.py` 中实现 deterministic vector IDs、stage/verify/CAS activate/deactivate/delete 与一次仅一个 active retrieval version（依赖 T079、T081）
+- [X] T079 [P] [US1] 在 `backend/app/db/models.py` 中增加 Material、MaterialVersion、ObjectVersion、EmbeddingVersion、VectorManifest 与 ReconciliationIssue，约束 `version_number` 单调且每 Material 唯一、`source_version_id` 根版本外必填、对象元数据必须一致、状态严格使用 `data-model.md` 枚举 — **完成（R34）**：`backend/app/db/models.py` 六实体 + 新增 expand 迁移 `migrations/versions/004_stage5_materials.py`（已在真 PG 上 upgrade head 通过，含 RLS FORCE + policyflow_app 授权）。`version_number` 每材料唯一且单调（`next_version_number` 取 max+1，不复用空洞）、根版本外 `source_version_id` 必填（CHECK `ck_material_versions_root_chain`）、`object_metadata_error` 比对 sha256/size/media/租户、`published_field_violations` 冻结已发布字段、状态逐字用 data-model.md 枚举。**诚实说明**：`materials.active_version_id` 与 `object_versions.material_version_id` 故意不设外键（会与 `material_versions` 形成 PG 一次建不出、SQLite 无法 ALTER 补的互依赖环）；权威方向是 `material_versions.object_version_id` + CAS 的 manifest，两侧不一致正是 `version_drift`/`orphan_object` 核对项。
+- [X] T080 [P] [US1] 在 `backend/app/storage/object_store.py` 中实现只接受 material/version ID 的 create_upload、verify_upload、range read 与 delete_all_versions；客户端不得选择 bucket/key — **完成（R34）**：`backend/app/storage/object_store.py`。只接受 material/version ID；key = HMAC(namespace, tenant|material|version) 分片前缀，不透明且确定；跨租户闸门**无状态**（重新派生比对，不用进程内缓存——缓存会让新 worker/核对进程误拒合法访问）；`verify_upload` 以**流式重算 SHA-256**（不信 ETag，因多段/加密上传 ETag 不是 MD5）；`delete_all_versions` 分页重列直到版本与 delete markers 全空且幂等；`verify_bucket_contract` 无版本控制即拒启。
+- [X] T081 [P] [US1] 在 `backend/app/retrieval/milvus.py` 中实现共享 collection、tenant partition key、mandatory pre-ANN filters、typed unavailable 和真实策略/索引元数据 — **完成（R34）**：`backend/app/retrieval/milvus.py`。单共享 collection + `tenant_id` 为 Milvus `is_partition_key`；`search` 只收 `RetrievalScope`（无 filter/expr 参数），五项过滤由模块渲染且空项直接 raise；一切故障→`RetrievalUnavailable`（RETRIEVAL_UNAVAILABLE/503/retryable）绝不退化成空结果；**读一致性用 `Strong` 而非默认 `Bounded`**（有界陈旧会让查询答出几秒前的 active 版本，正是 Checkpoint 禁止的 stale retrieval，也会让 verify 计数失真）；`index_metadata()` 取自 `describe_index`，`strategy_name()` 内嵌真实 index/metric 以免报告夸大。
+- [~] T082 [US1] 在 `backend/app/retrieval/indexer.py` 中实现 deterministic vector IDs、stage/verify/CAS activate/deactivate/delete 与一次仅一个 active retrieval version（依赖 T079、T081） — **大部分完成（R34）**：`backend/app/retrieval/indexer.py`。确定性 vector ID（prefix=hash(tenant,kb,subject,version,embedding)，`prefix:chunk_id`）使重索引为覆盖而非重复；stage→verify→CAS activate 四步，`activate` 在**单事务内降旧升新**且 version CAS 守卫，未 verify（indexed≠expected）拒绝激活；retrievable 双写顺序为「新 projection 先开→PG 权威提交→旧 projection 后关」，任何中间态都只服务旧或新版本且漂移 fail-closed。**仍差**：`delete()`/`deactivate()` 路径已实现但尚无专门测试（由 T078 物理删除测试覆盖，T078 未写），故暂标 `[~]` 不标 `[X]`。
 - [ ] T083 [US1] 在 `backend/app/storage/saga.py` 中实现 `pending_upload → scanning → indexing → available → deleting → deleted/error` 的 outbox 驱动幂等 saga（依赖 T063、T079、T080、T082）
 - [ ] T084 [P] [US1] 在 `backend/app/storage/reconciliation.py` 中实现 PostgreSQL/Milvus/object-store 的 missing/orphan/drift 周期核对、attempt/next_attempt/error 和修复/人工处理终态
 - [ ] T085 [US1] 在 `backend/app/api/routes_materials.py` 中实现 `POST /api/v2/materials`：filename `minLength=1/maxLength=255`、size `minimum=1`、SHA-256 `^[a-f0-9]{64}$`、purpose `task_input|policy_import` 及 413/415/422（依赖 T080、T083）

@@ -83,11 +83,27 @@ def test_alembic_config_and_revision_scaffold_load() -> None:
         # order available.
         if revision.down_revision is not None:
             assert isinstance(revision.down_revision, str)
-    # The chain is expand -> enforce, and only 002 is a head.
-    assert script.get_heads() == ["002"]
+    # The chain is linear and has exactly one head, so the staged order is the
+    # only order available. The head id is deliberately not hard-coded: every
+    # stage appends a revision (Stage 4 added 003, Stage 5 added 004), and an
+    # assertion naming one revision would have to be edited by each of them --
+    # which is how it came to assert a head that two stages had already moved
+    # past. What must stay true is that there is only ever *one* head and that
+    # the chain descends unbroken from 001.
+    heads = script.get_heads()
+    assert len(heads) == 1, f"the staged chain must not branch; found heads {heads}"
     parents = {revision.revision: revision.down_revision for revision in revisions}
+    assert parents["001"] is None, "001 is the root of the chain"
     assert parents["002"] == "001"
-    assert parents["001"] is None
+    walked = set()
+    cursor: str | None = heads[0]
+    while cursor is not None:
+        assert cursor not in walked, f"the chain revisits {cursor}"
+        walked.add(cursor)
+        cursor = parents[cursor]
+    assert walked == set(parents), (
+        f"every revision must be reachable from the head; orphans: {set(parents) - walked}"
+    )
 
 
 def test_target_metadata_imports_real_models() -> None:

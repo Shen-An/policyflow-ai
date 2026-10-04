@@ -117,9 +117,18 @@ def _insert_durable_job(cursor: psycopg.Cursor, job_id: str, tenant_id: str, key
 
 
 def test_head_is_revision_003_with_all_stage4_tables(stage4: str) -> None:
-    """``upgrade head`` must reach 003 and create every Stage-4 table."""
+    """``upgrade head`` must apply 003 and create every Stage-4 table.
+
+    The applied revision is checked for "003 or later" rather than "exactly 003":
+    each later stage appends a revision (Stage 5 added 004), and asserting the
+    exact head would make every stage edit this Stage-4 test. What Stage 4 needs
+    guaranteed is that its own revision ran and its tables exist.
+    """
     with connect(stage4) as cursor:
-        assert scalar(cursor, "SELECT version_num FROM alembic_version") == "003"
+        applied = scalar(cursor, "SELECT version_num FROM alembic_version")
+        assert applied is not None and applied >= "003", (
+            f"upgrade head must include 003; alembic_version is {applied!r}"
+        )
         for table in STAGE4_TABLES:
             exists = scalar(
                 cursor, "SELECT to_regclass(%s)", (f"public.{table}",)
