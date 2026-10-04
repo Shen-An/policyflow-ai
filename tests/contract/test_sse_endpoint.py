@@ -479,7 +479,9 @@ def test_events_endpoint_moves_sse_gauge_and_times_cleanup(client: TestClient) -
     try:
         run_id = _create_run(client)
         prefix = client.app.state.run_event_stream._prefix
-        asyncio.run(_publish(prefix, run_id, [("run.started", {"n": 1})]))
+        # A finished run's backlog (ends terminal) so the endpoint replays and
+        # closes; the gauge +1/-1 and cleanup timing happen on that open/close.
+        asyncio.run(_publish(prefix, run_id, [("run.started", {"n": 1}), ("run.succeeded", {})]))
         resp = client.get(f"/api/v2/runs/{run_id}/events", headers=_alpha())
         assert resp.status_code == 200, resp.text
 

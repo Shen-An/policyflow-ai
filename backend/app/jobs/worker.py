@@ -59,12 +59,38 @@ def build_app():
     runtime = build_worker_runtime(
         database_url=settings.DATABASE_URL,
         registry=build_registry(),
+        event_stream=_build_event_stream(settings),
         worker_id=f"celery-worker:{os.getpid()}",
         lease_seconds=int(os.environ.get("POLICYFLOW_WORKER_LEASE_SECONDS", "15")),
         settings=settings,
     )
     register_job_task(app, runtime)
     return app, runtime
+
+
+def _build_event_stream(settings):
+    """A RunEventStream over the configured Redis, or None if Redis is absent.
+
+    The worker publishes run lifecycle events here so connected SSE clients see the
+    run advance live (the cross-instance tail). Without a reachable Redis the worker
+    still runs jobs; it just does not emit live SSE events.
+    """
+    redis_url = getattr(settings, "REDIS_URL", None)
+    if not redis_url:
+        return None
+    try:
+        import redis.asyncio as redis_asyncio
+
+        from backend.app.sse.stream import RunEventStream
+
+        return RunEventStream(
+            redis_asyncio.from_url(redis_url),
+            prefix=settings.REDIS_SSE_STREAM_PREFIX,
+            max_events=settings.SSE_REPLAY_MAX_EVENTS_PER_RUN,
+            ttl_seconds=settings.SSE_REPLAY_TTL_SECONDS,
+        )
+    except Exception:  # noqa: BLE001 - Redis/stream optional; worker still runs jobs
+        return None
 
 
 # Celery's CLI imports ``celery_app`` from ``-A backend.app.jobs.worker``.

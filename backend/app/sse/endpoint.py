@@ -56,6 +56,8 @@ async def sse_event_source(
     last_event_id: str | None = "0",
     channel: BoundedEventChannel | None = None,
     snapshot: Callable[[], Awaitable[Sequence[StreamEvent]]] | None = None,
+    live_tail_factory: Callable[[str], AsyncIterator[StreamEvent | None]] | None = None,
+    is_terminal: Callable[[StreamEvent], bool] | None = None,
 ) -> AsyncIterator[Mapping[str, Any]]:
     """Yield SSE frames for ``run_id``: replay backlog, then optionally live tail.
 
@@ -65,24 +67,64 @@ async def sse_event_source(
     the authoritative PostgreSQL durable milestones -- so recovery survives a full
     Redis flush -- and the partial Redis tail is *not* also emitted, since the
     durable snapshot is the superset authority. When ``snapshot`` is ``None`` the
-    generator falls back to the retained Redis events. When ``channel`` is ``None``
-    the generator ends after replay; otherwise it drains the channel until it is
-    closed, passing heartbeats through, at which point it returns so the connection
-    is released.
+    generator falls back to the retained Redis events.
+
+    After replay, the **live tail** is chosen in priority order:
+
+    * ``live_tail_factory`` (production): called with the last id replay yielded, it
+      returns an async iterator of new :class:`StreamEvent` (``None`` == heartbeat
+      tick) by tailing the cross-instance Redis stream. The generator frames each,
+      passes heartbeats through, and returns once ``is_terminal`` matches an event
+      (the run finished) -- or when the task is cancelled (client disconnect),
+      which unwinds the iterator and releases the connection.
+    * ``channel`` (legacy in-process fan-out): drained until closed.
+    * neither: the generator ends after replay (replay-only / catch-up).
     """
     after = last_event_id or "0"
     result = await stream.replay(run_id, after_id=after)
+    last_id = after
+    gapped = result.gap
+    replay_terminal = False
+
+    def _note_terminal(event: StreamEvent) -> None:
+        nonlocal replay_terminal
+        if is_terminal is not None and is_terminal(event):
+            replay_terminal = True
+
     if result.gap:
         yield _frame(CONTROL_SNAPSHOT_REQUIRED, {"run_id": run_id})
         if snapshot is not None:
             for event in await snapshot():
                 yield _frame(event.event_type, event.data, event.id)
+                _note_terminal(event)
         else:
             for event in result.events:
                 yield _frame(event.event_type, event.data, event.id)
+                last_id = event.id or last_id
+                _note_terminal(event)
     else:
         for event in result.events:
             yield _frame(event.event_type, event.data, event.id)
+            last_id = event.id or last_id
+            _note_terminal(event)
+
+    if live_tail_factory is not None:
+        # If the backlog already ended in a terminal event the run is finished --
+        # replay-then-close; do not open a blocking tail that would never produce.
+        if replay_terminal:
+            return
+        # After a gap we recovered from the PG snapshot, whose ids are not Redis
+        # stream ids, so tail only genuinely-new events ("$"); otherwise hand off
+        # cleanly from the last Redis id so no event is dropped or duplicated.
+        start = "$" if gapped else last_id
+        async for event in live_tail_factory(start):
+            if event is None:
+                yield _frame(CONTROL_HEARTBEAT, "")
+                continue
+            yield _frame(event.event_type, event.data, event.id)
+            if is_terminal is not None and is_terminal(event):
+                return
+        return
 
     if channel is None:
         return

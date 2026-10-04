@@ -32,6 +32,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from backend.app.jobs.service import JobService, JobStateError
+from backend.app.sse.run_events import (
+    RUN_CANCELLED,
+    RUN_FAILED,
+    RUN_STARTED,
+    RUN_SUCCEEDED,
+)
 
 __all__ = [
     "DOCUMENT_INDEX_KIND",
@@ -64,6 +70,10 @@ class JobContext:
     engine: Any
     lightrag_adapter: Any | None = None
     app_state: Any | None = None
+    #: Optional RunEventStream (Redis). When present the runner publishes run
+    #: lifecycle events (started/succeeded/failed/cancelled) so connected SSE
+    #: clients see the run advance live. None on a broker-free dev drain.
+    event_stream: Any | None = None
 
 
 #: A handler runs one durable job and returns an optional ``result_ref``.
@@ -194,30 +204,36 @@ class LocalJobRunner:
             )
             if job is None:
                 break
-            await self._run_one(job.id, job.kind, dict(job.payload or {}))
+            await self._run_one(
+                job.id, job.kind, dict(job.payload or {}), run_id=job.run_id or job.id
+            )
             processed += 1
         return processed
 
-    async def _run_one(self, job_id: str, kind: str, payload: dict[str, Any]) -> None:
+    async def _run_one(
+        self, job_id: str, kind: str, payload: dict[str, Any], *, run_id: str
+    ) -> None:
         handler = self._registry.get(kind)
         if handler is None:
             # No executor for this kind: fail terminally rather than hold a lease
             # that will only expire and re-queue into the same dead end.
-            await self._safe_fail(job_id, "NO_HANDLER", recoverable=False)
+            await self._safe_fail(job_id, "NO_HANDLER", recoverable=False, run_id=run_id)
             return
         try:
             await self._service.start(job_id=job_id, worker_id=self._worker_id)
+            await self._publish_lifecycle(run_id, RUN_STARTED, {"job_id": job_id})
             if self._cancel_poll_seconds is not None:
                 result_ref, cancelled = await self._run_with_cancellation(
                     job_id, handler, payload
                 )
                 if cancelled:
                     await self._safe_finalize_cancel(job_id)
+                    await self._publish_lifecycle(run_id, RUN_CANCELLED, {})
                     return
             else:
                 result_ref = await handler(self._context, payload)
         except Exception as exc:  # handler (or start) failure -> recoverable retry
-            await self._safe_fail(job_id, type(exc).__name__, recoverable=True)
+            await self._safe_fail(job_id, type(exc).__name__, recoverable=True, run_id=run_id)
             return
         try:
             await self._service.complete(
@@ -226,6 +242,24 @@ class LocalJobRunner:
         except JobStateError:
             # Lost the lease (e.g. reaped) between running and completing; the
             # authoritative row already moved on. Nothing to force here.
+            return
+        await self._publish_lifecycle(run_id, RUN_SUCCEEDED, {})
+
+    async def _publish_lifecycle(
+        self, run_id: str, event_type: str, data: dict[str, Any]
+    ) -> None:
+        """Best-effort publish of a run lifecycle event to the run's event stream.
+
+        No-op when no stream is wired (a broker-free dev drain). Errors are
+        swallowed: the SSE stream is an observability channel, so it must never
+        fail the job it is describing -- the durable row stays the authority.
+        """
+        stream = getattr(self._context, "event_stream", None)
+        if stream is None:
+            return
+        try:
+            await stream.publish(run_id, event_type, data)
+        except Exception:  # noqa: BLE001 - observability must not break the run
             pass
 
     async def _run_with_cancellation(
@@ -267,16 +301,22 @@ class LocalJobRunner:
         except JobStateError:
             pass
 
-    async def _safe_fail(self, job_id: str, error_code: str, *, recoverable: bool) -> None:
+    async def _safe_fail(
+        self, job_id: str, error_code: str, *, recoverable: bool, run_id: str
+    ) -> None:
         try:
-            await self._service.fail(
+            job = await self._service.fail(
                 job_id=job_id,
                 worker_id=self._worker_id,
                 error_code=error_code,
                 recoverable=recoverable,
             )
         except JobStateError:
-            pass
+            return
+        # Only a terminal failure ends the run; a recoverable re-queue is not
+        # terminal, so the live tail must stay open for the retry.
+        if job.state == "terminal_failed":
+            await self._publish_lifecycle(run_id, RUN_FAILED, {"error_code": error_code})
 
 
 def _resolve_job_service(app: Any) -> JobService:
@@ -303,6 +343,7 @@ def _resolve_runner(app: Any, service: JobService) -> LocalJobRunner:
         engine=app.state.engine,
         lightrag_adapter=getattr(app.state, "lightrag_adapter", None),
         app_state=app.state,
+        event_stream=getattr(app.state, "run_event_stream", None),
     )
     return LocalJobRunner(service=service, context=context, registry=registry)
 

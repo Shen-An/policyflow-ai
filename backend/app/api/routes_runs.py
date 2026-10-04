@@ -40,7 +40,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from backend.app.api.deps import PrincipalDep
 from backend.app.core.exceptions import ApplicationError, NotFoundError
-from backend.app.db.models import DurableJob
+from backend.app.db.models import JOB_TERMINAL_STATES, DurableJob
 from backend.app.jobs.service import (
     JobIdempotencyConflict,
     JobService,
@@ -49,6 +49,7 @@ from backend.app.jobs.service import (
 )
 from backend.app.observability import telemetry
 from backend.app.sse.endpoint import sse_event_source
+from backend.app.sse.run_events import is_terminal_event
 from backend.app.sse.snapshot import DurableRunSnapshot
 from backend.app.sse.stream import RunEventStream
 
@@ -300,12 +301,25 @@ async def stream_run_events(
     snapshot = _durable_snapshot(request).bind(
         tenant_id=principal.tenant_id, run_id=public_run_id
     )
+    # Live tail only while the run can still emit: a run already in a terminal
+    # state replays its backlog and returns (nothing more will be produced, so
+    # holding the connection open on a blocking XREAD would just idle). A live run
+    # hands off from the last replayed id to a cross-instance Redis-stream tail that
+    # returns on the terminal event or when the client disconnects.
+    live_tail_factory = None
+    if job.state not in JOB_TERMINAL_STATES:
+        block_ms = request.app.state.settings.SSE_LIVE_TAIL_BLOCK_MS
+
+        def live_tail_factory(start_id: str):
+            return stream.tail(public_run_id, start_id=start_id, block_ms=block_ms)
+
     generator = sse_event_source(
         stream=stream,
         run_id=public_run_id,
         last_event_id=last_event_id,
-        channel=None,
         snapshot=snapshot,
+        live_tail_factory=live_tail_factory,
+        is_terminal=is_terminal_event,
     )
     return EventSourceResponse(_instrumented_stream(generator))
 

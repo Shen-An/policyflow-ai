@@ -156,6 +156,10 @@ class Settings(BaseSettings):
     SSE_REPLAY_TTL_SECONDS: PositiveInt = 3600
     SSE_HEARTBEAT_SECONDS: PositiveFloat = 15.0
     SSE_SEND_TIMEOUT_SECONDS: PositiveFloat = 10.0
+    # Live-tail XREAD BLOCK window (ms). A tail with no new event for this long
+    # emits a heartbeat tick and re-reads, which is also how it observes client
+    # disconnect / cancellation promptly.
+    SSE_LIVE_TAIL_BLOCK_MS: PositiveInt = 15_000
 
     LLM_EXECUTION_MODE: Literal["deterministic_mock", "anthropic"] = "deterministic_mock"
     LLM_MOCK_VERSION: str = "policyflow-mock-v1"

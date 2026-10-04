@@ -138,6 +138,7 @@ def build_worker_runtime(
     database_url: str,
     registry: JobHandlerRegistry,
     context: JobContext | None = None,
+    event_stream: Any | None = None,
     worker_id: str = "celery-worker",
     lease_seconds: int = 30,
     cancel_poll_seconds: float = 0.5,
@@ -145,14 +146,14 @@ def build_worker_runtime(
 ) -> WorkerRuntime:
     """Build a :class:`WorkerRuntime` over ``database_url`` with ``registry``.
 
-    ``context`` defaults to a bare context carrying only the async engine; a
-    deployment that runs handlers needing live services (document index, eval)
-    supplies a context wired to those. ``lease_seconds`` is short by default so a
-    crashed worker's lease is reclaimable within one cycle. ``cancel_poll_seconds``
-    is the bounded step at which a running job is checked for a cancel request.
+    ``context`` defaults to a bare context carrying the async engine and (when
+    supplied) the ``event_stream`` so the worker publishes run lifecycle events for
+    the live SSE tail. ``lease_seconds`` is short by default so a crashed worker's
+    lease is reclaimable within one cycle. ``cancel_poll_seconds`` is the bounded
+    step at which a running job is checked for a cancel request.
     """
     engine = build_async_engine(database_url, settings)
-    ctx = context or JobContext(engine=engine)
+    ctx = context or JobContext(engine=engine, event_stream=event_stream)
     return WorkerRuntime(
         engine=engine,
         context=ctx,

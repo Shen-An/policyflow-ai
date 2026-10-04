@@ -222,9 +222,12 @@ async def test_concurrent_sse_replay_frees_resources(app, redis_url: str) -> Non
             )
             assert created.status_code == 201, created.text
             run_id = created.json()["run_id"]
-            # Seed retained events so each replay connection has a backlog to drain.
+            # Seed a finished run's backlog (ends terminal) so each connection
+            # replays and closes -- this measures concurrent replay cleanup. The
+            # live-tail hold-open path is covered by test_sse_live_tail.py.
             for i in range(20):
                 await stream.publish(run_id, "progress", {"step": i})
+            await stream.publish(run_id, "run.succeeded", {})
 
             # Concurrency here is deliberately within the async pool: each in-flight
             # SSE request pins a DB connection (via the principal dependency) for the

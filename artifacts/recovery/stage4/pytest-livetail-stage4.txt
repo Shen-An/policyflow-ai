@@ -1,0 +1,24 @@
+# Stage-4 live-tail SSE evidence (real-time push: worker -> Redis stream -> connected client)
+## captured: 2026-10-04T02:26:03Z
+## infra: real Redis @6379 (no RabbitMQ needed for these -- in-process worker drain)
+
+=== endpoint live tail (held-open connection receives live events, closes on terminal, gauge->0) ===
+=== + concurrent held-open (N=10) all receive + clean up, gauge->0 ===
+=== + end-to-end: in-process worker drain publishes run.started/succeeded -> connected client sees them live ===
+collecting ... collected 3 items
+
+tests/integration/test_sse_live_tail.py::test_live_tail_delivers_live_events_and_closes_on_terminal PASSED [ 33%]
+tests/integration/test_sse_live_tail.py::test_concurrent_held_open_connections_all_receive_and_clean_up PASSED [ 66%]
+tests/integration/test_sse_live_tail.py::test_worker_drain_publishes_live_to_a_connected_client PASSED [100%]
+
+============================== 3 passed in 4.96s ==============================
+
+=== worker produces lifecycle events to the stream (started->succeeded; failed only on terminal) ===
+...                                                                      [100%]
+3 passed in 1.24s
+
+## NOTE: /api/v2/runs/{id}/events now tails the cross-instance Redis stream after replay for
+## non-terminal runs (channel is no longer hard-wired to None); a terminal event (in replay or
+## live) closes the connection and releases resources. A finished run replays-then-closes. The
+## 1000-connection scale run remains deferred (bounded by per-connection DB pool pinning in
+## get_principal; production uses a tuned PG pool). Correctness is proven at N=10 held-open.

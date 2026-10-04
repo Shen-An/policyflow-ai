@@ -11,6 +11,7 @@ milestones silently.
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -106,6 +107,44 @@ class RunEventStream:
     async def latest_id(self, run_id: str) -> str | None:
         newest = await self._redis.xrevrange(self._key(run_id), count=1)
         return _decode(newest[0][0]) if newest else None
+
+    async def tail(
+        self,
+        run_id: str,
+        *,
+        start_id: str = "$",
+        block_ms: int = 1000,
+    ) -> AsyncIterator[StreamEvent | None]:
+        """Yield new events as they are appended, blocking between reads.
+
+        This is the cross-instance **live tail**: a worker on any instance appends
+        with :meth:`publish` (``XADD``) and every connection tailing this run's
+        stream (``XREAD BLOCK``) sees it. ``start_id`` should be the last id the
+        client has already seen (from replay) so the replay->live handoff neither
+        drops nor duplicates an event; ``"$"`` means "only events after now". On an
+        idle ``block_ms`` window with no new entry it yields ``None`` as a heartbeat
+        tick so the caller can keep the connection warm and observe cancellation.
+        Runs until the consumer stops (e.g. after a terminal event) or the task is
+        cancelled (client disconnect).
+        """
+        last = start_id
+        key = self._key(run_id)
+        while True:
+            raw = await self._redis.xread({key: last}, count=100, block=block_ms)
+            if not raw:
+                yield None  # idle heartbeat tick
+                continue
+            for _stream_key, entries in raw:
+                for entry_id, fields in entries:
+                    eid = _decode(entry_id)
+                    last = eid
+                    type_key = b"type" if b"type" in fields else "type"
+                    data_key = b"data" if b"data" in fields else "data"
+                    yield StreamEvent(
+                        id=eid,
+                        event_type=_decode(fields[type_key]),
+                        data=json.loads(_decode(fields[data_key])),
+                    )
 
     async def ttl_seconds_remaining(self, run_id: str) -> int | None:
         ttl = await self._redis.ttl(self._key(run_id))
