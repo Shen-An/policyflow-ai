@@ -201,6 +201,118 @@ RECONCILIATION_TERMINAL_STATES: frozenset[str] = frozenset({"repaired", "manual_
 #: which would let a periodic sweep insert a duplicate row every pass.
 NO_VERSION_SENTINEL: Final = ""
 
+# --- Stage 6: workspaces, change sets, approvals and submissions ------------
+
+#: TaskWorkspace lifecycle, quoted verbatim from ``data-model.md``.
+WORKSPACE_STATUSES: frozenset[str] = frozenset(
+    {
+        "provisioning",
+        "ready",
+        "processing",
+        "changes_ready",
+        "awaiting_approval",
+        "closed",
+        "expired",
+        "failed",
+    }
+)
+
+#: Why a material version was pulled into a workspace. A ``read`` input is
+#: reference-only; an ``edit`` input may be the source of a proposed change. A
+#: formal policy original is always ``read`` (enforced by ``WorkspaceInput``'s
+#: ``read_only`` flag), so it can never become a writable workspace output.
+WORKSPACE_INPUT_PURPOSES: frozenset[str] = frozenset({"read", "edit"})
+
+#: ChangeSet state, quoted verbatim from ``data-model.md``.
+CHANGE_SET_STATES: frozenset[str] = frozenset(
+    {
+        "draft",
+        "ready",
+        "awaiting_approval",
+        "approved",
+        "rejected",
+        "invalidated",
+        "applied",
+    }
+)
+
+#: What class of side effect applying a change set would cause. The approval
+#: UI and the submission path both read this: ``external_submission`` is the only
+#: class that leaves the system, and it is the one that requires a connector.
+CHANGE_SET_SIDE_EFFECT_CLASSES: frozenset[str] = frozenset(
+    {"none", "internal_write", "external_submission"}
+)
+
+#: What a change-set item does to one path.
+CHANGE_ITEM_OPERATIONS: frozenset[str] = frozenset({"create", "update", "delete"})
+
+#: ApprovalRequest status, quoted verbatim from ``data-model.md``.
+APPROVAL_STATUSES: frozenset[str] = frozenset(
+    {"pending", "approved", "rejected", "expired", "invalidated", "consumed"}
+)
+
+#: Allowed approval transitions. ``pending`` is the only state a decision may be
+#: made from; ``approved`` is consumed exactly once (atomically with claiming the
+#: submission) or expires/invalidates. Everything else is terminal.
+APPROVAL_TRANSITIONS: dict[str, frozenset[str]] = {
+    "pending": frozenset({"approved", "rejected", "expired", "invalidated"}),
+    "approved": frozenset({"consumed", "invalidated", "expired"}),
+    "rejected": frozenset(),
+    "expired": frozenset(),
+    "invalidated": frozenset(),
+    "consumed": frozenset(),
+}
+
+#: The inputs an action digest binds, and therefore the set whose change
+#: invalidates a prior approval (``data-model.md`` ChangeSet validation). Shared
+#: by the digest (``approvals/digest.py``) and the approval service so they can
+#: never disagree about what "the same approval" means.
+APPROVAL_DIGEST_INPUTS: frozenset[str] = frozenset(
+    {
+        "action",
+        "destination",
+        "source_versions",
+        "output_versions",
+        "file_hashes",
+        "diff",
+        "evidence_set",
+        "permission_snapshot",
+        "side_effects",
+    }
+)
+
+#: SubmissionJob state, quoted verbatim from ``data-model.md``.
+SUBMISSION_STATES: frozenset[str] = frozenset(
+    {
+        "ready",
+        "executing",
+        "succeeded",
+        "recoverable_failed",
+        "cancelled",
+        "terminal_failed",
+        "unknown_outcome",
+        "reconciling",
+    }
+)
+
+#: Allowed submission transitions. The load-bearing rule is that an
+#: ``unknown_outcome`` (the provider accepted the request but its result is
+#: unknown) can only reach ``ready`` *through* ``reconciling`` -- never directly
+#: -- so a non-idempotent side effect is never blindly retried.
+SUBMISSION_TRANSITIONS: dict[str, frozenset[str]] = {
+    "ready": frozenset({"executing", "cancelled", "terminal_failed"}),
+    "executing": frozenset(
+        {"succeeded", "recoverable_failed", "cancelled", "terminal_failed", "unknown_outcome"}
+    ),
+    "recoverable_failed": frozenset({"ready"}),
+    "unknown_outcome": frozenset({"reconciling"}),
+    "reconciling": frozenset({"succeeded", "ready", "terminal_failed"}),
+    "succeeded": frozenset(),
+    "cancelled": frozenset(),
+    "terminal_failed": frozenset(),
+}
+
+
 #: The tenant that owns every row which predates multi-tenancy. The staged
 #: migrations seed exactly this id/code, and ``seed_initial_data`` must join the
 #: same tenant rather than invent a second root: a database whose reference data
@@ -1417,5 +1529,215 @@ def published_field_violations(
         for field in MATERIAL_VERSION_PUBLISHED_FIELDS
         if getattr(before, field, None) != getattr(after, field, None)
     )
+
+
+# --- Stage 6 entities -------------------------------------------------------
+
+
+class TaskWorkspace(SQLModel, table=True):
+    """A short-lived, tenant-owned editing context bound to one run.
+
+    Ownership (tenant/run/user/session) is fixed at creation. ``sandbox_job_ref``
+    is an *opaque* infrastructure reference (a Kubernetes Job name, say), never a
+    host path, and the API layer never surfaces it. ``input_manifest_digest``
+    pins the exact selected versions, and ``policy_snapshot`` the resource policy
+    in force, so what the sandbox was allowed to see is itself auditable.
+    """
+
+    __tablename__ = "task_workspaces"
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    tenant_id: str = Field(foreign_key="tenants.id", index=True, max_length=36)
+    run_id: str = Field(index=True, max_length=36)
+    user_id: str = Field(foreign_key="users.id", index=True, max_length=36)
+    session_id: str = Field(default="", max_length=64)
+    status: str = Field(default="provisioning", index=True, max_length=20)
+    sandbox_job_ref: str | None = Field(default=None, max_length=200)
+    input_manifest_digest: str = Field(default="", max_length=64)
+    policy_snapshot: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False)
+    )
+    expires_at: datetime | None = Field(default=None, index=True, sa_type=UTCDateTime)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    closed_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
+    version: int = Field(default=1, ge=1)
+
+
+class WorkspaceInput(SQLModel, table=True):
+    """An explicitly selected material version joined into a workspace.
+
+    This join is the *only* way a version enters a workspace: it cannot be
+    expanded by model output (``data-model.md``). ``read_only`` is NOT NULL and is
+    forced true for a formal policy original, so the "originals never become
+    writable outputs" invariant does not depend on a tri-state.
+    """
+
+    __tablename__ = "workspace_inputs"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "material_version_id", name="uq_workspace_inputs_version"
+        ),
+    )
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    tenant_id: str = Field(foreign_key="tenants.id", index=True, max_length=36)
+    workspace_id: str = Field(foreign_key="task_workspaces.id", index=True, max_length=36)
+    material_version_id: str = Field(
+        foreign_key="material_versions.id", index=True, max_length=36
+    )
+    purpose: str = Field(default="read", max_length=20)
+    staged_hash: str = Field(default="", max_length=64)
+    read_only: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    version: int = Field(default=1, ge=1)
+
+
+class ChangeSet(SQLModel, table=True):
+    """A proposed set of edits, with the digests an approval binds to.
+
+    ``source_manifest_digest`` and ``evidence_set_digest`` pin what the change was
+    computed from; ``side_effect_class`` says whether applying it leaves the
+    system. Any change to an input, output, destination, evidence set or
+    permission snapshot invalidates a prior approval, which the approval service
+    enforces by recomputing the action digest.
+    """
+
+    __tablename__ = "change_sets"
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    tenant_id: str = Field(foreign_key="tenants.id", index=True, max_length=36)
+    workspace_id: str = Field(foreign_key="task_workspaces.id", index=True, max_length=36)
+    run_id: str = Field(index=True, max_length=36)
+    source_manifest_digest: str = Field(default="", max_length=64)
+    evidence_set_digest: str = Field(default="", max_length=64)
+    summary: str = Field(default="", max_length=2000)
+    side_effect_class: str = Field(default="none", index=True, max_length=30)
+    state: str = Field(default="draft", index=True, max_length=20)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    version: int = Field(default=1, ge=1)
+
+
+class ChangeSetItem(SQLModel, table=True):
+    """One edit to one path, with before/after hashes and the diff artifact.
+
+    ``normalized_path`` is normalised before persistence and is unique within the
+    workspace, so two items can never target the same file -- the first guard in
+    the traversal defence (``data-model.md``). ``source_version_id`` is required
+    for an update/delete and absent for a create (``change_item_source_error``).
+    """
+
+    __tablename__ = "change_set_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "normalized_path", name="uq_change_set_items_path"
+        ),
+    )
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    tenant_id: str = Field(foreign_key="tenants.id", index=True, max_length=36)
+    change_set_id: str = Field(foreign_key="change_sets.id", index=True, max_length=36)
+    workspace_id: str = Field(foreign_key="task_workspaces.id", index=True, max_length=36)
+    source_version_id: str | None = Field(
+        default=None, foreign_key="material_versions.id", max_length=36
+    )
+    proposed_version_id: str | None = Field(
+        default=None, foreign_key="material_versions.id", max_length=36
+    )
+    operation: str = Field(max_length=20)
+    normalized_path: str = Field(index=True, max_length=1024)
+    before_hash: str | None = Field(default=None, max_length=64)
+    after_hash: str | None = Field(default=None, max_length=64)
+    diff_artifact_ref: str | None = Field(default=None, max_length=256)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    version: int = Field(default=1, ge=1)
+
+
+class ApprovalRequest(SQLModel, table=True):
+    """One immutable human-review target for one change set.
+
+    ``action_digest`` is the SHA-256 over everything the decision is about
+    (action, destination, exact files/hashes, source/output versions, diff,
+    evidence and permission snapshot); an approval can never be reused for a
+    different digest. ``authorization_version`` is a snapshot for explanation --
+    the *current* authorization is still rechecked at execution time.
+    """
+
+    __tablename__ = "approval_requests"
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    tenant_id: str = Field(foreign_key="tenants.id", index=True, max_length=36)
+    run_id: str = Field(index=True, max_length=36)
+    change_set_id: str = Field(foreign_key="change_sets.id", index=True, max_length=36)
+    action: str = Field(max_length=60)
+    destination: str = Field(default="", max_length=200)
+    action_digest: str = Field(index=True, max_length=64)
+    requested_by: str = Field(foreign_key="users.id", max_length=36)
+    decided_by: str | None = Field(default=None, foreign_key="users.id", max_length=36)
+    authorization_version: int = Field(default=1, ge=1)
+    status: str = Field(default="pending", index=True, max_length=20)
+    expires_at: datetime | None = Field(default=None, index=True, sa_type=UTCDateTime)
+    decided_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
+    reason: str | None = Field(default=None, max_length=1000)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    version: int = Field(default=1, ge=1)
+
+
+class SubmissionJob(SQLModel, table=True):
+    """A unique external-submission execution record.
+
+    The unique ``(tenant_id, connector_id, idempotency_key)`` is the whole
+    at-most-one-accepted-action guarantee: a duplicate click, a client retry or a
+    worker restart all resolve to the same row. An ``unknown_outcome`` must be
+    reconciled before the job can retry, so a non-idempotent provider action is
+    never issued twice.
+    """
+
+    __tablename__ = "submission_jobs"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "connector_id", "idempotency_key", name="uq_submission_jobs_idem"
+        ),
+    )
+
+    id: str = Field(default_factory=new_id, primary_key=True, max_length=36)
+    tenant_id: str = Field(foreign_key="tenants.id", index=True, max_length=36)
+    run_id: str = Field(index=True, max_length=36)
+    approval_id: str = Field(foreign_key="approval_requests.id", index=True, max_length=36)
+    connector_id: str = Field(index=True, max_length=60)
+    destination: str = Field(default="", max_length=200)
+    idempotency_key: str = Field(index=True, max_length=128)
+    expected_target_version: str | None = Field(default=None, max_length=36)
+    state: str = Field(default="ready", index=True, max_length=20)
+    attempts: int = Field(default=0, ge=0)
+    max_attempts: int = Field(default=5, ge=1)
+    provider_receipt: str | None = Field(default=None, max_length=256)
+    sanitized_result: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False)
+    )
+    next_attempt_at: datetime | None = Field(default=None, index=True, sa_type=UTCDateTime)
+    last_error_code: str | None = Field(default=None, max_length=80)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCDateTime)
+    version: int = Field(default=1, ge=1)
+
+
+def change_item_source_error(
+    *, operation: str, source_version_id: str | None
+) -> str | None:
+    """Validate the operation/source-version rule; return a reason or ``None``.
+
+    A ``create`` introduces a new path and must not claim a source version; an
+    ``update`` or ``delete`` acts on an existing version and must name it, both so
+    the diff has a baseline and so a concurrent edit can be detected by expected
+    version (``data-model.md``: mismatch produces conflict, never silent
+    overwrite).
+    """
+    if operation == "create" and source_version_id is not None:
+        return "a create operation cannot declare a source_version_id"
+    if operation in {"update", "delete"} and source_version_id is None:
+        return f"a {operation} operation requires a source_version_id"
+    return None
 
 

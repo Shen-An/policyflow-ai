@@ -5,8 +5,11 @@ from sqlmodel import SQLModel
 from backend.app.db.models import (
     AgentRun,
     AIQueryLog,
+    ApprovalRequest,
     AuditEvent,
     AuditLog,
+    ChangeSet,
+    ChangeSetItem,
     Conversation,
     Department,
     Draft,
@@ -27,6 +30,8 @@ from backend.app.db.models import (
     Message,
     ModelProvider,
     ObjectVersion,
+    SubmissionJob,
+    TaskWorkspace,
     QueryFeedback,
     RagIndexJob,
     ReconciliationIssue,
@@ -41,6 +46,7 @@ from backend.app.db.models import (
     UserRole,
     UserRoleGrant,
     VectorManifest,
+    WorkspaceInput,
 )
 
 Base = SQLModel
@@ -48,9 +54,12 @@ Base = SQLModel
 __all__ = [
     "AIQueryLog",
     "AgentRun",
+    "ApprovalRequest",
     "AuditEvent",
     "AuditLog",
     "Base",
+    "ChangeSet",
+    "ChangeSetItem",
     "Conversation",
     "Draft",
     "EmbeddingVersion",
@@ -71,6 +80,8 @@ __all__ = [
     "Message",
     "ModelProvider",
     "ObjectVersion",
+    "SubmissionJob",
+    "TaskWorkspace",
     "QueryFeedback",
     "RagIndexJob",
     "ReconciliationIssue",
@@ -85,4 +96,5 @@ __all__ = [
     "UserRole",
     "UserRoleGrant",
     "VectorManifest",
+    "WorkspaceInput",
 ]
