@@ -1,0 +1,11 @@
+# Stage-5 storage suites — live infrastructure capture (T088)
+# Captured: 2026-10-05T03:10:04Z
+# Stack: PostgreSQL 16 + MinIO 2025-05-24 (versioned bucket) + Milvus 2.5.15 + etcd + Redis (infra/dev/compose.yaml)
+# Base commit: d278016 plus the T085-T088 working tree
+# Suites: material model (T073) · materials API (T085) · storage authority (T086)
+#   · object versions (T075) · milvus versions (T074) · cross-store saga (T076)
+#   · reconciliation issues (T077) · physical delete (T078) · backfill (T087)
+
+........................................................................ [ 55%]
+..........................................................               [100%]
+130 passed in 239.49s (0:03:59)

@@ -1,0 +1,101 @@
+{
+  "captured_at": "2026-10-05T03:11:14.138364+00:00",
+  "seeded": {
+    "missing_object": "9734fe2f-7dcf-4bc7-9d15-ef9fe0663316",
+    "orphan_object": "d18b5245-e790-44ca-bac7-595a30701638",
+    "missing_vector": "cd617209-5184-4687-b23e-b85dc97ad06a",
+    "missing_chunk": "f83a30fb-d7e5-4ec4-bc40-756ea130ab33",
+    "orphan_vector": "ghost-version-vectors",
+    "version_drift": "f757550d-e1a0-4cb2-8310-27c26bfe031e"
+  },
+  "detected_kinds": [
+    "missing_chunk",
+    "missing_object",
+    "missing_vector",
+    "orphan_object",
+    "orphan_vector",
+    "version_drift"
+  ],
+  "expected_kinds": [
+    "missing_chunk",
+    "missing_object",
+    "missing_vector",
+    "orphan_object",
+    "orphan_vector",
+    "version_drift"
+  ],
+  "detection_rate": "6/6",
+  "issues": [
+    {
+      "issue_kind": "missing_chunk",
+      "store_pair": "postgres_milvus",
+      "resource_kind": "vector_manifest",
+      "resource_id": "f83a30fb-d7e5-4ec4-bc40-756ea130ab33",
+      "severity": "critical",
+      "state": "open",
+      "observed": "1 chunks, missing 1",
+      "expected": "2 chunks"
+    },
+    {
+      "issue_kind": "missing_object",
+      "store_pair": "postgres_object",
+      "resource_kind": "material_version",
+      "resource_id": "9734fe2f-7dcf-4bc7-9d15-ef9fe0663316",
+      "severity": "critical",
+      "state": "open",
+      "observed": "no object versions",
+      "expected": "one or more object versions"
+    },
+    {
+      "issue_kind": "missing_vector",
+      "store_pair": "postgres_milvus",
+      "resource_kind": "vector_manifest",
+      "resource_id": "cd617209-5184-4687-b23e-b85dc97ad06a",
+      "severity": "critical",
+      "state": "open",
+      "observed": "no vectors",
+      "expected": "2 vectors"
+    },
+    {
+      "issue_kind": "orphan_object",
+      "store_pair": "postgres_object",
+      "resource_kind": "object_version",
+      "resource_id": "d18b5245-e790-44ca-bac7-595a30701638",
+      "severity": "warning",
+      "state": "open",
+      "observed": "no material_versions row references it (back-pointer says ghost-version)",
+      "expected": "a live material version claiming this object"
+    },
+    {
+      "issue_kind": "orphan_vector",
+      "store_pair": "object_milvus",
+      "resource_kind": "milvus_version",
+      "resource_id": "ghost-version-vectors",
+      "severity": "critical",
+      "state": "open",
+      "observed": "vectors with no owning manifest",
+      "expected": "a live manifest and material version"
+    },
+    {
+      "issue_kind": "version_drift",
+      "store_pair": "postgres_milvus",
+      "resource_kind": "material",
+      "resource_id": "f757550d-e1a0-4cb2-8310-27c26bfe031e",
+      "severity": "critical",
+      "state": "open",
+      "observed": "active_version_id=stale-version-id",
+      "expected": "active_version_id=31f40672-4c78-46a6-b247-1de71dd74e3b (the served version)"
+    }
+  ],
+  "idempotence": {
+    "findings_pass_1": 6,
+    "findings_pass_2": 6,
+    "findings_pass_3": 6,
+    "distinct_issue_rows": 6,
+    "stable": true
+  },
+  "invariants": {
+    "all_six_kinds_detected": true,
+    "one_row_per_fault": true
+  }
+}

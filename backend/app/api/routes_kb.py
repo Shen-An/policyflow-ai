@@ -162,6 +162,11 @@ async def post_document(
         file,
         title,
         _client_ip(request),
+        # T086: the versioned storage authority when the material pipeline is
+        # wired on this process, otherwise the instrumented legacy adapter. The
+        # service resolves which; the route only supplies what is available.
+        pipeline=getattr(request.app.state, "material_saga", None),
+        telemetry=getattr(request.app.state, "storage_authority_telemetry", None),
     )
     # T070: durable submission replaces the ephemeral BackgroundTask. The index
     # job id keys idempotency, so a redelivered submit of this attempt dedups

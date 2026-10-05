@@ -1,7 +1,26 @@
-"""Knowledge-document upload, listing, and index-job services."""
+"""Knowledge-document upload, listing, and index-job services.
+
+T086: the production authority for document *bytes* is versioned object storage
+and for *vectors* is Milvus, both reached through
+:class:`~backend.app.storage.saga.MaterialSaga`. The host-local ``UPLOAD_DIR``
+writer below is a migration adapter with a Stage 9 removal condition, not a
+target state: every use of it is counted by
+:class:`~backend.app.storage.authority.StorageAuthorityTelemetry`, and
+:func:`~backend.app.storage.authority.resolve_storage_authority` refuses to
+report it in production, where a per-host file would mean two API instances
+answer from different copies of the truth.
+
+Under the versioned authority the ``KnowledgeDocument`` row becomes a
+*compatibility projection* (``data-model.md`` migration step 7): it keeps the
+legacy response and listing shapes working while the authority for the bytes it
+describes is the ``MaterialVersion`` it points at. Its ``file_path`` then carries
+an opaque ``material-version/<id>/<filename>`` reference rather than a host path
+-- nothing opens it, and the LightRAG adapters only read a display name off it.
+"""
 
 import hashlib
 from pathlib import Path
+from typing import Any
 
 from fastapi import UploadFile
 from sqlmodel import Session, col, select
@@ -27,6 +46,12 @@ from backend.app.services.permission_service import (
     get_knowledge_base,
     require_knowledge_base_permission,
 )
+from backend.app.storage.authority import (
+    StorageAuthority,
+    StorageAuthorityTelemetry,
+    legacy_usage_event,
+    resolve_storage_authority,
+)
 
 
 def _file_type(filename: str) -> str:
@@ -41,6 +66,89 @@ def _file_type(filename: str) -> str:
     return file_type
 
 
+#: Prefix of the opaque reference a projected ``KnowledgeDocument`` carries in
+#: place of a host path. Nothing parses it; the LightRAG adapters only take
+#: ``Path(...).name`` off it for display, which this keeps meaningful.
+MATERIAL_REFERENCE_PREFIX = "material-version"
+
+
+def _material_reference(material_version_id: str, filename: str) -> str:
+    """Opaque stored reference for a projected document row."""
+    return f"{MATERIAL_REFERENCE_PREFIX}/{material_version_id}/{filename}"
+
+
+async def _persist_document_bytes(
+    *,
+    settings: Settings,
+    pipeline: Any,
+    telemetry: StorageAuthorityTelemetry | None,
+    tenant_id: str | None,
+    knowledge_base: Any,
+    document_id: str,
+    document_title: str,
+    filename: str,
+    file_type: str,
+    content: bytes,
+    content_hash: str,
+    created_by: str,
+    material_id: str | None,
+) -> tuple[str, str | None]:
+    """Persist document bytes under the authority in force.
+
+    Returns ``(stored_reference, material_id)``. Under the versioned authority the
+    reference is opaque and the bytes live in object storage with a Milvus manifest
+    behind them; under the legacy adapter it is a host path and the use is counted
+    against the Stage 9 removal gate.
+    """
+    authority = resolve_storage_authority(
+        settings, pipeline_available=pipeline is not None
+    )
+    if authority is StorageAuthority.MATERIAL_VERSION:
+        draft = await pipeline.begin_upload(
+            tenant_id=tenant_id,
+            knowledge_base_id=knowledge_base.id,
+            name=document_title,
+            source_type="policy",
+            media_type=f"application/{file_type}",
+            size_bytes=len(content),
+            sha256=content_hash,
+            created_by=created_by,
+            filename=filename,
+            material_id=material_id,
+        )
+        await pipeline.object_store.upload_bytes(grant=draft.grant, payload=content)
+        # The saga verifies the bytes against the declared hash and size, records
+        # the ObjectVersion, and indexes into Milvus. It is driven to completion
+        # here because the legacy response contract reports an index status
+        # synchronously; a failed step leaves the material retryable, not raised.
+        await pipeline.drain(tenant_id=tenant_id, material_id=draft.material_id)
+        return (
+            _material_reference(draft.material_version_id, filename),
+            draft.material_id,
+        )
+
+    if telemetry is not None:
+        telemetry.record(
+            legacy_usage_event(
+                adapter="local_file_write",
+                tenant_id=tenant_id,
+                resource_kind="knowledge_document",
+                resource_id=document_id,
+                reason="versioned storage authority is not wired on this host",
+            )
+        )
+    storage_directory = settings.UPLOAD_DIR / knowledge_base.code
+    storage_directory.mkdir(parents=True, exist_ok=True)
+    file_path = storage_directory / f"{document_id}.{file_type}"
+    try:
+        file_path.write_bytes(content)
+    except OSError as exc:
+        raise ApplicationError(
+            "DOCUMENT_STORAGE_FAILED", "Document storage failed", 500
+        ) from exc
+    return str(file_path), None
+
+
 async def upload_document(
     session: Session,
     settings: Settings,
@@ -49,6 +157,9 @@ async def upload_document(
     upload: UploadFile,
     title: str | None = None,
     ip_address: str | None = None,
+    *,
+    pipeline: Any = None,
+    telemetry: StorageAuthorityTelemetry | None = None,
 ) -> DocumentUploadResponse:
     knowledge_base = get_knowledge_base(session, knowledge_base_id)
     require_knowledge_base_permission(session, user, knowledge_base, "write")
@@ -175,19 +286,28 @@ async def upload_document(
         )
 
     document_id = new_id()
-    storage_directory = settings.UPLOAD_DIR / knowledge_base.code
-    storage_directory.mkdir(parents=True, exist_ok=True)
-    file_path = storage_directory / f"{document_id}.{file_type}"
-    try:
-        file_path.write_bytes(content)
-    except OSError as exc:
-        raise ApplicationError("DOCUMENT_STORAGE_FAILED", "Document storage failed", 500) from exc
+    stored_reference, _material_id = await _persist_document_bytes(
+        settings=settings,
+        pipeline=pipeline,
+        telemetry=telemetry,
+        tenant_id=getattr(user, "tenant_id", None),
+        knowledge_base=knowledge_base,
+        document_id=document_id,
+        document_title=document_title,
+        filename=filename,
+        file_type=file_type,
+        content=content,
+        content_hash=content_hash,
+        created_by=user.id,
+        material_id=None,
+    )
+    file_path = Path(stored_reference)
 
     document = KnowledgeDocument(
         id=document_id,
         knowledge_base_id=knowledge_base.id,
         title=document_title,
-        file_path=str(file_path),
+        file_path=stored_reference,
         file_type=file_type,
         content_text=content_text,
         content_hash=content_hash,

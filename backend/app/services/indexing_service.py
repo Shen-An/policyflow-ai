@@ -1,4 +1,19 @@
-"""Background document indexing state transitions."""
+"""Background document indexing state transitions.
+
+T086: under the Stage-5 authority the vectors for a document live in Milvus and
+are written by :class:`~backend.app.retrieval.indexer.VectorIndexer` as part of
+the material saga, with a ``VectorManifest`` recording what exists and a
+compare-and-set flag deciding what is retrievable. The LightRAG indexer driven
+here is a *migration adapter* over a host-local workspace: it has no manifest, no
+version pinning and no reconciliation, so it cannot be an authority for evidence.
+
+Every run of it is counted by
+:class:`~backend.app.storage.authority.StorageAuthorityTelemetry`, which is the
+Stage 9 deletion condition for this path -- the same mechanism ``graph/compat.py``
+uses for the legacy graph adapter. Passing ``telemetry`` is therefore how a
+deployment earns the right to delete this code later; omitting it only loses the
+count, never changes behaviour.
+"""
 
 from sqlalchemy import Update, update
 from sqlalchemy.engine import Engine
@@ -7,6 +22,10 @@ from sqlmodel import Session, col, select
 from backend.app.core.exceptions import ApplicationError
 from backend.app.db.models import KnowledgeBase, KnowledgeDocument, RagIndexJob, utc_now
 from backend.app.rag.protocols import DocumentIndexer
+from backend.app.storage.authority import (
+    StorageAuthorityTelemetry,
+    legacy_usage_event,
+)
 
 
 def claim_statement(job_id: str) -> Update:
@@ -87,6 +106,8 @@ async def process_document_index(
     engine: Engine,
     indexer: DocumentIndexer,
     document_id: str,
+    *,
+    telemetry: StorageAuthorityTelemetry | None = None,
 ) -> None:
     with Session(engine) as session:
         document = session.get(KnowledgeDocument, document_id)
@@ -111,6 +132,18 @@ async def process_document_index(
     try:
         if not indexer.available:
             raise ApplicationError("LIGHTRAG_UNAVAILABLE", "LightRAG is not configured", 503)
+        if telemetry is not None:
+            # Counted before the call, not after: a run that fails still used the
+            # adapter, and the Stage 9 gate asks "was it used", not "did it work".
+            telemetry.record(
+                legacy_usage_event(
+                    adapter="lightrag_index",
+                    tenant_id=getattr(detached_document, "tenant_id", None),
+                    resource_kind="knowledge_document",
+                    resource_id=document_id,
+                    reason="document indexed through the host-local LightRAG workspace",
+                )
+            )
         await indexer.insert_document(detached_knowledge_base, detached_document)
     except Exception as exc:
         with Session(engine) as session:

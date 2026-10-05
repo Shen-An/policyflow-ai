@@ -1,0 +1,76 @@
+{
+  "captured_at": "2026-10-05T03:10:53.389554+00:00",
+  "material_id": "7bb24a51-fc81-4cb1-a5d5-4a325698752a",
+  "versions": {
+    "v1": {
+      "id": "6384afdc-7d66-42ee-abce-c15348922ad5",
+      "version_number": 1,
+      "status": "superseded",
+      "source_version_id": null
+    },
+    "v2": {
+      "id": "039b00be-a04a-4519-aa2b-85e39a05c230",
+      "version_number": 2,
+      "status": "available",
+      "source_version_id": "6384afdc-7d66-42ee-abce-c15348922ad5"
+    }
+  },
+  "served_version_ids_before_update": [
+    "6384afdc-7d66-42ee-abce-c15348922ad5"
+  ],
+  "served_version_ids_after_update": [
+    "039b00be-a04a-4519-aa2b-85e39a05c230"
+  ],
+  "active_version_pointer_after": "039b00be-a04a-4519-aa2b-85e39a05c230",
+  "manifests_before": [
+    {
+      "manifest_id": "e0c86049-1bb8-4643-87e0-f2961a23a33c",
+      "material_version_id": "6384afdc-7d66-42ee-abce-c15348922ad5",
+      "embedding_version_id": "24c35c21-7ce3-4b19-8476-783a2eaac7ab",
+      "milvus_collection": "pf_test_ev_update",
+      "expected_count": 2,
+      "indexed_count": 2,
+      "retrievable": true,
+      "deletion_state": "retained",
+      "vectors_in_milvus": 2
+    }
+  ],
+  "manifests_after": [
+    {
+      "manifest_id": "9a0372c8-5db4-4354-b9ad-cf2c295ea9dc",
+      "material_version_id": "039b00be-a04a-4519-aa2b-85e39a05c230",
+      "embedding_version_id": "24c35c21-7ce3-4b19-8476-783a2eaac7ab",
+      "milvus_collection": "pf_test_ev_update",
+      "expected_count": 2,
+      "indexed_count": 2,
+      "retrievable": true,
+      "deletion_state": "retained",
+      "vectors_in_milvus": 2
+    },
+    {
+      "manifest_id": "e0c86049-1bb8-4643-87e0-f2961a23a33c",
+      "material_version_id": "6384afdc-7d66-42ee-abce-c15348922ad5",
+      "embedding_version_id": "24c35c21-7ce3-4b19-8476-783a2eaac7ab",
+      "milvus_collection": "pf_test_ev_update",
+      "expected_count": 2,
+      "indexed_count": 0,
+      "retrievable": false,
+      "deletion_state": "deleted",
+      "vectors_in_milvus": 0
+    }
+  ],
+  "retrieval_strategy": "milvus/HNSW/COSINE",
+  "milvus_index": {
+    "index_type": "HNSW",
+    "metric_type": "COSINE",
+    "dimensions": 8,
+    "tenant_partition_key": "tenant_id"
+  },
+  "invariants": {
+    "exactly_one_served_version_before": true,
+    "exactly_one_served_version_after": true,
+    "served_version_changed_to_v2": true,
+    "old_version_superseded": true,
+    "retired_manifest_has_no_vectors": true
+  }
+}

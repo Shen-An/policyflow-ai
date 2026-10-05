@@ -1,0 +1,98 @@
+{
+  "captured_at": "2026-10-05T03:11:00.746651+00:00",
+  "material_id": "d0637056-71a2-4c6d-9d8c-745663d3e33d",
+  "version_ids": [
+    "941cae3c-e790-41d5-b1dd-e7a8ea276298",
+    "31a5e20b-b2be-4c49-8b08-d59487eeca93"
+  ],
+  "withdraw_step": {
+    "from_status": "available",
+    "to_status": "deleting",
+    "served_version_ids_after_withdraw": [],
+    "objects_after_withdraw": {
+      "941cae3c-e790-41d5-b1dd-e7a8ea276298": {
+        "object_versions": 1,
+        "delete_markers": 0
+      },
+      "31a5e20b-b2be-4c49-8b08-d59487eeca93": {
+        "object_versions": 2,
+        "delete_markers": 1
+      }
+    }
+  },
+  "delete_step": {
+    "from_status": "deleting",
+    "to_status": "deleted"
+  },
+  "before": {
+    "objects": {
+      "941cae3c-e790-41d5-b1dd-e7a8ea276298": {
+        "object_versions": 1,
+        "delete_markers": 0
+      },
+      "31a5e20b-b2be-4c49-8b08-d59487eeca93": {
+        "object_versions": 2,
+        "delete_markers": 1
+      }
+    },
+    "sql": {
+      "material_versions": 2,
+      "object_versions": 2,
+      "vector_manifests": 2
+    },
+    "manifests": [
+      {
+        "manifest_id": "b8360477-aaaa-4695-bd1b-f7c5c187616f",
+        "material_version_id": "31a5e20b-b2be-4c49-8b08-d59487eeca93",
+        "embedding_version_id": "2a090501-e6dc-46e8-8c58-edc9ee65ca53",
+        "milvus_collection": "pf_test_ev_delete",
+        "expected_count": 2,
+        "indexed_count": 2,
+        "retrievable": true,
+        "deletion_state": "retained",
+        "vectors_in_milvus": 2
+      },
+      {
+        "manifest_id": "24ac4dc3-c186-41d9-b998-62379d1ddf5b",
+        "material_version_id": "941cae3c-e790-41d5-b1dd-e7a8ea276298",
+        "embedding_version_id": "2a090501-e6dc-46e8-8c58-edc9ee65ca53",
+        "milvus_collection": "pf_test_ev_delete",
+        "expected_count": 2,
+        "indexed_count": 0,
+        "retrievable": false,
+        "deletion_state": "deleted",
+        "vectors_in_milvus": 0
+      }
+    ]
+  },
+  "after": {
+    "objects": {
+      "941cae3c-e790-41d5-b1dd-e7a8ea276298": {
+        "object_versions": 0,
+        "delete_markers": 0
+      },
+      "31a5e20b-b2be-4c49-8b08-d59487eeca93": {
+        "object_versions": 0,
+        "delete_markers": 0
+      }
+    },
+    "sql": {
+      "material_versions": 0,
+      "object_versions": 0,
+      "vector_manifests": 0
+    }
+  },
+  "vectors_before": 2,
+  "vectors_after": 0,
+  "material_row_status": "deleted",
+  "reconciliation_confirmation": [],
+  "invariants": {
+    "retrieval_withdrawn_before_removal": true,
+    "all_object_versions_removed": true,
+    "all_delete_markers_removed": true,
+    "all_sql_references_removed": true,
+    "all_vectors_removed": true,
+    "reconciliation_confirms_complete": true,
+    "material_row_kept_as_tombstone": true
+  }
+}

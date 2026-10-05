@@ -1,0 +1,10 @@
+Stage-5 infrastructure probe, captured 2026-10-05T03:10:46.144944+00:00
+
+docker compose ps:
+etcd	quay.io/coreos/etcd:v3.5.18	Up 9 minutes (healthy)
+milvus	milvusdb/milvus:v2.5.15	Up 9 minutes (healthy)
+minio	bitnamilegacy/minio:2025.5.24	Up 9 minutes (healthy)
+postgres	postgres:16-alpine	Up 9 minutes (healthy)
+redis	redis:7.4-alpine	Up 9 minutes (healthy)
+
+Milvus server version: 2.5.15

@@ -655,14 +655,17 @@ class ObjectStore:
                 break
         return versions, markers
 
-    # -- test seams -----------------------------------------------------------
-    #
-    # Production uploads go through the presigned URL the client is handed; these
-    # two helpers exist so a suite can produce the *same* provider state without
-    # standing up an HTTP client, and they are never called by application code.
+    # -- server-side upload ---------------------------------------------------
 
-    async def put_for_test(self, grant: UploadGrant, payload: bytes) -> str:
-        """Write ``payload`` at the grant's key and return the new VersionId."""
+    async def upload_bytes(self, *, grant: UploadGrant, payload: bytes) -> str:
+        """Write ``payload`` at the grant's key and return the new VersionId.
+
+        A browser upload goes through the presigned URL instead, so this is the
+        path for the cases where the *server* already holds the bytes and no
+        redirect is involved: importing a legacy local file during migration, and
+        ingesting a document the API received as a multipart body. It uses the same
+        grant, so the key is still derived and still never chosen by a caller.
+        """
         kwargs: dict[str, Any] = {
             "Bucket": self._config.bucket,
             "Key": grant.object_key,
@@ -673,6 +676,12 @@ class ObjectStore:
             kwargs["ServerSideEncryption"] = self._config.server_side_encryption
         response = await self._call("put_object", **kwargs)
         return str(response.get("VersionId") or "")
+
+    # -- test seams -----------------------------------------------------------
+
+    async def put_for_test(self, grant: UploadGrant, payload: bytes) -> str:
+        """Alias for :meth:`upload_bytes` used by suites simulating a client PUT."""
+        return await self.upload_bytes(grant=grant, payload=payload)
 
     async def soft_delete_for_test(self, grant: UploadGrant) -> str:
         """Issue a plain delete, which leaves a delete marker behind."""

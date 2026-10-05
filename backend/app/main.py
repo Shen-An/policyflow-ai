@@ -34,6 +34,7 @@ from backend.app.api.routes_faq import router as faq_router
 from backend.app.api.routes_feedback import router as feedback_router
 from backend.app.api.routes_kb import departments_router, documents_router
 from backend.app.api.routes_kb import router as knowledge_base_router
+from backend.app.api.routes_materials import router as materials_router
 from backend.app.api.routes_mcp import router as mcp_router
 from backend.app.api.routes_memory import router as memory_router
 from backend.app.api.routes_runs import router as runs_router
@@ -82,6 +83,7 @@ from backend.app.services.embedding_service import OpenAICompatibleEmbeddingServ
 from backend.app.services.llm_service import OpenAICompatibleLLMService
 from backend.app.services.rag_service import RAGService
 from backend.app.skills.registry import SkillRegistry
+from backend.app.storage.authority import StorageAuthorityTelemetry
 from backend.app.tools.builtin_tools import (
     draft_create_tool,
     draft_update_tool,
@@ -326,6 +328,10 @@ def create_app(
     application.include_router(users_router)
     application.include_router(v2_router)
     application.include_router(runs_router)
+    application.include_router(materials_router)
+    # T086: counts every use of the legacy host-local storage adapters.
+    # Its zero_use_over_window() is the Stage 9 condition for deleting them.
+    application.state.storage_authority_telemetry = StorageAuthorityTelemetry()
 
     @application.get("/health", tags=["system"])
     async def health_check() -> dict[str, str]:

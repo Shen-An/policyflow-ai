@@ -527,3 +527,54 @@ async def test_another_tenant_cannot_drive_the_saga(env) -> None:
     # that another tenant's material exists.
     with pytest.raises(SagaStateError, match="no material"):
         await env.saga.advance_once(tenant_id=TENANT_B, material_id="does-not-exist")
+
+
+# -- Independent Test (combined) ---------------------------------------------
+
+
+async def test_independent_test_two_tenants_same_name_during_update(env) -> None:
+    """The Phase-5 Independent Test as one scenario, not as separate halves.
+
+    Two tenants each own a material named "Reimbursement Policy". Tenant A updates
+    to v2 while tenant B keeps v1. At every observable point -- before the update,
+    while v2 is staged but not activated, and after the CAS switch -- each tenant
+    must retrieve exactly its own current active immutable version and never the
+    other tenant's or a superseded one.
+    """
+    from tests.stage5_env import TENANT_B
+
+    a_material, a_v1 = await upload_material(
+        env, tenant_id=TENANT_A, name="Reimbursement Policy", body=POLICY_V1
+    )
+    _b_material, b_v1 = await upload_material(
+        env, tenant_id=TENANT_B, name="Reimbursement Policy", body=POLICY_V1
+    )
+
+    async def served(tenant_id: str) -> tuple[set[str], set[str]]:
+        scope = await env.indexer.resolve_scope(
+            tenant_id=tenant_id,
+            knowledge_base_ids=(env.knowledge_base(tenant_id),),
+            embedding_version_id=env.embedding(tenant_id),
+        )
+        probe = env.saga._chunker(POLICY_V1)[0].vector  # noqa: SLF001
+        hits = await env.vectors.search(scope=scope, query_vector=list(probe), limit=20)
+        return {hit.version_id for hit in hits}, {hit.tenant_id for hit in hits}
+
+    assert await served(TENANT_A) == ({a_v1}, {TENANT_A})
+    assert await served(TENANT_B) == ({b_v1}, {TENANT_B})
+
+    # Tenant A stages v2 up to (but not through) activation.
+    draft = await _begin(env, body=POLICY_V2, material_id=a_material)
+    await env.store.put_for_test(draft.grant, POLICY_V2)
+    await env.saga.advance_once(tenant_id=TENANT_A, material_id=a_material)
+    await env.saga.advance_once(tenant_id=TENANT_A, material_id=a_material)
+    assert await _status(env, a_material) == "indexing"
+    assert await served(TENANT_A) == ({a_v1}, {TENANT_A}), "v2 must stay invisible"
+    assert await served(TENANT_B) == ({b_v1}, {TENANT_B})
+
+    # The CAS switch.
+    await env.saga.advance_once(tenant_id=TENANT_A, material_id=a_material)
+    assert await served(TENANT_A) == ({draft.material_version_id}, {TENANT_A})
+    assert await served(TENANT_B) == ({b_v1}, {TENANT_B}), (
+        "tenant A's update must not disturb tenant B's same-named material"
+    )
