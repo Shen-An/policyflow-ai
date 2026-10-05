@@ -1,0 +1,28 @@
+{
+  "unapproved": {
+    "blocked": true,
+    "error_code": "APPROVAL_NOT_APPROVED",
+    "matched_expected": true
+  },
+  "stale_digest": {
+    "blocked": true,
+    "error_code": "APPROVAL_STALE",
+    "matched_expected": true
+  },
+  "revoked_authority": {
+    "blocked": true,
+    "error_code": "AUTH_FORBIDDEN",
+    "matched_expected": true
+  },
+  "cross_tenant_decision": {
+    "blocked": true
+  },
+  "captured_at": "2026-10-05T11:50:48.866847+00:00",
+  "total_submission_jobs": 0,
+  "accepted_provider_actions": 0,
+  "invariants": {
+    "every_path_blocked": true,
+    "zero_external_side_effects": true,
+    "zero_submission_jobs": true
+  }
+}

@@ -1,0 +1,15 @@
+# Stage-6 security suites — capture (T109)
+# Captured: 2026-10-05T11:52:42Z
+# Store: PostgreSQL 16 (infra/dev/compose.yaml) for the approval/submission suites
+# Sandbox: gVisor Job manifest attested, NOT executed (no cluster on this host)
+# Base commit: ed99327 plus the T109 working tree
+# Suites: workspace/change/approval model (T089) · action digest (T101) · draft
+#   projection (T108) · approval+workspace routes (T106/T107) · workspace escape
+#   (T090) · malicious uploads (T091) · sandbox runtime (T092) · processors/runner
+#   (T097/T099) · approval authorization (T093) · submission idempotency (T094) ·
+#   reimbursement E2E (T095) · file-workflow graph wiring (T105)
+
+........................................................................ [ 45%]
+........................................................................ [ 91%]
+.............                                                            [100%]
+157 passed in 58.11s

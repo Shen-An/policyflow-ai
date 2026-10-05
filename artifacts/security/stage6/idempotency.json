@@ -1,0 +1,16 @@
+{
+  "captured_at": "2026-10-05T11:50:50.205351+00:00",
+  "duplicate_click_job_ids": [
+    "e57154c5-bdd1-4ae0-adb2-f7a3c2b1d9a1"
+  ],
+  "concurrent_job_ids": [
+    "741da0be-d521-45b4-a371-dc6958db777f"
+  ],
+  "total_jobs": 2,
+  "accepted_provider_actions": 2,
+  "invariants": {
+    "duplicate_clicks_one_job": true,
+    "concurrent_claims_one_job": true,
+    "at_most_one_action_per_approval": true
+  }
+}

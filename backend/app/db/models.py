@@ -1629,8 +1629,12 @@ class ChangeSetItem(SQLModel, table=True):
 
     __tablename__ = "change_set_items"
     __table_args__ = (
+        # Unique per *change set*, not per workspace: a workspace may legitimately
+        # hold more than one change set over its lifetime (a rejected draft, then a
+        # revised one), each targeting the same file. Within one change set a path
+        # appears exactly once, so two items can never target the same file.
         UniqueConstraint(
-            "workspace_id", "normalized_path", name="uq_change_set_items_path"
+            "change_set_id", "normalized_path", name="uq_change_set_items_path"
         ),
     )
 

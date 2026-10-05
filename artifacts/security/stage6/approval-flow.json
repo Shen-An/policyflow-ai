@@ -1,0 +1,18 @@
+{
+  "captured_at": "2026-10-05T11:50:47.650516+00:00",
+  "submission": {
+    "status": "mock",
+    "succeeded": true,
+    "receipt_id": "mock-df6818da293a79f2aa69"
+  },
+  "jobs": 1,
+  "approval_status": "consumed",
+  "source_version_status": "available",
+  "invariants": {
+    "submitted_once": true,
+    "status_is_mock": true,
+    "approval_consumed": true,
+    "formal_original_untouched": true,
+    "one_accepted_provider_action": true
+  }
+}

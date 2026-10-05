@@ -238,7 +238,7 @@ def test_change_set_records_the_digests_approval_binds_to() -> None:
         assert name in columns, f"change_sets.{name} is required by data-model.md"
 
 
-def test_change_set_item_path_is_unique_per_workspace() -> None:
+def test_change_set_item_path_is_unique_per_change_set() -> None:
     table = models.ChangeSetItem.__table__
     columns = table.columns
     for name in (
@@ -259,9 +259,9 @@ def test_change_set_item_path_is_unique_per_workspace() -> None:
         for constraint in table.constraints
         if isinstance(constraint, sa.UniqueConstraint)
     }
-    assert ("workspace_id", "normalized_path") in uniques, (
-        "a path must be unique within a workspace, or two items could target the "
-        f"same file; found {sorted(uniques)}"
+    assert ("change_set_id", "normalized_path") in uniques, (
+        "a path must be unique within its change set, or two items could target "
+        f"the same file; found {sorted(uniques)}"
     )
 
 

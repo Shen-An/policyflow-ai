@@ -226,7 +226,7 @@ def _create_change_set_items() -> None:
         sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ),
         sa.ForeignKeyConstraint(['workspace_id'], ['task_workspaces.id'], ),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('workspace_id', 'normalized_path', name='uq_change_set_items_path'),
+        sa.UniqueConstraint('change_set_id', 'normalized_path', name='uq_change_set_items_path'),
     )
     for column in ('tenant_id', 'change_set_id', 'workspace_id', 'normalized_path'):
         op.create_index(

@@ -1,0 +1,4 @@
+Stage-6 security evidence probe, captured 2026-10-05T11:50:46.217849+00:00
+
+PostgreSQL: via infra/dev/compose.yaml (approval/submission are PG-backed)
+Sandbox gVisor: NOT run on this host (no cluster); manifest attested only.

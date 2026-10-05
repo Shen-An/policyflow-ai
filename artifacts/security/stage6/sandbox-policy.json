@@ -1,0 +1,18 @@
+{
+  "captured_at": "2026-10-05T11:50:46.222850+00:00",
+  "note": "This host has no Kubernetes/gVisor; the manifest is attested for policy completeness, not executed. Live gVisor isolation is gated [~].",
+  "controls": {
+    "runtime_class_gvisor": true,
+    "run_as_non_root": true,
+    "read_only_root_fs": true,
+    "all_capabilities_dropped": true,
+    "no_privilege_escalation": true,
+    "seccomp_runtime_default": true,
+    "no_service_account_token": true,
+    "no_host_namespaces": true,
+    "no_hostpath_volumes": true,
+    "resource_limits_present": true,
+    "active_deadline_present": true,
+    "default_deny_egress": true
+  }
+}
