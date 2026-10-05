@@ -1,0 +1,129 @@
+# T098 [US1] per-task sandbox Job for the file workflow.
+#
+# This is the PRODUCTION target: one short-lived gVisor-isolated Kubernetes Job
+# per sandbox task, locked down on every axis the threat model names. It is
+# rendered per task by backend/app/sandbox/runner.py, which substitutes the
+# the templated placeholders from the processor registry (T097) and the request.
+#
+# HONEST BOUNDARY: this host has no Kubernetes cluster and no gVisor runtime, so
+# this manifest is NOT executed in the Stage-6 test suite. tests/security/
+# test_sandbox_runtime.py verifies that this file *expresses* every required
+# control (the policy is correct and complete); running a real gVisor pod and
+# observing the kernel-level isolation is gated on a cluster and tracked as [~].
+# The manifest is real and deployable, not a mock.
+#
+# Every field below is load-bearing; the comment on each says what it defends.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ${JOB_NAME}                       # opaque per-task name; never a host path
+  namespace: policyflow-sandbox           # dedicated namespace, its own quotas/policies
+  labels:
+    app.kubernetes.io/part-of: policyflow
+    policyflow.io/component: sandbox-task
+spec:
+  # The task gets exactly one attempt here; retries are the durable-job layer's
+  # job (bounded, idempotent), not the Job controller's uncontrolled restarts.
+  backoffLimit: 0
+  # Hard wall-clock cap: the task is killed past this regardless of what it does.
+  activeDeadlineSeconds: ${ACTIVE_DEADLINE_SECONDS}
+  # The Job and its pod are swept shortly after completion so nothing lingers.
+  ttlSecondsAfterFinished: 60
+  template:
+    metadata:
+      labels:
+        policyflow.io/component: sandbox-task
+      annotations:
+        # Seccomp: the RuntimeDefault profile blocks the dangerous syscall surface.
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+    spec:
+      # gVisor: the user-space kernel is the primary isolation boundary. Without
+      # this runtimeClass the pod would share the host kernel, which the threat
+      # model forbids for untrusted file work.
+      runtimeClassName: gvisor
+      restartPolicy: Never
+      # No Kubernetes API token is mounted: the task has no service-account
+      # identity and so cannot talk to the cluster API.
+      automountServiceAccountToken: false
+      serviceAccountName: policyflow-sandbox-noauth
+      # Default-deny egress is additionally enforced by a NetworkPolicy in the
+      # namespace (see networkpolicy below); the pod declares no hostNetwork.
+      hostNetwork: false
+      hostPID: false
+      hostIPC: false
+      securityContext:
+        runAsNonRoot: true                # never root
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: processor
+          # Image is digest-pinned and cosign-verified by the admission controller;
+          # the runner only ever substitutes a value from the T097 registry.
+          image: ${PROCESSOR_IMAGE}
+          args: ${PROCESSOR_ARGV}         # fixed argv from the registry; no shell
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            readOnlyRootFilesystem: true  # root fs is read-only; writes go to emptyDir
+            runAsNonRoot: true
+            runAsUser: 65532
+            capabilities:
+              drop:
+                - ALL                     # drop every Linux capability
+          resources:
+            # CPU/memory/ephemeral-storage are all capped; combined with the PID
+            # limit and the deadline, a bomb cannot exhaust the node.
+            requests:
+              cpu: ${CPU_REQUEST_MILLICORES}m
+              memory: ${MEMORY_REQUEST_MIB}Mi
+              ephemeral-storage: ${EPHEMERAL_REQUEST_MIB}Mi
+            limits:
+              cpu: ${CPU_LIMIT_MILLICORES}m
+              memory: ${MEMORY_LIMIT_MIB}Mi
+              ephemeral-storage: ${EPHEMERAL_LIMIT_MIB}Mi
+          volumeMounts:
+            # Inputs are copied in read-only; the processor cannot mutate them.
+            - name: work-in
+              mountPath: /work/in
+              readOnly: true
+            # Outputs go to a size-bounded emptyDir, collected and link-checked
+            # afterwards by the runner.
+            - name: work-out
+              mountPath: /work/out
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: work-in
+          emptyDir:
+            medium: Memory
+            sizeLimit: ${EPHEMERAL_LIMIT_MIB}Mi
+        - name: work-out
+          emptyDir:
+            sizeLimit: ${EPHEMERAL_LIMIT_MIB}Mi
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi
+---
+# Default-deny egress for every sandbox pod in the namespace. This is the second
+# half of "no network destination": the processor registry refuses URLs, and this
+# ensures even a compromised processor has nowhere to send bytes.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: policyflow-sandbox-deny-all
+  namespace: policyflow-sandbox
+spec:
+  podSelector:
+    matchLabels:
+      policyflow.io/component: sandbox-task
+  policyTypes:
+    - Ingress
+    - Egress
+  # No ingress and no egress rules => deny all, in both directions.
+  ingress: []
+  egress: []
