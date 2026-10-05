@@ -435,3 +435,18 @@ def load_stage5_migration():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def load_stage6_migration():
+    """Import the Stage-6 expand migration (005) by path (see load_stage5_migration)."""
+    import importlib.util
+
+    matches = sorted((REPO_ROOT / "migrations" / "versions").glob("005_*.py"))
+    if len(matches) != 1:
+        raise RuntimeError(f"expected exactly one 005 migration, found {matches}")
+    spec = importlib.util.spec_from_file_location("stage6_migration", matches[0])
+    if spec is None or spec.loader is None:  # pragma: no cover - import plumbing
+        raise RuntimeError("could not load the Stage-6 migration")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
