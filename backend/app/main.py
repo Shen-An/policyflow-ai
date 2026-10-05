@@ -25,6 +25,7 @@ from backend.app.agents.reflection_loop import ReflectionLoop
 from backend.app.agents.retrieval_agent import RetrievalAgent
 from backend.app.agents.router_agent import RouterAgent
 from backend.app.agents.skill_agent import SkillAgent
+from backend.app.api.routes_approvals import router as approvals_router
 from backend.app.api.routes_audit import router as audit_router
 from backend.app.api.routes_auth import router as auth_router
 from backend.app.api.routes_chat import router as chat_router
@@ -43,6 +44,7 @@ from backend.app.api.routes_skill import router as skill_router
 from backend.app.api.routes_tool import router as tool_router
 from backend.app.api.routes_users import router as users_router
 from backend.app.api.routes_v2 import router as v2_router
+from backend.app.api.routes_workspaces import router as workspaces_router
 from backend.app.core.config import Settings, get_settings
 from backend.app.core.exceptions import (
     register_exception_handlers,
@@ -329,6 +331,8 @@ def create_app(
     application.include_router(v2_router)
     application.include_router(runs_router)
     application.include_router(materials_router)
+    application.include_router(approvals_router)
+    application.include_router(workspaces_router)
     # T086: counts every use of the legacy host-local storage adapters.
     # Its zero_use_over_window() is the Stage 9 condition for deleting them.
     application.state.storage_authority_telemetry = StorageAuthorityTelemetry()
