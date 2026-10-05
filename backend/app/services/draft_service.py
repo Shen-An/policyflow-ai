@@ -1,4 +1,11 @@
-"""Draft ownership and lifecycle services."""
+"""Draft ownership and lifecycle services.
+
+T108: the ``Draft`` row is a Stage-6 migration adapter. A file-workflow edit's
+authority is now ``MaterialVersion``/``ChangeSet`` (see ``draft_projection``);
+``Draft`` lives on for pre-Stage-6 chat drafts, and every write is counted toward
+the Stage 9 removal gate via an optional :class:`DraftLegacyTelemetry` -- opt-in,
+so passing ``None`` keeps the old behaviour unchanged.
+"""
 
 from sqlmodel import Session, col, select
 
@@ -10,6 +17,10 @@ from backend.app.schemas.draft import (
     DraftListResponse,
     DraftRead,
     DraftUpdate,
+)
+from backend.app.services.draft_projection import (
+    DraftLegacyTelemetry,
+    legacy_draft_write,
 )
 from backend.app.services.user_service import get_user_role_codes
 
@@ -27,7 +38,13 @@ def get_draft(session: Session, user: User, draft_id: str) -> Draft:
     return draft
 
 
-def create_draft(session: Session, user: User, data: DraftCreate) -> DraftRead:
+def create_draft(
+    session: Session,
+    user: User,
+    data: DraftCreate,
+    *,
+    telemetry: DraftLegacyTelemetry | None = None,
+) -> DraftRead:
     if data.conversation_id is not None:
         conversation = session.get(Conversation, data.conversation_id)
         if conversation is None:
@@ -41,6 +58,15 @@ def create_draft(session: Session, user: User, data: DraftCreate) -> DraftRead:
     session.add(draft)
     session.commit()
     session.refresh(draft)
+    if telemetry is not None:
+        telemetry.record(
+            legacy_draft_write(
+                operation="create",
+                draft_id=draft.id,
+                tenant_id=getattr(user, "tenant_id", None),
+                reason="legacy Draft row written; file edits now use ChangeSet",
+            )
+        )
     return to_draft_read(draft)
 
 

@@ -81,6 +81,7 @@ from backend.app.rag.hybrid_retriever import HybridRetriever
 from backend.app.rag.inprocess_lightrag import InProcessLightRAGAdapter
 from backend.app.rag.protocols import LightRAGBackend, LLMService
 from backend.app.rag.rerank_service import RerankService
+from backend.app.services.draft_projection import DraftLegacyTelemetry
 from backend.app.services.embedding_service import OpenAICompatibleEmbeddingService
 from backend.app.services.llm_service import OpenAICompatibleLLMService
 from backend.app.services.rag_service import RAGService
@@ -336,6 +337,9 @@ def create_app(
     # T086: counts every use of the legacy host-local storage adapters.
     # Its zero_use_over_window() is the Stage 9 condition for deleting them.
     application.state.storage_authority_telemetry = StorageAuthorityTelemetry()
+    # T108: counts legacy Draft writes; its zero_use_over_window() is the Stage 9
+    # condition for removing the Draft path once file edits use ChangeSet only.
+    application.state.draft_legacy_telemetry = DraftLegacyTelemetry()
 
     @application.get("/health", tags=["system"])
     async def health_check() -> dict[str, str]:

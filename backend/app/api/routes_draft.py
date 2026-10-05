@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Request, status
 
 from backend.app.api.deps import CurrentUser, SessionDep
 from backend.app.schemas.draft import (
@@ -26,8 +26,13 @@ router = APIRouter(prefix="/api/drafts", tags=["drafts"])
 
 
 @router.post("", response_model=DraftRead, status_code=status.HTTP_201_CREATED)
-def post_draft(data: DraftCreate, user: CurrentUser, session: SessionDep) -> DraftRead:
-    return create_draft(session, user, data)
+def post_draft(
+    data: DraftCreate, user: CurrentUser, session: SessionDep, request: Request
+) -> DraftRead:
+    # T108: count this legacy Draft write against the Stage 9 removal gate when a
+    # telemetry sink is configured; absent one, behaviour is unchanged.
+    telemetry = getattr(request.app.state, "draft_legacy_telemetry", None)
+    return create_draft(session, user, data, telemetry=telemetry)
 
 
 @router.get("", response_model=DraftListResponse)
