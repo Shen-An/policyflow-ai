@@ -1,5 +1,8 @@
 node_modules/
 dist/
+dist-electron/
+release/
+wdio-logs/
 coverage/
 playwright-report/
 test-results/

@@ -671,24 +671,26 @@ SELECT 与 UPDATE 之间没有原子性，UPDATE 也不带 `status='pending'` �
 
 ### Tests for User Story 4A
 
-- [ ] T110 [P] [US4] 在 `frontend/tests/electron/security.e2e.ts` 中为 `contextIsolation=true`、renderer sandbox、`nodeIntegration=false`、无 raw IPC/任意 file/token API 编写失败 E2E
-- [ ] T111 [P] [US4] 在 `frontend/tests/electron/ipc-contract.e2e.ts` 中为 operation-specific schema、sender origin、request cancellation 和 error redaction 编写失败 E2E
-- [ ] T112 [P] [US4] 在 `frontend/tests/electron/navigation.e2e.ts` 中为 strict CSP、remote page/new window 拒绝和外链系统浏览器打开编写失败 E2E
-- [ ] T113 [P] [US4] 在 `frontend/tests/electron/renderer-crash.e2e.ts` 中为 renderer 销毁取消未形成服务端批准的 privileged request 且不影响 durable run 编写失败 E2E
+- [X] T110 [P] [US4] 在 `frontend/tests/electron/security.e2e.ts` 中为 `contextIsolation=true`、renderer sandbox、`nodeIntegration=false`、无 raw IPC/任意 file/token API 编写失败 E2E
+- [X] T111 [P] [US4] 在 `frontend/tests/electron/ipc-contract.e2e.ts` 中为 operation-specific schema、sender origin、request cancellation 和 error redaction 编写失败 E2E
+- [X] T112 [P] [US4] 在 `frontend/tests/electron/navigation.e2e.ts` 中为 strict CSP、remote page/new window 拒绝和外链系统浏览器打开编写失败 E2E
+- [X] T113 [P] [US4] 在 `frontend/tests/electron/renderer-crash.e2e.ts` 中为 renderer 销毁取消未形成服务端批准的 privileged request 且不影响 durable run 编写失败 E2E
 
 ### Implementation for User Story 4A
 
-- [ ] T114 [P] [US4] 在 `frontend/electron/main/window.ts` 中创建 hardened BrowserWindow，启用 context isolation/sandbox、禁 Node integration、限制导航与新窗口并加载受控本地 renderer
-- [ ] T115 [P] [US4] 在 `frontend/electron/main/credentials.ts` 中使用 OS `safeStorage` 保存 refresh token，renderer 永不接触 token 明文
-- [ ] T116 [P] [US4] 在 `frontend/electron/main/api-proxy.ts` 中实现认证 API/SSE 代理、请求取消、run/event typed mapping 和脱敏错误
-- [ ] T117 [US4] 在 `frontend/electron/main/ipc.ts` 中实现 sender origin 校验与 operation-specific schema-validated handlers，禁止 raw channel、任意 path 和任意 URL（依赖 T115、T116）
-- [ ] T118 [US4] 在 `frontend/electron/preload/index.ts` 中通过 `contextBridge` 仅暴露认证、run、material、workspace、approval 与系统外链的最小 typed capabilities（依赖 T117）
-- [ ] T119 [P] [US4] 在 `frontend/src/services/desktop-api.ts` 中封装 preload capabilities 为 typed clients，renderer feature 不得直接调用 raw IPC
-- [ ] T120 [P] [US4] 在 `frontend/index.html` 与 `frontend/electron/main/security.ts` 中实施 strict CSP、permission deny、navigation/new-window deny 和 external-link allowlist
-- [ ] T121 [US4] 在 `frontend/package.json` 与 `frontend/wdio.electron.conf.ts` 中接入开发、构建、`test:electron`、签名 package/update 的安全脚本且生产构建拒绝 unsigned placeholder 配置
-- [ ] T122 [US4] 运行 `npm --prefix frontend run test:electron` 并将 Electron 安全边界与 crash 证据保存到 `artifacts/electron/stage7/`（依赖 T110–T121）
+- [X] T114 [P] [US4] 在 `frontend/electron/main/window.ts` 中创建 hardened BrowserWindow，启用 context isolation/sandbox、禁 Node integration、限制导航与新窗口并加载受控本地 renderer
+- [X] T115 [P] [US4] 在 `frontend/electron/main/credentials.ts` 中使用 OS `safeStorage` 保存 refresh token，renderer 永不接触 token 明文
+- [X] T116 [P] [US4] 在 `frontend/electron/main/api-proxy.ts` 中实现认证 API/SSE 代理、请求取消、run/event typed mapping 和脱敏错误
+- [X] T117 [US4] 在 `frontend/electron/main/ipc.ts` 中实现 sender origin 校验与 operation-specific schema-validated handlers，禁止 raw channel、任意 path 和任意 URL（依赖 T115、T116）
+- [X] T118 [US4] 在 `frontend/electron/preload/index.ts` 中通过 `contextBridge` 仅暴露认证、run、material、workspace、approval 与系统外链的最小 typed capabilities（依赖 T117）
+- [X] T119 [P] [US4] 在 `frontend/src/services/desktop-api.ts` 中封装 preload capabilities 为 typed clients，renderer feature 不得直接调用 raw IPC
+- [X] T120 [P] [US4] 在 `frontend/index.html` 与 `frontend/electron/main/security.ts` 中实施 strict CSP、permission deny、navigation/new-window deny 和 external-link allowlist
+- [~] T121 [US4] 在 `frontend/package.json` 与 `frontend/wdio.electron.conf.ts` 中接入开发、构建、`test:electron`、签名 package/update 的安全脚本且生产构建拒绝 unsigned placeholder 配置
+- [X] T122 [US4] 运行 `npm --prefix frontend run test:electron` 并将 Electron 安全边界与 crash 证据保存到 `artifacts/electron/stage7/`（依赖 T110–T121）
 
 **Checkpoint**: Electron capability broker 可独立验收；renderer compromise 不可直接获得主机、凭据或副作用权限。
+
+> **达成（R36，2026-10-06，含一处诚实边界）**：Independent Test 真跑通——`npm run test:electron` 下 4 个 spec/**14 条安全 E2E 全绿**，由 WDIO（CDP bridge，无需单独 chromedriver）驱动**真实 Electron 44.3.0（Chromium 152）**：非法 IPC schema（`INVALID_PAYLOAD`）、未信任 sender origin、远程导航、新窗口、Node/文件/token/raw-IPC 访问**全部被拒**；strict CSP 行为级拒 inline script + 协议/会话头下发；外链仅 https allowlist 经系统浏览器；renderer **强制崩溃**取消未在服务端形成批准的 in-flight 特权请求（`approvalAborted`、0 `approvalCommitted`），**durable 服务端 run 仍 `running` 权威**。另 **37 条 vitest 契约单测**无需启动即验证 webPreferences/CSP/allowlist/origin/schema/redaction/mapper/credentials/desktop-api；全套 vitest **145 passed 无回归**，typecheck 全绿，新代码 lint clean。证据 `artifacts/electron/stage7/`（test-electron-output / unit-contract-tests / signing-gate / infra-probe / security-assertions）。**唯一诚实边界**：T121 的**签名生产打包未真跑**（本机无企业代码签名证书）——签名门 `scripts/verify-electron-signing.mjs`（拒 unsigned/placeholder、接受真实凭据，三例已验证）+ `electron-builder.yml`（`forceCodeSigning: true` + @electron/fuses 硬化）已实现且逐例验证，仅最终 signed-artifact 步骤需真实证书，故 T121 标 `[~]`（与 Stage 6 gVisor 运行时同一诚实准则；该边界不构成 Independent Test 的一部分）。bring-up 修两处 infra：`@wdio/electron-service` 10.1.0 broken release→10.3.0；Windows `appEntryPoint` 的 `.bin/electron.CMD` shim→`appBinaryPath`=真 `electron.exe` + `--app=<main.cjs>`。**另记基线既有 lint 债（非本阶段引入）**：`npm run lint` 有 12 处 Phase 1–6 UI 文件的 react-hooks@7.1.1/eslint@10 新规则报错（HEAD 同插件版本即红），Phase 7 新代码 0 lint 错，未擅改他阶段文件。
 
 ---
 

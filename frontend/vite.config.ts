@@ -35,8 +35,24 @@ function serveMockWorkerInDevelopment(): Plugin {
   }
 }
 
+// The strict CSP meta ships in index.html for the production (web + Electron app://)
+// renderer. On the dev server it must be removed: Vite's React Fast Refresh injects an
+// inline module script that `script-src 'self'` would block, breaking HMR.
+function stripCspMetaInDevelopment(): Plugin {
+  return {
+    name: 'strip-csp-meta-in-dev',
+    apply: 'serve',
+    transformIndexHtml(html) {
+      return html.replace(/\s*<meta\s+http-equiv="Content-Security-Policy"[\s\S]*?\/>/iu, '')
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), serveMockWorkerInDevelopment()],
+  // Relative base so the built renderer loads correctly when served over the
+  // Electron app:// scheme (and still works when served at a web root).
+  base: './',
+  plugins: [react(), tailwindcss(), serveMockWorkerInDevelopment(), stripCspMetaInDevelopment()],
   resolve: {
     alias: {
       '@': path.resolve(projectRoot, 'src'),

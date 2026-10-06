@@ -2,6 +2,17 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <!--
+      Strict Content-Security-Policy for the desktop (Electron app://) renderer and
+      the production web build. Kept in sync with buildContentSecurityPolicy() in
+      electron/main/hardening.ts and also sent as an HTTP header by main. It is
+      stripped only on the Vite dev server (see strip-csp-meta-in-dev), whose HMR
+      injects an inline refresh script that script-src 'self' would block.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self'; object-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="PolicyFlow AI 企业政策助手" />
     <title>PolicyFlow AI</title>

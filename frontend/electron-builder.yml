@@ -1,0 +1,56 @@
+# electron-builder configuration for the PolicyFlow AI desktop shell.
+#
+# Production artifacts MUST be signed:
+#   - forceCodeSigning makes electron-builder fail the build if signing does not occur.
+#   - scripts/verify-electron-signing.mjs runs first (see package.json electron:package*)
+#     and refuses to start a production package when signing credentials are missing or
+#     are placeholder values. Credentials come from the environment and are never
+#     committed to the repository.
+appId: ai.policyflow.desktop
+productName: PolicyFlow AI
+copyright: Copyright © 2026 PolicyFlow
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**
+  - dist-electron/**
+  - package.json
+
+asar: true
+forceCodeSigning: true
+
+# Harden the packaged binary via @electron/fuses: no Node in the renderer path, ASAR
+# integrity enforced, and the app may only load from the signed ASAR.
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  grantFileProtocolExtraPrivileges: false
+
+win:
+  target:
+    - nsis
+
+nsis:
+  oneClick: false
+  perMachine: false
+
+mac:
+  target:
+    - dmg
+  category: public.app-category.business
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  notarize: true
+
+linux:
+  target:
+    - AppImage
+
+publish: null

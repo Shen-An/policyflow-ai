@@ -1,0 +1,76 @@
+
+> policyflow-ai-frontend@0.1.0 test:electron
+> wdio run wdio.electron.conf.ts --suite security
+
+
+  dist-electron\preload\index.cjs  2.3kb
+
+Done in 7ms
+
+  dist-electron\main\index.cjs  561.2kb
+
+Done in 31ms
+Electron main/preload bundled → dist-electron/
+
+Execution of 4 workers started at 2026-10-06T11:47:42.228Z
+
+[0-0] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/.claude/worktrees/sad-goldberg-7d5d2b/frontend/tests/electron/security.e2e.ts
+[0-0] PASSED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/.claude/worktrees/sad-goldberg-7d5d2b/frontend/tests/electron/security.e2e.ts
+[0-1] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/.claude/worktrees/sad-goldberg-7d5d2b/frontend/tests/electron/ipc-contract.e2e.ts
+[0-1] PASSED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/.claude/worktrees/sad-goldberg-7d5d2b/frontend/tests/electron/ipc-contract.e2e.ts
+[0-2] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/.claude/worktrees/sad-goldberg-7d5d2b/frontend/tests/electron/navigation.e2e.ts
+[0-2] PASSED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/.claude/worktrees/sad-goldberg-7d5d2b/frontend/tests/electron/navigation.e2e.ts
+[0-3] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/.claude/worktrees/sad-goldberg-7d5d2b/frontend/tests/electron/renderer-crash.e2e.ts
+[0-3] PASSED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/.claude/worktrees/sad-goldberg-7d5d2b/frontend/tests/electron/renderer-crash.e2e.ts
+
+ "spec" Reporter:
+------------------------------------------------------------------
+[chrome 152.0.7977.78 windows #0-0] Running: chrome (v152.0.7977.78) on windows
+[chrome 152.0.7977.78 windows #0-0] Session ID: 4a0800c3c15ca30d1b8fc22ee1db9027
+[chrome 152.0.7977.78 windows #0-0]
+[chrome 152.0.7977.78 windows #0-0] » tests\electron\security.e2e.ts
+[chrome 152.0.7977.78 windows #0-0] T110 renderer capability sandbox
+[chrome 152.0.7977.78 windows #0-0]    ✓ enforces contextIsolation, sandbox and no node integration in webPreferences
+[chrome 152.0.7977.78 windows #0-0]    ✓ exposes only the minimal typed bridge, with no node/CommonJS escapes
+[chrome 152.0.7977.78 windows #0-0]    ✓ never exposes raw IPC, arbitrary file access or a token getter
+[chrome 152.0.7977.78 windows #0-0]    ✓ reports no node access through the system.info capability
+[chrome 152.0.7977.78 windows #0-0]
+[chrome 152.0.7977.78 windows #0-0] 4 passing (10s)
+------------------------------------------------------------------
+[chrome 152.0.7977.78 windows #0-1] Running: chrome (v152.0.7977.78) on windows
+[chrome 152.0.7977.78 windows #0-1] Session ID: 5a1a3de19f7e81550e8017088c79d27f
+[chrome 152.0.7977.78 windows #0-1]
+[chrome 152.0.7977.78 windows #0-1] » tests\electron\ipc-contract.e2e.ts
+[chrome 152.0.7977.78 windows #0-1] T111 IPC contract
+[chrome 152.0.7977.78 windows #0-1]    ✓ accepts calls from the trusted renderer origin and injects auth in main only
+[chrome 152.0.7977.78 windows #0-1]    ✓ rejects payloads that violate each operation-specific schema
+[chrome 152.0.7977.78 windows #0-1]    ✓ cancels an in-flight run-event stream when the renderer unsubscribes
+[chrome 152.0.7977.78 windows #0-1]    ✓ returns redacted errors with no stack, host path, backend origin or token
+[chrome 152.0.7977.78 windows #0-1]
+[chrome 152.0.7977.78 windows #0-1] 4 passing (10.1s)
+------------------------------------------------------------------
+[chrome 152.0.7977.78 windows #0-2] Running: chrome (v152.0.7977.78) on windows
+[chrome 152.0.7977.78 windows #0-2] Session ID: b38b5e6902cf955a23e391b70ef6cd81
+[chrome 152.0.7977.78 windows #0-2]
+[chrome 152.0.7977.78 windows #0-2] » tests\electron\navigation.e2e.ts
+[chrome 152.0.7977.78 windows #0-2] T112 navigation and content security
+[chrome 152.0.7977.78 windows #0-2]    ✓ enforces a strict CSP that blocks inline script injection
+[chrome 152.0.7977.78 windows #0-2]    ✓ sends the strict CSP header on the controlled renderer document
+[chrome 152.0.7977.78 windows #0-2]    ✓ blocks full-page navigation away from the controlled renderer
+[chrome 152.0.7977.78 windows #0-2]    ✓ denies opening new windows
+[chrome 152.0.7977.78 windows #0-2]    ✓ routes only allowlisted https links to the OS browser
+[chrome 152.0.7977.78 windows #0-2]
+[chrome 152.0.7977.78 windows #0-2] 5 passing (11s)
+------------------------------------------------------------------
+[chrome 152.0.7977.78 windows #0-3] Running: chrome (v152.0.7977.78) on windows
+[chrome 152.0.7977.78 windows #0-3] Session ID: d8d25fa11a3bfaa1f0ba0126e9b6e6c6
+[chrome 152.0.7977.78 windows #0-3]
+[chrome 152.0.7977.78 windows #0-3] » tests\electron\renderer-crash.e2e.ts
+[chrome 152.0.7977.78 windows #0-3] T113 renderer crash containment
+[chrome 152.0.7977.78 windows #0-3]    ✓ cancels a not-yet-approved request on crash and leaves the durable run intact
+[chrome 152.0.7977.78 windows #0-3]
+[chrome 152.0.7977.78 windows #0-3] 1 passing (10.3s)
+
+
+Spec Files:	 4 passed, 4 total (100% completed) in 00:00:53  
+

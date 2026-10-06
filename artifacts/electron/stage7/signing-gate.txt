@@ -1,0 +1,14 @@
+# Production signing gate (scripts/verify-electron-signing.mjs) — demonstration
+# Date: 2026-10-06T11:50:18Z
+
+## Case 1: no signing credentials (Windows) -> MUST reject
+✖ Refusing production packaging: Windows signing requires CSC_LINK + CSC_KEY_PASSWORD (a real certificate), or WIN_CSC_SUBJECT_NAME for store-based signing. None were provided.
+exit=1
+
+## Case 2: placeholder credentials -> MUST reject
+✖ Refusing production packaging: Windows signing requires CSC_LINK + CSC_KEY_PASSWORD (a real certificate), or WIN_CSC_SUBJECT_NAME for store-based signing. None were provided.
+exit=1
+
+## Case 3: real-looking credentials present -> accepts (forceCodeSigning still enforced by electron-builder)
+✔ Signing configuration verified for win; forceCodeSigning is enabled.
+exit=0
