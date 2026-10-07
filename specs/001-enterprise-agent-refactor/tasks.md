@@ -702,26 +702,28 @@ SELECT 与 UPDATE 之间没有原子性，UPDATE 也不带 `status='pending'` �
 
 ### Tests for User Story 4B
 
-- [ ] T123 [P] [US4] 在 `frontend/tests/electron/chat-workflow.e2e.ts` 中为 Chat → compact stages → evidence → answer/refusal、copy/edit/scroll 和断线恢复编写失败 E2E
-- [ ] T124 [P] [US4] 在 `frontend/tests/electron/file-approval-workflow.e2e.ts` 中为 select → draft → tree/preview/version/diff → approve/reject → result 编写失败 E2E
-- [ ] T125 [P] [US4] 在 `frontend/tests/electron/state-recovery.e2e.ts` 中为 loading/empty/error/offline/recovery/permission/conflict 状态和可执行下一步编写失败 E2E
-- [ ] T126 [P] [US4] 在 `frontend/tests/electron/accessibility.e2e.ts` 中为键盘、焦点、语义、对比度及 small/medium/large 窗口无遮挡编写失败 E2E
+- [X] T123 [P] [US4] 在 `frontend/tests/electron/chat-workflow.e2e.ts` 中为 Chat → compact stages → evidence → answer/refusal、copy/edit/scroll 和断线恢复编写失败 E2E
+- [X] T124 [P] [US4] 在 `frontend/tests/electron/file-approval-workflow.e2e.ts` 中为 select → draft → tree/preview/version/diff → approve/reject → result 编写失败 E2E
+- [X] T125 [P] [US4] 在 `frontend/tests/electron/state-recovery.e2e.ts` 中为 loading/empty/error/offline/recovery/permission/conflict 状态和可执行下一步编写失败 E2E
+- [X] T126 [P] [US4] 在 `frontend/tests/electron/accessibility.e2e.ts` 中为键盘、焦点、语义、对比度及 small/medium/large 窗口无遮挡编写失败 E2E
 
 ### Implementation for User Story 4B
 
-- [ ] T127 [P] [US4] 在 `frontend/src/design-system/tokens.css` 中落地 soft mint canvas、white floating cards、light sidebar 的 color/type/spacing/radius/elevation/motion/focus tokens，并满足可辨识对比度
-- [ ] T128 [P] [US4] 在 `frontend/src/design-system/states.tsx` 中实现一致的 loading/empty/error/offline/recovery/permission/conflict 状态组件及可执行下一步
-- [ ] T129 [US4] 在 `frontend/src/components/layout/app-shell.tsx` 与 `frontend/src/app/router.tsx` 中统一 chat/knowledge/memory/workspace/approval/admin 导航、层级和响应式桌面布局（依赖 T127、T128）
-- [ ] T130 [P] [US4] 在 `frontend/src/features/chat/components/thinking-process.tsx` 中实现安静 compact staged timeline，详情默认折叠并消费有序 run events
-- [ ] T131 [P] [US4] 在 `frontend/src/features/chat/chat-page.tsx` 中接入 v2 run/events，保留 Markdown、答案复制、用户消息复制/编辑、打开/刷新滚到底部和可点空状态示例
-- [ ] T132 [P] [US4] 在 `frontend/src/features/knowledge-bases/knowledge-base-page.tsx` 中展示上传、扫描、索引、版本、检索可用性、物理删除和恢复状态
-- [ ] T133 [P] [US4] 在 `frontend/src/features/memory/memory-page.tsx` 中保留仅本人查看/删除和“记忆非政策依据”的明确边界
-- [ ] T134 [P] [US4] 在 `frontend/src/features/workspace/workspace-page.tsx` 中实现授权材料选择、文件树、预览、版本和 draft 状态，避免与现有 `frontend/src/app/workspace-page.tsx` 命名职责混淆
-- [ ] T135 [P] [US4] 在 `frontend/src/features/approval/approval-page.tsx` 中实现 diff、target、exact files/hashes、side effects、expiry、approve/reject 和 stale/permission/conflict 反馈
-- [ ] T136 [US4] 在 `frontend/src/features/workspace/workflow-page.tsx` 中整合 tree/preview/version/diff/approval/submission result，并在批准前保持所有生成文件为 draft（依赖 T134、T135）
-- [ ] T137 [US4] 运行 `npm --prefix frontend run test:electron:e2e`，完成目标员工可用性研究并将完成率、耗时、误操作、评分和窗口/a11y 证据保存到 `artifacts/ui/stage8/`（依赖 T123–T136）
+- [X] T127 [P] [US4] 在 `frontend/src/design-system/tokens.css` 中落地 soft mint canvas、white floating cards、light sidebar 的 color/type/spacing/radius/elevation/motion/focus tokens，并满足可辨识对比度
+- [X] T128 [P] [US4] 在 `frontend/src/design-system/states.tsx` 中实现一致的 loading/empty/error/offline/recovery/permission/conflict 状态组件及可执行下一步
+- [X] T129 [US4] 在 `frontend/src/components/layout/app-shell.tsx` 与 `frontend/src/app/router.tsx` 中统一 chat/knowledge/memory/workspace/approval/admin 导航、层级和响应式桌面布局（依赖 T127、T128）
+- [X] T130 [P] [US4] 在 `frontend/src/features/chat/components/thinking-process.tsx` 中实现安静 compact staged timeline，详情默认折叠并消费有序 run events
+- [X] T131 [P] [US4] 在 `frontend/src/features/chat/chat-page.tsx` 中接入 v2 run/events，保留 Markdown、答案复制、用户消息复制/编辑、打开/刷新滚到底部和可点空状态示例
+- [X] T132 [P] [US4] 在 `frontend/src/features/knowledge-bases/knowledge-base-page.tsx` 中展示上传、扫描、索引、版本、检索可用性、物理删除和恢复状态
+- [X] T133 [P] [US4] 在 `frontend/src/features/memory/memory-page.tsx` 中保留仅本人查看/删除和“记忆非政策依据”的明确边界
+- [X] T134 [P] [US4] 在 `frontend/src/features/workspace/workspace-page.tsx` 中实现授权材料选择、文件树、预览、版本和 draft 状态，避免与现有 `frontend/src/app/workspace-page.tsx` 命名职责混淆
+- [X] T135 [P] [US4] 在 `frontend/src/features/approval/approval-page.tsx` 中实现 diff、target、exact files/hashes、side effects、expiry、approve/reject 和 stale/permission/conflict 反馈
+- [X] T136 [US4] 在 `frontend/src/features/workspace/workflow-page.tsx` 中整合 tree/preview/version/diff/approval/submission result，并在批准前保持所有生成文件为 draft（依赖 T134、T135）
+- [~] T137 [US4] 运行 `npm --prefix frontend run test:electron:e2e`，完成目标员工可用性研究并将完成率、耗时、误操作、评分和窗口/a11y 证据保存到 `artifacts/ui/stage8/`（依赖 T123–T136）
 
 **Checkpoint**: US4 可独立验收；核心流程在真实 Electron、常见窗口和键盘模式下无不可达/遮挡，并达到用户成功率与信心阈值。
+
+> **达成（R37，2026-10-07，含一处诚实边界）**：Independent Test 的 automated 部分真跑通——`npm run test:electron:e2e` 下 **8/8 spec、33 条 E2E 全绿**，由 WDIO 驱动**真实 Electron 44.3.0（Chromium 152）** 经确定性 stub：chat 问答（compact staged timeline 默认折叠、evidence、Markdown 答案+复制、用户消息复制/编辑、**断线重连恢复**、grounded refusal）与报销材料审批（授权材料选择→draft 变更集→file tree/preview/version/diff→approval target+exact files/hashes+side effects+expiry→approve/reject→submission result）两条流端到端通过；**axe-core 真跑**（wcag2a+aa，0 serious/critical）于 chat+workspace × small/medium/large 三档窗口；键盘可达 composer+可见焦点环、landmark 语义、三档窗口无遮挡/无横向溢出。**Phase 7 的 14 条安全 E2E 零回归**（strict CSP、origin 信任、schema 校验、崩溃取消、无 node/file/token/raw-IPC）。桌面数据路径按 CSP `connect-src 'self'` 全走 `desktop-api.ts` 能力桥（auth/runs/materials/workspace/approvals/system）；chat=run kind `chat`、报销=`file_workflow`，变更集/审批目标经有序 run events 的 payload 下发（不碰冻结的 Phase 7 桥/main）。vitest 45 文件 150 passed、typecheck 绿、新代码 0 lint 错（基线既有 12 err+1 warn 未动）。证据 `artifacts/ui/stage8/`（e2e-full.log / accessibility.log / screens / README / usability-study）。**唯一诚实边界**：T137 的**目标员工可用性研究（SC-010–SC-012）未真做**（本机无真实被试），标 `[~]`，不以模拟评分冒充（同 Stage 6 gVisor / Stage 7 签名准则）；automated 的 a11y/键盘/多窗口已真跑真绿。另记一处集成待办：Phase 7 桥 `startRun` 的 body 字段（`input`/`idempotency_key`）与真实后端 `/api/v2/runs`（`payload` + `Idempotency-Key` 头）尚未逐字段对齐，E2E 打 stub 不受影响，生产对齐留作后续集成项。bring-up 另修两处 infra：`npm ci` 恢复 lockfile 精确依赖树（纠正漂移的 `@wdio/native-utils` 2.4.0→2.7.0）、补装 Electron 44.3.0 二进制。
 
 ---
 

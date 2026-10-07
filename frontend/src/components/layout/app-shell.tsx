@@ -1,95 +1,148 @@
-import { BookOpen, ChatCircle, ClipboardText, Database, FileText, GearSix, List, NotePencil, SidebarSimple, SignOut, SquaresFour, Users, WifiHigh, Wrench } from '@phosphor-icons/react'
-import { Avatar, Button, Layout, Menu, Space, Tooltip, Typography } from 'antd'
-import type { MenuProps } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { canCallApi } from '../../api/readiness'
+import {
+  BookOpen,
+  ChatCircle,
+  ClipboardText,
+  Database,
+  FileText,
+  FolderOpen,
+  List,
+  Scales,
+  SidebarSimple,
+  SignOut,
+  SlidersHorizontal,
+  SquaresFour,
+  Users,
+  Wrench,
+} from '@phosphor-icons/react'
+import type { ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Link, Outlet, useLocation } from 'react-router-dom'
 import { hasAnyRole } from '../../auth/permissions'
-import { clearReturnTo } from '../../auth/auth-storage'
 import { useAuth } from '../../auth/use-auth'
 import { formatRoles } from '../../lib/labels'
-import { gradients } from '../../styles/palette'
-import { PageTransition } from '../feedback/page-transition'
+import { OfflineState, RecoveryState } from '../../design-system/states'
+import { WorkflowProvider } from '../../features/workspace/workflow-context'
 import { ThemeToggle } from './theme-toggle'
-
-const { Header, Sider, Content } = Layout
+import '../../design-system/tokens.css'
 
 const COLLAPSE_STORAGE_KEY = 'policyflow.shell.sider-collapsed'
+const MOBILE_BREAKPOINT = 900
+
+type NavLink = { to: string; testid: string; label: string; icon: ReactNode }
+
+const TITLES: Array<[string, string]> = [
+  ['/chat', '制度问答'],
+  ['/knowledge', '知识库'],
+  ['/knowledge-bases', '知识库'],
+  ['/memory', '我的记忆'],
+  ['/workspace', '报销工作区'],
+  ['/workflow', '报销流程'],
+  ['/approval', '待我审批'],
+  ['/drafts', '我的草稿'],
+  ['/faq-review', 'FAQ 审核'],
+  ['/evaluation', '评估中心'],
+  ['/admin/users', '用户管理'],
+  ['/admin/audit', '审计日志'],
+  ['/admin/skills', 'Skill 管理'],
+  ['/admin/integrations', 'MCP 集成'],
+  ['/admin/model-settings', '模型设置'],
+]
 
 function titleFor(pathname: string): string {
-  if (pathname.startsWith('/knowledge-bases/') && pathname !== '/knowledge-bases') {
-    return '知识库详情'
-  }
-  if (pathname.startsWith('/knowledge-bases')) return '知识库'
-  if (pathname.startsWith('/chat')) return '制度问答'
-  if (pathname.startsWith('/drafts/') && pathname !== '/drafts') return '草稿详情'
-  if (pathname.startsWith('/drafts')) return '我的草稿'
-  if (pathname.startsWith('/memory')) return '我的记忆'
-  if (pathname.startsWith('/faq-review')) return 'FAQ 审核'
-  if (pathname.startsWith('/evaluation')) return '评估中心'
-  if (pathname.startsWith('/admin/audit')) return '审计日志'
-  if (pathname.startsWith('/admin/skills')) return 'Skill 管理'
-  if (pathname.startsWith('/admin/integrations')) return 'MCP 集成'
-  if (pathname.startsWith('/admin/model-settings')) return '模型设置'
-  if (pathname === '/admin/users') return '用户管理'
   if (pathname === '/') return '工作台'
-  return 'PolicyFlow AI'
+  const hit = TITLES.find(([prefix]) => pathname.startsWith(prefix))
+  return hit ? hit[1] : 'PolicyFlow AI'
 }
 
 function readCollapsedPreference(): boolean {
   try {
-    const raw = window.localStorage.getItem(COLLAPSE_STORAGE_KEY)
-    if (raw === '1') return true
-    if (raw === '0') return false
+    return window.localStorage.getItem(COLLAPSE_STORAGE_KEY) === '1'
   } catch {
-    // ignore storage errors
+    return false
   }
-  return false
 }
 
-function useOnlineStatus(): boolean {
-  const [online, setOnline] = useState(() => navigator.onLine)
+function useOnlineStatus(): { online: boolean; recovered: boolean; dismissRecovered: () => void } {
+  const [online, setOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine))
+  const [recovered, setRecovered] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
-    const on = () => setOnline(true)
-    const off = () => setOnline(false)
-    window.addEventListener('online', on)
-    window.addEventListener('offline', off)
+    const clearTimer = () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+    }
+    const goOffline = () => {
+      setOnline(false)
+      setRecovered(false)
+      clearTimer()
+    }
+    const goOnline = () => {
+      setOnline(true)
+      setRecovered(true)
+      clearTimer()
+      // The "connection restored" banner is transient — auto-dismiss so it never lingers.
+      timerRef.current = setTimeout(() => setRecovered(false), 4000)
+    }
+    window.addEventListener('online', goOnline)
+    window.addEventListener('offline', goOffline)
     return () => {
-      window.removeEventListener('online', on)
-      window.removeEventListener('offline', off)
+      window.removeEventListener('online', goOnline)
+      window.removeEventListener('offline', goOffline)
+      clearTimer()
     }
   }, [])
-  return online
+  return { online, recovered, dismissRecovered: () => setRecovered(false) }
+}
+
+function NavItem({ link, active, collapsed }: { link: NavLink; active: boolean; collapsed: boolean }) {
+  return (
+    <li>
+      <Link
+        to={link.to}
+        data-testid={link.testid}
+        aria-current={active ? 'page' : undefined}
+        title={collapsed ? link.label : undefined}
+        className="ds-focusable"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: collapsed ? '10px' : '9px 12px',
+          margin: '2px 8px',
+          borderRadius: 'var(--ds-radius-md)',
+          color: active ? 'var(--ds-accent-text)' : 'var(--ds-text-secondary)',
+          background: active ? 'var(--ds-sidebar-active)' : 'transparent',
+          fontWeight: active ? 600 : 500,
+          fontSize: 'var(--ds-text-base)',
+          textDecoration: 'none',
+          justifyContent: collapsed ? 'center' : 'flex-start',
+          transition: 'background var(--ds-motion-fast) var(--ds-ease)',
+        }}
+      >
+        <span aria-hidden style={{ display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+          {link.icon}
+        </span>
+        {!collapsed ? <span style={{ minWidth: 0 }}>{link.label}</span> : null}
+      </Link>
+    </li>
+  )
 }
 
 export function AppShell() {
   const { user, logout } = useAuth()
   const location = useLocation()
-  const navigate = useNavigate()
-  const online = useOnlineStatus()
+  const { online, recovered, dismissRecovered } = useOnlineStatus()
   const [collapsed, setCollapsed] = useState(() => readCollapsedPreference())
-  const [isMobile, setIsMobile] = useState(false)
-
-  const canManageUsers = Boolean(user && hasAnyRole(user.roles, ['sys_admin']) && canCallApi('users'))
-  const canBrowseKnowledgeBases = canCallApi('knowledgeBases')
-  const canChat = canCallApi('chat') && canCallApi('feedback')
-  const canUseDrafts = canCallApi('drafts')
-  const canUseMemory = canCallApi('memory')
-  const canReviewFAQ = Boolean(user && hasAnyRole(user.roles, ['kb_admin', 'sys_admin']) && canCallApi('faq'))
-  const canEvaluate = Boolean(user && hasAnyRole(user.roles, ['kb_admin', 'sys_admin']) && canCallApi('eval'))
-  const canViewAudit = Boolean(user && hasAnyRole(user.roles, ['sys_admin']) && canCallApi('audit'))
-  const canManageSkills = Boolean(
-    user && hasAnyRole(user.roles, ['sys_admin']) && canCallApi('skills') && canCallApi('tools'),
-  )
-  const canManageIntegrations = Boolean(
-    user && hasAnyRole(user.roles, ['sys_admin']) && canCallApi('mcp'),
-  )
-  const canManageModelSettings = Boolean(
-    user && hasAnyRole(user.roles, ['sys_admin']) && canCallApi('modelSettings'),
-  )
 
   useEffect(() => {
-    clearReturnTo(window.sessionStorage)
+    const onResize = () => {
+      if (window.innerWidth < MOBILE_BREAKPOINT) setCollapsed(true)
+    }
+    onResize()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
   }, [])
 
   useEffect(() => {
@@ -100,323 +153,239 @@ export function AppShell() {
     }
   }, [collapsed])
 
-  const selectedKeys = useMemo(() => {
-    const path = location.pathname
-    if (path === '/') return ['/']
-    if (path.startsWith('/chat')) return ['/chat']
-    if (path.startsWith('/drafts')) return ['/drafts']
-    if (path.startsWith('/memory')) return ['/memory']
-    if (path.startsWith('/knowledge-bases')) return ['/knowledge-bases']
-    if (path.startsWith('/faq-review')) return ['/faq-review']
-    if (path.startsWith('/evaluation')) return ['/evaluation']
-    if (path.startsWith('/admin/audit')) return ['/admin/audit']
-    if (path.startsWith('/admin/skills')) return ['/admin/skills']
-    if (path.startsWith('/admin/integrations')) return ['/admin/integrations']
-    if (path.startsWith('/admin/model-settings')) return ['/admin/model-settings']
-    if (path === '/admin/users') return ['/admin/users']
-    return [path]
-  }, [location.pathname])
+  const isAdmin = Boolean(user && hasAnyRole(user.roles, ['sys_admin']))
+  const isReviewer = Boolean(user && hasAnyRole(user.roles, ['kb_admin', 'sys_admin']))
 
-  const openKeys = useMemo(() => {
-    const keys: string[] = []
-    if (canChat || canUseDrafts || canUseMemory) keys.push('work')
-    if (canBrowseKnowledgeBases || canReviewFAQ) keys.push('knowledge')
-    if (canEvaluate || canViewAudit) keys.push('quality')
-    if (canManageUsers || canManageSkills || canManageIntegrations || canManageModelSettings) {
-      keys.push('admin')
-    }
-    return keys
-  }, [
-    canBrowseKnowledgeBases,
-    canChat,
-    canEvaluate,
-    canManageIntegrations,
-    canManageModelSettings,
-    canManageSkills,
-    canManageUsers,
-    canReviewFAQ,
-    canUseDrafts,
-    canUseMemory,
-    canViewAudit,
-  ])
+  const primaryLinks: NavLink[] = [
+    { to: '/chat', testid: 'nav-chat', label: '制度问答', icon: <ChatCircle size={18} weight="duotone" /> },
+    { to: '/knowledge', testid: 'nav-knowledge', label: '知识库', icon: <BookOpen size={18} weight="duotone" /> },
+    { to: '/memory', testid: 'nav-memory', label: '我的记忆', icon: <Database size={18} weight="duotone" /> },
+    { to: '/workspace', testid: 'nav-workspace', label: '报销工作区', icon: <FolderOpen size={18} weight="duotone" /> },
+    { to: '/approval', testid: 'nav-approval', label: '待我审批', icon: <Scales size={18} weight="duotone" /> },
+  ]
 
-  const items: MenuProps['items'] = [
-    {
-      key: '/',
-      icon: <SquaresFour size={16} weight="duotone" />,
-      label: '工作台',
-    },
-    ...(canChat || canUseDrafts || canUseMemory
-      ? [
-          {
-            key: 'work',
-            label: '日常工作',
-            type: 'group' as const,
-            children: [
-              canChat
-                ? { key: '/chat', icon: <ChatCircle size={16} weight="duotone" />, label: '制度问答' }
-                : null,
-              canUseDrafts
-                ? { key: '/drafts', icon: <NotePencil size={16} weight="duotone" />, label: '我的草稿' }
-                : null,
-              canUseMemory
-                ? { key: '/memory', icon: <Database size={16} weight="duotone" />, label: '我的记忆' }
-                : null,
-            ].filter(Boolean),
-          },
-        ]
+  const adminLinks: NavLink[] = [
+    ...(isReviewer
+      ? [{ to: '/faq-review', testid: 'nav-faq', label: 'FAQ 审核', icon: <FileText size={18} weight="duotone" /> }]
       : []),
-    ...(canBrowseKnowledgeBases || canReviewFAQ
-      ? [
-          {
-            key: 'knowledge',
-            label: '知识管理',
-            type: 'group' as const,
-            children: [
-              canBrowseKnowledgeBases
-                ? { key: '/knowledge-bases', icon: <BookOpen size={16} weight="duotone" />, label: '知识库' }
-                : null,
-              canReviewFAQ
-                ? { key: '/faq-review', icon: <FileText size={16} weight="duotone" />, label: 'FAQ 审核' }
-                : null,
-            ].filter(Boolean),
-          },
-        ]
+    ...(isReviewer
+      ? [{ to: '/evaluation', testid: 'nav-evaluation', label: '评估中心', icon: <Wrench size={18} weight="duotone" /> }]
       : []),
-    ...(canEvaluate || canViewAudit
+    ...(isAdmin
       ? [
-          {
-            key: 'quality',
-            label: '质量与运维',
-            type: 'group' as const,
-            children: [
-              canEvaluate
-                ? { key: '/evaluation', icon: <Wrench size={16} weight="duotone" />, label: '评估中心' }
-                : null,
-              canViewAudit
-                ? { key: '/admin/audit', icon: <ClipboardText size={16} weight="duotone" />, label: '审计日志' }
-                : null,
-            ].filter(Boolean),
-          },
-        ]
-      : []),
-    ...(canManageUsers || canManageSkills || canManageIntegrations || canManageModelSettings
-      ? [
-          {
-            key: 'admin',
-            label: '系统管理',
-            type: 'group' as const,
-            children: [
-              canManageUsers
-                ? { key: '/admin/users', icon: <Users size={16} weight="duotone" />, label: '用户管理' }
-                : null,
-              canManageSkills
-                ? { key: '/admin/skills', icon: <Wrench size={16} weight="duotone" />, label: 'Skill 管理' }
-                : null,
-              canManageIntegrations
-                ? { key: '/admin/integrations', icon: <SquaresFour size={16} weight="duotone" />, label: 'MCP 集成' }
-                : null,
-              canManageModelSettings
-                ? {
-                    key: '/admin/model-settings',
-                    icon: <GearSix size={16} weight="duotone" />,
-                    label: '模型设置',
-                  }
-                : null,
-            ].filter(Boolean),
-          },
+          { to: '/admin/users', testid: 'nav-users', label: '用户管理', icon: <Users size={18} weight="duotone" /> },
+          { to: '/admin/audit', testid: 'nav-audit', label: '审计日志', icon: <ClipboardText size={18} weight="duotone" /> },
+          { to: '/admin/skills', testid: 'nav-skills', label: 'Skill 管理', icon: <Wrench size={18} weight="duotone" /> },
+          { to: '/admin/integrations', testid: 'nav-integrations', label: 'MCP 集成', icon: <SquaresFour size={18} weight="duotone" /> },
+          { to: '/admin/model-settings', testid: 'nav-model-settings', label: '模型设置', icon: <SlidersHorizontal size={18} weight="duotone" /> },
         ]
       : []),
   ]
 
+  const isActive = (to: string): boolean =>
+    to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)
+
   const roleText = formatRoles(user?.roles)
+  const sidebarWidth = collapsed ? 'var(--ds-sidebar-collapsed)' : 'var(--ds-sidebar-width)'
 
   return (
-    <Layout
-      className={collapsed ? 'pf-shell pf-shell--collapsed' : 'pf-shell'}
-      style={{ minHeight: '100dvh', background: 'transparent' }}
+    <div
+      data-testid="app-shell"
+      style={{
+        display: 'flex',
+        height: '100dvh',
+        overflow: 'hidden',
+        background: 'var(--ds-canvas)',
+        color: 'var(--ds-text)',
+        fontFamily: 'var(--ds-font-sans)',
+      }}
     >
-      <Sider
-        collapsible
-        collapsed={collapsed}
-        trigger={null}
-        width={236}
-        collapsedWidth={isMobile ? 0 : 68}
-        theme="light"
-        breakpoint="md"
-        onBreakpoint={(broken) => {
-          setIsMobile(broken)
-          // Only auto-collapse on true mobile; desktop keeps user preference.
-          if (broken) setCollapsed(true)
-        }}
+      <aside
         style={{
-          background: 'var(--color-sidebar-bg)',
-          borderRight: '1px solid var(--color-sidebar-border)',
+          width: sidebarWidth,
+          flexShrink: 0,
+          background: 'var(--ds-sidebar)',
+          borderRight: '1px solid var(--ds-border)',
+          display: 'flex',
+          flexDirection: 'column',
+          transition: 'width var(--ds-motion-base) var(--ds-ease)',
         }}
       >
         <Link
           to="/"
+          data-testid="nav-home"
+          className="ds-focusable"
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 12,
-            height: 56,
+            height: 'var(--ds-header-height)',
             padding: collapsed ? '0 16px' : '0 18px',
-            borderBottom: '1px solid var(--color-sidebar-border)',
-            color: 'var(--color-text-primary)',
+            borderBottom: '1px solid var(--ds-border)',
             textDecoration: 'none',
+            color: 'var(--ds-text)',
           }}
         >
-          <div
+          <span
+            aria-hidden
             style={{
               width: 30,
               height: 30,
               borderRadius: 9,
-              background: gradients.brandMark,
-              color: '#ffffff',
+              background: 'linear-gradient(145deg, #1fb888, #0f8f6c)',
+              color: '#fff',
               display: 'grid',
               placeItems: 'center',
               fontWeight: 700,
-              fontSize: 14,
               flexShrink: 0,
-              boxShadow: '0 6px 14px -10px rgba(15,154,116,0.35)',
             }}
           >
             P
-          </div>
+          </span>
           {!collapsed ? (
-            <div style={{ minWidth: 0 }}>
-              <div
-                style={{
-                  fontWeight: 650,
-                  lineHeight: 1.2,
-                  color: 'var(--color-text-primary)',
-                  letterSpacing: '-0.02em',
-                }}
-              >
-                PolicyFlow
-              </div>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: 'var(--color-sidebar-text-muted)',
-                  marginTop: 2,
-                }}
-              >
-                企业制度助手
-              </div>
-            </div>
+            <span style={{ fontWeight: 650, letterSpacing: '-0.02em' }}>PolicyFlow</span>
           ) : null}
         </Link>
 
-        <Menu
-          theme="light"
-          mode="inline"
-          selectedKeys={selectedKeys}
-          defaultOpenKeys={openKeys}
-          items={items}
-          onClick={({ key }) => navigate(key)}
+        <nav aria-label="主导航" style={{ flex: 1, overflowY: 'auto', paddingTop: 8 }}>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {primaryLinks.map((link) => (
+              <NavItem key={link.to} link={link} active={isActive(link.to)} collapsed={collapsed} />
+            ))}
+          </ul>
+          {adminLinks.length > 0 ? (
+            <div data-testid="nav-admin" style={{ marginTop: 12 }}>
+              {!collapsed ? (
+                <div
+                  style={{
+                    padding: '8px 20px 4px',
+                    fontSize: 'var(--ds-text-xs)',
+                    fontWeight: 600,
+                    letterSpacing: '0.04em',
+                    color: 'var(--ds-text-muted)',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  管理
+                </div>
+              ) : (
+                <div style={{ height: 1, background: 'var(--ds-divider)', margin: '8px 12px' }} />
+              )}
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                {adminLinks.map((link) => (
+                  <NavItem key={link.to} link={link} active={isActive(link.to)} collapsed={collapsed} />
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </nav>
+      </aside>
+
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <header
           style={{
-            borderInlineEnd: 0,
-            marginTop: 8,
-            paddingInline: 4,
-            background: 'transparent',
-          }} />
-      </Sider>
-
-      <Layout style={{ background: 'transparent', minWidth: 0 }}>
-        {!online ? (
-          <div
-            style={{
-              background: 'var(--color-warning-50)',
-              color: 'var(--color-warning)',
-              padding: '8px 16px',
-              textAlign: 'center',
-              fontSize: 13,
-            }}
-          >
-            <WifiHigh size={16} weight="duotone" aria-hidden /> 网络已断开，现有内容将保留，恢复后可重试。
-          </div>
-        ) : null}
-
-        <Header style={{ justifyContent: 'space-between' }}>
-          <Space size={8}>
-            <Button
-              type="text"
-              icon={
-                collapsed ? (
-                  <List size={16} weight="regular" aria-hidden />
-                ) : (
-                  <SidebarSimple size={16} weight="regular" aria-hidden />
-                )
-              }
+            height: 'var(--ds-header-height)',
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 20px',
+            background: 'var(--ds-card)',
+            borderBottom: '1px solid var(--ds-border)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
               onClick={() => setCollapsed((value) => !value)}
-              style={{ color: 'var(--color-text-secondary)' }}
-              aria-label={collapsed ? '展开侧栏' : '收起侧栏'} />
-            <Typography.Text
+              aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
+              className="ds-focusable"
               style={{
-                margin: 0,
-                color: 'var(--color-text-primary)',
-                fontWeight: 600,
-                fontSize: 15,
-                letterSpacing: '-0.01em',
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--ds-text-secondary)',
+                cursor: 'pointer',
+                display: 'grid',
+                placeItems: 'center',
+                width: 34,
+                height: 34,
+                borderRadius: 'var(--ds-radius-sm)',
               }}
             >
+              {collapsed ? <List size={18} /> : <SidebarSimple size={18} />}
+            </button>
+            <h1 style={{ margin: 0, fontSize: 'var(--ds-text-md)', fontWeight: 650, color: 'var(--ds-text)' }}>
               {titleFor(location.pathname)}
-            </Typography.Text>
-          </Space>
+            </h1>
+          </div>
 
-          <Space size={8}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <ThemeToggle />
-            <div style={{ textAlign: 'right', lineHeight: 1.25, maxWidth: 160 }}>
-              <div
-                style={{
-                  fontWeight: 600,
-                  color: 'var(--color-text-primary)',
-                  fontSize: 13,
-                }}
-              >
+            <div style={{ textAlign: 'right', lineHeight: 1.25, maxWidth: 180 }}>
+              <div style={{ fontWeight: 600, fontSize: 'var(--ds-text-sm)', color: 'var(--ds-text)' }}>
                 {user?.displayName}
               </div>
-              <Tooltip title={roleText}>
-                <Typography.Text type="secondary" style={{ fontSize: 11 }} ellipsis>
-                  {roleText}
-                </Typography.Text>
-              </Tooltip>
+              <div
+                style={{ fontSize: 'var(--ds-text-xs)', color: 'var(--ds-text-secondary)' }}
+                title={roleText}
+              >
+                {roleText}
+              </div>
             </div>
-            <Avatar
-              size={32}
-              style={{
-                background: gradients.brandMark,
-                fontSize: 13,
-                fontWeight: 600,
-                color: '#ffffff',
-              }}
-            >
-              {(user?.displayName ?? 'U').slice(0, 1)}
-            </Avatar>
-            <Button
-              type="text"
-              icon={<SignOut size={16} weight="duotone" aria-hidden />}
+            <button
+              type="button"
+              data-testid="shell-logout"
               onClick={logout}
               aria-label="退出登录"
+              className="ds-focusable"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                border: '1px solid var(--ds-border)',
+                background: 'var(--ds-card)',
+                color: 'var(--ds-text-secondary)',
+                cursor: 'pointer',
+                padding: '6px 12px',
+                borderRadius: 'var(--ds-radius-sm)',
+                fontSize: 'var(--ds-text-sm)',
+              }}
             >
-              退出
-            </Button>
-          </Space>
-        </Header>
-
-        <Content>
-          <div className="pf-content-frame">
-            <PageTransition>
-              <Outlet />
-            </PageTransition>
+              <SignOut size={16} aria-hidden /> 退出
+            </button>
           </div>
-        </Content>
-      </Layout>
+        </header>
+
+        <div aria-live="polite" style={{ padding: online && !recovered ? 0 : undefined }}>
+          {!online ? (
+            <div style={{ borderBottom: '1px solid var(--ds-border)' }}>
+              <OfflineState variant="inline" />
+            </div>
+          ) : recovered ? (
+            <div style={{ borderBottom: '1px solid var(--ds-border)' }}>
+              <RecoveryState variant="inline" onRetry={dismissRecovered} />
+            </div>
+          ) : null}
+        </div>
+
+        <main
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflow: 'auto',
+            padding: 'var(--ds-space-6)',
+          }}
+        >
+          <div style={{ maxWidth: 'var(--ds-content-max)', margin: '0 auto', height: '100%' }}>
+            <WorkflowProvider>
+              <Outlet />
+            </WorkflowProvider>
+          </div>
+        </main>
+      </div>
 
       <div id="toast-root" aria-live="polite" aria-atomic="true" />
       <div id="dialog-root" />
-    </Layout>
+    </div>
   )
 }

@@ -129,6 +129,22 @@ const ModelSettingsPage = lazyWithRetry(() =>
 const MemoryPage = lazyWithRetry(() =>
   import('../features/memory/memory-page').then((module) => ({ default: module.MemoryPage })),
 )
+const KnowledgePage = lazyWithRetry(() =>
+  import('../features/knowledge-bases/knowledge-base-page').then((module) => ({
+    default: module.KnowledgePage,
+  })),
+)
+const FileWorkspacePage = lazyWithRetry(() =>
+  import('../features/workspace/workspace-page').then((module) => ({
+    default: module.WorkspacePage,
+  })),
+)
+const WorkflowPage = lazyWithRetry(() =>
+  import('../features/workspace/workflow-page').then((module) => ({ default: module.WorkflowPage })),
+)
+const ApprovalPage = lazyWithRetry(() =>
+  import('../features/approval/approval-page').then((module) => ({ default: module.ApprovalPage })),
+)
 const AppShell = lazyWithRetry(() =>
   import('../components/layout/app-shell').then((module) => ({ default: module.AppShell })),
 )
@@ -292,5 +308,37 @@ export function ModelSettingsRouteElement() {
         <ModelSettingsPage />
       </Suspended>
     </RoleGuard>
+  )
+}
+
+export function KnowledgeRouteElement() {
+  return (
+    <Suspended>
+      <KnowledgePage />
+    </Suspended>
+  )
+}
+
+export function WorkspaceRouteElement() {
+  return (
+    <Suspended>
+      <FileWorkspacePage />
+    </Suspended>
+  )
+}
+
+export function WorkflowRouteElement() {
+  return (
+    <Suspended>
+      <WorkflowPage />
+    </Suspended>
+  )
+}
+
+export function ApprovalRouteElement() {
+  return (
+    <Suspended>
+      <ApprovalPage />
+    </Suspended>
   )
 }

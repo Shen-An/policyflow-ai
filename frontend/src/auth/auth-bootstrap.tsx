@@ -3,6 +3,7 @@ import { getCurrentUser } from '../api/auth'
 import { AppError } from '../api/errors'
 import { FullPageError } from '../components/feedback/full-page-error'
 import { FullPageLoading } from '../components/feedback/full-page-loading'
+import { currentUserDesktop, isDesktopRuntime } from '../desktop/desktop-auth'
 import { authStore, useAuthState } from './auth-store'
 
 export function AuthBootstrap({ children }: PropsWithChildren) {
@@ -17,8 +18,15 @@ export function AuthBootstrap({ children }: PropsWithChildren) {
     const controller = new AbortController()
     let active = true
     authStore.setBootstrapError(null)
-    void getCurrentUser(controller.signal)
-      .then((user) => { if (active) authStore.restoreUser(user) })
+    const loadUser = isDesktopRuntime()
+      ? currentUserDesktop()
+      : getCurrentUser(controller.signal)
+    void loadUser
+      .then((user) => {
+        if (!active) return
+        if (user) authStore.restoreUser(user)
+        else authStore.clearSession()
+      })
       .catch((error: unknown) => {
         if (!active) return
         if (error instanceof AppError && error.kind === 'auth') {

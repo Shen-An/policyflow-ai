@@ -10,3 +10,12 @@ export async function readStubState(): Promise<StubState> {
   const response = await fetch(`${stubBaseUrl}/__test/state`)
   return (await response.json()) as StubState
 }
+
+/**
+ * Clear the Stage 8 stub bookkeeping (approval decisions, per-run stream counts,
+ * pending emitters) WITHOUT touching the Phase 7 globals the crash/contract specs
+ * assert on. Call this in a Stage 8 spec's `before` so repeated runs stay deterministic.
+ */
+export async function resetStubState(): Promise<void> {
+  await fetch(`${stubBaseUrl}/__test/reset`, { method: 'POST' })
+}

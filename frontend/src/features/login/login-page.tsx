@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { login } from '../../api/auth'
 import { AppError } from '../../api/errors'
 import { authStore } from '../../auth/auth-store'
+import { DESKTOP_SESSION_SENTINEL, isDesktopRuntime, signInDesktop } from '../../desktop/desktop-auth'
 import { antdTheme } from '../../styles/antd-theme'
 import { gradients, palette } from '../../styles/palette'
 import type { LoginFormValues } from './login-schema'
@@ -32,8 +33,14 @@ export function LoginPage() {
     setSummary(null)
     setSubmitting(true)
     try {
-      const result = await login(values)
-      authStore.authenticateForDuration(result.accessToken, result.expiresIn, result.user)
+      if (isDesktopRuntime()) {
+        // Desktop: authenticate through the capability bridge (token stays in main).
+        const { user, expiresAt } = await signInDesktop(values)
+        authStore.authenticate(DESKTOP_SESSION_SENTINEL, expiresAt, user)
+      } else {
+        const result = await login(values)
+        authStore.authenticateForDuration(result.accessToken, result.expiresIn, result.user)
+      }
     } catch (error) {
       setSummary(errorMessage(error))
     } finally {

@@ -1,4 +1,4 @@
-import { ArrowClockwise, Database, Trash } from '@phosphor-icons/react'
+import { ArrowClockwise, Database, Info, Trash } from '@phosphor-icons/react'
 import {
   App,
   Button,
@@ -16,6 +16,7 @@ import type { MemoryItem } from '../../api/memory'
 import { EmptyState, ErrorState, LoadingState } from '../../components/feedback/state-views'
 import { MarkdownContent } from '../../components/markdown/markdown-content'
 import { QuietChip, type ChipTone } from '../../components/ui/quiet-chip'
+import { isDesktopRuntime } from '../../services/desktop-api'
 import { confirmAction } from '../../lib/confirm'
 import { formatDateTime } from '../../lib/datetime'
 import { useDeleteMemoryMutation, useMemoriesQuery } from './queries'
@@ -44,7 +45,56 @@ function positiveInt(value: string | null, fallback: number): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback
 }
 
+// Desktop note: memory is never a policy basis and is visible/deletable only to its owner.
+function MemoryBoundaryBanner() {
+  return (
+    <div
+      data-testid="memory-boundary"
+      role="note"
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 8,
+        border: '1px solid var(--ds-border)',
+        background: 'var(--ds-card-muted)',
+        borderRadius: 'var(--ds-radius-md)',
+        padding: '10px 12px',
+        marginBottom: 12,
+        fontSize: 'var(--ds-text-sm)',
+        color: 'var(--ds-text-secondary)',
+      }}
+    >
+      <Info size={16} weight="duotone" aria-hidden style={{ color: 'var(--ds-info)', marginTop: 2 }} />
+      <span>
+        这些记忆仅你自己可见、可删除，用于让助手更贴近你的习惯；<strong>它们不是政策依据</strong>
+        ，制度事实一律以知识库检索结果为准。
+      </span>
+    </div>
+  )
+}
+
+// In the desktop shell the capability bridge exposes no memory endpoints (an honest
+// boundary, matching Phase 7's minimal bridge). Rather than show a broken table we state
+// the boundary and where memory is managed.
+function DesktopMemoryPage() {
+  return (
+    <div data-testid="memory-page">
+      <MemoryBoundaryBanner />
+      <EmptyState
+        icon={<Database size={16} weight="duotone" style={{ fontSize: 18 }} />}
+        title="记忆管理在 Web 控制台"
+        hint="桌面端以安全只读能力为主；查看与删除你的个人记忆，请使用 Web 控制台。记忆不是政策依据。"
+        minH="min-h-48" />
+    </div>
+  )
+}
+
 export function MemoryPage() {
+  if (isDesktopRuntime()) return <DesktopMemoryPage />
+  return <WebMemoryPage />
+}
+
+function WebMemoryPage() {
   const { message } = App.useApp()
   const [searchParams, setSearchParams] = useSearchParams()
   const page = positiveInt(searchParams.get('page'), 1)
@@ -161,6 +211,7 @@ export function MemoryPage() {
 
   return (
     <div>
+      <MemoryBoundaryBanner />
       <div className="page-toolbar page-toolbar--split">
         <p className="page-lede">查看助手为你保留的偏好、实体与长期事件。制度事实仍以知识库检索为准。</p>
         <Space>

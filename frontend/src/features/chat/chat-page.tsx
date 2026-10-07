@@ -14,6 +14,8 @@ import {
 } from 'antd'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { isDesktopRuntime } from '../../services/desktop-api'
+import { DesktopChatPage } from './desktop-chat-page'
 import type {
   AssistantMetadata,
   ChatPlanEvent,
@@ -121,7 +123,14 @@ async function copyTextToClipboard(text: string): Promise<void> {
   if (!ok) throw new Error('复制失败')
 }
 
+// Stage 8: the desktop shell runs over the capability bridge (no direct backend), so the
+// desktop chat surface is a distinct implementation driven by v2 run events. The web chat
+// below is unchanged and still used by the browser build.
 export function ChatPage() {
+  return isDesktopRuntime() ? <DesktopChatPage /> : <WebChatPage />
+}
+
+function WebChatPage() {
   const { conversationId = '' } = useParams()
   const navigate = useNavigate()
   const { message, modal } = App.useApp()

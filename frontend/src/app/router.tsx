@@ -1,12 +1,14 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { createHashRouter } from 'react-router-dom'
 import { ForbiddenPage } from './forbidden-page'
 import { NotFoundPage } from './not-found-page'
 import {
+  ApprovalRouteElement,
   AuditRouteElement,
   ChatRouteElement,
   DocumentListRouteElement,
   DraftDetailRouteElement,
   DraftListRouteElement,
+  KnowledgeRouteElement,
   MemoryRouteElement,
   EvaluationRouteElement,
   FAQReviewRouteElement,
@@ -19,10 +21,16 @@ import {
   ShellRouteElement,
   SkillsRouteElement,
   UsersRouteElement,
+  WorkflowRouteElement,
+  WorkspaceRouteElement,
 } from './route-elements'
 import { WorkspacePage } from './workspace-page'
 
-export const router = createBrowserRouter([
+// Stage 8: the desktop renderer is served from app://local/index.html, where a browser
+// (path) router never matches and falls through to NotFound. A hash router keeps all
+// routing in the URL fragment, so navigation works identically under the custom scheme
+// and the production web build.
+export const router = createHashRouter([
   { path: '/login', element: <LoginRouteElement /> },
   {
     element: <ShellRouteElement />,
@@ -31,9 +39,13 @@ export const router = createBrowserRouter([
       { path: 'forbidden', element: <ForbiddenPage /> },
       { path: 'chat', element: <ChatRouteElement /> },
       { path: 'chat/:conversationId', element: <ChatRouteElement /> },
+      { path: 'knowledge', element: <KnowledgeRouteElement /> },
+      { path: 'memory', element: <MemoryRouteElement /> },
+      { path: 'workspace', element: <WorkspaceRouteElement /> },
+      { path: 'workflow', element: <WorkflowRouteElement /> },
+      { path: 'approval', element: <ApprovalRouteElement /> },
       { path: 'drafts', element: <DraftListRouteElement /> },
       { path: 'drafts/:draftId', element: <DraftDetailRouteElement /> },
-      { path: 'memory', element: <MemoryRouteElement /> },
       { path: 'faq-review', element: <FAQReviewRouteElement /> },
       { path: 'evaluation', element: <EvaluationRouteElement /> },
       { path: 'admin/audit', element: <AuditRouteElement /> },

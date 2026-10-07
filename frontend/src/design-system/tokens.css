@@ -1,0 +1,214 @@
+/*
+ * Stage 8 design system tokens (T127).
+ *
+ * A professional, consistent desktop surface: a soft-mint canvas, white floating cards,
+ * and a light sidebar (never indigo). These `--ds-*` tokens are self-contained — Stage 8
+ * surfaces reference them directly rather than relying on cascade order with the older
+ * `styles/tokens.css`. The soft-mint canvas is also mapped onto the shared
+ * `--color-background` family so the whole shell shares one unified canvas.
+ *
+ * Contrast: every token pairing used for text meets WCAG AA (>=4.5:1 for body text,
+ * >=3:1 for large text / UI boundaries). `--ds-text` / `--ds-text-secondary` are the only
+ * tokens used for real text; `--ds-text-muted` is reserved for large text and icons.
+ */
+
+:root {
+  /* ---- canvas & surfaces (soft mint canvas, white floating cards) ---- */
+  --ds-canvas: #eaf3ee;              /* soft mint app canvas */
+  --ds-canvas-soft: #e2eee7;         /* slightly deeper mint for insets/rails */
+  --ds-card: #ffffff;                /* white floating cards */
+  --ds-card-muted: #f5f9f7;          /* quiet inset within a card */
+  --ds-sidebar: #f3f8f5;             /* light sidebar, a hair off the canvas */
+  --ds-sidebar-active: #d7ece0;      /* quiet active selection */
+  --ds-overlay: rgba(16, 32, 26, 0.44);
+
+  /* ---- borders & dividers ---- */
+  --ds-border: #d3e0d8;
+  --ds-border-strong: #b7c9bf;
+  --ds-divider: #e6efe9;
+
+  /* ---- text (AA-safe on canvas and cards) ---- */
+  --ds-text: #152019;                /* near-black ink, >=14:1 on white */
+  --ds-text-secondary: #45575c;      /* ~6:1 on white — safe for body text */
+  --ds-text-muted: #566166;          /* large text / captions only (~5:1) */
+  --ds-text-on-accent: #ffffff;
+
+  /* ---- brand accent (restrained teal) ---- */
+  --ds-accent: #0f8f6c;
+  --ds-accent-hover: #0c7a5c;
+  --ds-accent-active: #0a6b50;
+  --ds-accent-soft: #e4f4ec;
+  --ds-accent-border: #a9ddc7;
+  --ds-accent-text: #0a5540;         /* teal text on white/mint — ~5:1, AA */
+
+  /* ---- semantic (text variants chosen for AA on white) ---- */
+  --ds-success: #15803d;
+  --ds-success-soft: #e9f8ef;
+  --ds-warning: #b45309;             /* darker amber — AA as text on white */
+  --ds-warning-soft: #fdf3e7;
+  --ds-danger: #c62f2f;              /* AA as text on white */
+  --ds-danger-soft: #fdeceb;
+  --ds-info: #0b6ea8;
+  --ds-info-soft: #e7f2fb;
+
+  /* ---- radius ---- */
+  --ds-radius-sm: 8px;
+  --ds-radius-md: 12px;
+  --ds-radius-lg: 16px;
+  --ds-radius-xl: 22px;
+  --ds-radius-pill: 999px;
+
+  /* ---- spacing (4px base) ---- */
+  --ds-space-1: 4px;
+  --ds-space-2: 8px;
+  --ds-space-3: 12px;
+  --ds-space-4: 16px;
+  --ds-space-5: 20px;
+  --ds-space-6: 24px;
+  --ds-space-8: 32px;
+  --ds-space-10: 40px;
+
+  /* ---- type scale ---- */
+  --ds-font-sans: "Geist Variable", "Geist", "Inter", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --ds-font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, monospace;
+  --ds-text-xs: 12px;
+  --ds-text-sm: 13px;
+  --ds-text-base: 14px;
+  --ds-text-md: 15px;
+  --ds-text-lg: 18px;
+  --ds-text-xl: 22px;
+  --ds-leading: 1.6;
+
+  /* ---- elevation (soft, cool-tinted) ---- */
+  --ds-elevation-1: 0 1px 2px rgb(16 32 26 / 0.04), 0 1px 1px -1px rgb(16 32 26 / 0.03);
+  --ds-elevation-2: 0 6px 18px -10px rgb(16 32 26 / 0.12), 0 2px 6px -3px rgb(16 32 26 / 0.06);
+  --ds-elevation-3: 0 18px 40px -18px rgb(16 32 26 / 0.18), 0 8px 16px -10px rgb(16 32 26 / 0.08);
+
+  /* ---- motion ---- */
+  --ds-motion-fast: 120ms;
+  --ds-motion-base: 200ms;
+  --ds-motion-slow: 320ms;
+  --ds-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ds-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ---- focus (visible, high-contrast ring) ---- */
+  --ds-focus-ring: 0 0 0 2px #ffffff, 0 0 0 4px var(--ds-accent);
+  --ds-focus-ring-color: var(--ds-accent);
+  --ds-focus-outline: 2px solid var(--ds-accent);
+
+  /* ---- shell metrics ---- */
+  --ds-sidebar-width: 248px;
+  --ds-sidebar-collapsed: 72px;
+  --ds-header-height: 56px;
+  --ds-content-max: 1200px;
+
+  /* Map the soft-mint canvas onto the shared tokens so the whole app shares it. */
+  --color-background: var(--ds-canvas);
+  --color-background-soft: var(--ds-canvas-soft);
+}
+
+.dark {
+  /* Keep the same teal identity on cooler charcoal surfaces for the desktop dark theme. */
+  --ds-canvas: #0e1512;
+  --ds-canvas-soft: #121b17;
+  --ds-card: #16201b;
+  --ds-card-muted: #1b261f;
+  --ds-sidebar: #121a16;
+  --ds-sidebar-active: rgba(52, 211, 153, 0.14);
+  --ds-overlay: rgba(0, 0, 0, 0.56);
+
+  --ds-border: #27352d;
+  --ds-border-strong: #38493f;
+  --ds-divider: #202b25;
+
+  --ds-text: #e9f1ec;
+  --ds-text-secondary: #a8b6ae;
+  --ds-text-muted: #8a978f;
+  --ds-text-on-accent: #04231a;
+
+  --ds-accent: #34d399;
+  --ds-accent-hover: #5fe0b2;
+  --ds-accent-active: #10b981;
+  --ds-accent-soft: rgba(52, 211, 153, 0.14);
+  --ds-accent-border: rgba(52, 211, 153, 0.3);
+  --ds-accent-text: #86efc0;
+
+  --ds-success: #4ade80;
+  --ds-success-soft: rgba(74, 222, 128, 0.14);
+  --ds-warning: #fbbf24;
+  --ds-warning-soft: rgba(251, 191, 36, 0.14);
+  --ds-danger: #f87171;
+  --ds-danger-soft: rgba(248, 113, 113, 0.14);
+  --ds-info: #38bdf8;
+  --ds-info-soft: rgba(56, 189, 248, 0.14);
+
+  --ds-elevation-1: 0 1px 2px rgb(0 0 0 / 0.3);
+  --ds-elevation-2: 0 10px 24px -14px rgb(0 0 0 / 0.55), 0 4px 10px -6px rgb(0 0 0 / 0.35);
+  --ds-elevation-3: 0 20px 44px -20px rgb(0 0 0 / 0.65), 0 10px 18px -10px rgb(0 0 0 / 0.4);
+
+  --ds-focus-ring: 0 0 0 2px #0e1512, 0 0 0 4px var(--ds-accent);
+}
+
+/* Respect users who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ds-motion-fast: 1ms;
+    --ds-motion-base: 1ms;
+    --ds-motion-slow: 1ms;
+  }
+}
+
+/* ---- design-system utilities ---- */
+@keyframes ds-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ds-spin {
+  animation: ds-spin 900ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-spin {
+    animation-duration: 0ms;
+  }
+}
+
+/* White floating card on the mint canvas. */
+.ds-card {
+  background: var(--ds-card);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-elevation-1);
+}
+
+/* Keyboard focus: a visible, high-contrast ring. Pointer focus stays quiet. */
+.ds-focusable:focus-visible,
+.ds-card :focus-visible {
+  outline: none;
+  box-shadow: var(--ds-focus-ring);
+  border-radius: var(--ds-radius-sm);
+}
+
+/* Quiet ghost button (copy / edit affordances). */
+.ds-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ds-text-secondary);
+  font-size: var(--ds-text-xs);
+  padding: 3px 8px;
+  border-radius: var(--ds-radius-sm);
+  cursor: pointer;
+  transition: background var(--ds-motion-fast) var(--ds-ease);
+}
+
+.ds-ghost-btn:hover {
+  background: var(--ds-card-muted);
+  color: var(--ds-text);
+}
+
