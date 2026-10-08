@@ -546,13 +546,41 @@ async def _apply_compare_and_set(
             extra={"resource_kind": resource_kind, "expected_version": expected_version},
         )
         raise VersionConflictError(resource_kind, entity_id, expected_version)
-    return await _fetch_one(
+    return await _fetch_refreshed(
         session,
         model,
         entity_id,
         tenant_id=tenant_id,
         resource_kind=resource_kind,
     )
+
+
+async def _fetch_refreshed(
+    session: AsyncSession,
+    model: type[Any],
+    entity_id: str,
+    *,
+    tenant_id: str | None,
+    resource_kind: str,
+) -> _Row:
+    """Return the row after a compare-and-set, with the written values loaded.
+
+    The update runs with ``synchronize_session=False``, so the identity map still
+    holds the pre-update object. Returning it unchanged would report a successful
+    write with stale fields (for example a revocation whose ``revoked_at`` is
+    still ``None``), so the row is refreshed from the database before being
+    returned. A caller that only checks the version would not notice, which is
+    exactly why this must be explicit.
+    """
+    row = await _fetch_one(
+        session,
+        model,
+        entity_id,
+        tenant_id=tenant_id,
+        resource_kind=resource_kind,
+    )
+    await session.refresh(row)
+    return row
 
 
 async def _insert_row(session: AsyncSession, row: Any, *, table_label: str) -> None:
@@ -2963,15 +2991,22 @@ class UnitOfWorkGrantSource:
         self._uow = uow
 
     async def _selected(self, tenant_id: str, user_id: str, membership_id: str) -> list[Any]:
-        """Return the currently valid grants for one membership.
+        """Return every currently valid grant for this member of this tenant.
 
-        ``membership_id`` identifies a single grant row, so a caller holding a
-        stale membership reference resolves to nothing rather than to whatever
-        grants the user happens to have now.
+        ``membership_id`` is a *gate*, not a filter. The request's own membership
+        row must still be active -- a stale membership reference resolves to
+        nothing rather than to whatever grants the user happens to have now --
+        but once that is proven the scopes are the union of **all** current
+        grants. Roles are additive, and filtering to the single membership row
+        made a second grant invisible to fresh authorization: an operator could
+        grant ``admin`` and the next request would still be refused, even though
+        the token snapshot (which already unions grants) said otherwise.
         """
         member = _require_text(membership_id, "membership_id")
         grants = await self._uow.grants.active_grants(tenant_id, user_id)
-        return [grant for grant in grants if getattr(grant, "id", None) == member]
+        if not any(getattr(grant, "id", None) == member for grant in grants):
+            return []
+        return grants
 
     async def scopes_for(
         self, tenant_id: str, user_id: str, membership_id: str

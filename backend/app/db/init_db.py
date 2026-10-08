@@ -506,6 +506,14 @@ def _ensure_permission(
     return True
 
 
+#: Tables where ``tenant_id IS NULL`` is a deliberate state, not a pre-tenancy
+#: row waiting to be adopted. ``quota_policies`` uses a null tenant for a
+#: platform-wide default, so adopting those rows into the legacy tenant would
+#: silently delete the global fallback (every tenant would then see only its
+#: own, possibly absent, policy).
+TENANT_NULLABLE_TABLES = frozenset({"quota_policies"})
+
+
 def _adopt_unowned_rows(session: Session, tenant_id: str) -> int:
     """Give every row without a tenant to ``tenant_id`` and return the row count.
 
@@ -514,10 +522,15 @@ def _adopt_unowned_rows(session: Session, tenant_id: str) -> int:
     has ``tenant_id = NULL`` everywhere: without adoption the seed would not find
     the existing ``employee`` role, would try to insert a second one, and the
     pre-tenant global unique index would abort startup.
+
+    Tables in :data:`TENANT_NULLABLE_TABLES` are skipped: their null owner is a
+    meaning (global policy), not a missing migration step.
     """
     adopted = 0
     for table in SQLModel.metadata.sorted_tables:
         if "tenant_id" not in table.columns:
+            continue
+        if table.name in TENANT_NULLABLE_TABLES:
             continue
         result = session.execute(
             table.update()
@@ -578,6 +591,8 @@ def _unowned_row_count(session: Session) -> int:
     total = 0
     for table in SQLModel.metadata.sorted_tables:
         if "tenant_id" not in table.columns:
+            continue
+        if table.name in TENANT_NULLABLE_TABLES:
             continue
         count = session.execute(
             select(func.count()).select_from(table).where(table.c.tenant_id.is_(None))
