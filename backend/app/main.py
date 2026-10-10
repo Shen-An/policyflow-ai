@@ -25,6 +25,7 @@ from backend.app.agents.reflection_loop import ReflectionLoop
 from backend.app.agents.retrieval_agent import RetrievalAgent
 from backend.app.agents.router_agent import RouterAgent
 from backend.app.agents.skill_agent import SkillAgent
+from backend.app.api.routes_admin import router as admin_router
 from backend.app.api.routes_approvals import router as approvals_router
 from backend.app.api.routes_audit import router as audit_router
 from backend.app.api.routes_auth import router as auth_router
@@ -334,6 +335,9 @@ def create_app(
     application.include_router(materials_router)
     application.include_router(approvals_router)
     application.include_router(workspaces_router)
+    # Stage 9 / US5: tenant governance surface (roles, quota, run audit,
+    # recovery, reconciliation and platform capacity evidence).
+    application.include_router(admin_router)
     # T086: counts every use of the legacy host-local storage adapters.
     # Its zero_use_over_window() is the Stage 9 condition for deleting them.
     application.state.storage_authority_telemetry = StorageAuthorityTelemetry()
