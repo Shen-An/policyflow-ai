@@ -1,4 +1,5 @@
 import {
+  ArrowsClockwise,
   BookOpen,
   ChatCircle,
   ClipboardText,
@@ -6,7 +7,9 @@ import {
   FileText,
   FolderOpen,
   List,
+  Pulse,
   Scales,
+  ShieldCheck,
   SidebarSimple,
   SignOut,
   SlidersHorizontal,
@@ -42,6 +45,9 @@ const TITLES: Array<[string, string]> = [
   ['/faq-review', 'FAQ 审核'],
   ['/evaluation', '评估中心'],
   ['/admin/users', '用户管理'],
+  ['/admin/governance', '租户治理'],
+  ['/admin/runs', '运行与审计'],
+  ['/admin/reconciliation', '一致性修复'],
   ['/admin/audit', '审计日志'],
   ['/admin/skills', 'Skill 管理'],
   ['/admin/integrations', 'MCP 集成'],
@@ -174,6 +180,9 @@ export function AppShell() {
     ...(isAdmin
       ? [
           { to: '/admin/users', testid: 'nav-users', label: '用户管理', icon: <Users size={18} weight="duotone" /> },
+          { to: '/admin/governance', testid: 'nav-governance', label: '租户治理', icon: <ShieldCheck size={18} weight="duotone" /> },
+          { to: '/admin/runs', testid: 'nav-runs', label: '运行与审计', icon: <Pulse size={18} weight="duotone" /> },
+          { to: '/admin/reconciliation', testid: 'nav-reconciliation', label: '一致性修复', icon: <ArrowsClockwise size={18} weight="duotone" /> },
           { to: '/admin/audit', testid: 'nav-audit', label: '审计日志', icon: <ClipboardText size={18} weight="duotone" /> },
           { to: '/admin/skills', testid: 'nav-skills', label: 'Skill 管理', icon: <Wrench size={18} weight="duotone" /> },
           { to: '/admin/integrations', testid: 'nav-integrations', label: 'MCP 集成', icon: <SquaresFour size={18} weight="duotone" /> },

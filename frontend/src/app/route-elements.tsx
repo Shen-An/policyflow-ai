@@ -108,6 +108,19 @@ const FAQReviewPage = lazyWithRetry(() =>
 const AuditPage = lazyWithRetry(() =>
   import('../features/audit/audit-page').then((module) => ({ default: module.AuditPage })),
 )
+const AdminPage = lazyWithRetry(() =>
+  import('../features/admin/admin-page').then((module) => ({ default: module.AdminPage })),
+)
+const AuditRunPage = lazyWithRetry(() =>
+  import('../features/admin/audit-run-page').then((module) => ({
+    default: module.AuditRunPage,
+  })),
+)
+const ReconciliationPage = lazyWithRetry(() =>
+  import('../features/admin/reconciliation-page').then((module) => ({
+    default: module.ReconciliationPage,
+  })),
+)
 const EvaluationPage = lazyWithRetry(() =>
   import('../features/evaluation/evaluation-page').then((module) => ({
     default: module.EvaluationPage,
@@ -271,7 +284,35 @@ export function AuditRouteElement() {
   )
 }
 
-export function EvaluationRouteElement() {
+export function AdminRouteElement() {
+  return (
+    <RoleGuard required={['sys_admin']}>
+      <Suspended>
+        <AdminPage />
+      </Suspended>
+    </RoleGuard>
+  )
+}
+
+export function AuditRunRouteElement() {
+  return (
+    <RoleGuard required={['sys_admin']}>
+      <Suspended>
+        <AuditRunPage />
+      </Suspended>
+    </RoleGuard>
+  )
+}
+
+export function ReconciliationRouteElement() {
+  return (
+    <RoleGuard required={['sys_admin']}>
+      <Suspended>
+        <ReconciliationPage />
+      </Suspended>
+    </RoleGuard>
+  )
+}export function EvaluationRouteElement() {
   return (
     <RoleGuard required={['kb_admin', 'sys_admin']}>
       <Suspended>

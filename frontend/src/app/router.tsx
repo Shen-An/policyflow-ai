@@ -3,7 +3,9 @@ import { ForbiddenPage } from './forbidden-page'
 import { NotFoundPage } from './not-found-page'
 import {
   ApprovalRouteElement,
+  AdminRouteElement,
   AuditRouteElement,
+  AuditRunRouteElement,
   ChatRouteElement,
   DocumentListRouteElement,
   DraftDetailRouteElement,
@@ -18,6 +20,7 @@ import {
   KnowledgeBaseOverviewRouteElement,
   LoginRouteElement,
   ModelSettingsRouteElement,
+  ReconciliationRouteElement,
   ShellRouteElement,
   SkillsRouteElement,
   UsersRouteElement,
@@ -49,6 +52,9 @@ export const router = createHashRouter([
       { path: 'faq-review', element: <FAQReviewRouteElement /> },
       { path: 'evaluation', element: <EvaluationRouteElement /> },
       { path: 'admin/audit', element: <AuditRouteElement /> },
+      { path: 'admin/governance', element: <AdminRouteElement /> },
+      { path: 'admin/runs', element: <AuditRunRouteElement /> },
+      { path: 'admin/reconciliation', element: <ReconciliationRouteElement /> },
       { path: 'admin/skills', element: <SkillsRouteElement /> },
       { path: 'admin/integrations', element: <IntegrationsRouteElement /> },
       { path: 'admin/model-settings', element: <ModelSettingsRouteElement /> },
