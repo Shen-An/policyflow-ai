@@ -1,0 +1,82 @@
+........................................................................ [  8%]
+........................................................................ [ 17%]
+........................................................................ [ 26%]
+........................................................................ [ 34%]
+....ssssssssssssssss.sssssss............................................ [ 43%]
+........................................................................ [ 52%]
+.......................................................ssss.ssss........ [ 61%]
+......s...............ss.s........sssssssssss...ssssssssssssss.sFsssssss [ 69%]
+ssssssssss.ssssssssssssssssssssssss.sssss...sssssssssssss.........ssssss [ 78%]
+sssssssssssssssssssssss....ssssssssssssss....................ssssssssss. [ 87%]
+........sssssssssssssss................................................. [ 96%]
+ssssssss.......................                                          [100%]
+================================== FAILURES ===================================
+__________ test_readiness_distinguishes_unmigrated_from_unreachable ___________
+
+    async def test_readiness_distinguishes_unmigrated_from_unreachable() -> None:
+        """Readiness must name the real reason, because the remedies differ."""
+>       with conftest.scratch_database(pg_url_for_scratch(), "pf_it_unmigrated") as unmigrated_url:
+
+tests\integration\test_multi_instance.py:294: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\..\..\Anaconda\envs\policyflow\Lib\contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+tests\conftest.py:313: in scratch_database
+    with psycopg.connect(maintenance, autocommit=True) as conn:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+cls = <class 'psycopg.Connection'>
+conninfo = 'user=policyflow password=policyflow-dev dbname=policyflow host=127.0.0.1 port=55432 hostaddr=127.0.0.1'
+autocommit = True, prepare_threshold = 5, context = None, row_factory = None
+cursor_factory = None, kwargs = {}
+
+    @classmethod
+    def connect(
+        cls,
+        conninfo: str = "",
+        *,
+        autocommit: bool = False,
+        prepare_threshold: int | None = 5,
+        context: AdaptContext | None = None,
+        row_factory: RowFactory[Row] | None = None,
+        cursor_factory: type[Cursor[Row]] | None = None,
+        **kwargs: ConnParam,
+    ) -> Self:
+        """
+        Connect to a database server and return a new `Connection` instance.
+        """
+    
+        params = cls._get_connection_params(conninfo, **kwargs)
+        timeout = timeout_from_conninfo(params)
+        rv = None
+        attempts = conninfo_attempts(params)
+        conn_errors: list[tuple[e.Error, str]] = []
+        for attempt in attempts:
+            tdescr = (attempt.get("host"), attempt.get("port"), attempt.get("hostaddr"))
+            descr = "host: %r, port: %r, hostaddr: %r" % tdescr
+            logger.debug("connection attempt: %s", descr)
+            try:
+                conninfo = make_conninfo("", **attempt)
+                gen = cls._connect_gen(conninfo, timeout=timeout)
+                rv = waiting.wait_conn(gen, interval=_WAIT_INTERVAL)
+            except e.Error as ex:
+                logger.debug("connection failed: %s: %s", descr, str(ex))
+                conn_errors.append((ex, descr))
+            except e._NO_TRACEBACK as ex:
+                raise ex.with_traceback(None)
+            else:
+                logger.debug("connection succeeded: %s", descr)
+                break
+    
+        if not rv:
+            last_ex = conn_errors[-1][0]
+            if len(conn_errors) == 1:
+>               raise last_ex.with_traceback(None)
+E               psycopg.errors.ConnectionTimeout: connection timeout expired
+
+..\..\..\Anaconda\envs\policyflow\Lib\site-packages\psycopg\connection.py:122: ConnectionTimeout
+=========================== short test summary info ===========================
+FAILED tests/integration/test_multi_instance.py::test_readiness_distinguishes_unmigrated_from_unreachable
+1 failed, 626 passed, 196 skipped in 387.22s (0:06:27)

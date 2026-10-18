@@ -1106,3 +1106,11 @@ configured again. A failed
 model is skipped and the next model is attempted. If all configured models fail, the
 service raises `RERANKER_UNAVAILABLE` rather than silently pretending that lexical
 rerank was applied.
+
+---
+
+## Stage 9/10 追加（2026-10-18）
+
+- 编排未分叉：评估入口与对话入口继续共用同一 graph 与证据门；`tests/eval/test_evidence_gate_parity.py`、`tests/integration/test_entrypoint_conclusion_parity.py` 守住一致性（SC-013）。
+- **治理只读业务事实**：管理员看到的配额、用量、健康与恢复状态来自同一状态机，不另建投影表；审计按 `run_id` 合并 audit 与 run events。
+- **诚实边界**：容量数字（RPS / p95 / soak）本轮**没有**在验收环境产出；`acceptance` profile 只定义阈值与判定逻辑，缺指标一律判 inconclusive。

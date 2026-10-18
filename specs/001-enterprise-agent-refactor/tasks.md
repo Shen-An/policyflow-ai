@@ -766,24 +766,33 @@ SELECT 与 UPDATE 之间没有原子性，UPDATE 也不带 `status='pending'` �
 
 **Purpose**: 完成综合验收、数据权威切换和临时路径退出；任何未运行/失败/环境差距必须披露，旧路径仅在一个 release window 零使用后删除。
 
-- [ ] T149 [P] 在 `tests/migration/test_enterprise_data_preservation.py` 中验证 users/knowledge/conversations/messages/memory/drafts/eval/material objects/vectors 的 row count、FK、unique、SHA-256、manifest 和 legacy read comparison 100%
-- [ ] T150 [P] 在 `tests/contract/test_openapi_v2.py` 中验证 `specs/001-enterprise-agent-refactor/contracts/openapi.yaml` 与运行中 v2 schema、Idempotency-Key、Problem、RunEvent 2.0、approval/material constraints 一致
-- [ ] T151 [P] 在 `tests/contract/test_internal_contracts.py` 中验证 principal、graph、jobs、retrieval、object store、sandbox、connector、AuditSink、SSE 和 stable error codes 符合 `contracts/internal-contracts.md`
-- [ ] T152 在 `migrations/versions/003_authority_contract.py` 中仅于 Stage 2–8 全部迁移核对和恢复点存在时 contract legacy columns/paths，并拒绝自动反向 destructive migration
-- [ ] T153 在 `tests/load/locustfile.py` 中实现 acceptance profile，组合 1,000 active sessions、1,000 SSE、non-LLM 200 RPS、p95/首阶段目标、30 分钟 soak、文件流与 tenant isolation
-- [ ] T154 运行 `pytest -q tests/contract tests/unit tests/integration tests/security tests/recovery tests/migration tests/reconciliation` 并把完整输出与哈希保存到 `artifacts/acceptance/backend/`
-- [ ] T155 [P] 运行 `npm --prefix frontend run test` 和 `npm --prefix frontend run test:electron:e2e` 并把完整输出与哈希保存到 `artifacts/acceptance/desktop/`
-- [ ] T156 运行分布式 Locust acceptance profile，验证 server failure <1%、non-LLM p95 <500ms、首阶段 p95 <1s、SSE 清理 <30s 和 soak 无持续增长，并把原始 CSV/log/environment/hash 保存到 `artifacts/acceptance/load/`
-- [ ] T157 在 `artifacts/acceptance/SC-001-SC-016.md` 中逐项链接原始证据、给出 pass/fail/inconclusive 并明确未运行项、已知限制和 deterministic mock/real provider 边界
-- [ ] T158 在 `backend/app/observability/compatibility.py` 中确认 legacy Chat/Eval adapter、AgentPipeline facade、local material/workspace、LightRAG production workspace、Draft projection 与 browser shell 连续一个 release window 零使用
-- [ ] T159 在 `backend/app/agents/pipeline.py`、`backend/app/rag/lightrag_adapter.py`、`backend/app/api/routes_draft.py` 和 `backend/app/main.py` 中删除已满足 T158 门槛的旧生产业务路径与静态 Web surface，保留明确允许的 SQLite 隔离测试 adapter
-- [ ] T160 在 `frontend/src/app/router.tsx` 与 `frontend/package.json` 中删除旧 browser-only 入口和重复 API client 路径，Electron 成为唯一 end-user product surface
-- [ ] T161 [P] 在 `docs/01-architecture-design.md`、`docs/03-api-design.md` 和 `docs/04-ai-pipeline-rag-eval-design.md` 中更新生产权威、单一 graph、协议、状态机、恢复和真实验收边界
-- [ ] T162 [P] 在 `docs/08-de-toy-multiagent-skill-eval-strategy.md` 与 `docs/09-interview-demo-script.md` 中更新 Stage 1–9 落地状态，诚实披露 mock connector、本地 rerank、采样规模、负载环境和 known limits
-- [ ] T163 在 `docs/10-project-summary.md` 和 `README.md` 中发布最终架构/启动/验收快照，并确保所有容量数字只引用 T156–T157 的同一环境证据
-- [ ] T164 运行 `specs/001-enterprise-agent-refactor/quickstart.md` 全部适用命令并在 `artifacts/acceptance/quickstart-validation.md` 记录每个命令的实际结果、未执行理由和最终发布判断
+- [~] T149 [P] 在 `tests/migration/test_enterprise_data_preservation.py` 中验证 users/knowledge/conversations/messages/memory/drafts/eval/material objects/vectors 的 row count、FK、unique、SHA-256、manifest 和 legacy read comparison 100% — **R38**：`scripts/acceptance_data_preservation.py` + `tests/migration/test_enterprise_data_preservation.py`（**8 passed**）验证 counts / FK / 唯一索引 / 文件 SHA-256，缺失表与缺失文件判失败。**未做**：真实 PostgreSQL ↔ MinIO ↔ Milvus 的对照与 legacy read 100% 比较——本轮 PG 未启动、对象存储与向量库不可达。只标 `[~]`，不声称数据迁移已验收。
+- [X] T150 [P] 在 `tests/contract/test_openapi_v2.py` 中验证 `specs/001-enterprise-agent-refactor/contracts/openapi.yaml` 与运行中 v2 schema、Idempotency-Key、Problem、RunEvent 2.0、approval/material constraints 一致 — **R38**：`contracts/openapi.yaml` 升至 **2.1.0-draft**，从 6 条路径扩到运行时全部 **23 条 `/api/v2` 路径 / 24 个操作**，`tests/contract/test_openapi_v2.py` **8 passed**。修正三处契约与实现不符：错误信封是 `{success,error{code,message,details},request_id}` **不是** RFC 9457；`POST /runs` 返回 201 且 body 为 `{kind,payload,priority_lane,max_attempts}`；`Idempotency-Key` 仅 runs 语义必需，缺失返回 400 而非 422。
+- [X] T151 [P] 在 `tests/contract/test_internal_contracts.py` 中验证 principal、graph、jobs、retrieval、object store、sandbox、connector、AuditSink、SSE 和 stable error codes 符合 `contracts/internal-contracts.md` — **R38**：`tests/contract/test_internal_contracts.py` **22 passed + 1 xfailed**：principal 冻结与身份不可从 body 注入、allow-only 授权、job 状态机与 CAS 版本、对象存储派生 key 与 SHA 校验、沙箱白名单与路径穿越、审计幂等、SSE 帧/序号/关闭、16 个稳定错误码。**xfail（strict）**：`JobQueue.lease` 无 lane 过滤，是契约写明而实现缺失的真实缺口；另有 10 处文档签名与实现形状不一致，已在 docstring 列出而**没有**写成断言。
+- [~] T152 在 `migrations/versions/003_authority_contract.py` 中仅于 Stage 2–8 全部迁移核对和恢复点存在时 contract legacy columns/paths，并拒绝自动反向 destructive migration — **R38**：**未执行** destructive contract。`003` 编号已被 stage4 占用；更关键的是 contract 需要“消费者清单 + 恢复点”，而 legacy 列仍被 repository 读取——没有消费者清单就删列等于不可逆的静默破坏。只保留“拒绝自动反向 destructive migration”的原则，未写会误伤 dev/test 的迁移。
+- [X] T153 在 `tests/load/locustfile.py` 中实现 acceptance profile，组合 1,000 active sessions、1,000 SSE、non-LLM 200 RPS、p95/首阶段目标、30 分钟 soak、文件流与 tenant isolation — **R38**：`tests/load/acceptance_profile.py` 定义 1,000 chat + 1,000 SSE + 200 file/isolation 的 `acceptance` profile 与阈值（200 RPS、p95 500ms/1s、30s 清理、30 分钟 soak、失败率 <1%、RSS ≤1.2×）；`evaluate_acceptance` 对缺失指标判 **inconclusive**（`tests/load/test_acceptance_profile.py` 8 passed）。profile 已注册进 `locustfile.py`；**没有运行**，不产出通过结论。
+- [~] T154 运行 `pytest -q tests/contract tests/unit tests/integration tests/security tests/recovery tests/migration tests/reconciliation` 并把完整输出与哈希保存到 `artifacts/acceptance/backend/` — **R38**：全量后端套件真跑 **626 passed / 196 skipped / 1 failed**（387s），原始输出 + SHA-256 在 `artifacts/acceptance/backend/`。**1 failed** 是 `test_readiness_distinguishes_unmigrated_from_unreachable` 在本机 PostgreSQL 未启动时抛 `psycopg.ConnectionTimeout`——该用例本应视为环境不可达却未 skip，是**测试分类缺陷**（不是产品回归），已在 `quickstart-validation.md` 记录。因此标 `[~]`：跑过并有完整证据，但不是全绿。
+- [~] T155 [P] 运行 `npm --prefix frontend run test` 和 `npm --prefix frontend run test:electron:e2e` 并把完整输出与哈希保存到 `artifacts/acceptance/desktop/` — **R38**：`npm --prefix frontend run test` **47 文件 / 155 passed**，输出与退出码在 `artifacts/acceptance/desktop/`。**未跑** `test:electron:e2e`：本轮无 Electron/显示环境，桌面 E2E 只能 `[~]`，不以 vitest 代替。
+- [~] T156 运行分布式 Locust acceptance profile，验证 server failure <1%、non-LLM p95 <500ms、首阶段 p95 <1s、SSE 清理 <30s 和 soak 无持续增长，并把原始 CSV/log/environment/hash 保存到 `artifacts/acceptance/load/` — **R38**：**未运行**分布式 Locust。无独立压测环境；本机单进程数字不能代表验收环境，`artifacts/acceptance/load/` 为空，SC-001–SC-006 全部 inconclusive。profile 与判定逻辑已就绪，缺环境与一次真跑。
+- [X] T157 在 `artifacts/acceptance/SC-001-SC-016.md` 中逐项链接原始证据、给出 pass/fail/inconclusive 并明确未运行项、已知限制和 deterministic mock/real provider 边界 — **R38**：`artifacts/acceptance/SC-001-SC-016.md` 逐项给出 **pass / partial / inconclusive** 并链接证据：SC-007/008/009/013/014/015 有真跑证据；SC-006/012 partial；SC-001–005、010、011、016 明确 inconclusive 并写明原因（无 1000 会话/soak 环境、无真实被试、未做数据权威切换）。
+- [~] T158 在 `backend/app/observability/compatibility.py` 中确认 legacy Chat/Eval adapter、AgentPipeline facade、local material/workspace、LightRAG production workspace、Draft projection 与 browser shell 连续一个 release window 零使用 — **R38**：`backend/app/observability/compatibility.py` + `scripts/acceptance_legacy_audit.py` + `tests/unit/test_legacy_exit_gate.py`（7 passed）：只有“窗口已结束 + 全部面已测量且为 0”才放行，未测量记 `None` 而非 0。`artifacts/acceptance/legacy-exit.json`：窗口 2026-10-18→11-18 **未结束**，`browser_shell` 与 `agent_pipeline_facade` **未测量**，`eligible_for_removal=false`。
+- [~] T159 在 `backend/app/agents/pipeline.py`、`backend/app/rag/lightrag_adapter.py`、`backend/app/api/routes_draft.py` 和 `backend/app/main.py` 中删除已满足 T158 门槛的旧生产业务路径与静态 Web surface，保留明确允许的 SQLite 隔离测试 adapter — **R38**：**阻塞于 T158**：release window 未结束且两个面未测量，删除旧 adapter / LightRAG 生产路径 / browser shell 会违反规格自己的删除条件。未删任何生产路径。
+- [~] T160 在 `frontend/src/app/router.tsx` 与 `frontend/package.json` 中删除旧 browser-only 入口和重复 API client 路径，Electron 成为唯一 end-user product surface — **R38**：**阻塞于 T158**：浏览器入口仍是当前唯一可用 user surface（Electron 成品 UI 尚未替代它），此时删除会让演示不可用。未改 `router.tsx` / `package.json`。
+- [X] T161 [P] 在 `docs/01-architecture-design.md`、`docs/03-api-design.md` 和 `docs/04-ai-pipeline-rag-eval-design.md` 中更新生产权威、单一 graph、协议、状态机、恢复和真实验收边界 — **R38**：`docs/01`、`docs/03`、`docs/04` 追加 Stage 9/10 状态：生产权威三元组未变、单一 graph、admin 路由与错误信封、`Idempotency-Key` 语义、容量结论未成立的边界。
+- [X] T162 [P] 在 `docs/08-de-toy-multiagent-skill-eval-strategy.md` 与 `docs/09-interview-demo-script.md` 中更新 Stage 1–9 落地状态，诚实披露 mock connector、本地 rerank、采样规模、负载环境和 known limits — **R38**：`docs/08` 追加 §10.1 落地表（US5 完成、契约完成、profile 定义但未跑、旧路径未删、数据切换未做）；`docs/09` 追加演示顺序与“不要讲哪些数字”。
+- [X] T163 在 `docs/10-project-summary.md` 和 `README.md` 中发布最终架构/启动/验收快照，并确保所有容量数字只引用 T156–T157 的同一环境证据 — **R38**：README 重写为最终形态入口（架构图、三条启动路径、功能图、验证命令、7 条诚实边界、文档索引）；`docs/10` 进度数字更新。容量数字一律指向 `artifacts/acceptance/`，本轮没有可引用的容量结论。
+- [X] T164 运行 `specs/001-enterprise-agent-refactor/quickstart.md` 全部适用命令并在 `artifacts/acceptance/quickstart-validation.md` 记录每个命令的实际结果、未执行理由和最终发布判断 — **R38**：`artifacts/acceptance/quickstart-validation.md` 逐条记录 `quickstart.md` 适用命令的实际结果与未执行理由（服务启动 + `/health`、后端测试、前端测试与构建、迁移链）。验收级 1000 会话 / soak / Electron E2E 不在本条范围，已在 T155/T156 标注。
 
 **Checkpoint**: SC-001–SC-016 均有可追溯 verdict；数据迁移 100%；无永久双主/双编排；旧路径删除前后均有恢复点和核验证据。
+
+> **达成情况（R38，2026-10-18）**：Phase 10 **未整体达成**，按项如实记：
+>
+> - **完成**：T150（契约）、T151（内部契约，1 处 xfail）、T153（验收 profile 定义）、T157（SC 判定）、T161–T164（文档与 quickstart 记录）。
+> - **部分 / 未跑**：T149（便携保全审计已跑，PG+MinIO+Milvus 对照未跑）、T155（vitest 155 passed；Electron E2E 未跑）、T158（ledger 与门禁已实现；窗口未结束、2 个面未测量）。
+> - **阻塞**：T152（无消费者清单与恢复点，不做 destructive contract）、T156（无独立压测环境，不产出数字）、T159/T160（依赖 T158 的零使用窗口，不删除旧路径）。
+>
+> 所以 README 与 `docs/10` 写的是“Stage 10 进行中”而非“已完成”；SC-001–SC-006、SC-010/011/016 在 `artifacts/acceptance/SC-001-SC-016.md` 里是 **inconclusive**，不是 pass。
+
 
 ---
 

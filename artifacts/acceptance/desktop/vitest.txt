@@ -1,0 +1,569 @@
+
+> policyflow-ai-frontend@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.10 E:/Coding/Code/Python/policyflow-ai/frontend
+
+ ✓ src/auth/route-guards.test.tsx (2 tests) 243ms
+ ✓ src/components/markdown/markdown-content.test.tsx (1 test) 342ms
+     ✓ renders headings, lists, emphasis and links safely  336ms
+ ✓ src/components/ui/button.test.tsx (2 tests) 307ms
+ ✓ src/api/chat.test.ts (6 tests) 121ms
+ ✓ src/api/quality-apis.test.ts (3 tests) 95ms
+ ✓ src/api/f6-apis.test.ts (3 tests) 108ms
+ ✓ src/api/knowledge-bases.test.ts (3 tests) 123ms
+ ✓ src/components/feedback/full-page-error.test.tsx (1 test) 335ms
+     ✓ keeps the error visible and exposes a keyboard retry action  328ms
+ ✓ src/api/drafts.test.ts (2 tests) 80ms
+ ✓ src/api/model-settings.test.ts (2 tests) 79ms
+ ✓ src/api/client.test.ts (4 tests) 45ms
+stderr | src/features/documents/document-list-page.test.tsx > DocumentListPage > renders loading, empty, and retriable error states
+Warning: [antd: Alert] `message` is deprecated. Please use `title` instead.
+
+ ✓ src/lib/datetime.test.ts (5 tests) 82ms
+ ✓ src/design-system/states.test.tsx (5 tests) 849ms
+     ✓ renders an actionable empty state  511ms
+ ✓ src/components/feedback/permission-denied-notice.test.tsx (1 test) 373ms
+     ✓ provides explicit page and operation-level feedback  366ms
+ ✓ src/auth/auth-session.test.ts (1 test) 42ms
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+stderr | src/features/faq-review/faq-review-page.test.tsx > FAQReviewPage > shows sources and requires explicit approval confirmation
+Warning: [antd: Modal] Static function can not consume context like dynamic theme. Please use 'App' component instead.
+
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+stderr | src/features/knowledge-bases/knowledge-base-list-page.test.tsx > KnowledgeBaseListPage > renders loading, ACL fields, URL-backed filtering, and pagination
+An update to KnowledgeBaseListPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/knowledge-bases/knowledge-base-list-page.test.tsx > KnowledgeBaseListPage > renders loading, ACL fields, URL-backed filtering, and pagination
+An update to EllipsisMeasure inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to EllipsisMeasure inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+stderr | src/features/knowledge-bases/knowledge-base-list-page.test.tsx > KnowledgeBaseListPage > separates retriable error, empty, and no-match states
+An update to KnowledgeBaseListPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/knowledge-bases/knowledge-base-list-page.test.tsx > KnowledgeBaseListPage > separates retriable error, empty, and no-match states
+An update to EllipsisMeasure inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > sends a question, renders evidence, and submits feedback
+`NaN` is an invalid value for the `height` css style property.
+
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+stderr | src/features/login/login-page.test.tsx > LoginPage > shows a focused credential error without clearing the form
+Warning: [antd: Alert] `message` is deprecated. Please use `title` instead.
+
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+stderr | src/features/evaluation/evaluation-page.test.tsx > EvaluationPage > shows Hit@K and MRR as primary resume metrics
+Warning: [antd: Statistic] `valueStyle` is deprecated. Please use `styles.content` instead.
+Warning: [antd: Statistic] `valueStyle` is deprecated. Please use `styles.content` instead.
+Warning: [antd: Statistic] `valueStyle` is deprecated. Please use `styles.content` instead.
+Warning: [antd: Statistic] `valueStyle` is deprecated. Please use `styles.content` instead.
+Warning: [antd: Statistic] `valueStyle` is deprecated. Please use `styles.content` instead.
+Warning: [antd: Statistic] `valueStyle` is deprecated. Please use `styles.content` instead.
+Warning: [antd: Statistic] `valueStyle` is deprecated. Please use `styles.content` instead.
+
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+ ✓ electron/main/schemas.test.ts (7 tests) 20ms
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+ ✓ src/features/evaluation/evaluation-page.test.tsx (1 test) 2935ms
+     ✓ shows Hit@K and MRR as primary resume metrics  2928ms
+ ✓ src/features/audit/audit-page.test.tsx (1 test) 3455ms
+     ✓ renders paginated records and redacted details  3447ms
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+ ✓ src/features/faq-review/faq-review-page.test.tsx (2 tests) 3873ms
+     ✓ shows sources and requires explicit approval confirmation  2391ms
+     ✓ requires a rejection reason and maps the reviewed state  1475ms
+ ✓ src/features/documents/file-validation.test.ts (6 tests) 35ms
+ ✓ src/features/login/login-page.test.tsx (4 tests) 5741ms
+     ✓ validates required fields accessibly  1454ms
+     ✓ logs in and returns to the saved deep link  1751ms
+     ✓ shows a focused credential error without clearing the form  1288ms
+     ✓ prevents duplicate submission while the request is pending  1238ms
+ ✓ src/auth/auth-store.test.ts (4 tests) 14ms
+ ✓ electron/main/credentials.test.ts (4 tests) 12ms
+stderr | src/features/drafts/draft-detail-page.test.tsx > DraftDetailPage > saves, confirms, becomes read-only, and exports markdown
+Warning: [antd: Alert] `message` is deprecated. Please use `title` instead.
+
+ ✓ src/services/desktop-api.test.ts (5 tests) 15ms
+stderr | src/features/knowledge-bases/knowledge-base-list-page.test.tsx > KnowledgeBaseListPage > creates a knowledge base with backend options and refreshes the list
+An update to KnowledgeBaseListPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+stderr | src/features/knowledge-bases/knowledge-base-list-page.test.tsx > KnowledgeBaseListPage > creates a knowledge base with backend options and refreshes the list
+An update to EllipsisMeasure inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to EllipsisMeasure inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/drafts/draft-detail-page.test.tsx > DraftDetailPage > saves, confirms, becomes read-only, and exports markdown
+Warning: [antd: Alert] `message` is deprecated. Please use `title` instead.
+
+stderr | src/features/drafts/draft-detail-page.test.tsx > DraftDetailPage > requires confirmation before discarding
+Warning: [antd: Modal] Static function can not consume context like dynamic theme. Please use 'App' component instead.
+
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+stderr | src/features/drafts/draft-detail-page.test.tsx > DraftDetailPage > requires confirmation before discarding
+Warning: [antd: Alert] `message` is deprecated. Please use `title` instead.
+
+ ✓ src/features/memory/memory-page.test.tsx (2 tests) 4864ms
+     ✓ renders memories and supports type filter  2467ms
+     ✓ deletes a memory after confirmation  2389ms
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+stderr | src/features/knowledge-bases/knowledge-base-list-page.test.tsx > KnowledgeBaseListPage > shows a code conflict and hides creation from ordinary employees
+An update to KnowledgeBaseListPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/features/documents/document-list-page.test.tsx (5 tests) 7554ms
+     ✓ renders loading, empty, and retriable error states  1551ms
+     ✓ enforces read-only controls while preserving document visibility  1726ms
+     ✓ validates upload files and maps duplicate backend errors  1157ms
+     ✓ uploads a valid document and refreshes the list  996ms
+     ✓ retries failed indexing only for writable users  2118ms
+stderr | src/features/knowledge-bases/knowledge-base-list-page.test.tsx > KnowledgeBaseListPage > shows a code conflict and hides creation from ordinary employees
+An update to EllipsisMeasure inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to EllipsisMeasure inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/features/knowledge-bases/knowledge-base-list-page.test.tsx (4 tests) 7542ms
+     ✓ renders loading, ACL fields, URL-backed filtering, and pagination  3132ms
+     ✓ separates retriable error, empty, and no-match states  493ms
+     ✓ creates a knowledge base with backend options and refreshes the list  2004ms
+     ✓ shows a code conflict and hides creation from ordinary employees  1906ms
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+ ✓ electron/main/hardening.test.ts (9 tests) 18ms
+ ✓ electron/main/redaction.test.ts (5 tests) 12ms
+ ✓ src/features/drafts/draft-list-page.test.tsx (2 tests) 7491ms
+     ✓ renders loading, filters, and drafts from the server  3163ms
+     ✓ creates a draft and opens its detail route  4320ms
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+ ✓ src/api/response-normalizer.test.ts (8 tests) 13ms
+ ✓ src/api/memory.test.ts (1 test) 13ms
+ ✓ src/features/drafts/draft-detail-page.test.tsx (3 tests) 7148ms
+     ✓ saves, confirms, becomes read-only, and exports markdown  4683ms
+     ✓ requires confirmation before discarding  963ms
+     ✓ blocks navigation while edits are unsaved  1495ms
+ ✓ src/lib/env.test.ts (3 tests) 13ms
+ ✓ electron/main/run-mapper.test.ts (4 tests) 14ms
+ ✓ electron/main/origin.test.ts (3 tests) 9ms
+ ✓ src/features/documents/queries.test.ts (3 tests) 9ms
+ ✓ src/api/readiness.test.ts (2 tests) 9ms
+ ✓ src/features/integrations/integrations-page.test.tsx (2 tests) 7518ms
+     ✓ marks mock integrations, runs health checks, and only shows redacted config  2592ms
+     ✓ validates credential-free HTTP endpoints before creating an external config  4919ms
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > renders a distinct no-evidence state without fake citations
+Warning: [antd: Alert] `message` is deprecated. Please use `title` instead.
+
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > renders a distinct no-evidence state without fake citations
+Warning: [antd: Alert] `message` is deprecated. Please use `title` instead.
+
+ ✓ src/api/admin.test.ts (3 tests) 7ms
+ ✓ src/features/drafts/download.test.ts (2 tests) 6ms
+ ✓ src/auth/permissions.test.ts (2 tests) 6ms
+stderr | src/features/users/users-page.test.tsx > UsersPage > debounces keyword search into the URL-backed request
+An update to MemoryRouter inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/users/users-page.test.tsx > UsersPage > debounces keyword search into the URL-backed request
+An update to CSSMotion inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to CSSMotion inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to EllipsisMeasure inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to Table inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to Table inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+ ✓ src/features/evaluation/queries.test.ts (1 test) 5ms
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > opens, renames, searches, and deletes historical conversations
+An update to Notification inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > opens, renames, searches, and deletes historical conversations
+An update to Notification inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > opens, renames, searches, and deletes historical conversations
+An update to Notification inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > opens, renames, searches, and deletes historical conversations
+An update to Notification inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > opens, renames, searches, and deletes historical conversations
+An update to Notification inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > opens, renames, searches, and deletes historical conversations
+An update to Notification inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > opens, renames, searches, and deletes historical conversations
+An update to Notification inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > opens, renames, searches, and deletes historical conversations
+An update to Notification inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > opens, renames, searches, and deletes historical conversations
+An update to WebChatPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > opens, renames, searches, and deletes historical conversations
+An update to Notification inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > opens, renames, searches, and deletes historical conversations
+An update to WebChatPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > opens, renames, searches, and deletes historical conversations
+An update to EllipsisMeasure inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to EllipsisMeasure inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to EllipsisMeasure inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > opens, renames, searches, and deletes historical conversations
+An update to Notification inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > opens, renames, searches, and deletes historical conversations
+An update to Notification inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > keeps a failed question available for retry
+Warning: [antd: Alert] `message` is deprecated. Please use `title` instead.
+
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+ ✓ src/features/chat/chat-page.test.tsx (6 tests) 9403ms
+     ✓ sends a question, renders evidence, and submits feedback  3978ms
+     ✓ supports copying answers and editing previous questions  1167ms
+     ✓ renders a distinct no-evidence state without fake citations  1706ms
+     ✓ opens, renames, searches, and deletes historical conversations  1583ms
+     ✓ keeps a failed question available for retry  711ms
+ ✓ src/features/admin/reconciliation-page.test.tsx (2 tests) 11267ms
+     ✓ renders fingerprints and retries an actionable issue  11183ms
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+stderr | src/features/skills/skills-page.test.tsx > SkillsPage > requires confirmation before changing Skill state
+Warning: [antd: Modal] Static function can not consume context like dynamic theme. Please use 'App' component instead.
+
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+ ✓ src/features/skills/skills-page.test.tsx (2 tests) 13448ms
+     ✓ runs only implemented Skills and displays audit identifiers and Tool redaction  11406ms
+     ✓ requires confirmation before changing Skill state  2037ms
+ ✓ src/features/users/users-page.test.tsx (6 tests) 15589ms
+     ✓ renders loading then the real list fields  5764ms
+     ✓ separates empty and retriable error states  652ms
+     ✓ debounces keyword search into the URL-backed request  2051ms
+     ✓ creates a user and invalidates the list  1978ms
+     ✓ maps 409 and 422 errors to form fields  3131ms
+     ✓ updates roles with at least one selected role  2007ms
+
+ Test Files  47 passed (47)
+      Tests  155 passed (155)
+   Start at  20:55:22
+   Duration  33.93s (transform 4.04s, setup 26.69s, import 247.58s, tests 111.28s, environment 100.40s)
+

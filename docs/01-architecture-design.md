@@ -587,3 +587,13 @@ MVP 之后可扩展：
 8. 增加企业 SSO；
 9. 增加前端管理后台；
 10. 增加 RAG 自动评估报告。
+
+---
+
+## Stage 9/10 状态追加（2026-10-18）
+
+- **生产权威未变**：PostgreSQL（业务状态）、对象存储（字节）、Milvus（向量）三者仍是唯一权威；本地文件与 LightRAG 仅作迁移期 adapter，且每次使用都被计数。
+- **单一编排**：Chat / stream / Eval / 文件工作流仍共享同一 graph；旧 `AgentPipeline` facade 与 legacy adapter 仍在，因为 T158 的 release window 尚未结束（删除条件见 `backend/app/observability/compatibility.py`）。
+- **治理面**：`/api/v2/admin/*` 新增 13 条租户治理路由（角色/授权、配额与用量、健康、run 审计、恢复、reconciliation、容量），逐次服务端授权，跨租户 404 与不存在同形。
+- **契约**：`contracts/openapi.yaml` 升至 2.1.0-draft，与运行时 23 条 `/api/v2` 路径逐条对齐；错误信封是 `success/error(code,message,details)/request_id`，**不是** RFC 9457。
+- **验收现状**：容量类 SC（001–006）与用户研究（010/011）仍为 inconclusive；判定与证据见 `artifacts/acceptance/SC-001-SC-016.md`。

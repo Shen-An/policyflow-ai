@@ -1041,3 +1041,12 @@ MCP_SERVER_DISABLED
 VALIDATION_ERROR
 INTERNAL_ERROR
 ```
+
+---
+
+## Stage 9/10 追加（2026-10-18）
+
+- v2 管理面：`GET /api/v2/admin/roles|grants|quota|health|runs|reconciliation|capacity`，`POST /api/v2/admin/grants`、`/grants/{id}/revoke`、`/runs/{run_id}/recover`、`/reconciliation/{issue_id}/retry|resolve`。租户只来自 bearer principal，过滤参数为 `member_id`。
+- **错误形状以代码为准**：`{"success": false, "error": {"code","message","details"}, "request_id"}`；`Problem` 组件已按此重写。
+- `Idempotency-Key` 只在 `POST /api/v2/runs` 语义必需（缺失返回 400 `IDEMPOTENCY_KEY_INVALID`，而非 422）；materials / approvals / cancel 不读该头。
+- 契约与运行时的一致性由 `tests/contract/test_openapi_v2.py` 断言（8 passed）。

@@ -166,4 +166,12 @@ python -u scripts/rehearse_interview_checklist.py
 - [ ] 多策略对比表  
 - [ ] rerank metadata（`reranker_method`：本地 lexical / 真 NVIDIA）  
 - [ ] 导出 JSON/CSV  
-- [ ] 无证据 hard refuse  
+- [ ] 无证据 hard refuse
+
+---
+
+## Stage 9/10 演示补充（2026-10-18）
+
+- 演示顺序建议：先 `python start.py` 讲业务闭环（问答→证据→材料→审批），再切 `/admin/governance` 讲租户治理，最后用 `artifacts/acceptance/SC-001-SC-016.md` 主动说明**哪些指标没跑**。
+- 可讲的三条硬结论：跨租户读 run 与不存在同形（404）；撤销授权下一次请求即 403；秘密字段在审计时间线里被脱敏并有 `redactions` 记录。
+- 不要讲：1,000 会话 / 200 RPS / 30 分钟 soak 的通过结论——本轮没有运行；也不要讲 100% 数据迁移验收。

@@ -44,6 +44,11 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     from seed_data import build_seed_data
 
+try:
+    from tests.load.acceptance_profile import ACCEPTANCE_TARGETS, WORKFLOW_WEIGHTS
+except ModuleNotFoundError:  # pragma: no cover
+    from acceptance_profile import ACCEPTANCE_TARGETS, WORKFLOW_WEIGHTS
+
 
 @dataclass(frozen=True, slots=True)
 class LoadProfile:
@@ -65,6 +70,8 @@ PROFILE_CONFIGS: dict[str, LoadProfile] = {
     "file-workflow": LoadProfile("file-workflow", 5, 1.0, 0.5, 1.5, "file"),
     "saturation": LoadProfile("saturation", 200, 50.0, 0.0, 0.1),
     "tenant-isolation": LoadProfile("tenant-isolation", 10, 2.0, 0.2, 1.0, "isolation"),
+    # 2,200 users = 1,000 chat sessions + 1,000 SSE streams + 200 file/isolation.
+    "acceptance": LoadProfile("acceptance", 2_200, 50.0, 0.0, 0.1, "acceptance"),
 }
 
 
@@ -81,7 +88,7 @@ def selected_profile(environ: dict[str, str] | None = None) -> LoadProfile:
 def profile_options(environ: dict[str, str] | None = None) -> dict[str, Any]:
     profile = selected_profile(environ)
     env = os.environ if environ is None else environ
-    return {
+    options: dict[str, Any] = {
         "profile": profile.name,
         "users": profile.users,
         "spawn_rate": profile.spawn_rate,
@@ -97,6 +104,11 @@ def profile_options(environ: dict[str, str] | None = None) -> dict[str, Any]:
             "document_status": "/api/documents/{id}/status",
         },
     }
+    if profile.name == "acceptance":
+        options["targets"] = ACCEPTANCE_TARGETS.as_dict()
+        options["workflow_weights"] = dict(WORKFLOW_WEIGHTS)
+        options["requires_dedicated_environment"] = True
+    return options
 
 
 def _resource_snapshot() -> dict[str, Any]:

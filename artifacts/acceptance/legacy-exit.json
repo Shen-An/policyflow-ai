@@ -1,0 +1,55 @@
+{
+  "generated_at": "2026-10-18T12:54:02.041989+00:00",
+  "window": {
+    "label": "stage9-release-window",
+    "start": "2026-10-18T00:00:00+00:00",
+    "end": "2026-11-18T00:00:00+00:00",
+    "days": 31.0
+  },
+  "surfaces": {
+    "legacy_chat_adapter": {
+      "description": "旧 /api/chat 适配器（LegacyGraphAdapter, chat）",
+      "usage": 0
+    },
+    "legacy_eval_adapter": {
+      "description": "旧评估入口适配器（LegacyGraphAdapter, eval）",
+      "usage": 0
+    },
+    "agent_pipeline_facade": {
+      "description": "AgentPipeline facade 与第二套 stage",
+      "usage": null
+    },
+    "local_material_workspace": {
+      "description": "本机文件写入（UPLOAD_DIR）",
+      "usage": 0
+    },
+    "lightrag_production_workspace": {
+      "description": "LightRAG 生产 workspace 索引",
+      "usage": 0
+    },
+    "draft_projection": {
+      "description": "Draft 兼容投影的旧写入路径",
+      "usage": 0
+    },
+    "browser_shell": {
+      "description": "浏览器 SPA（Electron 之外的 user surface）",
+      "usage": null
+    }
+  },
+  "zero_use": false,
+  "eligible_for_removal": false,
+  "blockers": [
+    "release window stage9-release-window 尚未结束（31.0 天）",
+    "agent_pipeline_facade 未测量",
+    "browser_shell 未测量"
+  ],
+  "notes": [
+    "counters are per-process unless the caller wired a durable ledger",
+    "browser_shell is measured from the reverse-proxy access log, not this process"
+  ],
+  "how_to_measure": {
+    "browser_shell": "reverse-proxy access log：统计非 Electron UA 对 / 的请求数",
+    "agent_pipeline_facade": "在 facade 入口计数并落 durable ledger；本进程无法代表窗口",
+    "others": "由各 telemetry 对象/durable ledger 提供；本脚本只读不造数"
+  }
+}

@@ -1,10 +1,13 @@
 openapi: 3.1.0
 info:
   title: PolicyFlow Enterprise Run and File Workflow API
-  version: 2.0.0-draft
+  version: 2.1.0-draft
   description: >-
-    Target contract for unified Chat, Eval and file workflows. Legacy chat APIs
-    remain temporary adapters until client parity is proven.
+    Draft contract for the running v2 tenant-scoped API (Chat/Eval runs, file
+    workflows, workspaces and tenant administration). The path set mirrors
+    ``create_app(Settings(...)).openapi()``; every path below is mounted under
+    the ``/api/v2`` server prefix. Legacy (non-v2) chat APIs are temporary
+    adapters and are deliberately out of scope here.
 servers:
   - url: /api/v2
 security:
@@ -13,13 +16,21 @@ tags:
   - name: Runs
   - name: Approvals
   - name: Files
+  - name: Workspaces
+  - name: Principal
   - name: Admin
 paths:
   /runs:
     post:
       tags: [Runs]
       operationId: createRun
-      summary: Start a unified agent run
+      summary: Enqueue a durable run for the caller's tenant
+      description: >-
+        The Idempotency-Key header is read by the route and required by it: a
+        missing or malformed key (outside 16..128 characters) is a 400
+        ``IDEMPOTENCY_KEY_INVALID`` before any work is enqueued. A repeat of the
+        same (tenant, kind, key) with a different payload is a 409
+        ``IDEMPOTENCY_KEY_CONFLICT``; the same payload returns the existing run.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -29,11 +40,13 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateRunRequest'
       responses:
-        '202':
-          description: Run accepted
+        '201':
+          description: Run accepted or the existing run returned for this key
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Run'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/ValidationError'}
         '429': {$ref: '#/components/responses/Overloaded'}
@@ -42,6 +55,7 @@ paths:
     get:
       tags: [Runs]
       operationId: getRun
+      summary: Read one run the caller's tenant owns
       parameters:
         - $ref: '#/components/parameters/RunId'
       responses:
@@ -50,12 +64,13 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Run'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
   /runs/{run_id}/events:
     get:
       tags: [Runs]
       operationId: streamRunEvents
-      summary: Stream ordered run events with heartbeat and bounded replay
+      summary: Stream ordered run events with bounded replay
       parameters:
         - $ref: '#/components/parameters/RunId'
         - name: Last-Event-ID
@@ -67,36 +82,37 @@ paths:
           description: >-
             text/event-stream. Each event has id equal to event_id, event equal
             to type and data equal to a RunEvent JSON object. If replay expired,
-            the first event is run.snapshot.
+            the stream starts with a run.snapshot event.
           content:
             text/event-stream:
               schema:
                 type: string
+        '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
-        '429': {$ref: '#/components/responses/Overloaded'}
   /runs/{run_id}/cancel:
     post:
       tags: [Runs]
       operationId: cancelRun
+      summary: Request cooperative cancellation of a run
       parameters:
         - $ref: '#/components/parameters/RunId'
-        - $ref: '#/components/parameters/IdempotencyKey'
       responses:
-        '202':
+        '200':
           description: Cancellation intent persisted
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Run'}
-        '409': {$ref: '#/components/responses/Conflict'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
   /runs/{run_id}/approvals/{approval_id}:
     post:
       tags: [Approvals]
       operationId: decideApproval
+      summary: Approve or reject one approval for the caller's tenant
       parameters:
         - $ref: '#/components/parameters/RunId'
         - $ref: '#/components/parameters/ApprovalId'
-        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -108,15 +124,16 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Approval'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/ValidationError'}
   /materials:
     post:
       tags: [Files]
       operationId: createMaterialUpload
-      summary: Create a tenant-scoped upload intent
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
+      summary: Declare an upload and receive a scoped transfer grant
       requestBody:
         required: true
         content:
@@ -124,14 +141,375 @@ paths:
             schema: {$ref: '#/components/schemas/CreateMaterialRequest'}
       responses:
         '201':
-          description: Upload intent with constrained transfer capability
+          description: Upload declaration with a short-lived constrained grant
           content:
             application/json:
               schema: {$ref: '#/components/schemas/MaterialUpload'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
         '413':
-          description: File or tenant/task storage limit exceeded
+          description: Declared material exceeds the configured size ceiling
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Problem'}
         '415':
-          description: Unsupported media type
+          description: Media type is outside the configured allowlist
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+        '503':
+          description: Material indexing is not configured on this deployment
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Problem'}
+  /principal:
+    get:
+      tags: [Principal]
+      operationId: readPrincipal
+      summary: Return the caller's own principal derived from stored membership
+      responses:
+        '200':
+          description: The caller's own tenant, user, membership, roles and scopes
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Principal'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /workspaces:
+    post:
+      tags: [Workspaces]
+      operationId: createWorkspace
+      summary: Create a workspace selecting authorized material versions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/WorkspaceCreateRequest'}
+      responses:
+        '201':
+          description: Workspace created with its selected immutable inputs
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Workspace'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /workspaces/{workspace_id}:
+    get:
+      tags: [Workspaces]
+      operationId: getWorkspace
+      summary: Read one workspace and its selected inputs
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+      responses:
+        '200':
+          description: Workspace view; no storage keys or host paths are exposed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Workspace'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /workspaces/{workspace_id}/changes/{change_set_id}:
+    get:
+      tags: [Workspaces]
+      operationId: getChangeSet
+      summary: Return a change set and its items for diff preview
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/ChangeSetId'
+      responses:
+        '200':
+          description: Change set summary and normalized relative-path items
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChangeSet'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /workspaces/{workspace_id}/submissions/{submission_id}:
+    get:
+      tags: [Workspaces]
+      operationId: getSubmission
+      summary: Return a submission result and sanitized receipt
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/SubmissionId'
+      responses:
+        '200':
+          description: Submission status and sanitized result
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SubmissionResult'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /admin/roles:
+    get:
+      tags: [Admin]
+      operationId: listAdminRoles
+      summary: List this tenant's roles with active grant counts
+      responses:
+        '200':
+          description: Roles visible in the caller's tenant
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminRoleList'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /admin/grants:
+    get:
+      tags: [Admin]
+      operationId: listAdminGrants
+      summary: List grants in this tenant, optionally filtered to one member
+      parameters:
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageOffset'
+        - name: member_id
+          in: query
+          required: false
+          description: Filter by the granted member; this is not an identity claim.
+          schema: {type: string, maxLength: 36}
+      responses:
+        '200':
+          description: Page of grants plus the effective paging window
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GrantList'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+    post:
+      tags: [Admin]
+      operationId: createAdminGrant
+      summary: Grant one role to one member of this tenant
+      description: >-
+        Provide exactly one of role_id or role_code. A repeat of an identical
+        active grant returns ``created: false``. Granting actions the operator
+        does not hold is a 403; a role/member outside the tenant is a 404.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GrantCreateRequest'}
+      responses:
+        '201':
+          description: Grant created, or the existing active grant returned
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GrantCreateResult'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /admin/grants/{grant_id}/revoke:
+    post:
+      tags: [Admin]
+      operationId: revokeAdminGrant
+      summary: Revoke a grant; a repeat is an idempotent no-op
+      parameters:
+        - $ref: '#/components/parameters/GrantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GrantRevokeRequest'}
+      responses:
+        '200':
+          description: "Grant revoked, or already revoked (revoked: false)"
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GrantRevokeResult'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /admin/quota:
+    get:
+      tags: [Admin]
+      operationId: getAdminQuota
+      summary: Return effective quota policies, usage totals and live leases
+      responses:
+        '200':
+          description: Effective quota summary for the caller's tenant
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/QuotaSummary'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /admin/health:
+    get:
+      tags: [Admin]
+      operationId: getAdminHealth
+      summary: Return tenant-scoped queue, indexing, submission and drift health
+      responses:
+        '200':
+          description: Grouped health counts and oldest queued timestamp
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HealthSummary'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /admin/runs:
+    get:
+      tags: [Admin]
+      operationId: listAdminRuns
+      summary: List this tenant's runs, newest first
+      parameters:
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageOffset'
+        - name: status
+          in: query
+          required: false
+          schema: {type: string, maxLength: 30}
+        - name: kind
+          in: query
+          required: false
+          schema: {type: string, maxLength: 30}
+      responses:
+        '200':
+          description: Page of runs plus the effective paging window
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RunList'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /admin/runs/{run_id}/audit:
+    get:
+      tags: [Admin]
+      operationId: getAdminRunAudit
+      summary: Return one run's correlated, redacted audit timeline
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+        - name: limit
+          in: query
+          required: false
+          schema: {type: integer, minimum: 1, maximum: 500, default: 200}
+      responses:
+        '200':
+          description: Merge of audit decisions and durable run events by time
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RunTimeline'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /admin/runs/{run_id}/recover:
+    post:
+      tags: [Admin]
+      operationId: recoverAdminRun
+      summary: Requeue a recoverable-failed run
+      description: >-
+        Only ``recoverable_failed`` may be requeued (anything else is a 409
+        ``RUN_NOT_RECOVERABLE``). When the attempt budget is spent the caller
+        must pass ``extend_attempts: true`` or receives a 409
+        ``RUN_ATTEMPTS_EXHAUSTED``.
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RunRecoveryRequest'}
+      responses:
+        '200':
+          description: Run requeued with its new attempt/version window
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RecoveryResult'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /admin/reconciliation:
+    get:
+      tags: [Admin]
+      operationId: listAdminReconciliation
+      summary: List cross-store findings (fingerprints only)
+      parameters:
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageOffset'
+        - name: state
+          in: query
+          required: false
+          schema: {type: string, maxLength: 20}
+        - name: issue_kind
+          in: query
+          required: false
+          schema: {type: string, maxLength: 30}
+      responses:
+        '200':
+          description: Page of findings plus the effective paging window
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReconciliationList'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /admin/reconciliation/{issue_id}/retry:
+    post:
+      tags: [Admin]
+      operationId: retryAdminReconciliation
+      summary: Reopen a finding with a fresh attempt budget
+      parameters:
+        - $ref: '#/components/parameters/IssueId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReconciliationRetryRequest'}
+      responses:
+        '200':
+          description: Finding reopened
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReconciliationRetryResult'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /admin/reconciliation/{issue_id}/resolve:
+    post:
+      tags: [Admin]
+      operationId: resolveAdminReconciliation
+      summary: Close a finding with an operator-supplied resolution note
+      parameters:
+        - $ref: '#/components/parameters/IssueId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReconciliationResolveRequest'}
+      responses:
+        '200':
+          description: Finding resolved
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReconciliationResolveResult'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+  /admin/capacity:
+    get:
+      tags: [Admin]
+      operationId: listAdminCapacity
+      summary: List platform capacity runs; requires cross_tenant_admin
+      parameters:
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageOffset'
+      responses:
+        '200':
+          description: Page of capacity evidence plus the effective paging window
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CapacityList'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
         '422': {$ref: '#/components/responses/ValidationError'}
 components:
   securitySchemes:
@@ -143,29 +521,85 @@ components:
       name: run_id
       in: path
       required: true
-      schema: {type: string, format: uuid}
+      schema: {type: string}
     ApprovalId:
       name: approval_id
       in: path
       required: true
-      schema: {type: string, format: uuid}
+      schema: {type: string}
+    WorkspaceId:
+      name: workspace_id
+      in: path
+      required: true
+      schema: {type: string}
+    ChangeSetId:
+      name: change_set_id
+      in: path
+      required: true
+      schema: {type: string}
+    SubmissionId:
+      name: submission_id
+      in: path
+      required: true
+      schema: {type: string}
+    GrantId:
+      name: grant_id
+      in: path
+      required: true
+      schema: {type: string}
+    IssueId:
+      name: issue_id
+      in: path
+      required: true
+      schema: {type: string}
     IdempotencyKey:
       name: Idempotency-Key
       in: header
       required: true
+      description: >-
+        Required by POST /runs. A missing or out-of-range key is rejected with
+        400 IDEMPOTENCY_KEY_INVALID before any work is enqueued.
       schema: {type: string, minLength: 16, maxLength: 128}
+    PageLimit:
+      name: limit
+      in: query
+      required: false
+      schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+    PageOffset:
+      name: offset
+      in: query
+      required: false
+      schema: {type: integer, minimum: 0, default: 0}
   responses:
+    BadRequest:
+      description: Request shape is valid but a required header or value is invalid
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    Unauthorized:
+      description: Missing, malformed or expired bearer credential
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    Forbidden:
+      description: The caller lacks the required authority or scope
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Problem'}
     NotFound:
       description: Resource does not exist or is not visible to this principal
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Problem'}
     Conflict:
       description: State, version, digest or idempotency conflict
       content:
         application/json:
           schema: {$ref: '#/components/schemas/Problem'}
     ValidationError:
-      description: Invalid request
+      description: Request validation failed
       content:
-        application/problem+json:
+        application/json:
           schema: {$ref: '#/components/schemas/Problem'}
     Overloaded:
       description: Bounded capacity reached; response includes Retry-After
@@ -173,53 +607,60 @@ components:
         Retry-After:
           schema: {type: integer, minimum: 1}
       content:
-        application/problem+json:
+        application/json:
           schema: {$ref: '#/components/schemas/Problem'}
   schemas:
     CreateRunRequest:
       type: object
-      additionalProperties: false
-      required: [kind, input]
+      required: [kind]
       properties:
-        kind:
-          type: string
-          enum: [chat, eval, file_workflow]
-        conversation_id: {type: [string, 'null'], format: uuid}
-        knowledge_base_ids:
-          type: array
-          items: {type: string, format: uuid}
-          uniqueItems: true
-        input:
+        kind: {type: string, minLength: 1, maxLength: 80}
+        payload:
           type: object
-          description: Versioned kind-specific input; tenant/user fields are forbidden
-        workspace:
-          oneOf:
-            - $ref: '#/components/schemas/WorkspaceManifest'
-            - type: 'null'
+          default: {}
+        priority_lane: {type: string, maxLength: 40, default: default}
+        max_attempts: {type: integer, minimum: 1, maximum: 50, default: 5}
     Run:
       type: object
-      required: [run_id, kind, status, stage, evidence_gate, created_at, version]
+      required:
+        - run_id
+        - job_id
+        - tenant_id
+        - kind
+        - state
+        - attempts
+        - max_attempts
+        - idempotency_key
+        - priority_lane
+        - created_at
       properties:
-        run_id: {type: string, format: uuid}
-        kind: {type: string, enum: [chat, eval, file_workflow, reconciliation]}
-        status:
+        run_id: {type: string}
+        job_id: {type: string}
+        tenant_id: {type: string}
+        kind: {type: string}
+        state:
           type: string
-          enum: [queued, running, waiting_approval, cancel_requested, cancelled, succeeded, recoverable_failed, terminal_failed, timed_out]
-        stage: {type: string}
-        evidence_gate: {type: string, enum: [supported, insufficient_evidence, not_applicable]}
-        result: {type: [object, 'null']}
-        recoverable: {type: boolean}
+          enum:
+            - queued
+            - leased
+            - running
+            - cancel_requested
+            - succeeded
+            - recoverable_failed
+            - terminal_failed
+            - cancelled
+        attempts: {type: integer, minimum: 0}
+        max_attempts: {type: integer, minimum: 1}
+        idempotency_key: {type: [string, 'null']}
+        priority_lane: {type: string}
         created_at: {type: string, format: date-time}
-        updated_at: {type: string, format: date-time}
-        version: {type: integer, minimum: 1}
     RunEvent:
       type: object
-      additionalProperties: false
       required: [contract_version, event_id, run_id, sequence, type, stage, status, occurred_at]
       properties:
         contract_version: {type: string, const: '2.0'}
         event_id: {type: string}
-        run_id: {type: string, format: uuid}
+        run_id: {type: string}
         sequence: {type: integer, minimum: 0}
         type:
           type: string
@@ -239,14 +680,13 @@ components:
           type: array
           minItems: 1
           uniqueItems: true
-          items: {type: string, format: uuid}
+          items: {type: string}
         intended_action:
           type: string
           enum: [draft, compare, prepare_submission]
-        destination_id: {type: [string, 'null'], format: uuid}
+        destination_id: {type: [string, 'null']}
     ApprovalDecision:
       type: object
-      additionalProperties: false
       required: [decision, action_digest, expected_version]
       properties:
         decision: {type: string, enum: [approve, reject]}
@@ -255,57 +695,496 @@ components:
         reason: {type: [string, 'null'], maxLength: 1000}
     Approval:
       type: object
-      required: [approval_id, run_id, status, action_digest, target, files, side_effects, version]
+      required: [approval_id, run_id, status, decided_by, decided_at, version]
       properties:
-        approval_id: {type: string, format: uuid}
-        run_id: {type: string, format: uuid}
-        status: {type: string, enum: [pending, approved, rejected, expired, invalidated, consumed]}
-        action_digest: {type: string}
-        target: {type: object}
-        files:
-          type: array
-          items:
-            type: object
-            required: [material_version_id, sha256]
-            properties:
-              material_version_id: {type: string, format: uuid}
-              sha256: {type: string}
-              diff_summary: {type: string}
-        side_effects:
-          type: array
-          items: {type: string}
-        expires_at: {type: string, format: date-time}
+        approval_id: {type: string}
+        run_id: {type: string}
+        status:
+          type: string
+          enum: [pending, approved, rejected, expired, invalidated, consumed]
+        decided_by: {type: [string, 'null']}
+        decided_at: {type: [string, 'null'], format: date-time}
         version: {type: integer, minimum: 1}
     CreateMaterialRequest:
       type: object
-      additionalProperties: false
-      required: [filename, size_bytes, sha256, media_type, purpose]
+      required: [knowledge_base_id, filename, size_bytes, sha256, media_type, purpose]
       properties:
+        knowledge_base_id: {type: string, minLength: 1, maxLength: 36}
         filename: {type: string, minLength: 1, maxLength: 255}
         size_bytes: {type: integer, minimum: 1}
         sha256: {type: string, pattern: '^[a-f0-9]{64}$'}
-        media_type: {type: string}
+        media_type: {type: string, minLength: 1, maxLength: 180}
         purpose: {type: string, enum: [task_input, policy_import]}
+        material_id:
+          type: [string, 'null']
+          maxLength: 36
+          description: Supplying this appends a new immutable version of an existing material.
     MaterialUpload:
       type: object
-      required: [material_id, version_id, status, upload]
+      required: [material_id, material_version_id, version_number, purpose, upload]
       properties:
-        material_id: {type: string, format: uuid}
-        version_id: {type: string, format: uuid}
-        status: {type: string, enum: [staging]}
+        material_id: {type: string}
+        material_version_id: {type: string}
+        version_number: {type: integer, minimum: 1}
+        purpose: {type: string, enum: [task_input, policy_import]}
         upload:
           type: object
-          description: Short-lived constrained upload capability; object key is not client-selected
+          required: [method, url, expires_at, max_bytes, media_type, bucket_alias]
+          properties:
+            method: {type: string}
+            url: {type: string}
+            expires_at: {type: string, format: date-time}
+            max_bytes: {type: integer, minimum: 1}
+            media_type: {type: string}
+            bucket_alias: {type: string}
+    Principal:
+      type: object
+      required: [tenant_id, user_id, membership_id, roles, scopes, authorization_version]
+      properties:
+        tenant_id: {type: string}
+        user_id: {type: string}
+        membership_id: {type: string}
+        roles:
+          type: array
+          items: {type: string}
+        scopes:
+          type: array
+          items: {type: string}
+        authorization_version: {type: integer}
+    WorkspaceCreateRequest:
+      type: object
+      required: [run_id, material_version_ids]
+      properties:
+        run_id: {type: string, minLength: 1, maxLength: 36}
+        material_version_ids:
+          type: array
+          minItems: 1
+          maxItems: 50
+          uniqueItems: true
+          items: {type: string}
+        session_id: {type: string, maxLength: 64, default: ''}
+    WorkspaceInput:
+      type: object
+      required: [material_version_id, purpose, read_only]
+      properties:
+        material_version_id: {type: string}
+        purpose: {type: string, enum: [read, edit]}
+        read_only: {type: boolean}
+    Workspace:
+      type: object
+      required: [workspace_id, run_id, status, created_at, expires_at, inputs]
+      properties:
+        workspace_id: {type: string}
+        run_id: {type: string}
+        status: {type: string}
+        created_at: {type: string, format: date-time}
+        expires_at: {type: [string, 'null'], format: date-time}
+        inputs:
+          type: array
+          items: {$ref: '#/components/schemas/WorkspaceInput'}
+    ChangeSetItem:
+      type: object
+      required: [path, operation, source_version_id, proposed_version_id, before_hash, after_hash]
+      properties:
+        path: {type: string}
+        operation: {type: string}
+        source_version_id: {type: [string, 'null']}
+        proposed_version_id: {type: [string, 'null']}
+        before_hash: {type: [string, 'null']}
+        after_hash: {type: [string, 'null']}
+    ChangeSet:
+      type: object
+      required: [change_set_id, workspace_id, state, summary, side_effect_class, items]
+      properties:
+        change_set_id: {type: string}
+        workspace_id: {type: string}
+        state: {type: string}
+        summary: {type: [string, 'null']}
+        side_effect_class: {type: [string, 'null']}
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/ChangeSetItem'}
+    SubmissionResult:
+      type: object
+      required: [submission_id, state, connector_id, receipt_id, result, attempts]
+      properties:
+        submission_id: {type: string}
+        state: {type: string}
+        connector_id: {type: [string, 'null']}
+        receipt_id: {type: [string, 'null']}
+        result: {type: [object, 'null']}
+        attempts: {type: integer, minimum: 0}
+    AdminRole:
+      type: object
+      required: [role_id, code, name, description, actions, active_grants, version]
+      properties:
+        role_id: {type: string}
+        code: {type: string}
+        name: {type: string}
+        description: {type: [string, 'null']}
+        actions:
+          type: array
+          items: {type: string}
+        active_grants: {type: integer, minimum: 0}
+        version: {type: integer, minimum: 1}
+    AdminRoleList:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/AdminRole'}
+        total: {type: integer, minimum: 0}
+    Grant:
+      type: object
+      required: [grant_id, user_id, role_id, scope, version]
+      properties:
+        grant_id: {type: string}
+        user_id: {type: string}
+        role_id: {type: string}
+        scope: {type: string}
+        valid_from: {type: [string, 'null'], format: date-time}
+        expires_at: {type: [string, 'null'], format: date-time}
+        revoked_at: {type: [string, 'null'], format: date-time}
+        revocation_reason: {type: [string, 'null']}
+        version: {type: integer, minimum: 1}
+    GrantList:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/Grant'}
+        total: {type: integer, minimum: 0}
+        limit: {type: integer, minimum: 1}
+        offset: {type: integer, minimum: 0}
+    GrantCreateRequest:
+      type: object
+      required: [user_id]
+      description: Exactly one of role_id or role_code must be supplied.
+      properties:
+        user_id: {type: string, minLength: 1, maxLength: 36}
+        role_id: {type: [string, 'null'], minLength: 1, maxLength: 36}
+        role_code: {type: [string, 'null'], minLength: 1, maxLength: 50}
+        valid_from: {type: [string, 'null'], format: date-time}
+        expires_at: {type: [string, 'null'], format: date-time}
+    GrantCreateResult:
+      type: object
+      required: [grant, created]
+      properties:
+        grant: {$ref: '#/components/schemas/Grant'}
+        created: {type: boolean}
+    GrantRevokeRequest:
+      type: object
+      properties:
+        reason: {type: [string, 'null'], maxLength: 500}
+    GrantRevokeResult:
+      type: object
+      required: [grant, revoked]
+      properties:
+        grant: {$ref: '#/components/schemas/Grant'}
+        revoked: {type: boolean}
+    QuotaPolicy:
+      type: object
+      required:
+        - policy_id
+        - scope
+        - tenant_id
+        - workload
+        - requests_per_window
+        - window_seconds
+        - tokens_per_window
+        - max_concurrency
+        - queue_admission_limit
+        - version
+      properties:
+        policy_id: {type: string}
+        scope: {type: string}
+        tenant_id: {type: [string, 'null']}
+        workload: {type: [string, 'null']}
+        requests_per_window: {type: [integer, 'null']}
+        window_seconds: {type: [integer, 'null']}
+        tokens_per_window: {type: [integer, 'null']}
+        max_concurrency: {type: [integer, 'null']}
+        queue_admission_limit: {type: [integer, 'null']}
+        version: {type: integer, minimum: 1}
+    QuotaUsage:
+      type: object
+      required: [kind, records, requests, reserved_tokens, actual_tokens]
+      properties:
+        kind: {type: string}
+        records: {type: integer, minimum: 0}
+        requests: {type: integer, minimum: 0}
+        reserved_tokens: {type: integer, minimum: 0}
+        actual_tokens: {type: integer, minimum: 0}
+    QuotaSummary:
+      type: object
+      required: [policies, usage, live_leases]
+      properties:
+        policies:
+          type: array
+          items: {$ref: '#/components/schemas/QuotaPolicy'}
+        usage:
+          type: array
+          items: {$ref: '#/components/schemas/QuotaUsage'}
+        live_leases: {type: integer, minimum: 0}
+    HealthGroup:
+      type: object
+      required: [value, count]
+      properties:
+        value: {type: string}
+        count: {type: integer, minimum: 0}
+    HealthReconciliationIssue:
+      type: object
+      required: [issue_kind, severity, count]
+      properties:
+        issue_kind: {type: string}
+        severity: {type: string}
+        count: {type: integer, minimum: 0}
+    HealthRetrieval:
+      type: object
+      required: [retrievable_manifests, manifests_with_count_drift, active_materials]
+      properties:
+        retrievable_manifests: {type: integer, minimum: 0}
+        manifests_with_count_drift: {type: integer, minimum: 0}
+        active_materials: {type: integer, minimum: 0}
+    HealthSummary:
+      type: object
+      required:
+        - jobs
+        - oldest_queued_at
+        - documents
+        - submissions
+        - workspaces
+        - retrieval
+        - reconciliation
+      properties:
+        jobs:
+          type: array
+          items: {$ref: '#/components/schemas/HealthGroup'}
+        oldest_queued_at: {type: [string, 'null'], format: date-time}
+        documents:
+          type: array
+          items: {$ref: '#/components/schemas/HealthGroup'}
+        submissions:
+          type: array
+          items: {$ref: '#/components/schemas/HealthGroup'}
+        workspaces:
+          type: array
+          items: {$ref: '#/components/schemas/HealthGroup'}
+        retrieval: {$ref: '#/components/schemas/HealthRetrieval'}
+        reconciliation:
+          type: object
+          required: [open_issues]
+          properties:
+            open_issues:
+              type: array
+              items: {$ref: '#/components/schemas/HealthReconciliationIssue'}
+    AdminRun:
+      type: object
+      required:
+        - run_id
+        - kind
+        - status
+        - evidence_gate
+        - user_id
+        - conversation_id
+        - tool_call_count
+        - created_at
+        - started_at
+        - finished_at
+        - version
+      properties:
+        run_id: {type: string}
+        kind: {type: string}
+        status: {type: string}
+        evidence_gate: {type: string}
+        user_id: {type: string}
+        conversation_id: {type: [string, 'null']}
+        tool_call_count: {type: integer, minimum: 0}
+        created_at: {type: [string, 'null'], format: date-time}
+        started_at: {type: [string, 'null'], format: date-time}
+        finished_at: {type: [string, 'null'], format: date-time}
+        version: {type: integer, minimum: 1}
+    RunList:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/AdminRun'}
+        total: {type: integer, minimum: 0}
+        limit: {type: integer, minimum: 1}
+        offset: {type: integer, minimum: 0}
+    RunTimelineEntry:
+      type: object
+      required: [source, event_id, occurred_at]
+      properties:
+        source: {type: string, enum: [audit, run_event]}
+        event_id: {type: string}
+        action: {type: string}
+        outcome: {type: string}
+        reason_code: {type: [string, 'null']}
+        actor_ref: {type: string}
+        resource_kind: {type: string}
+        resource_id: {type: [string, 'null']}
+        authorization_version: {type: integer}
+        sequence: {type: integer, minimum: 0}
+        event_type: {type: string}
+        stage: {type: string}
+        public_status: {type: string}
+        occurred_at: {type: [string, 'null'], format: date-time}
+        metadata:
+          type: object
+          description: Redacted metadata/payload; rejected payloads become an empty object.
+        redactions:
+          type: array
+          items: {type: string}
+    RunTimeline:
+      type: object
+      required: [run, items, total]
+      properties:
+        run: {$ref: '#/components/schemas/AdminRun'}
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/RunTimelineEntry'}
+        total: {type: integer, minimum: 0}
+    RunRecoveryRequest:
+      type: object
+      properties:
+        extend_attempts: {type: boolean, default: false}
+    RecoveryResult:
+      type: object
+      required: [run_id, job_id, previous_state, state, attempts, max_attempts, version]
+      properties:
+        run_id: {type: string}
+        job_id: {type: string}
+        previous_state: {type: string}
+        state: {type: string}
+        attempts: {type: integer, minimum: 0}
+        max_attempts: {type: integer, minimum: 1}
+        version: {type: integer, minimum: 1}
+    ReconciliationIssue:
+      type: object
+      required:
+        - issue_id
+        - store_pair
+        - issue_kind
+        - resource_kind
+        - resource_id
+        - version_id
+        - severity
+        - state
+        - attempts
+        - max_attempts
+        - detected_at
+        - version
+      properties:
+        issue_id: {type: string}
+        store_pair: {type: string}
+        issue_kind: {type: string}
+        resource_kind: {type: string}
+        resource_id: {type: string}
+        version_id: {type: [string, 'null']}
+        observed_fingerprint: {type: [string, 'null']}
+        expected_fingerprint: {type: [string, 'null']}
+        severity: {type: string}
+        state: {type: string}
+        attempts: {type: integer, minimum: 0}
+        max_attempts: {type: integer, minimum: 1}
+        next_attempt_at: {type: [string, 'null'], format: date-time}
+        last_error_code: {type: [string, 'null']}
+        resolution: {type: [string, 'null']}
+        detected_at: {type: [string, 'null'], format: date-time}
+        resolved_at: {type: [string, 'null'], format: date-time}
+        version: {type: integer, minimum: 1}
+    ReconciliationList:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/ReconciliationIssue'}
+        total: {type: integer, minimum: 0}
+        limit: {type: integer, minimum: 1}
+        offset: {type: integer, minimum: 0}
+    ReconciliationRetryRequest:
+      type: object
+      properties:
+        reason: {type: [string, 'null'], maxLength: 500}
+    ReconciliationRetryResult:
+      type: object
+      required: [issue_id, state, previous_state]
+      properties:
+        issue_id: {type: string}
+        state: {type: string}
+        previous_state: {type: string}
+    ReconciliationResolveRequest:
+      type: object
+      required: [resolution]
+      properties:
+        resolution: {type: string, minLength: 1, maxLength: 500}
+    ReconciliationResolveResult:
+      type: object
+      required: [issue_id, state, previous_state, resolution]
+      properties:
+        issue_id: {type: string}
+        state: {type: string}
+        previous_state: {type: string}
+        resolution: {type: string}
+    CapacityRun:
+      type: object
+      required:
+        - capacity_run_id
+        - commit_sha
+        - scenario
+        - suite_version
+        - llm_mode
+        - started_at
+        - duration_seconds
+        - raw_artifact_uri
+        - raw_artifact_sha256
+        - summary_metrics
+        - verdict
+        - known_limits
+      properties:
+        capacity_run_id: {type: string}
+        commit_sha: {type: string}
+        scenario: {type: string}
+        suite_version: {type: string}
+        llm_mode: {type: string}
+        started_at: {type: [string, 'null'], format: date-time}
+        duration_seconds: {type: [number, 'null']}
+        raw_artifact_uri: {type: [string, 'null']}
+        raw_artifact_sha256: {type: [string, 'null']}
+        summary_metrics: {type: object}
+        verdict: {type: [string, 'null']}
+        known_limits: {type: [string, 'null']}
+    CapacityList:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/CapacityRun'}
+        total: {type: integer, minimum: 0}
+        limit: {type: integer, minimum: 1}
+        offset: {type: integer, minimum: 0}
     Problem:
       type: object
-      required: [type, title, status, code, request_id]
+      description: >-
+        Runtime error envelope used by every v2 failure. This is not RFC 9457:
+        the application handler emits ``{"success": false, "error": {...},
+        "request_id": ...}`` and the ``application/json`` media type.
+      required: [success, error, request_id]
       properties:
-        type: {type: string, format: uri-reference}
-        title: {type: string}
-        status: {type: integer}
-        code: {type: string}
-        detail: {type: string}
-        request_id: {type: string}
-        run_id: {type: [string, 'null'], format: uuid}
-        retryable: {type: boolean}
-        current_version: {type: [integer, 'null']}
+        success: {type: boolean, const: false}
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: {type: string}
+            message: {type: string}
+            details:
+              description: Structured, request-appropriate validation/authorization detail.
+        request_id: {type: [string, 'null']}

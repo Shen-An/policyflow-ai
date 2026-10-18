@@ -736,3 +736,20 @@ Evidence metadata. It fails explicitly when the full chain is unavailable.
 我把标定脚本和流程都写进文档了。默认聊天是不开重排的，
 所以分数门在聊天里不生效，走的还是词面兜底——这点我不含糊。」
 
+---
+
+## §10.1 Stage 9/10 落地状态（2026-10-18 追加）
+
+| 项 | 状态 | 证据 |
+|---|---|---|
+| US5 管理员治理（T138–T148） | ✅ | `artifacts/admin/us5/`（18 项检查全 true；32 backend / 5 frontend） |
+| OpenAPI v2 契约（T150） | ✅ | 23 paths 对齐运行时；8 passed；**错误信封非 RFC 9457** 已按代码修正 |
+| 内部契约（T151） | ✅（1 处已知缺口） | 22 passed + 1 xfail：`JobQueue.lease` 无 lane 过滤 |
+| 验收 profile（T153） | ✅ 定义 / ⛔ 未跑 | `tests/load/acceptance_profile.py`；`evaluate_acceptance` 缺指标即 inconclusive |
+| 全量后端 / 前端（T154/T155） | ✅ 后端 / ✅ vitest / ⛔ Electron E2E | `artifacts/acceptance/backend/`、`artifacts/acceptance/desktop/` |
+| 分布式压测（T156） | ⛔ | 无独立环境，不产出数字 |
+| SC 判定（T157） | ✅ | `artifacts/acceptance/SC-001-SC-016.md` |
+| 旧路径退出（T158–T160） | ⛔ | release window 2026-10-18→11-18 未结束；2 个面未测量，`legacy-exit.json` 明确 blocked |
+| 数据权威切换（T152/T149） | ⛔ / 部分 | 便携审计（counts/FK/unique/hash）已跑；PG+MinIO+Milvus 对照未跑 |
+
+**边界**：Hit@K/MRR 的既有口径不变；本地 rerank 仍是 lexical fusion；MCP 企业连接器仍是 mock 且响应带 `status=mock`；容量与可用性结论本轮不成立。

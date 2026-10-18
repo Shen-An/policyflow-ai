@@ -1,0 +1,7 @@
+INFO:     Started server process [41768]
+INFO:     Waiting for application startup.
+{"timestamp": "2026-10-18T12:59:06.793829+00:00", "level": "INFO", "logger": "backend.app.db.init_db", "message": "Database seed completed", "seed_summary": {"roles_created": 0, "departments_created": 0, "knowledge_bases_created": 0, "permissions_created": 0, "users_created": 0, "model_providers_created": 0, "skills_created": 0, "tools_created": 0, "tenants_created": 0}}
+{"timestamp": "2026-10-18T12:59:06.794827+00:00", "level": "INFO", "logger": "backend.app.main", "message": "Application started", "environment": "development", "database_seed": {"roles_created": 0, "departments_created": 0, "knowledge_bases_created": 0, "permissions_created": 0, "users_created": 0, "model_providers_created": 0, "skills_created": 0, "tools_created": 0, "tenants_created": 0}, "outbox_relay": false}
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8123 (Press CTRL+C to quit)
+{"timestamp": "2026-10-18T12:59:07.487222+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "1cec9723-78f3-4356-8be9-f78af9ed8ac8", "request_method": "GET", "request_path": "/health", "status_code": 200, "duration_ms": 128.12}

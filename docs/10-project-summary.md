@@ -6,7 +6,7 @@
 
 > **数据面现状（2026-09-14 追加）**
 >
-> 本项目正在做企业化改造（Stage 2），**Phase 2 基础阶段已完成**。进度以 `specs/001-enterprise-agent-refactor/tasks.md` 为准（当前 **137 / 164** 完成，11 项部分完成、16 项未开始）；PostgreSQL 迁移、双实例和租户隔离的原始门禁证据位于 `artifacts/migration/stage2/`，管理员治理（US5）的证据位于 `artifacts/admin/us5/`。
+> 本项目正在做企业化改造（Stage 2），**Phase 2 基础阶段已完成**。进度以 `specs/001-enterprise-agent-refactor/tasks.md` 为准（当前 **145 / 164** 完成，19 项部分完成、0 项未开始）；PostgreSQL 迁移、双实例和租户隔离的原始门禁证据位于 `artifacts/migration/stage2/`，管理员治理（US5）的证据位于 `artifacts/admin/us5/`。
 >
 > - 上表「SQLite（可迁移 PostgreSQL）」应读作：**生产目标为 PostgreSQL 16**，SQLite 仅服务开发与隔离测试，**生产禁止 `create_all`**，schema 由 Alembic 分阶段迁移管理。
 > - 已引入多租户归属、RLS、按租户唯一与 compare-and-set。设计权威见 [`12-postgresql-multitenancy-design.md`](12-postgresql-multitenancy-design.md)。
