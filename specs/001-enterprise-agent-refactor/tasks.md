@@ -735,22 +735,30 @@ SELECT 与 UPDATE 之间没有原子性，UPDATE 也不带 `status='pending'` �
 
 ### Tests for User Story 5
 
-- [ ] T138 [P] [US5] 在 `tests/security/test_admin_rbac.py` 中为租户内 admin、显式 `cross_tenant_admin`、grant validity/revocation、逐次服务端授权和防资源枚举编写失败测试
-- [ ] T139 [P] [US5] 在 `tests/integration/test_audit_trace.py` 中为按 `run_id` 关联 request/evidence/tool/approval/submission/retry/error 且敏感字段脱敏编写失败测试
-- [ ] T140 [P] [US5] 在 `tests/integration/test_admin_capacity.py` 中为租户配额、最终 usage、queue/capacity/retrieval/sandbox/file health 查询和分页编写失败测试
-- [ ] T141 [P] [US5] 在 `tests/integration/test_admin_reconciliation.py` 中为 orphan/missing/drift、恢复尝试、人工处理和物理删除状态编写失败测试
+- [X] T138 [P] [US5] 在 `tests/security/test_admin_rbac.py` 中为租户内 admin、显式 `cross_tenant_admin`、grant validity/revocation、逐次服务端授权和防资源枚举编写失败测试 — **完成（R36）**：`tests/security/test_admin_rbac.py` **9 passed**。覆盖四主体 × 七类读取的租户内矩阵、employee 403 且拒绝先落审计再返回、跨租户 run 404（不可枚举）、提权授予（要求超出自身 scopes 的 grant）被拒、grant 重复创建幂等、撤销后下一次请求立即 403、以及用陈旧 principal 快照直接调服务仍被拒。
+- [X] T139 [P] [US5] 在 `tests/integration/test_audit_trace.py` 中为按 `run_id` 关联 request/evidence/tool/approval/submission/retry/error 且敏感字段脱敏编写失败测试 — **完成（R36）**：`tests/integration/test_audit_trace.py` **6 passed**。按 `run_id` 合并 audit 与 run_event 并按时间排序；`sanitize_audit_metadata` 后 API key 与 host path 不出现且 `redactions` 有记录；读取时间线本身被审计（下一次读取可见）；异租户 run 404 且响应不含其 id；恢复动作与 run 关联。
+- [X] T140 [P] [US5] 在 `tests/integration/test_admin_capacity.py` 中为租户配额、最终 usage、queue/capacity/retrieval/sandbox/file health 查询和分页编写失败测试 — **完成（R36）**：`tests/integration/test_admin_capacity.py` **8 passed**。配额按 (scope, workload) 取最高 active version 且保留 global 回退、隐藏其他租户策略；usage/lease 只统计本租户；health 聚合 job/document/submission/workspace/retrieval 漂移与未关闭 issue；runs/grants 分页与 422 边界；capacity 对租户管理员 403、对 `cross_tenant_admin` 200。
+- [X] T141 [P] [US5] 在 `tests/integration/test_admin_reconciliation.py` 中为 orphan/missing/drift、恢复尝试、人工处理和物理删除状态编写失败测试 — **完成（R36）**：`tests/integration/test_admin_reconciliation.py` **9 passed**。列表只含本租户且只有指纹（无 object key/host path）；retry 重置预算并写审计、resolved 后 retry/resolve 均 409；worker 每次 transition 一条审计且重复 sweep 不追加（uuid5 幂等）；存储不可达记为 `blocked` 而非假 issue；枚举活跃租户；审计行数随 transition 而非 sweep 频率增长。
 
 ### Implementation for User Story 5
 
-- [ ] T142 [P] [US5] 在 `backend/app/services/admin_service.py` 中实现 tenant-scoped role/grant/quota/job/audit/capacity/reconciliation 查询与 mutation，并对每项逐次调用 AuthorizationService
-- [ ] T143 [US5] 在 `backend/app/api/routes_admin.py` 中实现角色授权、配额、run audit、任务恢复、capacity run 和 reconciliation issue 的分页 v2 管理 API，跨租户访问返回不可枚举错误（依赖 T142）
-- [ ] T144 [P] [US5] 在 `backend/app/jobs/reconciliation_worker.py` 中实现 scheduled cross-store scan、bounded repair、人工处理终态和每次 transition 的 audit event
-- [ ] T145 [P] [US5] 在 `frontend/src/features/admin/admin-page.tsx` 中实现角色/权限、配额/用量、任务/队列、审计、容量与 reconciliation 的分区导航和状态摘要
-- [ ] T146 [P] [US5] 在 `frontend/src/features/admin/audit-run-page.tsx` 中实现按 `run_id` 的 request→evidence→tool→approval→submission→retry/error 脱敏时间线
-- [ ] T147 [P] [US5] 在 `frontend/src/features/admin/reconciliation-page.tsx` 中实现 issue kind、fingerprints、attempt、resolution 和人工处理动作且不暴露 object key/host path
-- [ ] T148 [US5] 运行 admin RBAC/audit/capacity/reconciliation 测试并将双租户矩阵与 seeded fault 结果保存到 `artifacts/admin/us5/`（依赖 T138–T147）
+- [X] T142 [P] [US5] 在 `backend/app/services/admin_service.py` 中实现 tenant-scoped role/grant/quota/job/audit/capacity/reconciliation 查询与 mutation，并对每项逐次调用 AuthorizationService — **完成（R36）**：`backend/app/services/admin_service.py`。每个 query/mutation 都先 `authorize_fresh`（fresh source 而非 principal 快照）并审计决策；拒绝路径先 commit 审计再 raise；授予需为操作者自身 scopes 的子集（防提权）；分页 1..100 夹紧。**顺带修掉两处平台缺陷**：`UnitOfWorkGrantSource._selected` 只取主 grant 导致「新增 admin grant 但旧 grant 仍生效时被拒」，现并集所有 active grant；`_apply_compare_and_set` 未刷新 ORM 行，导致 revoke 响应 `revoked_at=None`。
+- [X] T143 [US5] 在 `backend/app/api/routes_admin.py` 中实现角色授权、配额、run audit、任务恢复、capacity run 和 reconciliation issue 的分页 v2 管理 API，跨租户访问返回不可枚举错误（依赖 T142） — **完成（R36）**：`backend/app/api/routes_admin.py`，前缀 `/api/v2/admin`，13 条路由（roles/grants/quota/health/runs/run audit/recover/reconciliation retry+resolve/capacity）。租户只来自 bearer principal；过滤参数命名为 `member_id` 而非 `user_id`，避免与平台「请求身份声明必须匹配 token」的守卫冲突；201/200/403/404/409 与稳定错误码；capacity 需 `cross_tenant_admin`。
+- [X] T144 [P] [US5] 在 `backend/app/jobs/reconciliation_worker.py` 中实现 scheduled cross-store scan、bounded repair、人工处理终态和每次 transition 的 audit event — **完成（R36）**：`backend/app/jobs/reconciliation_worker.py`。按活跃租户逐租户 sweep（可只跑指定租户），`repair` 默认关闭、显式开启才传给 reconciler；对 opened/reopened/escalated/repaired 逐条写审计，event id 为 `uuid5(issue,state,attempts)` 故重复扫描不产生重复行；每轮一条 summary；存储不可达写 `outcome=blocked` 而不产出假 findings。
+- [X] T145 [P] [US5] 在 `frontend/src/features/admin/admin-page.tsx` 中实现角色/权限、配额/用量、任务/队列、审计、容量与 reconciliation 的分区导航和状态摘要 — **完成（R36）**：`frontend/src/features/admin/admin-page.tsx` + `/admin/governance` 路由与导航。概览显示生效配额（global 与 tenant 并列）、usage/活跃租约、队列/索引/提交/工作区/检索漂移/未关闭 issue；授权页显示角色动作与有效授权数、分页 grants、按成员过滤、授予（含到期时间）与撤销（Popconfirm 说明立即生效并写审计）。
+- [X] T146 [P] [US5] 在 `frontend/src/features/admin/audit-run-page.tsx` 中实现按 `run_id` 的 request→evidence→tool→approval→submission→retry/error 脱敏时间线 — **完成（R36）**：`frontend/src/features/admin/audit-run-page.tsx` + `/admin/runs`。运行列表按状态过滤、分页；抽屉内把 audit 与 run_event 按时间合并渲染，逐条展示脱敏标记与 metadata；仅对终态类状态给出「尝试恢复」，服务端 409（`RUN_NOT_RECOVERABLE` / `RUN_ATTEMPTS_EXHAUSTED`）原样提示而不假装成功。
+- [X] T147 [P] [US5] 在 `frontend/src/features/admin/reconciliation-page.tsx` 中实现 issue kind、fingerprints、attempt、resolution 和人工处理动作且不暴露 object key/host path — **完成（R36）**：`frontend/src/features/admin/reconciliation-page.tsx` + `/admin/reconciliation`。按 state 过滤，展示 issue kind/severity/store pair/两侧指纹/attempts/last_error/next_attempt；仅 open|manual_required 提供重试与关闭（关闭需填处理说明）；capacity 区在 403 时明确说明需要 `cross_tenant_admin`，而不是渲染成空表暗示「没有记录」。
+- [X] T148 [US5] 运行 admin RBAC/audit/capacity/reconciliation 测试并将双租户矩阵与 seeded fault 结果保存到 `artifacts/admin/us5/`（依赖 T138–T147） — **完成（R36）**：`scripts/collect_us5_evidence.py` 驱动真实应用产出 `artifacts/admin/us5/`：`rbac-matrix.json`/`.md`（4 主体 × 9 端点实际状态码）、`seeded-faults.json`（预置 issue、health 聚合、脱敏时间线、恢复、grant 生命周期、人工处理）、`summary.json`（18 项检查全 true）、`pytest-us5.txt`（**32 passed**）、`vitest-us5.txt`（**5 passed**）、`README.md`。另跑回归：契约/集成 40 passed、PG 四套件 30 passed。
 
 **Checkpoint**: US5 可独立验收；管理员能治理本租户并追踪恢复问题，跨租户能力必须显式授予且独立审计。
+
+> **达成（R36，2026-10-18）**：Independent Test 的两租户场景已真跑——`tests/security/test_admin_rbac.py`、`tests/integration/test_audit_trace.py`、`tests/integration/test_admin_capacity.py`、`tests/integration/test_admin_reconciliation.py` 合计 **32 passed**（SQLite 上组装完整应用）；另在真实 PostgreSQL 17.10 上跑 `test_tenant_isolation`、`test_v2_dependencies`、`test_quota_ledger_pg`、`test_run_snapshot_pg` **30 passed**，契约/集成回归 `test_runs_api`/`test_approval_workspace_routes`/`test_sse_endpoint`/`test_graph_run_persistence` **40 passed**，确认本轮的 repository/init 修复没有回归。前端 `tsc -b`、ESLint 与新增 **5 passed**（admin API 映射 + reconciliation 页重试与 403 说明）。
+>
+> 证据在 `artifacts/admin/us5/`：`rbac-matrix.md`/`.json` 是 4 主体（alpha admin / alpha employee / alpha platform(cross_tenant) / beta admin）× 9 端点的**实际状态码**；`seeded-faults.json` 记录预置 finding（alpha open + alpha manual_required + beta 不可见）、health 聚合、脱敏时间线、恢复 200→409、grant 生效与撤销后立即 403、retry/resolve；`summary.json` 的 18 项检查全 `true`。矩阵中有三条边界值得单说：employee 全部 403（且拒绝先落审计）；beta admin 读 alpha run 与 admin 读 beta run 都是 404（「不存在」与「无权」同形，无法枚举）；capacity 仅 `cross_tenant_admin` 可读。
+>
+> 本轮还修了两个**真实平台缺陷**（不是为本阶段方便）：① `init_db._adopt_unowned_rows` 会把 `tenant_id IS NULL` 的 **global 配额策略**一并认领给 legacy 租户，导致租户失去平台默认配额——现显式跳过 `quota_policies`；② `_apply_compare_and_set` 返回前不刷新 ORM 行，撤销授权会返回 `revoked_at=None`。两者都有回归覆盖。
+>
+> **诚实边界**：worker 的「调度」只提供 `run_forever`（interval + stop event），本轮**没有**接入生产进程管理器/Celery beat 的部署验证；`repair=True` 只做了参数透传与转换审计的单元级验证，未对真实 Milvus/MinIO 做破坏性修复演练（那属于 Stage 5 reconciliation 的既有测试面）。前端三页只做了类型检查、lint 与两处组件级测试，**未**在真实 Electron/浏览器里人工走查（Phase 7/8 的 E2E 不覆盖新增路由）。跨租户容量列表的 403 文案由后端错误驱动，不依赖前端猜测角色。
 
 ---
 

@@ -1,0 +1,14 @@
+
+ RUN  v4.1.10 E:/Coding/Code/Python/policyflow-ai/frontend
+
+ ✓ src/api/admin.test.ts (3 tests) 7ms
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+ ✓ src/features/admin/reconciliation-page.test.tsx (2 tests) 5940ms
+     ✓ renders fingerprints and retries an actionable issue  5869ms
+
+ Test Files  2 passed (2)
+      Tests  5 passed (5)
+   Start at  20:18:42
+   Duration  10.19s (transform 125ms, setup 409ms, import 3.32s, tests 5.95s, environment 1.33s)
+

@@ -1,0 +1,50 @@
+{
+  "environment": {
+    "generated_at": "2026-10-18T12:17:58.741845+00:00",
+    "python": "3.11.15",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "database": "sqlite (file) -- PostgreSQL is covered by the pytest suites",
+    "tenants": {
+      "alpha": "11111111-1111-1111-1111-111111111111",
+      "beta": "22222222-2222-2222-2222-222222222222"
+    },
+    "principals": [
+      "alpha_admin",
+      "alpha_employee",
+      "alpha_platform(cross_tenant)",
+      "beta_admin"
+    ],
+    "fixture_issues": {
+      "alpha_manual": "50000000-0000-0000-0000-000000000001",
+      "alpha_open": "50000000-0000-0000-0000-000000000003",
+      "beta_manual": "50000000-0000-0000-0000-000000000002"
+    }
+  },
+  "checks": {
+    "employee_denied_every_read": true,
+    "foreign_run_timeline_is_404": true,
+    "beta_admin_cannot_read_alpha_run": true,
+    "capacity_requires_cross_tenant": true,
+    "findings_are_tenant_scoped": true,
+    "fingerprints_do_not_leak_storage_keys": true,
+    "timeline_redacts_api_key": true,
+    "timeline_redacts_host_path": true,
+    "timeline_merges_audit_and_run_events": true,
+    "recovery_transitions_recoverable_only": true,
+    "second_recovery_is_conflict": true,
+    "quota_hides_other_tenant": true,
+    "quota_keeps_global_fallback": true,
+    "health_reports_open_findings": true,
+    "grant_takes_effect_without_relogin": true,
+    "revocation_takes_effect_immediately": true,
+    "retry_resets_attempt_budget": true,
+    "resolve_closes_finding": true
+  },
+  "passed": true,
+  "failed": [],
+  "artifacts": [
+    "rbac-matrix.json",
+    "rbac-matrix.md",
+    "seeded-faults.json"
+  ]
+}
