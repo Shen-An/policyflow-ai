@@ -20,13 +20,17 @@ Deliberate choices:
 
 from __future__ import annotations
 
+import json
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 __all__ = [
     "LEGACY_SURFACES",
     "CompatibilitySnapshot",
+    "LegacySurfaceCounters",
     "ReleaseWindow",
     "build_snapshot",
     "default_window",
@@ -78,6 +82,62 @@ def default_window(days: int = 14, *, now: datetime | None = None) -> ReleaseWin
 
     end = now or datetime.now(UTC)
     return ReleaseWindow(start=end - timedelta(days=days), end=end)
+
+
+class LegacySurfaceCounters:
+    """Durable per-process counters for the two surfaces without a telemetry object.
+
+    ``browser_shell`` is counted from ``GET /`` document loads whose User-Agent is
+    not Electron; ``agent_pipeline_facade`` is counted at the facade entrypoint.
+    The ledger exists so a later audit can read a number even though the process
+    that produced it is gone. A missing ledger means *not measured* — the audit
+    must not read it as zero.
+    """
+
+    def __init__(self, path: str | Path) -> None:
+        self.path = Path(path)
+        self._counts: Counter[str] = Counter()
+        self.updated_at: datetime | None = None
+        self._load()
+
+    @property
+    def exists(self) -> bool:
+        return self.path.exists()
+
+    def _load(self) -> None:
+        if not self.path.exists():
+            return
+        payload = json.loads(self.path.read_text(encoding="utf-8"))
+        surfaces = payload.get("surfaces", payload)
+        for name, count in surfaces.items():
+            if name in LEGACY_SURFACES and isinstance(count, int):
+                self._counts[name] = count
+        raw = payload.get("updated_at")
+        self.updated_at = datetime.fromisoformat(raw) if isinstance(raw, str) else None
+
+    def record(self, surface: str) -> None:
+        if surface not in LEGACY_SURFACES:
+            raise ValueError(f"unknown legacy surface {surface!r}")
+        self._counts[surface] += 1
+        self._flush()
+
+    def count(self, surface: str) -> int:
+        return int(self._counts.get(surface, 0))
+
+    def reset(self) -> None:
+        self._counts.clear()
+        self._flush()
+
+    def _flush(self) -> None:
+        self.updated_at = datetime.now(UTC)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "updated_at": self.updated_at.isoformat(),
+            "surfaces": dict(sorted(self._counts.items())),
+        }
+        self.path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
 
 
 @dataclass(slots=True)
@@ -141,6 +201,7 @@ def build_snapshot(
     storage: Any | None = None,
     adapters: Any | None = None,
     drafts: Any | None = None,
+    counters: LegacySurfaceCounters | None = None,
     browser_shell_requests: int | None = None,
     pipeline_facade_uses: int | None = None,
     now: datetime | None = None,
@@ -149,8 +210,13 @@ def build_snapshot(
 
     ``None`` for an argument means *that surface was not measured in this run* —
     the result then cannot clear the gate.  Passing a telemetry object reads its
-    live counters; nothing here synthesises a number.
+    live counters; nothing here synthesises a number.  ``counters`` (the durable
+    ledger) wins over the explicit integers when the ledger file exists.
     """
+
+    if counters is not None and counters.exists:
+        browser_shell_requests = counters.count("browser_shell")
+        pipeline_facade_uses = counters.count("agent_pipeline_facade")
 
     usage: dict[str, int | None] = {
         "legacy_chat_adapter": (

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-18T12:54:02.041989+00:00",
+  "generated_at": "2026-10-18T13:32:09.267462+00:00",
   "window": {
     "label": "stage9-release-window",
     "start": "2026-10-18T00:00:00+00:00",
@@ -47,9 +47,14 @@
     "counters are per-process unless the caller wired a durable ledger",
     "browser_shell is measured from the reverse-proxy access log, not this process"
   ],
+  "ledger": {
+    "path": "artifacts\\acceptance\\legacy-usage.json",
+    "exists": false
+  },
   "how_to_measure": {
-    "browser_shell": "reverse-proxy access log：统计非 Electron UA 对 / 的请求数",
-    "agent_pipeline_facade": "在 facade 入口计数并落 durable ledger；本进程无法代表窗口",
-    "others": "由各 telemetry 对象/durable ledger 提供；本脚本只读不造数"
+    "browser_shell": "应用中间件对 `GET /` 且非 Electron UA 的 HTML 文档请求计数",
+    "agent_pipeline_facade": "AgentPipeline.run() 入口计数",
+    "ledger_absent": "ledger 不存在 = 未测量（不是 0），门禁不放行",
+    "others": "由各 telemetry 对象提供；本脚本只读不造数"
   }
 }

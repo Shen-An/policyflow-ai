@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import asdict
@@ -75,6 +76,7 @@ from backend.app.jobs.publisher import OutboxPublisher
 from backend.app.jobs.relay import OutboxRelayLoop
 from backend.app.jobs.transport import CeleryOutboxTransport
 from backend.app.mcp.manager import MCPManager
+from backend.app.observability.compatibility import LegacySurfaceCounters
 from backend.app.observability.telemetry import configure_telemetry
 from backend.app.rag.bm25_retriever import BM25Retriever
 from backend.app.rag.cross_encoder_rerank_service import NvidiaCrossEncoderRerankService
@@ -185,6 +187,11 @@ def create_app(
         ImproveAgent(language_model, app_settings),
         app_settings,
     )
+    legacy_counters = LegacySurfaceCounters(
+        os.environ.get(
+            "POLICYFLOW_LEGACY_LEDGER", "artifacts/acceptance/legacy-usage.json"
+        )
+    )
     pipeline = AgentPipeline(
         RouterAgent(language_model),
         RetrievalAgent(rag_service),
@@ -193,6 +200,7 @@ def create_app(
         ComplianceAgent(app_settings),
         app_settings,
         reflection_loop=reflection_loop,
+        legacy_counters=legacy_counters,
     )
     memory_agent = MemoryAgent(
         app_settings,
@@ -290,6 +298,14 @@ def create_app(
             else str(uuid4())
         )
         request.state.request_id = request_id
+        if (
+            request.method == "GET"
+            and request.url.path == "/"
+            and "text/html" in request.headers.get("accept", "")
+            and "Electron" not in request.headers.get("user-agent", "")
+        ):
+            # T158: a browser page load, not an Electron shell, is legacy surface use.
+            legacy_counters.record("browser_shell")
         context_token = bind_request_id(request_id)
         started_at = perf_counter()
         try:
@@ -344,6 +360,8 @@ def create_app(
     # T108: counts legacy Draft writes; its zero_use_over_window() is the Stage 9
     # condition for removing the Draft path once file edits use ChangeSet only.
     application.state.draft_legacy_telemetry = DraftLegacyTelemetry()
+    # T158: durable counters for the two surfaces without their own telemetry.
+    application.state.legacy_surface_counters = legacy_counters
 
     @application.get("/health", tags=["system"])
     async def health_check() -> dict[str, str]:

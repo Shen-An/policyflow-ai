@@ -58,3 +58,4 @@ docs/rehearsal-latest.json
 
 # DSH session upload scratch
 .dsh-uploads/
+artifacts/acceptance/*.sqlite

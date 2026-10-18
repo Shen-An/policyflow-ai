@@ -47,6 +47,27 @@ def pg_url_for_scratch() -> str:
     return conftest.test_database_url()
 
 
+def require_pg_server() -> None:
+    """Skip when the PostgreSQL server is down; a red test would be a false alarm.
+
+    ``scratch_database`` raises the driver's connection error when the server is
+    absent, which turned an environment gap into a suite failure. Readiness logic
+    is the thing under test, not whether this host runs PostgreSQL.
+    """
+    try:
+        url = pg_url_for_scratch()
+        engine = create_engine(url, connect_args={"connect_timeout": 2})
+    except Exception as exc:  # pragma: no cover - environment dependent
+        pytest.skip(f"PostgreSQL unavailable: {exc}")
+    try:
+        with engine.connect():
+            return
+    except Exception as exc:  # pragma: no cover - environment dependent
+        pytest.skip(f"PostgreSQL unavailable: {exc}")
+    finally:
+        engine.dispose()
+
+
 def pg_settings(tmp_path: Path, database_url: str, name: str) -> Settings:
     """Build isolated settings for one API instance.
 
@@ -291,6 +312,7 @@ def test_production_startup_verifies_schema_instead_of_creating_it(
 
 async def test_readiness_distinguishes_unmigrated_from_unreachable() -> None:
     """Readiness must name the real reason, because the remedies differ."""
+    require_pg_server()
     with conftest.scratch_database(pg_url_for_scratch(), "pf_it_unmigrated") as unmigrated_url:
         engine = build_async_engine(unmigrated_url)
         try:

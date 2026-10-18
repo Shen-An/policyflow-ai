@@ -10,6 +10,7 @@ from backend.app.graph.compat import AdapterUsageTelemetry
 from backend.app.observability.compatibility import (
     LEGACY_SURFACES,
     CompatibilitySnapshot,
+    LegacySurfaceCounters,
     ReleaseWindow,
     build_snapshot,
 )
@@ -112,3 +113,56 @@ def test_serialised_snapshot_carries_the_reason_it_is_not_eligible() -> None:
     assert payload["zero_use"] is False
     assert payload["window"]["days"] > 0
     assert any("未测量" in reason for reason in payload["blockers"])
+
+
+def test_durable_ledger_survives_a_new_reader(tmp_path) -> None:
+    path = tmp_path / "legacy-usage.json"
+    writer = LegacySurfaceCounters(path)
+    writer.record("browser_shell")
+    writer.record("browser_shell")
+    writer.record("agent_pipeline_facade")
+
+    reader = LegacySurfaceCounters(path)
+    assert reader.exists is True
+    assert reader.count("browser_shell") == 2
+    assert reader.count("agent_pipeline_facade") == 1
+
+
+def test_ledger_turns_the_two_surfaces_from_unmeasured_into_numbers(tmp_path) -> None:
+    counters = LegacySurfaceCounters(tmp_path / "legacy-usage.json")
+    counters.record("browser_shell")
+
+    snapshot = build_snapshot(
+        _elapsed_window(),
+        storage=StorageAuthorityTelemetry(),
+        adapters=AdapterUsageTelemetry(),
+        drafts=DraftLegacyTelemetry(),
+        counters=counters,
+        now=NOW,
+    )
+    assert snapshot.usage["browser_shell"] == 1
+    assert snapshot.usage["agent_pipeline_facade"] == 0
+    assert snapshot.unmeasured() == []
+    assert snapshot.zero_use() is False
+    assert any("browser_shell" in reason for reason in snapshot.blockers(NOW))
+
+
+def test_missing_ledger_keeps_surfaces_unmeasured(tmp_path) -> None:
+    counters = LegacySurfaceCounters(tmp_path / "absent.json")
+    snapshot = build_snapshot(
+        _elapsed_window(),
+        storage=StorageAuthorityTelemetry(),
+        adapters=AdapterUsageTelemetry(),
+        drafts=DraftLegacyTelemetry(),
+        counters=counters,
+        now=NOW,
+    )
+    assert counters.exists is False
+    assert snapshot.usage["browser_shell"] is None
+    assert set(snapshot.unmeasured()) == {"browser_shell", "agent_pipeline_facade"}
+
+
+def test_ledger_rejects_an_unknown_surface(tmp_path) -> None:
+    counters = LegacySurfaceCounters(tmp_path / "legacy-usage.json")
+    with pytest.raises(ValueError, match="unknown legacy surface"):
+        counters.record("not_a_surface")

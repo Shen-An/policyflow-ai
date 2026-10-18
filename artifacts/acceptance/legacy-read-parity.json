@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "compared_fields": [
+    "draft_type",
+    "status",
+    "title",
+    "related_sources"
+  ],
+  "scope": "seeded-sqlite-fixture (not the production copy)",
+  "rows": [
+    {
+      "id": "cs-approved",
+      "match": true,
+      "mismatches": []
+    },
+    {
+      "id": "cs-ready",
+      "match": true,
+      "mismatches": []
+    },
+    {
+      "id": "cs-rejected",
+      "match": true,
+      "mismatches": []
+    }
+  ]
+}

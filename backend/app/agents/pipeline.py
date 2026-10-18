@@ -50,6 +50,7 @@ class AgentPipeline:
         compliance_agent: ComplianceAgent,
         settings: Settings | None = None,
         reflection_loop: ReflectionLoop | None = None,
+        legacy_counters: Any | None = None,
     ) -> None:
         self.router_agent = router_agent
         self.retrieval_agent = retrieval_agent
@@ -58,6 +59,9 @@ class AgentPipeline:
         self.compliance_agent = compliance_agent
         self.settings = settings or get_settings()
         self.reflection_loop = reflection_loop
+        # T158: the facade is still the live orchestration entrypoint until the
+        # release window closes, so every call is counted in the durable ledger.
+        self.legacy_counters = legacy_counters
 
     async def _emit_stage(
         self,
@@ -461,6 +465,8 @@ class AgentPipeline:
 
     async def run(self, *args: Any, **kwargs: Any) -> PipelineResult:
         """Run one turn with a request-scoped budget context."""
+        if self.legacy_counters is not None:
+            self.legacy_counters.record("agent_pipeline_facade")
         budget = kwargs.pop("budget", None)
         active_budget = budget or TurnBudget(
             max_llm_calls=int(getattr(self.settings, "CHAT_TURN_MAX_LLM_CALLS", 8) or 8),

@@ -1,0 +1,246 @@
+{
+  "destructive": false,
+  "gate_cleared": false,
+  "scanned_root": "backend/",
+  "excluded": [
+    "__pycache__",
+    "alembic",
+    "node_modules",
+    "scripts",
+    "tests",
+    "versions"
+  ],
+  "legacy_columns": [
+    "draft_type",
+    "related_sources",
+    "source_question"
+  ],
+  "consumer_count": 45,
+  "consumers": [
+    {
+      "file": "backend/app/api/routes_draft.py",
+      "line": 1,
+      "text": "\"\"\"Draft lifecycle API routes.\"\"\""
+    },
+    {
+      "file": "backend/app/api/routes_draft.py",
+      "line": 25,
+      "text": "router = APIRouter(prefix=\"/api/drafts\", tags=[\"drafts\"])"
+    },
+    {
+      "file": "backend/app/api/routes_faq.py",
+      "line": 25,
+      "text": "router = APIRouter(prefix=\"/api/faq-drafts\", tags=[\"faq\"])"
+    },
+    {
+      "file": "backend/app/db/base.py",
+      "line": 15,
+      "text": "Draft,"
+    },
+    {
+      "file": "backend/app/db/base.py",
+      "line": 64,
+      "text": "\"Draft\","
+    },
+    {
+      "file": "backend/app/db/init_db.py",
+      "line": 85,
+      "text": "\"drafts\": {"
+    },
+    {
+      "file": "backend/app/observability/compatibility.py",
+      "line": 47,
+      "text": "\"draft_projection\": \"Draft 兼容投影的旧写入路径\","
+    },
+    {
+      "file": "backend/app/observability/compatibility.py",
+      "line": 203,
+      "text": "drafts: Any | None = None,"
+    },
+    {
+      "file": "backend/app/observability/compatibility.py",
+      "line": 235,
+      "text": "\"draft_projection\": drafts.total_usage() if drafts is not None else None,"
+    },
+    {
+      "file": "backend/app/schemas/draft.py",
+      "line": 1,
+      "text": "\"\"\"Draft API schemas.\"\"\""
+    },
+    {
+      "file": "backend/app/services/draft_projection.py",
+      "line": 1,
+      "text": "\"\"\"T108 [US1] the legacy Draft as a counted, read-only compatibility projection."
+    },
+    {
+      "file": "backend/app/services/draft_projection.py",
+      "line": 3,
+      "text": "Before Stage 6, a proposed edit lived as a free-form ``Draft`` row (``content``,"
+    },
+    {
+      "file": "backend/app/services/draft_projection.py",
+      "line": 6,
+      "text": "a reviewable change set, not an opaque text blob. The old ``Draft`` surface stays"
+    },
+    {
+      "file": "backend/app/services/draft_projection.py",
+      "line": 7,
+      "text": "so pre-Stage-6 chat drafts keep working, but it is a *migration adapter*, and this"
+    },
+    {
+      "file": "backend/app/services/draft_projection.py",
+      "line": 10,
+      "text": "* **every legacy Draft write is counted** by :class:`DraftLegacyTelemetry`, whose"
+    },
+    {
+      "file": "backend/app/services/draft_projection.py",
+      "line": 11,
+      "text": ":meth:`zero_use_over_window` is the Stage 9 condition for deleting the Draft"
+    },
+    {
+      "file": "backend/app/services/draft_projection.py",
+      "line": 15,
+      "text": "write a Draft row;"
+    },
+    {
+      "file": "backend/app/services/draft_projection.py",
+      "line": 36,
+      "text": "\"\"\"One legacy Draft write. Carries identity and a reason, never content.\"\"\""
+    },
+    {
+      "file": "backend/app/services/draft_projection.py",
+      "line": 56,
+      "text": "\"\"\"Counts legacy Draft writes; drives the Stage 9 removal decision.\"\"\""
+    },
+    {
+      "file": "backend/app/services/draft_projection.py",
+      "line": 74,
+      "text": "\"\"\"True only when no legacy Draft write has happened -- the removal gate.\"\"\""
+    },
+    {
+      "file": "backend/app/services/draft_projection.py",
+      "line": 79,
+      "text": "\"\"\"Render a ChangeSet (the new authority) into the legacy Draft read shape."
+    },
+    {
+      "file": "backend/app/services/draft_projection.py",
+      "line": 81,
+      "text": "Lets a caller still on the old ``Draft`` view read a Stage-6 change set without"
+    },
+    {
+      "file": "backend/app/services/draft_projection.py",
+      "line": 82,
+      "text": "the change-set path ever writing a Draft row -- the projection is read-only and"
+    },
+    {
+      "file": "backend/app/services/draft_projection.py",
+      "line": 95,
+      "text": "\"projection\": True,  # marks this as a derived view, not a Draft row"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 1,
+      "text": "\"\"\"Draft ownership and lifecycle services."
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 3,
+      "text": "T108: the ``Draft`` row is a Stage-6 migration adapter. A file-workflow edit's"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 5,
+      "text": "``Draft`` lives on for pre-Stage-6 chat drafts, and every write is counted toward"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 13,
+      "text": "from backend.app.db.models import Conversation, Draft, User, utc_now"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 28,
+      "text": "def to_draft_read(draft: Draft) -> DraftRead:"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 32,
+      "text": "def get_draft(session: Session, user: User, draft_id: str) -> Draft:"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 33,
+      "text": "draft = session.get(Draft, draft_id)"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 35,
+      "text": "raise ApplicationError(\"DRAFT_NOT_FOUND\", \"Draft not found\", 404)"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 37,
+      "text": "raise ApplicationError(\"PERMISSION_DENIED\", \"Draft access denied\", 403)"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 57,
+      "text": "draft = Draft(user_id=user.id, **data.model_dump())"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 67,
+      "text": "reason=\"legacy Draft row written; file edits now use ChangeSet\","
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 81,
+      "text": "statement = select(Draft)"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 83,
+      "text": "statement = statement.where(Draft.user_id == user.id)"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 85,
+      "text": "statement = statement.where(Draft.status == status)"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 87,
+      "text": "statement = statement.where(Draft.draft_type == draft_type)"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 88,
+      "text": "drafts = session.exec(statement.order_by(col(Draft.created_at).desc())).all()"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 91,
+      "text": "items=[to_draft_read(draft) for draft in drafts[start : start + page_size]],"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 92,
+      "text": "total=len(drafts),"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 119,
+      "text": "raise ApplicationError(\"DRAFT_STATUS_INVALID\", \"Draft status transition is invalid\", 409)"
+    },
+    {
+      "file": "backend/app/services/draft_service.py",
+      "line": 134,
+      "text": "content = f\"# {draft.title}{chr(10)}{chr(10)}{draft.content}\""
+    },
+    {
+      "file": "backend/app/services/knowledge_base_service.py",
+      "line": 255,
+      "text": "\"\"\"Physically delete a knowledge base, its documents, ACL, FAQ drafts, and workspace.\"\"\""
+    }
+  ]
+}

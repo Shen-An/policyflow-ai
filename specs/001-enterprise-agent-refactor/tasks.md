@@ -969,3 +969,12 @@ Three real Stage 2 defects were found by these tests and fixed:
 Phase 2 status: T033/T034/T036 complete; **T035 部分完成**（`memory_service` 子范围已迁移并验证，`eval_service` / `knowledge_base_service` 待专门一轮，见 T035 行 `[~]`）。T033-T034 provide the principal, async Unit of Work, application lifespan/readiness/telemetry, and tenant-aware repository foundation. T036 verifies the PostgreSQL migration, multi-instance, and tenant-isolation gates. The suite summaries and migration checksums are recorded under `artifacts/migration/stage2/`.
 
 **T036 「22 passed」的证据边界（2026-09-19 补正，诚实声明）**：`artifacts/migration/stage2/` 里记录的 22 passed 来自以 **superuser 角色**（`policyflow`，可 CREATE DATABASE）运行的那次。以生产用的 **应用角色**（`policyflow_app`：NOSUPERUSER / NOCREATEDB / NOBYPASSRLS）重跑时，测试**夹具**在 `CREATE DATABASE` 那一步失败——这是**测试脚手架的权限问题，不是租户隔离逻辑本身失败**。隔离逻辑（RLS + `set_config('policyflow.tenant_id')` GUC + 跨租户不可见）在 superuser 跑下与本轮 T035 memory 锚点（PG enforce 库、`policyflow_app` 连接读写数据、9 passed）中均已验证通过。若要在应用角色下复现全部 22 项，需让夹具改用**预建库**而非运行时 `CREATE DATABASE`。
+
+## R40 补充（仓库内可做项已补，未改变 `[~]` 判定）
+
+- **T155**：Electron E2E 真跑了，**8 failed / 0 passed**。`electron.exe` 本身可执行（v24.20.0），失败点是 WDIO 创建会话时 Electron 崩溃（`DevToolsActivePort file doesn't exist`）——本会话没有桌面会话。此前写的"无显示环境"是猜测，现在有了确证日志：`artifacts/acceptance/desktop/electron-e2e.txt`。
+- **T158**：`browser_shell` 现在由应用中间件对"`GET /` + 非 Electron UA + 接受 HTML"的请求计数；`agent_pipeline_facade` 由 `AgentPipeline.run()` 入口计数；两者落 durable ledger（`LegacySurfaceCounters`）。审计脚本读 ledger；ledger 缺失仍是"未测量"而不是 0。这解决了"两个面无法测量"的工程缺口，但**窗口本身仍未结束**，所以 T158 保持 `[~]`。
+- **T154**：`require_pg_server()` 在 PostgreSQL 不可达时 `pytest.skip`，不再把环境缺失记成失败。重跑该用例：**1 skipped**。
+- **T149**：新增 `scripts/acceptance_legacy_read_compare.py`，在 SQLite 种子上比对 legacy Draft 读形态与 ChangeSet 投影（4 字段 × 3 行全一致）。生产副本比对需要的恢复点与环境仍未具备，故仍 `[~]`。
+- **T152**：新增只读 preflight `scripts/t152_legacy_column_consumers.py`，输出 `artifacts/acceptance/t152-consumers.json`；当前 `gate_cleared=false`（45 处仍引用 `Draft`/`drafts`），因此**不能**执行 contract migration。
+- 本轮测试：`tests/unit` + `tests/contract` → **471 passed, 23 skipped, 1 xfailed**；新增 `tests/unit/test_acceptance_preflight.py`（6）与 ledger 测试（4）。
