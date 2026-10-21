@@ -12,17 +12,28 @@ effects, so the existing SQLite-backed suites keep running unchanged.
 from __future__ import annotations
 
 import os
-import subprocess
-import sys
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
-from dataclasses import dataclass
-from pathlib import Path
-from uuid import uuid4
 
-import pytest
+# Locust gevent-patches the whole process at import time (`locust/__init__.py`).
+# Importing `tests/load/locustfile.py` merely to read the profile table therefore
+# replaced threading/socket for every later test in the same pytest process, which
+# corrupted the anyio/httpx async stack the capacity suites run on (requests
+# neither succeeded nor were shed, so `test_overload_burst_sheds_load_without_5xx`
+# failed only when the load module was imported first). A pytest process is not a
+# load generator: skip the patch here and let the locust CLI patch itself when it
+# actually runs a load test.
+os.environ.setdefault("LOCUST_SKIP_MONKEY_PATCH", "1")
 
-from backend.app.db.session import configure_async_event_loop_policy
+import subprocess  # noqa: E402
+import sys  # noqa: E402
+from collections.abc import Callable, Iterator  # noqa: E402
+from contextlib import contextmanager  # noqa: E402
+from dataclasses import dataclass  # noqa: E402
+from pathlib import Path  # noqa: E402
+from uuid import uuid4  # noqa: E402
+
+import pytest  # noqa: E402
+
+from backend.app.db.session import configure_async_event_loop_policy  # noqa: E402
 
 # Async psycopg refuses Windows' default Proactor loop; the policy must be
 # selected before pytest-asyncio creates its first loop.

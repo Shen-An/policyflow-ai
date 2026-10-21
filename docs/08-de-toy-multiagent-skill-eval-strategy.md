@@ -745,8 +745,8 @@ Evidence metadata. It fails explicitly when the full chain is unavailable.
 | US5 管理员治理（T138–T148） | ✅ | `artifacts/admin/us5/`（18 项检查全 true；32 backend / 5 frontend） |
 | OpenAPI v2 契约（T150） | ✅ | 23 paths 对齐运行时；8 passed；**错误信封非 RFC 9457** 已按代码修正 |
 | 内部契约（T151） | ✅（1 处已知缺口） | 22 passed + 1 xfail：`JobQueue.lease` 无 lane 过滤 |
-| 验收 profile（T153） | ✅ 定义 / ⛔ 未跑 | `tests/load/acceptance_profile.py`；`evaluate_acceptance` 缺指标即 inconclusive |
-| 全量后端 / 前端（T154/T155） | ✅ 后端 / ✅ vitest / ⛔ Electron E2E | `artifacts/acceptance/backend/`、`artifacts/acceptance/desktop/` |
+| 验收 profile（T153） | ✅ 代码前置 / ⛔ 未跑 | `tests/load/acceptance_profile.py` + `locustfile.py`：按 `WORKFLOW_WEIGHTS` 真分流、逐帧 SSE 首事件计时、`CONCURRENCY` 采集实际 `active_sessions`/`sse_streams`、tenant 分散登录 + 跨租户断言，跑完落 `summary.json`；`evaluate_acceptance` 缺指标或**缺并发数**即 inconclusive / fail。29 passed，但**验收环境运行本身未做** |
+| 全量后端 / 前端（T154/T155） | ✅ 后端 / ✅ vitest / ⛔ Electron E2E | `artifacts/acceptance/backend/`、`artifacts/acceptance/desktop/`；Electron E2E **复跑失败**（0 passed / 8 failed，WDIO 建会话失败），不得写“未运行” |
 | 分布式压测（T156） | ⛔ | 无独立环境，不产出数字 |
 | SC 判定（T157） | ✅ | `artifacts/acceptance/SC-001-SC-016.md` |
 | 旧路径退出（T158–T160） | ⛔ | release window 2026-10-18→11-18 未结束；2 个面未测量，`legacy-exit.json` 明确 blocked |

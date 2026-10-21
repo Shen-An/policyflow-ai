@@ -9,8 +9,11 @@ pretending the run happened.
 
 from __future__ import annotations
 
+import random
+import threading
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Iterator
 
 #: Mix of virtual users. 1000 chat sessions + 1000 SSE streams; file and
 #: isolation workloads ride along at a small share so their p95 is still sampled.
@@ -20,6 +23,106 @@ WORKFLOW_WEIGHTS: dict[str, float] = {
     "file": 100.0,
     "isolation": 100.0,
 }
+
+#: Workflows the acceptance profile can dispatch to.
+ACCEPTANCE_WORKFLOWS: tuple[str, ...] = tuple(WORKFLOW_WEIGHTS)
+
+
+def weighted_workflow(weights: dict[str, float], rng: random.Random) -> str:
+    """Pick one workflow in proportion to ``weights``.
+
+    The acceptance profile is a *mix*: 1,000 chat sessions plus 1,000 concurrent
+    SSE streams. Dispatching every acceptance user to ``chat`` would measure one
+    workflow twice and never touch the other, so the choice is explicit here and
+    unit-tested instead of being buried in the locust task body.
+    """
+
+    names = [name for name, weight in weights.items() if weight > 0]
+    if not names:
+        raise ValueError("workflow weights must contain at least one positive weight")
+    total = sum(weights[name] for name in names)
+    point = rng.uniform(0.0, total)
+    running = 0.0
+    for name in names:
+        running += weights[name]
+        if point <= running:
+            return name
+    return names[-1]
+
+
+class ConcurrencyTracker:
+    """Observe how many chat sessions / SSE streams were actually in flight.
+
+    Latency and throughput alone cannot prove "1,000 active sessions and 1,000
+    SSE streams": a run that never opened a stream still reports clean p95s. The
+    tracker keeps live counts and peaks so the acceptance verdict is graded on
+    what the run *held*, not on what it intended.
+
+    Thread-safe because Locust serves each user on its own greenlet — under
+    gevent the lock is non-blocking, and it keeps the counts correct if the
+    profile is ever run with real threads.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._current: dict[str, int] = {}
+        self._peak: dict[str, int] = {}
+        self._completed: dict[str, int] = {}
+
+    def _bump(self, kind: str, delta: int) -> None:
+        with self._lock:
+            current = self._current.get(kind, 0) + delta
+            self._current[kind] = current
+            if current > self._peak.get(kind, 0):
+                self._peak[kind] = current
+            if delta < 0:
+                self._completed[kind] = self._completed.get(kind, 0) + 1
+
+    @contextmanager
+    def track(self, kind: str) -> Iterator[None]:
+        """Count one unit of ``kind`` as in flight for the duration of the block."""
+
+        self._bump(kind, 1)
+        try:
+            yield
+        finally:
+            self._bump(kind, -1)
+
+    def peak(self, kind: str) -> int:
+        with self._lock:
+            return self._peak.get(kind, 0)
+
+    def current(self, kind: str) -> int:
+        with self._lock:
+            return self._current.get(kind, 0)
+
+    def completed(self, kind: str) -> int:
+        with self._lock:
+            return self._completed.get(kind, 0)
+
+    def snapshot(self) -> dict[str, int]:
+        """Concurrency metrics in the vocabulary `spec.md` SC-004 uses."""
+
+        with self._lock:
+            peak = dict(self._peak)
+            completed = dict(self._completed)
+        return {
+            "active_sessions": peak.get("chat", 0),
+            "sse_streams": peak.get("sse", 0),
+            "file_streams": peak.get("file", 0),
+            "completed_chat_sessions": completed.get("chat", 0),
+            "completed_sse_streams": completed.get("sse", 0),
+        }
+
+    def reset(self) -> None:
+        with self._lock:
+            self._current.clear()
+            self._peak.clear()
+            self._completed.clear()
+
+
+#: Process-wide observation point shared by the Locust users and the stop hook.
+CONCURRENCY = ConcurrencyTracker()
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,6 +185,8 @@ def _collect(summary: dict[str, Any]) -> tuple[dict[str, float], list[str]]:
     """Pull the metrics we grade, reporting which ones are absent."""
 
     wanted = {
+        "active_sessions": "active_sessions",
+        "sse_streams": "sse_streams",
         "non_llm_rps": "non_llm_rps",
         "non_llm_p95_ms": "non_llm_p95_ms",
         "first_stage_p95_ms": "first_stage_p95_ms",
@@ -124,6 +229,14 @@ def evaluate_acceptance(
             "verdict": "pass" if ok else "fail",
         }
 
+    if "active_sessions" in values:
+        gate(
+            "active_sessions",
+            "active_sessions",
+            values["active_sessions"] >= targets.active_sessions,
+        )
+    if "sse_streams" in values:
+        gate("sse_streams", "sse_streams", values["sse_streams"] >= targets.sse_streams)
     if "non_llm_rps" in values:
         gate("throughput", "non_llm_rps", values["non_llm_rps"] >= targets.non_llm_rps)
     if "non_llm_p95_ms" in values:

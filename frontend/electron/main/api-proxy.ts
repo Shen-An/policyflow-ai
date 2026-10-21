@@ -36,6 +36,44 @@ type RequestOptions = {
   body?: unknown
   signal?: AbortSignal
   auth?: boolean
+  /** Extra request headers (e.g. the run `Idempotency-Key`). */
+  headers?: Record<string, string>
+}
+
+/** Backend `routes_runs` bounds for the `Idempotency-Key` header. */
+const IDEMPOTENCY_KEY_MIN = 16
+const IDEMPOTENCY_KEY_MAX = 128
+
+/**
+ * Pick the idempotency key to send. A caller-supplied key is used verbatim when
+ * it satisfies the backend's 16..128 length window so retries keep deduping;
+ * otherwise we mint one, because a short/long key would only earn a 400.
+ */
+export function resolveIdempotencyKey(supplied?: string): string {
+  const key = (supplied ?? '').trim()
+  if (key.length >= IDEMPOTENCY_KEY_MIN && key.length <= IDEMPOTENCY_KEY_MAX) return key
+  return `run-${globalThis.crypto.randomUUID()}`
+}
+
+/**
+ * Build the `POST /api/v2/runs` body from the desktop request shape.
+ *
+ * The backend `RunRequest` accepts only `kind` / `payload` / `priority_lane` /
+ * `max_attempts`; there is no top-level `input` or `knowledge_base_ids`, and the
+ * idempotency key is a header, not a field. Knowledge base ids are folded into
+ * `payload` so run handlers still receive them.
+ */
+export function toRunRequestBody(request: RunStartRequest): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    kind: request.kind,
+    payload: {
+      ...request.input,
+      ...(request.knowledgeBaseIds ? { knowledge_base_ids: request.knowledgeBaseIds } : {}),
+    },
+    priority_lane: request.priorityLane ?? 'default',
+    max_attempts: request.maxAttempts ?? 5,
+  }
+  return body
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -91,7 +129,7 @@ export class ApiProxy {
   }
 
   private async requestJson(method: string, path: string, options: RequestOptions = {}): Promise<unknown> {
-    const headers: Record<string, string> = { Accept: 'application/json' }
+    const headers: Record<string, string> = { Accept: 'application/json', ...options.headers }
     if (options.body !== undefined) headers['Content-Type'] = 'application/json'
     if (options.auth !== false) {
       const token = this.vault.getAccessToken()
@@ -135,8 +173,13 @@ export class ApiProxy {
 
   // --- auth ---------------------------------------------------------------
 
-  async login(request: { username: string; password: string }): Promise<DesktopSession> {
-    const data = await this.requestJson('POST', '/api/auth/login', { body: request, auth: false })
+  async login(request: { username: string; password: string; tenantCode?: string }): Promise<DesktopSession> {
+    const body = {
+      username: request.username,
+      password: request.password,
+      ...(request.tenantCode ? { tenant_code: request.tenantCode } : {}),
+    }
+    const data = await this.requestJson('POST', '/api/auth/login', { body, auth: false })
     const record = asRecord(data)
     const accessToken = str(record.access_token)
     if (!accessToken) throw new ProxyError('LOGIN_FAILED', '登录响应缺少凭证。', false)
@@ -169,13 +212,15 @@ export class ApiProxy {
   // --- runs ---------------------------------------------------------------
 
   async startRun(request: RunStartRequest, signal?: AbortSignal): Promise<RunSummary> {
-    const body = {
-      kind: request.kind,
-      input: request.input,
-      knowledge_base_ids: request.knowledgeBaseIds,
-      idempotency_key: request.idempotencyKey,
-    }
-    return toRunSummary(await this.requestJson('POST', '/api/v2/runs', { body, signal }))
+    const body = toRunRequestBody(request)
+    const idempotencyKey = resolveIdempotencyKey(request.idempotencyKey)
+    return toRunSummary(
+      await this.requestJson('POST', '/api/v2/runs', {
+        body,
+        signal,
+        headers: { 'Idempotency-Key': idempotencyKey },
+      }),
+    )
   }
 
   async getRun(runId: string, signal?: AbortSignal): Promise<RunSummary> {

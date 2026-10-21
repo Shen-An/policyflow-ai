@@ -30,7 +30,8 @@ export function toRunSummary(raw: unknown): RunSummary {
   const record = asRecord(raw)
   return {
     runId: strOr(record.run_id ?? record.id, ''),
-    status: strOr(record.status, 'unknown'),
+    // The durable run view reports `state`; accept a `status` field too.
+    status: strOr(record.status ?? record.state, 'unknown'),
     kind: str(record.kind ?? record.run_kind),
     createdAt: str(record.created_at),
   }

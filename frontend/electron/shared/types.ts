@@ -19,6 +19,8 @@ export type DesktopAuthUser = {
 export type DesktopLoginRequest = {
   username: string
   password: string
+  /** Optional tenant selector, forwarded as `tenant_code` (multi-tenant deployments). */
+  tenantCode?: string
 }
 
 /** Login result exposed to the renderer — identity + expiry, never the token. */
@@ -30,9 +32,19 @@ export type DesktopSession = {
 
 export type RunStartRequest = {
   kind: string
+  /**
+   * Run body fields. Sent to the backend as the `payload` object: the durable
+   * run API never reads a top-level `input`, so everything the handler needs
+   * (question, workspace ids, ...) travels inside `payload`.
+   */
   input: Record<string, unknown>
   knowledgeBaseIds?: string[]
+  /** Sent as the `Idempotency-Key` header; generated when omitted. */
   idempotencyKey?: string
+  /** Admission lane hint; backend default is `default`. */
+  priorityLane?: string
+  /** Backend retry budget, 1..50; backend default is 5. */
+  maxAttempts?: number
 }
 
 export type RunSummary = {

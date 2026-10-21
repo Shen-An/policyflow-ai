@@ -47,9 +47,34 @@ from backend.app.services.rag_service import RAGService
 PROTECTED_EVALUATION_KB_CODES = {"eval_test", "enterprise_eval_test"}
 
 
+def _require_tenant(tenant_id: str | None) -> str:
+    """Reject an unscoped evaluation query instead of silently going global.
+
+    Before this guard, an omitted ``tenant_id`` meant "no WHERE clause", i.e. the
+    query spanned every tenant. Failing closed is the only safe default on the
+    path that decides whose evaluation data is visible.
+    """
+
+    if not tenant_id:
+        raise ApplicationError(
+            "TENANT_REQUIRED",
+            "Evaluation data requires an explicit tenant scope",
+            403,
+        )
+    return tenant_id
+
+
 def create_eval_case(
-    session: Session, data: EvalCaseCreate, tenant_id: str | None = None
+    session: Session, data: EvalCaseCreate, *, tenant_id: str
 ) -> EvalCaseRead:
+    """Create an evaluation case owned by ``tenant_id``.
+
+    ``tenant_id`` is keyword-only and required: a case without a tenant is
+    invisible to every tenant-scoped read, so an optional parameter only made
+    orphan rows possible.
+    """
+
+    _require_tenant(tenant_id)
     item = EvalCase(
         tenant_id=tenant_id,
         **{k: v for k, v in data.model_dump().items() if k != "tenant_id"},
@@ -62,12 +87,18 @@ def create_eval_case(
 
 def list_eval_cases(
     session: Session,
+    *,
+    tenant_id: str,
     category: str | None = None,
-    tenant_id: str | None = None,
 ) -> list[EvalCaseRead]:
-    statement = select(EvalCase)
-    if tenant_id is not None:
-        statement = statement.where(EvalCase.tenant_id == tenant_id)
+    """List the caller's evaluation cases.
+
+    Scoping is unconditional. While ``tenant_id`` was an optional filter, a
+    caller that forgot to pass it enumerated every tenant's cases.
+    """
+
+    _require_tenant(tenant_id)
+    statement = select(EvalCase).where(EvalCase.tenant_id == tenant_id)
     if category:
         statement = statement.where(EvalCase.category == category)
     return [
@@ -123,12 +154,14 @@ def create_retrieval_item(
 
 def list_retrieval_items(
     session: Session,
+    *,
+    tenant_id: str,
     enabled: bool | None = None,
-    tenant_id: str | None = None,
 ) -> list[RetrievalEvalItemRead]:
-    statement = select(RetrievalEvalItem)
-    if tenant_id is not None:
-        statement = statement.where(RetrievalEvalItem.tenant_id == tenant_id)
+    """List the caller's retrieval evaluation items, always tenant-scoped."""
+
+    _require_tenant(tenant_id)
+    statement = select(RetrievalEvalItem).where(RetrievalEvalItem.tenant_id == tenant_id)
     if enabled is not None:
         statement = statement.where(RetrievalEvalItem.enabled == enabled)
     return [

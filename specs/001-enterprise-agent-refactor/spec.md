@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-12
 
-**Status**: Draft
+**Status**: Draft（规格已冻结；**实现验收未完成**。进度与剩余缺口见 `progress-review-2026-10-21.md` 与 `review-fixes-2026-10-21.md`；本文件下方 requirements 清单的勾选只表示规格编写检查，不构成实现验收证据。）
 
 **Input**: User description: "重构 PolicyFlow AI，使其可支撑大规模企业用户并以压测证明容量，全面改善粗糙页面，统一智能体编排并建立真实文件沙箱，让获授权用户可编辑和提交报销等企业材料；沿用项目既定技术边界并严格遵守项目宪法。"
 

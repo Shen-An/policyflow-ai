@@ -12,13 +12,18 @@ const identifier = z.string().trim().min(1).max(256)
 export const loginSchema = z.object({
   username: z.string().trim().min(1).max(256),
   password: z.string().min(1).max(1024),
+  tenantCode: z.string().trim().min(1).max(50).optional(),
 })
 
+// Mirrors the backend `RunRequest` contract: `payload` (not `input`), plus the
+// `Idempotency-Key` header sourced from `idempotencyKey` (16..128 chars).
 export const runStartSchema = z.object({
   kind: z.string().trim().min(1).max(128),
   input: z.record(z.string(), z.unknown()).default({}),
   knowledgeBaseIds: z.array(identifier).max(64).optional(),
-  idempotencyKey: z.string().trim().min(1).max(256).optional(),
+  idempotencyKey: z.string().trim().min(16).max(128).optional(),
+  priorityLane: z.string().trim().min(1).max(40).optional(),
+  maxAttempts: z.number().int().min(1).max(50).optional(),
 })
 
 export const runIdSchema = z.object({ runId: identifier })

@@ -92,7 +92,7 @@ def post_eval_case(
     session: SessionDep,
     user: EvalAdmin,
 ) -> EvalCaseRead:
-    return create_eval_case(session, data, tenant_id=user.tenant_id)
+    return create_eval_case(session, data, tenant_id=user.tenant_id or "")
 
 
 @router.get("/cases", response_model=list[EvalCaseRead])
@@ -101,7 +101,7 @@ def get_eval_cases(
     user: EvalAdmin,
     category: str | None = None,
 ) -> list[EvalCaseRead]:
-    return list_eval_cases(session, category, tenant_id=user.tenant_id)
+    return list_eval_cases(session, tenant_id=user.tenant_id or "", category=category)
 
 
 @router.post(
@@ -123,7 +123,7 @@ def get_retrieval_items(
     user: EvalAdmin,
     enabled: bool | None = None,
 ) -> list[RetrievalEvalItemRead]:
-    return list_retrieval_items(session, enabled, tenant_id=user.tenant_id)
+    return list_retrieval_items(session, tenant_id=user.tenant_id or "", enabled=enabled)
 
 
 @router.post(
