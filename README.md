@@ -43,9 +43,13 @@ PolicyFlow 的做法：
 | **评估中心** | 公开金标跑 Hit@1 / Hit@5 / Hit@10 / MRR，多策略对比，负样本单独算拦截率 | 可用，数字得自己跑 |
 | **管理员治理** | 角色授予/撤销立即生效、配额健康、按 `run_id` 的脱敏审计时间线、失败任务恢复 | 可用 |
 | **Skill / Tool / MCP** | Skill = 绑证据的业务规程；Tool 调用有审计；MCP 走真 stdio/http 协议，**企业连接器是 mock 且带 `status=mock`** | 协议真，连接器 mock |
-| **桌面端** | Electron 外壳：渲染进程不拿 token、不拿 Node、不拿任意文件；认证与 SSE 走主进程代理 | 代码与单测在，**E2E 红的**（见下） |
+| **桌面端** | Electron 外壳：渲染进程不拿 token、不拿 Node、不拿任意文件；认证与 SSE 走主进程代理 | 代码在、跑通过一次、**现在跑不起来**（见下） |
 
-界面：React 19 + Vite + antd，浅/深双主题，16 个路由全部懒加载。
+界面：React 19 + Vite + antd，浅/深双主题，路由集中在 `route-elements.tsx` 用 `React.lazy` 拆包。
+
+<p align="center">
+  <img src="artifacts/ui/stage8/screens/workspace-medium.png" alt="材料 / 工作区：版本、diff 与审批目标" width="820">
+</p>
 
 ---
 
@@ -124,7 +128,7 @@ alembic upgrade head                           # 3) enforce：NOT NULL / 复合�
 - **本地 rerank 是词法融合，不是 cross-encoder**。想要真模型重排可按 run 选 NVIDIA cross-encoder（不可用直接 503，不偷偷降级），两种都能 A/B。
 - 1 篇文档整篇匹配的任务上，Hybrid 和 BM25 打平是正常现象。**打平就说打平**。
 
-> 附一个真实例子，说明为什么不能拿这种数当卖点：在做「图切换前后结论一致」的 parity 验证时，embedding 臂的 `hit@1 = 1.0`——因为那是 1 篇文档整篇匹配 + 2 篇干扰的小规模恒等性检查。**这个 1.0 只能证明切换透明，不能证明检索好**，所以它没资格出现在这个 README 的指标区（原件在 `artifacts/graph/stage3/realcorpus_parity.json`）。
+> 附一个真实例子，说明为什么不能拿这种数当卖点：在做「图切换前后结论一致」的 parity 验证时，embedding 臂的 `hit@1 = 1.0`——因为那是 1 篇文档整篇匹配 + 2 篇干扰的小规模恒等性检查。**这个 1.0 只能证明切换透明，不能证明检索好**，所以它没资格出现在指标区（原件在 `artifacts/graph/stage3/realcorpus_parity.json`）。
 
 ---
 
@@ -156,13 +160,13 @@ flowchart LR
 
 | 设计目标 | 现在实际 | 证据 |
 |---|---|---|
-| 问答、评估、文件流程**共用一套编排** | ❌ **没做到**。问答/评估跑图 A（`pipeline_graph`），文件流程跑图 B（`builder.py`）。入口层有一个 adapter，但它只记遥测然后委派，不改变控制流 | `backend/app/graph/route_adapter.py`、`specs/.../review-fixes-2026-10-21.md` §1 |
+| 问答、评估、文件流程**共用一套编排** | ❌ **没做到**。问答/评估跑图 A（`pipeline_graph`），文件流程跑图 B（`builder.py`）。入口层有个 adapter，但它只记遥测然后委派，不改变控制流 | `backend/app/graph/route_adapter.py`、`review-fixes-2026-10-21.md` §1 |
 | 授权在服务端逐次判定，跨租户与「不存在」同形 404 | ✅ | `tests/security/`、`tests/integration/test_admin_rbac.py` |
 | 高影响动作：草稿 → 人批 → 至多一次提交 | ✅（**提交目标是 mock**，真的外部副作用没接） | `tests/recovery/test_submission_idempotency.py` |
 | 无可靠证据默认硬拒答 | ✅ | `tests/eval/test_evidence_gate_parity.py`、`tests/integration/test_entrypoint_conclusion_parity.py` |
 | run / job / SSE / 审批有持久状态，可恢复、不重复提交 | ✅ | `tests/recovery/test_run_restart_recovery.py` |
 
-**为什么单一编排没做完、也没急着做**：把问答迁到持久图上，得先把完整输出契约（router / plan / skill / compliance / diagnostics / ToT 双请求暂停）搬进图状态，再让 1200 行的 chat service 在新编排下逐条对齐 SSE 事件顺序。这是一次跨 `agents/`、`graph/`、`services/`、`api/` 的结构性改动，回归面覆盖整个问答契约套件。在验收环境还没跑通的情况下硬上，只会把「诚实的两个图」换成「两个图 + 半迁移」，更难验。切片方案写在 `review-fixes-2026-10-21.md` §1。
+**为什么单一编排没做完、也没急着做**：把问答迁到持久图上，得先把完整输出契约（router / plan / skill / compliance / diagnostics / ToT 双请求暂停）搬进图状态，再让 1200 行的 chat service 在新编排下逐条对齐 SSE 事件顺序。这是跨 `agents/`、`graph/`、`services/`、`api/` 的结构性改动，回归面覆盖整个问答契约套件。在验收环境还没跑通时硬上，只会把「诚实的两个图」换成「两个图 + 半迁移」，更难验。切片方案见 `review-fixes-2026-10-21.md` §1。
 
 ---
 
@@ -173,12 +177,30 @@ flowchart LR
 | 后端测试 | **626 passed / 196 skipped / 1 failed**（全量，2026-10） | `artifacts/acceptance/backend/`（原始输出 + SHA-256） |
 | 前端测试 | **48 文件 / 162 用例全绿**（2026-10-21 重跑） | `npm --prefix frontend run test` |
 | 契约测试 | 内部契约 22 passed + 1 xfail（已知缺口：`JobQueue.lease` 无 lane 过滤） | `tests/contract/` |
-| 压测 profile | 2200 用户画像（1000 会话 / 1000 SSE / 200 文件+隔离）、真实并发采集、逐帧 SSE 计时 | `tests/load/`（29 passed），**但没跑过** |
+| 压测 profile | 2200 用户画像（1000 会话 / 1000 SSE / 200 文件+隔离）、真实并发采集、逐帧 SSE 计时 | `tests/load/`（29 passed），**但没跑过验收** |
 
 两件必须讲清楚的：
 
 - **skip ≠ pass**。那 196 个 skip 大多需要 PostgreSQL / Milvus / MinIO / Redis / RabbitMQ，依赖不在就跳过——所以必须写 skip 数，不能只报「626 passed」。
 - 那 **1 failed** 是 `test_readiness_distinguishes_unmigrated_from_unreachable`：本机 PostgreSQL 没起，本该判「环境不可达」，用例没分类对。是**测试分类缺陷，不是产品回归**，记在 `quickstart-validation.md`，没藏。
+
+### 别信我，自己跑
+
+```bash
+# 后端：契约 / 评估 / 负载 / 入口一致性（本项目最核心的四块）
+python -m pytest -q tests/contract tests/eval tests/load \
+                   tests/integration/test_entrypoint_conclusion_parity.py
+# 期望：全绿 + 1 xfailed；skip 数取决于你本地有没有 PG / Milvus / MinIO
+
+# 前端
+npm --prefix frontend run typecheck && npm --prefix frontend run test
+
+# 全量（会跑 6 分钟，skip 会因为依赖缺失变多——这不是失败）
+python -m pytest -q tests/contract tests/unit tests/integration tests/security \
+                   tests/recovery tests/migration tests/reconciliation
+```
+
+跑出来跟我写的不一样，以你跑出来的为准，并且请开 issue——那说明我的 README 又该改了。
 
 ---
 
@@ -188,9 +210,9 @@ flowchart LR
 
 **没验过（有代码但拿不出跑通证据）**
 
-1. **Electron 全量 E2E 是红的**：8 个 spec（含 `security.e2e.ts`）全部卡在「建会话」阶段，`DevToolsActivePort file doesn't exist`。日志只证明启动失败，证明不了唯一原因。所以上面那句「渲染进程拿不到 token」，现在**只有代码和 vitest 单测支撑，没有跑通的 E2E 支撑**。
-2. **容量数字一个都没有**。1000 并发 held-open SSE、30 分钟 soak、200 RPS p95——profile 和判定逻辑写好了，**验收环境没跑**，本机跑出来也不代表验收环境，所以不产出结论。
-3. **真实用户可用性研究没做**：SC-010（90% 员工 5 分钟内完成核心流程）和 SC-011（评分 ≥4/5）都因为「无真实被试」判 inconclusive。
+1. **Electron 全量 E2E 现在跑不起来**。2026-10-18 那轮是**真绿**的：8 spec / 33 条用例全过（1 分 55 秒，真实 Electron 44 + Chromium 152）；之后复跑变成 **0 passed / 8 failed**，8 个 spec（含 `security.e2e.ts`）全卡在「建会话」阶段，报 `DevToolsActivePort file doesn't exist`。所以「渲染进程拿不到 token」这条边界：**历史上被 E2E 证过一次，现在没有可复跑的绿灯**，只有代码 + vitest 单测兜着。日志只证明启动失败，还没查明是环境回退还是驱动问题。
+2. **容量数字一个都没有**。1000 并发 held-open SSE、30 分钟 soak、200 RPS p95——profile 和判定逻辑写好了，**验收环境没跑**；本机跑出来也不代表验收环境，所以不产出结论。
+3. **真实用户可用性研究没做**：SC-010（90% 员工 5 分钟内完成核心流程）、SC-011（评分 ≥4/5）都因为「无真实被试」判 inconclusive。
 
 **没做（缺环境或刻意推迟）**
 
@@ -198,6 +220,10 @@ flowchart LR
 5. **Electron 签名打包没真跑**（没有企业证书）。签名门和 fuses 已实现并逐例验证，最终签名产物待证书。
 6. **数据权威切换没执行**（destructive contract 需要先有消费者清单和恢复点）。旧路径也还在：老 adapter、旧界面都带使用遥测，靠「一个发布窗口零使用」判定能不能删，窗口没走完，所以没删——**不是忘了**。
 7. **单一编排没达成**（见上表）。
+
+**证据本身的坑（诚实也算到这一层）**
+
+8. `*.log` 被 `.gitignore` 忽略，所以 Stage 8 的那两份原始日志（`e2e-full.log`、`accessibility.log`）**不在仓库里**，别人 clone 只能看到 `artifacts/ui/stage8/README.md` 里的摘述。这是我已知的取证缺口，还没修。
 
 **验收总账（16 项，逐项判定在 `artifacts/acceptance/SC-001-SC-016.md`）**
 
@@ -207,7 +233,7 @@ flowchart LR
 | partial | **2** | SC-006 容量报告机制（有机制无数）· SC-012 无障碍（老页面全绿，新增 3 个 admin 页没做 E2E） |
 | inconclusive | **8** | SC-001~005（容量与 soak）· SC-010/011（真实被试）· SC-016（数据权威切换） |
 
-**换句话说：6/16 有通过结论。** 功能能跑、核心安全性有测试，但容量、可用性、桌面端整机流程这三块目前是空的。
+**换句话说：6/16 有通过结论。** 功能能跑、核心安全性有测试，但容量、可用性、桌面整机流程这三块目前是空的。
 
 ---
 
