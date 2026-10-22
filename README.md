@@ -2,12 +2,13 @@
 
 **问公司制度，它先去翻你公司的文件，翻到了才回答，翻不到就说「查不到」。**
 
-一个企业内部政策问答 + 流程助手。不是又一个「接个 API 就说是 AI Agent」的壳——它把「答案必须有出处」和「动真格的操作必须有人批」写进了代码，而不是写在 PPT 里。
+一个企业内部政策问答 + 流程助手。核心取舍只有一句：**宁可答不出来，也不答错。**
+
+> 这份 README 的规矩：凡是写「已完成」的，后面都能翻到日志或测试；翻不到证据的，我就写「没做」或「没验过」。不留中间地带。
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
-![LangGraph](https://img.shields.io/badge/LangGraph-single--graph-1C3C3C)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -21,37 +22,36 @@
 
 企业里问「出差住宿标准多少」，员工一般三条路：翻共享盘、问 HR、问 ChatGPT。前两条慢，第三条会**一本正经地编**。
 
-PolicyFlow 的做法很笨但很稳：
+PolicyFlow 的做法：
 
-1. 把公司制度文档切块、索引、按租户隔离存好；
-2. 员工提问 → 先检索 → **只有检到真文档才生成回答**，每句话带可点的引用；
-3. 检索不到可靠依据 → 直接说「查不到，建议问 HR」，绝不拿模型记忆凑数；
-4. 涉及「改材料 / 提交报销」这类**有副作用**的动作 → 沙箱出草稿，人来批，批准后至多执行一次。
-
-一句话概括取舍：**宁可答不出来，也不答错。**
+1. 公司制度文档切块、索引、按租户隔离存好；
+2. 员工提问 → 先检索 → **检到可靠文档才生成制度回答**，每句话带可点的引用；
+3. 检索不到可靠依据 → 硬拒答；如果是模型常识硬答的，界面明确标成「模型参考 · 不可信」，不当作制度依据；
+4. 涉及改材料 / 提交这类有副作用的动作 → 沙箱出草稿，人来批，批准后至多执行一次（**提交目标目前是 mock，响应带 `status=mock`**）。
 
 ---
 
 ## 你能看到什么
 
-| 模块 | 人话版 |
-|---|---|
-| **制度问答** | 流式输出，边检索边显示进度；回答每句能点回原文档；支持「给我个模板」这种短跟进（会自动补全上下文再检索） |
-| **多轮记忆** | 记住你上次问的是「年假」还是「病假」，但**记忆不算证据**——不许用它替代制度原文 |
-| **知识库** | 多库管理、上传即后台索引、按人授权可见；删库是真删（文件 + 向量 + 记录一起清） |
-| **材料 / 工作区** | 按文件版本选材，能看 diff；政策原件**只读**，助手改不了 |
-| **审批 / 提交** | 草稿 → 差异 + 哈希 + 副作用 + 有效期 → 人批 → 至多一次提交 |
-| **评估中心** | 拿公开金标跑 Hit@1 / Hit@5 / Hit@10 / MRR，多检索策略对比，看板只聚焦主指标 |
-| **管理员治理** | 租户内角色授予/撤销立即生效、配额健康、按 `run_id` 的脱敏审计时间线、失败任务恢复 |
-| **桌面端** | Electron 外壳：渲染进程拿不到 token、拿不到 Node、拿不到任意文件；认证和 SSE 全走主进程代理 |
+| 模块 | 人话版 | 状态 |
+|---|---|---|
+| **制度问答** | 流式输出，边检索边显示进度；回答每句能点回原文档；支持「给我个模板」这种短跟进（自动补全上下文再检索） | 可用 |
+| **多轮记忆** | 记住你上次问的是「年假」还是「病假」；但**记忆不算证据**，不许用它替代制度原文 | 可用 |
+| **知识库** | 多库管理、上传即后台索引、按人授权可见；删库是真删（文件 + 向量 + 记录一起清） | 可用 |
+| **材料 / 工作区** | 按文件版本选材，能看 diff；政策原件**只读**，助手改不了 | 可用 |
+| **审批 / 提交** | 草稿 → 差异 + 哈希 + 副作用 + 有效期 → 人批 → 至多一次提交 | 可用，**提交是 mock** |
+| **评估中心** | 公开金标跑 Hit@1 / Hit@5 / Hit@10 / MRR，多策略对比，负样本单独算拦截率 | 可用，数字得自己跑 |
+| **管理员治理** | 角色授予/撤销立即生效、配额健康、按 `run_id` 的脱敏审计时间线、失败任务恢复 | 可用 |
+| **Skill / Tool / MCP** | Skill = 绑证据的业务规程；Tool 调用有审计；MCP 走真 stdio/http 协议，**企业连接器是 mock 且带 `status=mock`** | 协议真，连接器 mock |
+| **桌面端** | Electron 外壳：渲染进程不拿 token、不拿 Node、不拿任意文件；认证与 SSE 走主进程代理 | 代码与单测在，**E2E 红的**（见下） |
 
-界面：React 19 + Vite + antd，浅色/深色双主题，16 个路由全部懒加载。
+界面：React 19 + Vite + antd，浅/深双主题，16 个路由全部懒加载。
 
 ---
 
-## 3 分钟跑起来
+## 跑起来（装依赖占大头，约 10 分钟）
 
-需要 Python 3.11+、Node 18+、conda（或自己建虚拟环境）。
+需要 Python 3.11+、Node 18+、conda（或自建虚拟环境）。
 
 ```powershell
 git clone https://github.com/Shen-An/policyflow-ai.git
@@ -70,19 +70,16 @@ cd frontend; npm install; cd ..
 .\start.bat                  # 或 python start.py
 ```
 
-浏览器开 `http://127.0.0.1:8000`，用 `admin` + 你刚设的密码登录。
+浏览器开 `http://127.0.0.1:8000`，`admin` + 你刚设的密码登录。
 
-**然后两件事必须做，否则问什么都是「查不到」**：
+**然后两件事不做，问什么都是「查不到」**：进 **模型设置** 填 Chat 和 Embedding（任何 OpenAI 兼容服务）；进 **知识库** 传几篇制度文档，等索引变绿。
 
-1. 进 **模型设置**，填 Chat 和 Embedding（任何 OpenAI 兼容服务都行）；
-2. 进 **知识库**，上传几篇制度文档，等索引变绿。
-
-> ⚠️ 这条路径用 SQLite + 进程内检索，**只适合开发和演示**。它不启 RLS、不校验 schema，不能用来证明租户隔离——要证明就得看下面的企业栈。
+> ⚠️ 这条路径用 SQLite + 进程内检索，**只适合开发和演示**。它不启 RLS、不校验 schema，**不能用来证明租户隔离**。
 
 <details>
-<summary><b>其他两种启动方式</b>（桌面外壳 / 完整企业栈）</summary>
+<summary><b>另外两种启动方式</b>（桌面外壳 / 完整企业栈）</summary>
 
-**桌面外壳（Electron）**
+**桌面外壳**
 
 ```bash
 npm --prefix frontend run electron:build   # 打包 renderer + main/preload
@@ -111,21 +108,23 @@ alembic upgrade head                           # 3) enforce：NOT NULL / 复合�
 
 ## 检索效果怎么量（这里不吹）
 
-主指标就四个：**Hit@1 / Hit@5 / Hit@10 / MRR**。报数必须带三样东西：**检索策略 + 样本量 N + 干扰设置**。少一样，这个数就没意义。
+主指标四个：**Hit@1 / Hit@5 / Hit@10 / MRR**。报数必须带三样：**检索策略 + 样本量 N + 干扰设置**。少一样这个数就没意义。
 
-**为什么 README 里没有「Hit@5 = 0.93」这种数字？** 因为同一个代码，换 embedding 模型、换你的文档、换 N，结果就变。写死一个数挂在首页，那是营销不是工程。
+**为什么 README 里没有「Hit@5 = 0.93」？** 同一个代码，换 embedding 模型、换你的文档、换 N，结果就变。写死一个数挂首页，那是营销不是工程。
 
-**想拿到属于你的数字，三步：**
+**拿你自己的数字，三步：**
 
-1. 评估中心 → 导入金标（本项目用公开中文问答集 `questanswer`，**只灌进「测试库」，业务库永不灌金标**）+ 建议再加 ≥200 篇干扰文档（不然 1 篇文档的小库轻松刷出 100%，那是自欺欺人）。
+1. 评估中心 → 导入金标（本项目用公开中文问答集 `questanswer`，**只灌「测试库」，业务库永不灌金标**）+ 建议 ≥200 篇干扰文档（1 篇文档的小库轻松刷出 100%，那是自欺欺人）。
 2. 随机抽 50 或 100 条起跑（别一上来全选几百条，多策略会成倍变慢）。
-3. 看板读 Hit@1/5/10 + MRR；下拉能看到逐条命中的原始结果。
+3. 看板读 Hit@1/5/10 + MRR，下拉能看逐条命中结果。
 
-几个刻意的设计：
+三个刻意的设计：
 
-- **负样本绝不进 Hit@K/MRR**。「库里根本答不了的问题」没有金标，混进去要么白送 0 分要么白送满分；它们单独算「该闭没闭嘴」的拦截率（`negative_gate`），看板上 `N=` 只数正样本。
-- **本地 rerank 是词法融合，不是 cross-encoder**。想要真模型重排可以按 run 选 NVIDIA cross-encoder（失败直接 503，不偷偷降级），两种都能 A/B。
-- 1 篇文档整篇匹配的任务上，Hybrid 和 BM25 打平是正常现象。**打平就说打平**，不写成「Hybrid 显著更优」。
+- **负样本绝不进 Hit@K/MRR**。「库里根本答不了的问题」没有金标，混进去要么白送 0 分要么白送满分；它们单独算「该闭没闭嘴」的拦截率（`negative_gate`），看板 `N=` 只数正样本。
+- **本地 rerank 是词法融合，不是 cross-encoder**。想要真模型重排可按 run 选 NVIDIA cross-encoder（不可用直接 503，不偷偷降级），两种都能 A/B。
+- 1 篇文档整篇匹配的任务上，Hybrid 和 BM25 打平是正常现象。**打平就说打平**。
+
+> 附一个真实例子，说明为什么不能拿这种数当卖点：在做「图切换前后结论一致」的 parity 验证时，embedding 臂的 `hit@1 = 1.0`——因为那是 1 篇文档整篇匹配 + 2 篇干扰的小规模恒等性检查。**这个 1.0 只能证明切换透明，不能证明检索好**，所以它没资格出现在这个 README 的指标区（原件在 `artifacts/graph/stage3/realcorpus_parity.json`）。
 
 ---
 
@@ -137,9 +136,10 @@ flowchart LR
   U --> B["浏览器 SPA"]
   E --> A["FastAPI /api/v2<br/>runs · materials · workspaces<br/>approvals · admin"]
   B --> A
-  A --> G["LangGraph<br/>唯一编排"]
-  G --> R["检索 Service<br/>Hybrid: 向量 + BM25 + RRF"]
-  G --> Q{"证据够不够？"}
+  A --> G1["图 A：问答 / 评估<br/>进程内，不 checkpoint"]
+  A --> G2["图 B：文件 / 审批<br/>持久化 checkpoint"]
+  G1 --> R["检索 Service<br/>Hybrid：向量 + BM25 + RRF"]
+  G1 --> Q{"证据够不够？"}
   Q -->|够| ANS["带引用的回答"]
   Q -->|不够| REF["硬拒答"]
   A --> PG[("PostgreSQL 16<br/>租户 · RLS")]
@@ -150,12 +150,19 @@ flowchart LR
   MQ --> W["worker<br/>租约 + CAS"]
 ```
 
-四条不变量，代码里有对应测试：
+**图上画了两个图 A/B，因为现在确实是两个**——这是本项目当前最大的架构债，下面单独说。
 
-- **一套编排**：问答、流式、评估、文件流程共用同一个编排入口，不存在第二套 stage 平行跑。
-- **授权在服务端逐次判定**：身份只来自已校验的 membership；每次读写都现查权限；跨租户访问和「不存在」返回同一种 404（防枚举）。
-- **高影响动作**：草稿 → 人工批准（现查权限 + 动作摘要 + 期望版本）→ 至多一次提交；正式政策原件永不改写。
-- **可恢复**：run / job / SSE / 审批都有持久状态；能自动修的自动修，有歧义的升级人工，不猜。
+### 设计目标 vs 现在实际
+
+| 设计目标 | 现在实际 | 证据 |
+|---|---|---|
+| 问答、评估、文件流程**共用一套编排** | ❌ **没做到**。问答/评估跑图 A（`pipeline_graph`），文件流程跑图 B（`builder.py`）。入口层有一个 adapter，但它只记遥测然后委派，不改变控制流 | `backend/app/graph/route_adapter.py`、`specs/.../review-fixes-2026-10-21.md` §1 |
+| 授权在服务端逐次判定，跨租户与「不存在」同形 404 | ✅ | `tests/security/`、`tests/integration/test_admin_rbac.py` |
+| 高影响动作：草稿 → 人批 → 至多一次提交 | ✅（**提交目标是 mock**，真的外部副作用没接） | `tests/recovery/test_submission_idempotency.py` |
+| 无可靠证据默认硬拒答 | ✅ | `tests/eval/test_evidence_gate_parity.py`、`tests/integration/test_entrypoint_conclusion_parity.py` |
+| run / job / SSE / 审批有持久状态，可恢复、不重复提交 | ✅ | `tests/recovery/test_run_restart_recovery.py` |
+
+**为什么单一编排没做完、也没急着做**：把问答迁到持久图上，得先把完整输出契约（router / plan / skill / compliance / diagnostics / ToT 双请求暂停）搬进图状态，再让 1200 行的 chat service 在新编排下逐条对齐 SSE 事件顺序。这是一次跨 `agents/`、`graph/`、`services/`、`api/` 的结构性改动，回归面覆盖整个问答契约套件。在验收环境还没跑通的情况下硬上，只会把「诚实的两个图」换成「两个图 + 半迁移」，更难验。切片方案写在 `review-fixes-2026-10-21.md` §1。
 
 ---
 
@@ -163,31 +170,44 @@ flowchart LR
 
 | 项 | 现状 | 证据 |
 |---|---|---|
-| 后端测试 | **626 passed / 196 skipped / 1 failed**（全量跑，2026-10 记录） | `artifacts/acceptance/backend/`（原始输出 + SHA-256） |
+| 后端测试 | **626 passed / 196 skipped / 1 failed**（全量，2026-10） | `artifacts/acceptance/backend/`（原始输出 + SHA-256） |
 | 前端测试 | **48 文件 / 162 用例全绿**（2026-10-21 重跑） | `npm --prefix frontend run test` |
-| 契约测试 | 内部契约 22 passed + 1 xfail；OpenAPI v2 与运行时对齐 | `tests/contract/` |
-| 压测 profile | 已实现 2200 用户画像（1000 会话 / 1000 SSE / 200 文件+隔离）、真实并发采集 | `tests/load/` |
+| 契约测试 | 内部契约 22 passed + 1 xfail（已知缺口：`JobQueue.lease` 无 lane 过滤） | `tests/contract/` |
+| 压测 profile | 2200 用户画像（1000 会话 / 1000 SSE / 200 文件+隔离）、真实并发采集、逐帧 SSE 计时 | `tests/load/`（29 passed），**但没跑过** |
 
-**两件必须讲清楚的事**：
+两件必须讲清楚的：
 
-- **skip ≠ pass**。那 196 个 skip 大多是需要 PostgreSQL / Milvus / MinIO / Redis / RabbitMQ 的套件，依赖不在就跳过——所以报告里必须写出 skip 数，不能只报「626 passed」。
-- 那 **1 failed** 是 `test_readiness_distinguishes_unmigrated_from_unreachable`：本机 PostgreSQL 没起，本该判「环境不可达」，用例没分类对。是测试分类缺陷，不是产品回归，记录在 `quickstart-validation.md` 里，没藏。
+- **skip ≠ pass**。那 196 个 skip 大多需要 PostgreSQL / Milvus / MinIO / Redis / RabbitMQ，依赖不在就跳过——所以必须写 skip 数，不能只报「626 passed」。
+- 那 **1 failed** 是 `test_readiness_distinguishes_unmigrated_from_unreachable`：本机 PostgreSQL 没起，本该判「环境不可达」，用例没分类对。是**测试分类缺陷，不是产品回归**，记在 `quickstart-validation.md`，没藏。
 
 ---
 
-## 这个项目**没做**的部分
+## 这个项目**没做 / 没验过**的部分
 
-写在这里，是因为「敢说自己哪不行」比「全都行」更值钱。
+写在这里，是因为「敢说自己哪不行」比「全都行」值钱。
 
-1. **gVisor 沙箱没真起 pod**（没有 K8s 集群）。manifest 和策略完备，本机路径校验真跑，内核级隔离待集群。
-2. **Electron 签名打包没真跑**（没企业证书）。签名门和 fuses 已实现并逐例验证，最终签名产物待证书。
-3. **Electron E2E 目前是红的**：8 个 spec 全部失败在「建会话」阶段（`DevToolsActivePort file doesn't exist`）。日志能证明它启动失败，但证明不了唯一原因——这是待查项，不是「未运行」。
-4. **容量数字没有**。1,000 并发 held-open SSE 和 30 分钟 soak 需要独立压测环境，本机跑出来的数不代表验收环境，所以不产出结论。
-5. **功能验收表 16 项里，5 项 inconclusive、2 项 partial**：容量类全 inconclusive，可用性研究（真实用户）没做，新加的管理页没做无障碍 E2E。逐项判定在 `artifacts/acceptance/SC-001-SC-016.md`。
-6. **旧路径还在**。老 adapter 和旧界面用「一个发布窗口零使用」来判定能不能删，窗口还没走完，所以没删——不是忘了。
-7. **生产约束只在 PostgreSQL 上存在**。SQLite 上跑通不等于有 RLS、不等于有租户唯一约束。
+**没验过（有代码但拿不出跑通证据）**
 
-还有一处架构债写明白：问答/评估的控制流目前跑在一张进程内图上，文件流程跑在另一张持久图上，**是两张图不是一张**。合并方案和最小切片写在 `specs/001-enterprise-agent-refactor/review-fixes-2026-10-21.md`。
+1. **Electron 全量 E2E 是红的**：8 个 spec（含 `security.e2e.ts`）全部卡在「建会话」阶段，`DevToolsActivePort file doesn't exist`。日志只证明启动失败，证明不了唯一原因。所以上面那句「渲染进程拿不到 token」，现在**只有代码和 vitest 单测支撑，没有跑通的 E2E 支撑**。
+2. **容量数字一个都没有**。1000 并发 held-open SSE、30 分钟 soak、200 RPS p95——profile 和判定逻辑写好了，**验收环境没跑**，本机跑出来也不代表验收环境，所以不产出结论。
+3. **真实用户可用性研究没做**：SC-010（90% 员工 5 分钟内完成核心流程）和 SC-011（评分 ≥4/5）都因为「无真实被试」判 inconclusive。
+
+**没做（缺环境或刻意推迟）**
+
+4. **gVisor 沙箱没真起 pod**（没有 K8s 集群）。manifest 和策略完备，本机路径校验真跑，内核级隔离待集群。
+5. **Electron 签名打包没真跑**（没有企业证书）。签名门和 fuses 已实现并逐例验证，最终签名产物待证书。
+6. **数据权威切换没执行**（destructive contract 需要先有消费者清单和恢复点）。旧路径也还在：老 adapter、旧界面都带使用遥测，靠「一个发布窗口零使用」判定能不能删，窗口没走完，所以没删——**不是忘了**。
+7. **单一编排没达成**（见上表）。
+
+**验收总账（16 项，逐项判定在 `artifacts/acceptance/SC-001-SC-016.md`）**
+
+| 判定 | 数量 | 是哪些 |
+|---|---|---|
+| pass | **6** | SC-007 越权/跨租户 0 泄露 · SC-008 至多一次副作用 · SC-009 重启恢复 · SC-013 三入口证据门控一致 · SC-014 无证据 0 错误放行 · SC-015 核对发现预置故障 |
+| partial | **2** | SC-006 容量报告机制（有机制无数）· SC-012 无障碍（老页面全绿，新增 3 个 admin 页没做 E2E） |
+| inconclusive | **8** | SC-001~005（容量与 soak）· SC-010/011（真实被试）· SC-016（数据权威切换） |
+
+**换句话说：6/16 有通过结论。** 功能能跑、核心安全性有测试，但容量、可用性、桌面端整机流程这三块目前是空的。
 
 ---
 
@@ -197,11 +217,11 @@ flowchart LR
 backend/app/        FastAPI：api / services / graph / jobs / quota / storage
                     retrieval / sandbox / approvals / sse / db / auth / observability
 frontend/src/       React SPA（features/* 按业务域）
-frontend/electron/  安全外壳：main / preload / shared
+frontend/electron/  桌面外壳：main / preload / shared
 migrations/         Alembic 分阶段迁移 001–005 + legacy 回填
 infra/              compose.yaml、gVisor sandbox manifest
 tests/              单元 / 契约 / 集成 / 安全 / 恢复 / 迁移 / 核对 / 负载
-artifacts/          每个阶段的原始证据（不是截图，是日志和哈希）
+artifacts/          每个阶段的原始证据（日志、哈希、JSON，不是截图）
 specs/              SDD 规格；tasks.md 是进度权威
 ```
 
@@ -211,10 +231,11 @@ specs/              SDD 规格；tasks.md 是进度权威
 
 | 想知道 | 去哪 |
 |---|---|
-| 到底做完了多少、每一项凭什么 | [`specs/.../tasks.md`](specs/001-enterprise-agent-refactor/tasks.md) ← 唯一权威 |
-| 综合验收逐项判定 | [`artifacts/acceptance/SC-001-SC-016.md`](artifacts/acceptance/SC-001-SC-016.md) |
-| 为什么不用「多智能体」那套词 | [`docs/08`](docs/08-de-toy-multiagent-skill-eval-strategy.md) |
-| 数据库迁移 / 多租户 / RLS 怎么设计 | [`docs/12`](docs/12-postgresql-multitenancy-design.md) |
+| 到底做完了多少、每项凭什么 | [`tasks.md`](specs/001-enterprise-agent-refactor/tasks.md) ← 唯一权威 |
+| 综合验收 16 项逐条判定 | [`SC-001-SC-016.md`](artifacts/acceptance/SC-001-SC-016.md) |
+| 最近一轮外部复核发现了什么、修了没修 | [`review-fixes-2026-10-21.md`](specs/001-enterprise-agent-refactor/review-fixes-2026-10-21.md) |
+| 为什么不玩「多智能体」那套词 | [`docs/08`](docs/08-de-toy-multiagent-skill-eval-strategy.md) |
+| 数据库迁移 / 多租户 / RLS | [`docs/12`](docs/12-postgresql-multitenancy-design.md) |
 | 检索、评估、记忆的算法细节 | [`docs/04`](docs/04-ai-pipeline-rag-eval-design.md) |
 | 一页看完定位与边界 | [`docs/10`](docs/10-project-summary.md) |
 | 名词看不懂 / 要面试讲这套 | [`docs/interview/`](docs/interview/README.md)（含白话术语表） |
