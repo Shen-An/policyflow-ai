@@ -160,13 +160,23 @@ flowchart LR
 
 | 设计目标 | 现在实际 | 证据 |
 |---|---|---|
-| 问答、评估、文件流程**共用一套编排** | ❌ **没做到**。问答/评估跑图 A（`pipeline_graph`），文件流程跑图 B（`builder.py`）。入口层有个 adapter，但它只记遥测然后委派，不改变控制流 | `backend/app/graph/route_adapter.py`、`review-fixes-2026-10-21.md` §1 |
+| 问答、评估、文件流程**共用一套编排** | ❌ **没做到**。问答/评估跑图 A（`pipeline_graph`），文件流程跑图 B（`builder.py`）。入口层有个 adapter，但它只记遥测然后委派，不改变控制流。切片 1 已让两个图共用同一份节点实现（`graph/nodes.py`），切片 2 的实测差距见下文 | `backend/app/graph/route_adapter.py`、`review-fixes-2026-10-21.md` §1、`artifacts/acceptance/t053-slice2-shadow-parity-2026-11-01.md` |
 | 授权在服务端逐次判定，跨租户与「不存在」同形 404 | ✅ | `tests/security/`、`tests/integration/test_admin_rbac.py` |
 | 高影响动作：草稿 → 人批 → 至多一次提交 | ✅（**提交目标是 mock**，真的外部副作用没接） | `tests/recovery/test_submission_idempotency.py` |
 | 无可靠证据默认硬拒答 | ✅ | `tests/eval/test_evidence_gate_parity.py`、`tests/integration/test_entrypoint_conclusion_parity.py` |
 | run / job / SSE / 审批有持久状态，可恢复、不重复提交 | ✅ | `tests/recovery/test_run_restart_recovery.py` |
 
 **为什么单一编排没做完、也没急着做**：把问答迁到持久图上，得先把完整输出契约（router / plan / skill / compliance / diagnostics / ToT 双请求暂停）搬进图状态，再让 1200 行的 chat service 在新编排下逐条对齐 SSE 事件顺序。这是跨 `agents/`、`graph/`、`services/`、`api/` 的结构性改动，回归面覆盖整个问答契约套件。在验收环境还没跑通时硬上，只会把「诚实的两个图」换成「两个图 + 半迁移」，更难验。切片方案见 `review-fixes-2026-10-21.md` §1。
+
+**2026-11-01 已把切片 1 和切片 2 的取证做完，结论是仍然不切流量**：
+
+- **切片 1（共用实现 + 影子模式）**：`ChatTurnState` 与 route/ToT/execute 三个节点抽到 `backend/app/graph/{state,nodes}.py`，`pipeline_graph` 和持久图**共用同一份节点实现**（不是复制出第二份分叉）；新增 `ChatShadowRunner`，开关 `GRAPH_SHADOW_MODE` 默认 `false`，影子跑时 `disable_side_effects=True`（不写库、不执行 skill、答案正文不落盘，只记长度与 sha256 前缀）。
+- **切片 2（拿真实流量比差距）**：打开影子跑真实 `/api/chat`，把权威 `PipelineResult` 和影子跑图结果逐字段 + 逐事件比对，记录写到 `artifacts/graph/shadow/`（运行期产物，不入库）。实测：
+  - **字段级只剩两项**：`answer.confidence` 与 `skills`，且**全部**能被「影子刻意不执行 skill」解释——`grounding.py` 里对成功 skill 有 0.03 加分，0.67 → 0.64 正好是这一项；`unexplained_mismatches` 为空。router / 检索证据数 / compliance / errors / reasoning_mode 全部一致。
+  - **事件级没清零**：前 17 个事件逐位相同，之后 `stage` 进度回调与 `diagnostics_partial` 整体错位一位，权威 31 个事件、影子 30 个。客户端可见的 `plan` / `plan_step` 一个不少，差异只在编排层回调的交错顺序上。
+  - 双口径都记在记录里：`match`（严格，字段+事件全同）与 `comparable_match`（把已归因的降级差异排除后是否一致），避免用一个宽松口径冒充"对齐了"。
+
+所以 `GRAPH_SHADOW_MODE` 保持默认关、问答仍跑 `AgentPipeline`。判定与复现命令见 `artifacts/acceptance/t053-slice2-shadow-parity-2026-11-01.md`，逐条汇总见 `artifacts/acceptance/shadow-parity-summary.txt`。要真切流量还差三件事：让影子以只读方式对齐 skill/confidence、把事件顺序对齐到逐位相同、再在验收环境跑一遍全量问答契约。
 
 ---
 
@@ -219,7 +229,7 @@ python -m pytest -q tests/contract tests/unit tests/integration tests/security \
 4. **gVisor 沙箱没真起 pod**（没有 K8s 集群）。manifest 和策略完备，本机路径校验真跑，内核级隔离待集群。
 5. **Electron 签名打包没真跑**（没有企业证书）。签名门和 fuses 已实现并逐例验证，最终签名产物待证书。
 6. **数据权威切换没执行**（destructive contract 需要先有消费者清单和恢复点）。旧路径也还在：老 adapter、旧界面都带使用遥测，靠「一个发布窗口零使用」判定能不能删，窗口没走完，所以没删——**不是忘了**。
-7. **单一编排没达成**（见上表）。
+7. **单一编排没达成**（见上表）。2026-11-01 已经把切片 1（共用节点 + 影子模式）和切片 2（真实流量上的差距量化）做完：**字段级差异全部可以归因到影子不执行 skill，事件级差异（`stage` 进度回调与 `diagnostics_partial` 的交错顺序）没清零**，所以 `GRAPH_SHADOW_MODE` 保持默认关、问答仍跑旧路径。剩下的是「对齐」而不是「有没有证据」。
 
 **证据本身的坑（诚实也算到这一层）**
 
