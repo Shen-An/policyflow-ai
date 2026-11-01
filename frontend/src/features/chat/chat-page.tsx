@@ -161,7 +161,12 @@ function WebChatPage() {
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
-  useEffect(() => {
+  // Reset the per-conversation composer and thinking state when the route switches to a
+  // different conversation. Adjusting state during render (instead of in an effect) means
+  // the first paint of the new conversation never flashes the previous turns.
+  const [seededConversationId, setSeededConversationId] = useState(conversationId)
+  if (seededConversationId !== conversationId) {
+    setSeededConversationId(conversationId)
     setMessages([])
     setQuestion('')
     setFailedQuestion(null)
@@ -170,12 +175,16 @@ function WebChatPage() {
     setThinkingDiagnostics({ memories: [], tools: [], commands: [] })
     setPendingPlanChoice(null)
     setSelectingOptionId(null)
-  }, [conversationId])
+  }
 
-  // Rehydrate ToT picker from durable assistant stub metadata when reopening a conversation.
-  useEffect(() => {
+  // Rehydrate the ToT picker from durable assistant stub metadata when reopening a
+  // conversation. Derived during render, keyed on the fetched conversation snapshot, so a
+  // refetch re-seeds the picker without an extra effect/render round-trip.
+  const planSeedKey = `${conversation.data?.id ?? ''}:${conversation.data?.messages?.length ?? 0}`
+  const [seededPlanKey, setSeededPlanKey] = useState(planSeedKey)
+  if (seededPlanKey !== planSeedKey) {
+    setSeededPlanKey(planSeedKey)
     const historyMessages = conversation.data?.messages ?? []
-    if (!historyMessages.length) return
     const awaiting = [...historyMessages]
       .reverse()
       .find(
@@ -184,18 +193,18 @@ function WebChatPage() {
           item.metadata.turnStatus === 'awaiting_plan_selection' &&
           (item.metadata.planOptions?.length ?? 0) > 0,
       )
-    if (!awaiting) {
-      setPendingPlanChoice(null)
-      return
-    }
-    const options = awaiting.metadata.planOptions ?? []
-    setPendingPlanChoice({
-      difficulty: awaiting.metadata.routerResult?.difficulty ?? 'branched',
-      reasoningMode: awaiting.metadata.reasoningMode ?? 'tot_select',
-      options,
-      recommendedOptionId: options.find((item) => item.recommended)?.id ?? null,
-    })
-  }, [conversation.data?.id, conversation.data?.messages])
+    const options = awaiting?.metadata.planOptions ?? []
+    setPendingPlanChoice(
+      awaiting
+        ? {
+            difficulty: awaiting.metadata.routerResult?.difficulty ?? 'branched',
+            reasoningMode: awaiting.metadata.reasoningMode ?? 'tot_select',
+            options,
+            recommendedOptionId: options.find((item) => item.recommended)?.id ?? null,
+          }
+        : null,
+    )
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1541,12 +1550,14 @@ function PlanStepRow({
   parallel?: boolean
 }) {
   const isActive = step.status === 'running' || step.status === 'error'
-  const [open, setOpen] = useState(isActive)
-
-  useEffect(() => {
-    if (isActive) setOpen(true)
-    else if (step.status === 'success' || step.status === 'skipped') setOpen(false)
-  }, [isActive, step.status])
+  // The row opens while the step is active and collapses once it settles, but a manual
+  // toggle wins until the status changes again. Deriving the open flag from the status the
+  // toggle was recorded at keeps that rule without mirroring props into state via an effect.
+  const [toggled, setToggled] = useState<{ status: string; open: boolean }>({
+    status: step.status,
+    open: isActive,
+  })
+  const open = toggled.status === step.status ? toggled.open : isActive
 
   return (
     <details
@@ -1554,7 +1565,9 @@ function PlanStepRow({
         parallel ? ' chat-thinking__plan-item--parallel' : ''
       }`}
       open={open}
-      onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
+      onToggle={(event) =>
+        setToggled({ status: step.status, open: (event.currentTarget as HTMLDetailsElement).open })
+      }
     >
       <summary className="chat-thinking__plan-item-head">
         <span className="chat-thinking__plan-index">{index}</span>
@@ -1590,12 +1603,13 @@ function PlanWaveGroup({
   waveDone: boolean
   children: ReactNode
 }) {
-  const [open, setOpen] = useState(waveRunning || !waveDone)
-
-  useEffect(() => {
-    if (waveRunning) setOpen(true)
-    else if (waveDone) setOpen(false)
-  }, [waveRunning, waveDone])
+  const waveKey = `${waveRunning ? 'running' : 'idle'}-${waveDone ? 'done' : 'pending'}`
+  const autoOpen = waveRunning || !waveDone
+  const [toggled, setToggled] = useState<{ waveKey: string; open: boolean }>({
+    waveKey,
+    open: autoOpen,
+  })
+  const open = toggled.waveKey === waveKey ? toggled.open : autoOpen
 
   return (
     <details
@@ -1605,7 +1619,9 @@ function PlanWaveGroup({
           : 'chat-thinking__wave'
       }
       open={open}
-      onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
+      onToggle={(event) =>
+        setToggled({ waveKey, open: (event.currentTarget as HTMLDetailsElement).open })
+      }
     >
       <summary className="chat-thinking__wave-head">
         <span>第 {waveIndex + 1} 波</span>

@@ -187,21 +187,38 @@ class JobService:
 
     # -- lease / run lifecycle ----------------------------------------------
 
-    async def lease(self, *, worker_id: str, lease_seconds: int) -> DurableJob | None:
+    async def lease(
+        self,
+        *,
+        worker_id: str,
+        lease_seconds: int,
+        lanes: Sequence[str] | None = None,
+    ) -> DurableJob | None:
         """Claim the oldest eligible job for ``worker_id`` via a version CAS.
 
         Returns ``None`` when nothing is eligible. Increments ``attempts`` and
         stamps the lease owner/expiry. On SQLite the eligible scan is an
         optimistic candidate loop; a lost CAS falls through to the next row.
+
+        ``lanes`` restricts the scan to the priority lanes this worker serves --
+        a worker serving ``("interactive",)`` never steals a ``"bulk"`` job, so
+        an interactive queue cannot be starved by a bulk backlog. ``None`` (the
+        default) means "any lane", i.e. the previous behaviour. An explicitly
+        empty sequence is honoured as "this worker serves no lane" and leases
+        nothing rather than silently widening to every lane.
         """
         now = utc_now()
         expires = now + timedelta(seconds=lease_seconds)
+        lane_filter = (
+            [DurableJob.priority_lane.in_(tuple(lanes))] if lanes is not None else []
+        )
         async with self._factory() as session:
             candidates = await session.execute(
                 select(DurableJob)
                 .where(
                     DurableJob.state.in_(_LEASABLE_STATES),
                     DurableJob.available_at <= now,
+                    *lane_filter,
                 )
                 .order_by(DurableJob.available_at, DurableJob.created_at)
             )

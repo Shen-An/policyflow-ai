@@ -1,0 +1,135 @@
+
+> policyflow-ai-frontend@0.1.0 test:electron:e2e
+> wdio run wdio.electron.conf.ts
+
+
+  dist-electron\preload\index.cjs  2.3kb
+
+Done in 4ms
+
+  dist-electron\main\index.cjs  561.2kb
+
+Done in 19ms
+Electron main/preload bundled → dist-electron/
+
+Execution of 8 workers started at 2026-10-07T11:46:26.654Z
+
+[0-0] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/accessibility.e2e.ts
+[0-0] PASSED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/accessibility.e2e.ts
+[0-1] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/chat-workflow.e2e.ts
+[0-1] PASSED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/chat-workflow.e2e.ts
+[0-2] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/file-approval-workflow.e2e.ts
+[0-2] PASSED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/file-approval-workflow.e2e.ts
+[0-3] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/ipc-contract.e2e.ts
+[0-3] PASSED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/ipc-contract.e2e.ts
+[0-4] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/navigation.e2e.ts
+[0-4] PASSED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/navigation.e2e.ts
+[0-5] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/renderer-crash.e2e.ts
+[0-5] PASSED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/renderer-crash.e2e.ts
+[0-6] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/security.e2e.ts
+[0-6] PASSED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/security.e2e.ts
+[0-7] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/state-recovery.e2e.ts
+[0-7] PASSED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/state-recovery.e2e.ts
+
+ "spec" Reporter:
+------------------------------------------------------------------
+[chrome 152.0.7977.78 windows #0-0] Running: chrome (v152.0.7977.78) on windows
+[chrome 152.0.7977.78 windows #0-0] Session ID: 51fff0eb75072b5c52d6250ee7e8e84b
+[chrome 152.0.7977.78 windows #0-0]
+[chrome 152.0.7977.78 windows #0-0] » tests\electron\accessibility.e2e.ts
+[chrome 152.0.7977.78 windows #0-0] T126 accessibility and responsive layout
+[chrome 152.0.7977.78 windows #0-0]    ✓ has no blocking axe violations on chat across small/medium/large
+[chrome 152.0.7977.78 windows #0-0]    ✓ has no blocking axe violations on the workspace surface
+[chrome 152.0.7977.78 windows #0-0]    ✓ exposes landmark semantics for the shell
+[chrome 152.0.7977.78 windows #0-0]    ✓ reaches the composer by keyboard and shows a visible focus ring
+[chrome 152.0.7977.78 windows #0-0]    ✓ keeps the sidebar and main content from overlapping, with no horizontal overflow
+[chrome 152.0.7977.78 windows #0-0]
+[chrome 152.0.7977.78 windows #0-0] 5 passing (15s)
+------------------------------------------------------------------
+[chrome 152.0.7977.78 windows #0-1] Running: chrome (v152.0.7977.78) on windows
+[chrome 152.0.7977.78 windows #0-1] Session ID: 6251d6737020b3e90311ebdedd70928d
+[chrome 152.0.7977.78 windows #0-1]
+[chrome 152.0.7977.78 windows #0-1] » tests\electron\chat-workflow.e2e.ts
+[chrome 152.0.7977.78 windows #0-1] T123 chat workflow
+[chrome 152.0.7977.78 windows #0-1]    ✓ offers a clickable example from the empty state
+[chrome 152.0.7977.78 windows #0-1]    ✓ runs a supported question: quiet collapsed timeline, evidence, copyable answer
+[chrome 152.0.7977.78 windows #0-1]    ✓ lets the user copy and edit their own message
+[chrome 152.0.7977.78 windows #0-1]    ✓ shows a grounded refusal when evidence is insufficient
+[chrome 152.0.7977.78 windows #0-1]    ✓ recovers the answer after an SSE disconnect and reconnect
+[chrome 152.0.7977.78 windows #0-1]
+[chrome 152.0.7977.78 windows #0-1] 5 passing (16.4s)
+------------------------------------------------------------------
+[chrome 152.0.7977.78 windows #0-2] Running: chrome (v152.0.7977.78) on windows
+[chrome 152.0.7977.78 windows #0-2] Session ID: 9560cbeef17803e44c54467934fb9fcf
+[chrome 152.0.7977.78 windows #0-2]
+[chrome 152.0.7977.78 windows #0-2] » tests\electron\file-approval-workflow.e2e.ts
+[chrome 152.0.7977.78 windows #0-2] T124 file-approval workflow
+[chrome 152.0.7977.78 windows #0-2]    ✓ builds a draft change set with tree, preview, version and diff
+[chrome 152.0.7977.78 windows #0-2]    ✓ surfaces the approval target, exact files/hashes, side effects and expiry
+[chrome 152.0.7977.78 windows #0-2]    ✓ approves and shows the submission result
+[chrome 152.0.7977.78 windows #0-2]    ✓ rejects and reports the rejected outcome
+[chrome 152.0.7977.78 windows #0-2]
+[chrome 152.0.7977.78 windows #0-2] 4 passing (12.4s)
+------------------------------------------------------------------
+[chrome 152.0.7977.78 windows #0-3] Running: chrome (v152.0.7977.78) on windows
+[chrome 152.0.7977.78 windows #0-3] Session ID: b354874596fbd18ae3f002d7c9d7369b
+[chrome 152.0.7977.78 windows #0-3]
+[chrome 152.0.7977.78 windows #0-3] » tests\electron\ipc-contract.e2e.ts
+[chrome 152.0.7977.78 windows #0-3] T111 IPC contract
+[chrome 152.0.7977.78 windows #0-3]    ✓ accepts calls from the trusted renderer origin and injects auth in main only
+[chrome 152.0.7977.78 windows #0-3]    ✓ rejects payloads that violate each operation-specific schema
+[chrome 152.0.7977.78 windows #0-3]    ✓ cancels an in-flight run-event stream when the renderer unsubscribes
+[chrome 152.0.7977.78 windows #0-3]    ✓ returns redacted errors with no stack, host path, backend origin or token
+[chrome 152.0.7977.78 windows #0-3]
+[chrome 152.0.7977.78 windows #0-3] 4 passing (10.1s)
+------------------------------------------------------------------
+[chrome 152.0.7977.78 windows #0-4] Running: chrome (v152.0.7977.78) on windows
+[chrome 152.0.7977.78 windows #0-4] Session ID: 212c39de9b6c9824a75d8ac0947677ce
+[chrome 152.0.7977.78 windows #0-4]
+[chrome 152.0.7977.78 windows #0-4] » tests\electron\navigation.e2e.ts
+[chrome 152.0.7977.78 windows #0-4] T112 navigation and content security
+[chrome 152.0.7977.78 windows #0-4]    ✓ enforces a strict CSP that blocks inline script injection
+[chrome 152.0.7977.78 windows #0-4]    ✓ sends the strict CSP header on the controlled renderer document
+[chrome 152.0.7977.78 windows #0-4]    ✓ blocks full-page navigation away from the controlled renderer
+[chrome 152.0.7977.78 windows #0-4]    ✓ denies opening new windows
+[chrome 152.0.7977.78 windows #0-4]    ✓ routes only allowlisted https links to the OS browser
+[chrome 152.0.7977.78 windows #0-4]
+[chrome 152.0.7977.78 windows #0-4] 5 passing (11s)
+------------------------------------------------------------------
+[chrome 152.0.7977.78 windows #0-5] Running: chrome (v152.0.7977.78) on windows
+[chrome 152.0.7977.78 windows #0-5] Session ID: 3acd8b792a7485f4f60166cb4b04ec60
+[chrome 152.0.7977.78 windows #0-5]
+[chrome 152.0.7977.78 windows #0-5] » tests\electron\renderer-crash.e2e.ts
+[chrome 152.0.7977.78 windows #0-5] T113 renderer crash containment
+[chrome 152.0.7977.78 windows #0-5]    ✓ cancels a not-yet-approved request on crash and leaves the durable run intact
+[chrome 152.0.7977.78 windows #0-5]
+[chrome 152.0.7977.78 windows #0-5] 1 passing (10.2s)
+------------------------------------------------------------------
+[chrome 152.0.7977.78 windows #0-6] Running: chrome (v152.0.7977.78) on windows
+[chrome 152.0.7977.78 windows #0-6] Session ID: ac6dea5174421a05bb605cd722699731
+[chrome 152.0.7977.78 windows #0-6]
+[chrome 152.0.7977.78 windows #0-6] » tests\electron\security.e2e.ts
+[chrome 152.0.7977.78 windows #0-6] T110 renderer capability sandbox
+[chrome 152.0.7977.78 windows #0-6]    ✓ enforces contextIsolation, sandbox and no node integration in webPreferences
+[chrome 152.0.7977.78 windows #0-6]    ✓ exposes only the minimal typed bridge, with no node/CommonJS escapes
+[chrome 152.0.7977.78 windows #0-6]    ✓ never exposes raw IPC, arbitrary file access or a token getter
+[chrome 152.0.7977.78 windows #0-6]    ✓ reports no node access through the system.info capability
+[chrome 152.0.7977.78 windows #0-6]
+[chrome 152.0.7977.78 windows #0-6] 4 passing (10s)
+------------------------------------------------------------------
+[chrome 152.0.7977.78 windows #0-7] Running: chrome (v152.0.7977.78) on windows
+[chrome 152.0.7977.78 windows #0-7] Session ID: 219c6b80109fc1cc8bd51b4bffacc900
+[chrome 152.0.7977.78 windows #0-7]
+[chrome 152.0.7977.78 windows #0-7] » tests\electron\state-recovery.e2e.ts
+[chrome 152.0.7977.78 windows #0-7] T125 runtime state recovery
+[chrome 152.0.7977.78 windows #0-7]    ✓ shows an empty state with an actionable next step
+[chrome 152.0.7977.78 windows #0-7]    ✓ surfaces an offline banner then a recovery affordance
+[chrome 152.0.7977.78 windows #0-7]    ✓ explains a permission denial with a next step
+[chrome 152.0.7977.78 windows #0-7]    ✓ explains a stale/conflict decision with a next step
+[chrome 152.0.7977.78 windows #0-7]    ✓ explains a failed run with a retry next step
+[chrome 152.0.7977.78 windows #0-7]
+[chrome 152.0.7977.78 windows #0-7] 5 passing (12.4s)
+
+
+Spec Files:	 8 passed, 8 total (100% completed) in 00:01:55  
+

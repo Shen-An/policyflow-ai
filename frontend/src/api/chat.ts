@@ -622,7 +622,7 @@ export async function sendChatStream(
 
     const handleSsePart = (part: string) => {
       for (const evt of parseSseChunk(part)) {
-        let payload: Record<string, unknown> = {}
+        let payload: Record<string, unknown>
         try {
           payload = JSON.parse(evt.data) as Record<string, unknown>
         } catch {

@@ -367,13 +367,6 @@ async def test_job_transitions_are_legal_and_version_guarded(
     assert duplicate.version == done.version
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "JobQueue.lease(worker_id, lanes, lease_duration) is not implemented: "
-        "priority_lane is stored and reported, but lease() has no lane filter"
-    ),
-)
 async def test_lease_can_be_restricted_to_a_lane(job_service: JobService) -> None:
     """Contract: a worker leases only the lanes it serves, never another lane's job."""
     await job_service.enqueue(

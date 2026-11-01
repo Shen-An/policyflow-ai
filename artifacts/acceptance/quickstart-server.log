@@ -1,0 +1,145 @@
+
+> policyflow-ai-frontend@0.1.0 build
+> node scripts/verify-production-config.mjs && tsc -b && vite build && node scripts/verify-production-build.mjs
+
+Production environment check passed.
+vite v8.1.4 building client environment for production...
+[2Ktransforming...✓ 6608 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                              5.20 kB │ gzip:  1.42 kB
+dist/assets/geist-cyrillic-ext-wght-normal-DjL33-gN.woff2    7.42 kB
+dist/assets/geist-vietnamese-wght-normal-6IgcOCM7.woff2      8.00 kB
+dist/assets/geist-cyrillic-wght-normal-BEAKL7Jp.woff2       15.08 kB
+dist/assets/geist-latin-ext-wght-normal-DC-KSUi6.woff2      16.51 kB
+dist/assets/geist-latin-wght-normal-BgDaEnEv.woff2          29.40 kB
+dist/.vite/manifest.json                                    45.15 kB │ gzip:  4.72 kB
+dist/assets/app-shell-BS4s0EmS.css                           3.80 kB │ gzip:  1.41 kB
+dist/assets/index-Cgyhm7OT.css                              70.77 kB │ gzip: 13.79 kB
+dist/assets/eval-COORi58l.js                                 0.06 kB │ gzip:  0.07 kB
+dist/assets/row-BvLWxW3v.js                                  0.06 kB │ gzip:  0.08 kB
+dist/assets/approval-page-D4r56gxI.js                        0.07 kB │ gzip:  0.08 kB
+dist/assets/workflow-page-Ba9LG1rd.js                        0.07 kB │ gzip:  0.08 kB
+dist/assets/permissions-DGA-bhJ3.js                          0.07 kB │ gzip:  0.09 kB
+dist/assets/global-feedback-e5yWhXep.js                      0.12 kB │ gzip:  0.11 kB
+dist/assets/mergeProps-yLeqvqMM.js                           0.12 kB │ gzip:  0.12 kB
+dist/assets/confirm-ap84TTLq.js                              0.20 kB │ gzip:  0.15 kB
+dist/assets/labels-BoK2KTZi.js                               0.35 kB │ gzip:  0.26 kB
+dist/assets/desktop-auth-Bg-VfmIO.js                         0.49 kB │ gzip:  0.29 kB
+dist/assets/labels-B0Yluy9s.js                               0.56 kB │ gzip:  0.41 kB
+dist/assets/IconBase.es-BWC1TjnS.js                          0.60 kB │ gzip:  0.40 kB
+dist/assets/quiet-chip-C4ZH1d8H.js                           0.64 kB │ gzip:  0.34 kB
+dist/assets/RightOutlined-xsIOTmPS.js                        0.83 kB │ gzip:  0.57 kB
+dist/assets/datetime-1GRVK7Lh.js                             0.98 kB │ gzip:  0.52 kB
+dist/assets/PurePanel-DOrWx_yN.js                            1.06 kB │ gzip:  0.66 kB
+dist/assets/desktop-api-CCga5-F7.js                          1.22 kB │ gzip:  0.62 kB
+dist/assets/modal-BR5KHgb_.js                                1.40 kB │ gzip:  0.76 kB
+dist/assets/Plus.es-gq8Fdnwl.js                              1.58 kB │ gzip:  0.59 kB
+dist/assets/ArrowLeft.es-BPB1LwtW.js                         1.59 kB │ gzip:  0.63 kB
+dist/assets/MagnifyingGlass.es-DZ3RvRcd.js                   1.67 kB │ gzip:  0.69 kB
+dist/assets/Copy.es-Cz2mj2xX.js                              1.83 kB │ gzip:  0.63 kB
+dist/assets/useBreakpoint-DLI1DpRR.js                        1.84 kB │ gzip:  0.89 kB
+dist/assets/use-run-events-CzaJuTET.js                       1.92 kB │ gzip:  0.96 kB
+dist/assets/CircleNotch.es-B9Ko1EhY.js                       1.96 kB │ gzip:  0.80 kB
+dist/assets/style-D_40IL4z.js                                1.96 kB │ gzip:  0.82 kB
+dist/assets/X.es-DPqzkruf.js                                 1.97 kB │ gzip:  0.68 kB
+dist/assets/queries-Cm7RFwej.js                              2.02 kB │ gzip:  0.73 kB
+dist/assets/auth-store-CkkCJidS.js                           2.03 kB │ gzip:  0.79 kB
+dist/assets/ArrowClockwise.es-BqG6T9B_.js                    2.05 kB │ gzip:  0.80 kB
+dist/assets/CheckCircle.es-b_UdAoJB.js                       2.13 kB │ gzip:  0.75 kB
+dist/assets/ChatCircle.es-CTKzWo5H.js                        2.14 kB │ gzip:  0.84 kB
+dist/assets/Lock.es-DIvH34tY.js                              2.21 kB │ gzip:  0.76 kB
+dist/assets/Info.es-BBlWhwHB.js                              2.25 kB │ gzip:  0.82 kB
+dist/assets/useMutation-0P3_oHXL.js                          2.32 kB │ gzip:  0.96 kB
+dist/assets/queries-Clrxj2XA.js                              2.42 kB │ gzip:  0.85 kB
+dist/assets/InfoCircleFilled-C3Xu8eFq.js                     2.43 kB │ gzip:  0.81 kB
+dist/assets/row-BSdxk5nk.js                                  2.49 kB │ gzip:  1.30 kB
+dist/assets/XCircle.es-bX1UAMHj.js                           2.49 kB │ gzip:  0.81 kB
+dist/assets/queries-BLdt6wT9.js                              2.49 kB │ gzip:  0.95 kB
+dist/assets/Trash.es-CRjUnbIM.js                             2.59 kB │ gzip:  0.81 kB
+dist/assets/palette-CRV2752T.js                              2.59 kB │ gzip:  0.96 kB
+dist/assets/knowledge-base-detail-page-EVZ2l9Z1.js           2.60 kB │ gzip:  1.25 kB
+dist/assets/BookOpen.es-BhMxP8lu.js                          2.62 kB │ gzip:  0.88 kB
+dist/assets/context-x03zi8qW.js                              2.64 kB │ gzip:  1.31 kB
+dist/assets/FileText.es-Mkzh26bb.js                          2.66 kB │ gzip:  0.82 kB
+dist/assets/message-C0dWqiBc.js                              2.81 kB │ gzip:  1.35 kB
+dist/assets/FolderOpen.es-DYaNqBp9.js                        2.96 kB │ gzip:  1.03 kB
+dist/assets/ClipboardText.es-BDsPzCi9.js                     3.13 kB │ gzip:  1.06 kB
+dist/assets/Users.es-C0iMXs1U.js                             3.18 kB │ gzip:  1.14 kB
+dist/assets/mutation-CoNQkMhK.js                             3.37 kB │ gzip:  1.12 kB
+dist/assets/Warning.es-v3wnwL8y.js                           3.38 kB │ gzip:  1.10 kB
+dist/assets/ShieldCheck.es-t7C7qFdt.js                       3.41 kB │ gzip:  1.20 kB
+dist/assets/popconfirm-Cd8wW_CZ.js                           3.47 kB │ gzip:  1.55 kB
+dist/assets/Input-BrT76drt.js                                3.50 kB │ gzip:  1.78 kB
+dist/assets/antd-theme-CN_UH4XO.js                           3.70 kB │ gzip:  1.53 kB
+dist/assets/Wrench.es-T_omlojA.js                            3.79 kB │ gzip:  1.39 kB
+dist/assets/knowledge-base-overview-page-C42Dd6LJ.js         3.91 kB │ gzip:  1.87 kB
+dist/assets/app-DsH4axJG.js                                  4.10 kB │ gzip:  1.98 kB
+dist/assets/workflow-store-CWK8XJp1.js                       4.35 kB │ gzip:  1.49 kB
+dist/assets/popover-CXsSZVtd.js                              4.48 kB │ gzip:  2.00 kB
+dist/assets/Database.es-D3m67m4j.js                          4.67 kB │ gzip:  1.39 kB
+dist/assets/empty-B9yXO6j2.js                                4.68 kB │ gzip:  2.01 kB
+dist/assets/queries-i3dAbnce.js                              4.81 kB │ gzip:  1.44 kB
+dist/assets/useForm-CfsOI6TE.js                              5.11 kB │ gzip:  2.28 kB
+dist/assets/draft-list-page-CacvKv2o.js                      5.22 kB │ gzip:  2.45 kB
+dist/assets/login-page-D4-JOKjo.js                           5.36 kB │ gzip:  2.50 kB
+dist/assets/thinking-process-BcTmaVA8.js                     6.04 kB │ gzip:  2.23 kB
+dist/assets/reconciliation-page-D6VBj7-t.js                  6.16 kB │ gzip:  2.80 kB
+dist/assets/alert-BS-30wlU.js                                6.41 kB │ gzip:  2.71 kB
+dist/assets/eval-pXdaEZWV.js                                 6.47 kB │ gzip:  2.24 kB
+dist/assets/config-provider-BIXjRb6b.js                      6.54 kB │ gzip:  2.66 kB
+dist/assets/memory-page-Cnh8w-Sc.js                          7.32 kB │ gzip:  3.48 kB
+dist/assets/checkbox-BWC0Nn6d.js                             7.46 kB │ gzip:  3.10 kB
+dist/assets/knowledge-base-page-CquAIeTP.js                  7.71 kB │ gzip:  2.78 kB
+dist/assets/descriptions-Cnhk-RGE.js                         7.76 kB │ gzip:  2.73 kB
+dist/assets/jsx-runtime-n5LQ9ujS.js                          8.53 kB │ gzip:  3.26 kB
+dist/assets/audit-page-GfMI30xB.js                           8.86 kB │ gzip:  3.78 kB
+dist/assets/useQuery-NHloqtkq.js                             9.07 kB │ gzip:  3.33 kB
+dist/assets/faq-review-page-DF5Q3rHA.js                      9.37 kB │ gzip:  3.83 kB
+dist/assets/queries-CPFsemLw.js                              9.73 kB │ gzip:  3.74 kB
+dist/assets/approval-page-Dzo1x5SH.js                        9.75 kB │ gzip:  3.31 kB
+dist/assets/collapse-BMtXvtlf.js                             9.81 kB │ gzip:  3.66 kB
+dist/assets/workspace-page-4qQ9QoM0.js                      10.98 kB │ gzip:  3.74 kB
+dist/assets/draft-detail-page-CVLk3hmP.js                   11.04 kB │ gzip:  4.01 kB
+dist/assets/use-auth-CrwMQvIW.js                            11.15 kB │ gzip:  4.11 kB
+dist/assets/knowledge-base-list-page-BKzuc4Am.js            11.28 kB │ gzip:  4.48 kB
+dist/assets/input-CJpLFD3l.js                               11.59 kB │ gzip:  5.15 kB
+dist/assets/admin-page-BLExIRHG.js                          12.35 kB │ gzip:  4.87 kB
+dist/assets/users-page-Cz2ATKDa.js                          13.36 kB │ gzip:  5.10 kB
+dist/assets/skills-page-B1owNDoK.js                         13.75 kB │ gzip:  4.87 kB
+dist/assets/drawer-By6E0Yqe.js                              14.27 kB │ gzip:  5.51 kB
+dist/assets/query-ChMwgRNV.js                               14.71 kB │ gzip:  5.02 kB
+dist/assets/states-BAmBPr1E.js                              15.01 kB │ gzip:  4.96 kB
+dist/assets/queries-CvBiYsNC.js                             15.56 kB │ gzip:  5.42 kB
+dist/assets/integrations-page-Ccy_Xw3S.js                   16.40 kB │ gzip:  5.85 kB
+dist/assets/document-list-page-CPr3_GN5.js                  17.46 kB │ gzip:  6.37 kB
+dist/assets/workflow-page-CwpWA6ZX.js                       17.88 kB │ gzip:  5.66 kB
+dist/assets/typography-D3CIYCjn.js                          20.65 kB │ gzip:  8.11 kB
+dist/assets/form-CbX4TWy_.js                                21.74 kB │ gzip:  8.49 kB
+dist/assets/context-DobsG3g6.js                             23.61 kB │ gzip:  8.64 kB
+dist/assets/useModal-Cwp8aIM_.js                            24.50 kB │ gzip:  8.42 kB
+dist/assets/zod-Gl-k8M4P.js                                 30.60 kB │ gzip: 11.09 kB
+dist/assets/dist-C12a490O.js                                30.77 kB │ gzip: 10.66 kB
+dist/assets/state-views-B9aO3vnk.js                         35.29 kB │ gzip: 11.42 kB
+dist/assets/app-shell-D7HMOu4n.js                           36.34 kB │ gzip:  9.84 kB
+dist/assets/model-settings-page-qF72hwpr.js                 38.95 kB │ gzip: 13.96 kB
+dist/assets/card-rV0U2FWl.js                                44.13 kB │ gzip: 13.51 kB
+dist/assets/audit-run-page-KfukCHsw.js                      44.23 kB │ gzip: 13.48 kB
+dist/assets/evaluation-page-Cak1CvC4.js                     46.76 kB │ gzip: 15.40 kB
+dist/assets/chat-page-C6BgJMY9.js                           65.48 kB │ gzip: 19.11 kB
+dist/assets/select-BnrA6UfI.js                              68.52 kB │ gzip: 23.45 kB
+dist/assets/client-Da_FXE7i.js                              69.71 kB │ gzip: 20.04 kB
+dist/assets/index-C2g5pfey.js                               77.21 kB │ gzip: 26.33 kB
+dist/assets/TextArea-BSETqgoG.js                            85.87 kB │ gzip: 27.37 kB
+dist/assets/tooltip-CAaMUhJt.js                             86.98 kB │ gzip: 29.47 kB
+dist/assets/chunk-KS7C4IRE-CvSiyPdY.js                      96.29 kB │ gzip: 31.89 kB
+dist/assets/date-picker-b6r9qLRF.js                        107.17 kB │ gzip: 34.02 kB
+dist/assets/markdown-content-B_h5ColO.js                   159.01 kB │ gzip: 47.80 kB
+dist/assets/table-CxP1xIMm.js                              217.62 kB │ gzip: 65.92 kB
+dist/assets/button-DyHBxP7X.js                             296.95 kB │ gzip: 98.47 kB
+
+✓ built in 588ms
+Production build check passed: hashed assets, no source maps, mocks, loopback URLs, or test credentials.
+[PolicyFlow] 正在构建前端……
+[PolicyFlow] 已启动：http://127.0.0.1:8123
+INFO:     127.0.0.1:49182 - "GET /health HTTP/1.1" 200 OK

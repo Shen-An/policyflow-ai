@@ -41,6 +41,11 @@ StepStatus = Literal["pending", "running", "success", "skipped", "error"]
 class AgentPipeline:
     """Single orchestration path for chat and eval."""
 
+    # Declared at the class level so ``run()`` keeps working on a pipeline that
+    # was built without ``__init__`` (subclasses, and tests that only exercise
+    # the turn-budget wrapper). Telemetry defaults to off.
+    legacy_counters: Any | None = None
+
     def __init__(
         self,
         router_agent: RouterAgent,

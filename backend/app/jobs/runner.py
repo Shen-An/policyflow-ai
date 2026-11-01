@@ -27,7 +27,7 @@ runs, never serialized into the row.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -178,6 +178,7 @@ class LocalJobRunner:
         lease_seconds: int = 300,
         max_jobs: int = 1000,
         cancel_poll_seconds: float | None = None,
+        lanes: Sequence[str] | None = None,
     ) -> None:
         self._service = service
         self._registry = registry or _DEFAULT_REGISTRY
@@ -185,6 +186,10 @@ class LocalJobRunner:
         self._worker_id = worker_id
         self._lease_seconds = lease_seconds
         self._max_jobs = max_jobs
+        # Priority lanes this worker serves. None keeps the historical behaviour
+        # (lease any lane); a tuple makes the drain honest about lane isolation so
+        # a bulk backlog cannot delay an interactive job on the same queue.
+        self._lanes = tuple(lanes) if lanes is not None else None
         # When set, a running job is checked for cooperative cancellation every
         # ``cancel_poll_seconds`` (the "bounded step"): if ``request_cancel`` has
         # moved it to ``cancel_requested`` the handler is cancelled and the job is
@@ -200,7 +205,9 @@ class LocalJobRunner:
         processed = 0
         while processed < self._max_jobs:
             job = await self._service.lease(
-                worker_id=self._worker_id, lease_seconds=self._lease_seconds
+                worker_id=self._worker_id,
+                lease_seconds=self._lease_seconds,
+                lanes=self._lanes,
             )
             if job is None:
                 break

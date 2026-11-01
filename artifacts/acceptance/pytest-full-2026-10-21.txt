@@ -1,0 +1,39 @@
+........................................................................ [  6%]
+........................................................................ [ 12%]
+........................................................................ [ 18%]
+........................................x............................... [ 25%]
+...........................ssssssssssssssss.sssssss..................... [ 31%]
+........................................................................ [ 37%]
+........................................................................ [ 44%]
+..............ssss.ssss..............s...............ss.s........sssssss [ 50%]
+ssss...ssssssssssssss.sssssssssssssssssss.ssssssssssssssssssssssss.sssss [ 56%]
+...sssssssssssss......................................ssssssss........ss [ 63%]
+sssssssssssssssssss....ssssssssssssss....................ssssssssss..... [ 69%]
+....sssssssssssssss.................................................ssss [ 75%]
+ssss.................................................................... [ 82%]
+........................................F............................... [ 88%]
+........................................................................ [ 94%]
+...........................................................              [100%]
+================================== FAILURES ===================================
+_________________ test_pipeline_wraps_the_entire_turn_timeout _________________
+
+    @pytest.mark.asyncio
+    async def test_pipeline_wraps_the_entire_turn_timeout() -> None:
+        pipeline = object.__new__(AgentPipeline)
+        pipeline.settings = Settings(_env_file=None)
+    
+        async def slow_run(*args, **kwargs):
+            await asyncio.sleep(0.2)
+    
+        pipeline._run_impl = slow_run
+        with pytest.raises(Exception) as exc_info:
+            await pipeline.run(budget=TurnBudget(max_total_seconds=0.01))
+>       assert getattr(exc_info.value, "code", "") == "TURN_BUDGET_EXHAUSTED"
+E       AssertionError: assert '' == 'TURN_BUDGET_EXHAUSTED'
+E         
+E         - TURN_BUDGET_EXHAUSTED
+
+tests\test_guardrails.py:70: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_guardrails.py::test_pipeline_wraps_the_entire_turn_timeout
+1 failed, 940 passed, 197 skipped, 1 xfailed in 304.61s (0:05:04)

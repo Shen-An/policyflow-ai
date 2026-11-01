@@ -21,7 +21,8 @@ import type {
   ResourcePermission,
 } from '../../api/knowledge-bases'
 import { LoadingState } from '../../components/feedback/state-views'
-import { QuietChip, statusTone } from '../../components/ui/quiet-chip'
+import { QuietChip } from '../../components/ui/quiet-chip'
+import { statusTone } from '../../components/ui/chip-tone'
 import { confirmAction } from '../../lib/confirm'
 import { formatDateTime } from '../../lib/datetime'
 import { documentIndexStatusLabel } from '../../lib/labels'

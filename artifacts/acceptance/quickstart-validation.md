@@ -15,12 +15,21 @@
 | `alembic upgrade 001` → `python -m migrations.backfill_legacy_tenant` → `alembic upgrade head` | **未执行** | 需要真实 PostgreSQL；本轮 PG 实例未启动。迁移链本身由 `tests/migration/test_alembic_scaffold.py` 覆盖（需 PG，已 skip）。 |
 | `docker compose -f infra/dev/compose.yaml up -d` | **未执行** | 本轮不启动企业栈；`artifacts/acceptance/` 中的存储相关证据因此不完整。 |
 
+## 2026-10-21 复跑（上面的表是 2026-10-18 的快照，数字已过期）
+
+| 命令 | 结果 | 说明 |
+|---|---|---|
+| `pytest -q tests` （全量） | **942 passed, 197 skipped, 0 failed** in 300.06s | 输出 `pytest-full-2026-10-21b.txt`。上一轮记的那 1 failed 已修：`test_multi_instance.py` 的 `require_pg_server()` helper（34b0633）在 PG 不可达时 skip 而不是 fail，本机 PG 未起时实测 1 skipped。另修了两处：`AgentPipeline.legacy_counters` 类级默认值（`test_pipeline_wraps_the_entire_turn_timeout` 用 `object.__new__` 绕过 `__init__` 导致 AttributeError）；`JobService.lease(lanes=...)` 补上 lane 过滤，`tests/contract` 由 22 passed + 1 xfail 变为 23 passed + 0 xfail。 |
+| `pytest -q tests/contract tests/eval tests/integration tests/migration tests/reconciliation tests/recovery tests/security` | **664 passed, 197 skipped, 1 xfailed** in 259.64s | 子集复跑，输出 `pytest-rerun-2026-10-21.txt`（该次跑在 lane 过滤修复之前，故仍带 1 xfailed）。 |
+| `npm --prefix frontend run lint` / `typecheck` / `test` | **0 problem / 0 error / 48 files 162 passed**（36.42s） | Phase 1–6 的 12 error + 1 warning 已清零（拆分 `button-variants.ts`、`chip-tone.ts`、`use-color-mode.ts`，详情见 `docs`/提交说明），旧页面不再带 lint 债。 |
+| `npm --prefix frontend run test:electron:e2e` | **8 failed / 0 passed**（29s） | 仍未跑通，但根因已定位到环境：直接 `electron.exe --app=dist-electron/main/index.cjs` 立即退出、无输出，exit `-2147483645`(0x80000003 STATUS_BREAKPOINT)；加 `--no-sandbox --disable-gpu` 后报 `Lock file can not be created: 拒绝访问 (0x5)` + `GPU process launch failed` 并退出。详见 README「没做/没验过」第 1 条。 |
+
 ## 发布判断
 
 **不满足发布条件。** 依据：
 
-1. 后端全量套件有 1 个失败（环境导致的 PG 连接超时），即使可归因于环境，也不能在报告里写成"全绿"。
-2. Electron E2E、迁移链、企业栈三条 quickstart 路径未在目标环境执行。
+1. ~~后端全量套件有 1 个失败~~ → 2026-10-21 复跑已 **0 failed**（942 passed / 197 skipped），PG 不可达的用例现在按 skip 处理。发布阻塞点不再是失败用例本身。
+2. Electron E2E、迁移链、企业栈三条 quickstart 路径未在目标环境执行；Electron 的阻塞已确认在宿主环境（Chromium 起不来），换一台有桌面会话的机器需要复跑一次。
 3. SC-001–SC-006 没有容量数字；SC-010/011 没有真实被试；SC-016 没有数据权威切换。
 
 可发布的部分是**开发/演示路径**（浏览器 SPA 启动 + 健康检查 + 两套测试），这与 README 的定位一致。

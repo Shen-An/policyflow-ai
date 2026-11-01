@@ -1,12 +1,12 @@
 import { Moon, Sun } from '@phosphor-icons/react'
 import { Button, Tooltip } from 'antd'
 import { useTheme } from 'next-themes'
-import { useEffect, useState } from 'react'
+
+import { useHasMounted } from '@/styles/use-color-mode'
 
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  const mounted = useHasMounted()
 
   const isDark = mounted && resolvedTheme === 'dark'
   const label = isDark ? '切换到浅色模式' : '切换到深色模式'

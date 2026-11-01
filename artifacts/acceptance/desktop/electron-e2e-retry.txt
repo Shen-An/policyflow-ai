@@ -1,0 +1,374 @@
+
+> policyflow-ai-frontend@0.1.0 test:electron:e2e
+> wdio run wdio.electron.conf.ts
+
+
+  dist-electron\preload\index.cjs  2.3kb
+
+Done in 9ms
+
+  dist-electron\main\index.cjs  562.4kb
+
+Done in 30ms
+Electron main/preload bundled → dist-electron/
+
+Execution of 8 workers started at 2026-11-01T10:15:05.863Z
+
+2026-11-01T10:15:05.876Z WARN electron-service: ⚠️ Disk Space: Could not determine disk space
+[0-0] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/accessibility.e2e.ts
+[0-0] 2026-11-01T10:15:08.649Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-0]   (session not created: DevToolsActivePort file doesn't exist)
+[0-0]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:54622/session" with method "POST"
+[0-0] 2026-11-01T10:15:09.238Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-0]   (session not created: DevToolsActivePort file doesn't exist)
+[0-0]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:54622/session" with method "POST"
+[0-0] 2026-11-01T10:15:10.328Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-0]   (session not created: DevToolsActivePort file doesn't exist)
+[0-0]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:54622/session" with method "POST"
+[0-0] 2026-11-01T10:15:10.407Z ERROR webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-0]   (session not created: DevToolsActivePort file doesn't exist)
+[0-0]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:54622/session" with method "POST"
+[0-0] 2026-11-01T10:15:10.407Z ERROR webdriver: session not created: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-0]   (session not created: DevToolsActivePort file doesn't exist)
+[0-0]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:54622/session" with method "POST"
+[0-0]     at FetchRequest._request (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:2309:19)
+[0-0]     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[0-0]     at async startWebDriverSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1376:16)
+[0-0]     at async _WebDriver.newSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1798:41)
+[0-0]     at async remote (E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\webdriverio\build\node.js:10415:20)
+[0-0]     at async Runner._startSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:877:24)
+[0-0]     at async Runner._initSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:851:22)
+[0-0]     at async Runner.run (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:744:16)
+[0-0] 2026-11-01T10:15:10.439Z ERROR @wdio/runner: Error: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-0]   (session not created: DevToolsActivePort file doesn't exist)
+[0-0]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:54622/session" with method "POST"
+[0-0]     at startWebDriverSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1380:11)
+[0-0]     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[0-0]     at async _WebDriver.newSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1798:41)
+[0-0]     at async remote (E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\webdriverio\build\node.js:10415:20)
+[0-0]     at async Runner._startSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:877:24)
+[0-0]     at async Runner._initSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:851:22)
+[0-0]     at async Runner.run (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:744:16)
+[0-0] FAILED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/accessibility.e2e.ts
+2026-11-01T10:15:10.582Z WARN electron-service: ⚠️ Disk Space: Could not determine disk space
+[0-1] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/chat-workflow.e2e.ts
+[0-1] 2026-11-01T10:15:12.198Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-1]   (session not created: DevToolsActivePort file doesn't exist)
+[0-1]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:53192/session" with method "POST"
+[0-1] 2026-11-01T10:15:12.782Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-1]   (session not created: DevToolsActivePort file doesn't exist)
+[0-1]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:53192/session" with method "POST"
+[0-1] 2026-11-01T10:15:13.874Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-1]   (session not created: DevToolsActivePort file doesn't exist)
+[0-1]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:53192/session" with method "POST"
+[0-1] 2026-11-01T10:15:13.954Z ERROR webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-1]   (session not created: DevToolsActivePort file doesn't exist)
+[0-1]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:53192/session" with method "POST"
+[0-1] 2026-11-01T10:15:13.954Z ERROR webdriver: session not created: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-1]   (session not created: DevToolsActivePort file doesn't exist)
+[0-1]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:53192/session" with method "POST"
+[0-1]     at FetchRequest._request (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:2309:19)
+[0-1]     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[0-1]     at async startWebDriverSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1376:16)
+[0-1]     at async _WebDriver.newSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1798:41)
+[0-1]     at async remote (E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\webdriverio\build\node.js:10415:20)
+[0-1]     at async Runner._startSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:877:24)
+[0-1]     at async Runner._initSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:851:22)
+[0-1]     at async Runner.run (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:744:16)
+[0-1] 2026-11-01T10:15:13.987Z ERROR @wdio/runner: Error: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-1]   (session not created: DevToolsActivePort file doesn't exist)
+[0-1]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:53192/session" with method "POST"
+[0-1]     at startWebDriverSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1380:11)
+[0-1]     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[0-1]     at async _WebDriver.newSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1798:41)
+[0-1]     at async remote (E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\webdriverio\build\node.js:10415:20)
+[0-1]     at async Runner._startSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:877:24)
+[0-1]     at async Runner._initSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:851:22)
+[0-1]     at async Runner.run (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:744:16)
+[0-1] FAILED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/chat-workflow.e2e.ts
+2026-11-01T10:15:14.132Z WARN electron-service: ⚠️ Disk Space: Could not determine disk space
+[0-2] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/file-approval-workflow.e2e.ts
+[0-2] 2026-11-01T10:15:15.894Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-2]   (session not created: DevToolsActivePort file doesn't exist)
+[0-2]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:53203/session" with method "POST"
+[0-2] 2026-11-01T10:15:16.478Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-2]   (session not created: DevToolsActivePort file doesn't exist)
+[0-2]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:53203/session" with method "POST"
+[0-2] 2026-11-01T10:15:17.570Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-2]   (session not created: DevToolsActivePort file doesn't exist)
+[0-2]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:53203/session" with method "POST"
+[0-2] 2026-11-01T10:15:17.652Z ERROR webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-2]   (session not created: DevToolsActivePort file doesn't exist)
+[0-2]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:53203/session" with method "POST"
+[0-2] 2026-11-01T10:15:17.652Z ERROR webdriver: session not created: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-2]   (session not created: DevToolsActivePort file doesn't exist)
+[0-2]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:53203/session" with method "POST"
+[0-2]     at FetchRequest._request (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:2309:19)
+[0-2]     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[0-2]     at async startWebDriverSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1376:16)
+[0-2]     at async _WebDriver.newSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1798:41)
+[0-2]     at async remote (E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\webdriverio\build\node.js:10415:20)
+[0-2]     at async Runner._startSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:877:24)
+[0-2]     at async Runner._initSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:851:22)
+[0-2]     at async Runner.run (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:744:16)
+[0-2] 2026-11-01T10:15:17.697Z ERROR @wdio/runner: Error: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-2]   (session not created: DevToolsActivePort file doesn't exist)
+[0-2]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:53203/session" with method "POST"
+[0-2]     at startWebDriverSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1380:11)
+[0-2]     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[0-2]     at async _WebDriver.newSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1798:41)
+[0-2]     at async remote (E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\webdriverio\build\node.js:10415:20)
+[0-2]     at async Runner._startSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:877:24)
+[0-2]     at async Runner._initSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:851:22)
+[0-2]     at async Runner.run (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:744:16)
+[0-2] FAILED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/file-approval-workflow.e2e.ts
+2026-11-01T10:15:17.842Z WARN electron-service: ⚠️ Disk Space: Could not determine disk space
+[0-3] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/ipc-contract.e2e.ts
+[0-3] 2026-11-01T10:15:19.610Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-3]   (session not created: DevToolsActivePort file doesn't exist)
+[0-3]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59812/session" with method "POST"
+[0-3] 2026-11-01T10:15:20.198Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-3]   (session not created: DevToolsActivePort file doesn't exist)
+[0-3]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59812/session" with method "POST"
+[0-3] 2026-11-01T10:15:21.284Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-3]   (session not created: DevToolsActivePort file doesn't exist)
+[0-3]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59812/session" with method "POST"
+[0-3] 2026-11-01T10:15:21.363Z ERROR webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-3]   (session not created: DevToolsActivePort file doesn't exist)
+[0-3]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59812/session" with method "POST"
+[0-3] 2026-11-01T10:15:21.363Z ERROR webdriver: session not created: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-3]   (session not created: DevToolsActivePort file doesn't exist)
+[0-3]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59812/session" with method "POST"
+[0-3]     at FetchRequest._request (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:2309:19)
+[0-3]     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[0-3]     at async startWebDriverSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1376:16)
+[0-3]     at async _WebDriver.newSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1798:41)
+[0-3]     at async remote (E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\webdriverio\build\node.js:10415:20)
+[0-3]     at async Runner._startSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:877:24)
+[0-3]     at async Runner._initSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:851:22)
+[0-3]     at async Runner.run (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:744:16)
+[0-3] 2026-11-01T10:15:21.401Z ERROR @wdio/runner: Error: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-3]   (session not created: DevToolsActivePort file doesn't exist)
+[0-3]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59812/session" with method "POST"
+[0-3]     at startWebDriverSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1380:11)
+[0-3]     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[0-3]     at async _WebDriver.newSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1798:41)
+[0-3]     at async remote (E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\webdriverio\build\node.js:10415:20)
+[0-3]     at async Runner._startSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:877:24)
+[0-3]     at async Runner._initSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:851:22)
+[0-3]     at async Runner.run (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:744:16)
+[0-3] FAILED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/ipc-contract.e2e.ts
+2026-11-01T10:15:21.538Z WARN electron-service: ⚠️ Disk Space: Could not determine disk space
+[0-4] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/navigation.e2e.ts
+[0-4] 2026-11-01T10:15:23.182Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-4]   (session not created: DevToolsActivePort file doesn't exist)
+[0-4]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59828/session" with method "POST"
+[0-4] 2026-11-01T10:15:23.766Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-4]   (session not created: DevToolsActivePort file doesn't exist)
+[0-4]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59828/session" with method "POST"
+[0-4] 2026-11-01T10:15:24.852Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-4]   (session not created: DevToolsActivePort file doesn't exist)
+[0-4]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59828/session" with method "POST"
+[0-4] 2026-11-01T10:15:24.931Z ERROR webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-4]   (session not created: DevToolsActivePort file doesn't exist)
+[0-4]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59828/session" with method "POST"
+[0-4] 2026-11-01T10:15:24.931Z ERROR webdriver: session not created: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-4]   (session not created: DevToolsActivePort file doesn't exist)
+[0-4]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59828/session" with method "POST"
+[0-4]     at FetchRequest._request (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:2309:19)
+[0-4]     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[0-4]     at async startWebDriverSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1376:16)
+[0-4]     at async _WebDriver.newSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1798:41)
+[0-4]     at async remote (E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\webdriverio\build\node.js:10415:20)
+[0-4]     at async Runner._startSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:877:24)
+[0-4]     at async Runner._initSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:851:22)
+[0-4]     at async Runner.run (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:744:16)
+[0-4] 2026-11-01T10:15:24.961Z ERROR @wdio/runner: Error: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-4]   (session not created: DevToolsActivePort file doesn't exist)
+[0-4]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59828/session" with method "POST"
+[0-4]     at startWebDriverSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1380:11)
+[0-4]     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[0-4]     at async _WebDriver.newSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1798:41)
+[0-4]     at async remote (E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\webdriverio\build\node.js:10415:20)
+[0-4]     at async Runner._startSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:877:24)
+[0-4]     at async Runner._initSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:851:22)
+[0-4]     at async Runner.run (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:744:16)
+[0-4] FAILED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/navigation.e2e.ts
+2026-11-01T10:15:25.103Z WARN electron-service: ⚠️ Disk Space: Could not determine disk space
+[0-5] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/renderer-crash.e2e.ts
+[0-5] 2026-11-01T10:15:26.746Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-5]   (session not created: DevToolsActivePort file doesn't exist)
+[0-5]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59839/session" with method "POST"
+[0-5] 2026-11-01T10:15:27.337Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-5]   (session not created: DevToolsActivePort file doesn't exist)
+[0-5]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59839/session" with method "POST"
+[0-5] 2026-11-01T10:15:28.426Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-5]   (session not created: DevToolsActivePort file doesn't exist)
+[0-5]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59839/session" with method "POST"
+[0-5] 2026-11-01T10:15:28.506Z ERROR webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-5]   (session not created: DevToolsActivePort file doesn't exist)
+[0-5]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59839/session" with method "POST"
+[0-5] 2026-11-01T10:15:28.506Z ERROR webdriver: session not created: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-5]   (session not created: DevToolsActivePort file doesn't exist)
+[0-5]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59839/session" with method "POST"
+[0-5]     at FetchRequest._request (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:2309:19)
+[0-5]     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[0-5]     at async startWebDriverSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1376:16)
+[0-5]     at async _WebDriver.newSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1798:41)
+[0-5]     at async remote (E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\webdriverio\build\node.js:10415:20)
+[0-5]     at async Runner._startSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:877:24)
+[0-5]     at async Runner._initSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:851:22)
+[0-5]     at async Runner.run (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:744:16)
+[0-5] 2026-11-01T10:15:28.542Z ERROR @wdio/runner: Error: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-5]   (session not created: DevToolsActivePort file doesn't exist)
+[0-5]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59839/session" with method "POST"
+[0-5]     at startWebDriverSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1380:11)
+[0-5]     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[0-5]     at async _WebDriver.newSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1798:41)
+[0-5]     at async remote (E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\webdriverio\build\node.js:10415:20)
+[0-5]     at async Runner._startSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:877:24)
+[0-5]     at async Runner._initSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:851:22)
+[0-5]     at async Runner.run (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:744:16)
+[0-5] FAILED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/renderer-crash.e2e.ts
+2026-11-01T10:15:28.676Z WARN electron-service: ⚠️ Disk Space: Could not determine disk space
+[0-6] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/security.e2e.ts
+[0-6] 2026-11-01T10:15:30.135Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-6]   (session not created: DevToolsActivePort file doesn't exist)
+[0-6]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:58413/session" with method "POST"
+[0-6] 2026-11-01T10:15:30.720Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-6]   (session not created: DevToolsActivePort file doesn't exist)
+[0-6]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:58413/session" with method "POST"
+[0-6] 2026-11-01T10:15:31.813Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-6]   (session not created: DevToolsActivePort file doesn't exist)
+[0-6]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:58413/session" with method "POST"
+[0-6] 2026-11-01T10:15:31.893Z ERROR webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-6]   (session not created: DevToolsActivePort file doesn't exist)
+[0-6]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:58413/session" with method "POST"
+[0-6] 2026-11-01T10:15:31.893Z ERROR webdriver: session not created: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-6]   (session not created: DevToolsActivePort file doesn't exist)
+[0-6]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:58413/session" with method "POST"
+[0-6]     at FetchRequest._request (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:2309:19)
+[0-6]     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[0-6]     at async startWebDriverSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1376:16)
+[0-6]     at async _WebDriver.newSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1798:41)
+[0-6]     at async remote (E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\webdriverio\build\node.js:10415:20)
+[0-6]     at async Runner._startSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:877:24)
+[0-6]     at async Runner._initSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:851:22)
+[0-6]     at async Runner.run (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:744:16)
+[0-6] 2026-11-01T10:15:31.921Z ERROR @wdio/runner: Error: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-6]   (session not created: DevToolsActivePort file doesn't exist)
+[0-6]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:58413/session" with method "POST"
+[0-6]     at startWebDriverSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1380:11)
+[0-6]     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[0-6]     at async _WebDriver.newSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1798:41)
+[0-6]     at async remote (E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\webdriverio\build\node.js:10415:20)
+[0-6]     at async Runner._startSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:877:24)
+[0-6]     at async Runner._initSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:851:22)
+[0-6]     at async Runner.run (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:744:16)
+[0-6] FAILED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/security.e2e.ts
+2026-11-01T10:15:32.065Z WARN electron-service: ⚠️ Disk Space: Could not determine disk space
+[0-7] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/state-recovery.e2e.ts
+[0-7] 2026-11-01T10:15:33.536Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-7]   (session not created: DevToolsActivePort file doesn't exist)
+[0-7]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:58445/session" with method "POST"
+[0-7] 2026-11-01T10:15:34.113Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-7]   (session not created: DevToolsActivePort file doesn't exist)
+[0-7]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:58445/session" with method "POST"
+[0-7] 2026-11-01T10:15:35.195Z WARN webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-7]   (session not created: DevToolsActivePort file doesn't exist)
+[0-7]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:58445/session" with method "POST"
+[0-7] 2026-11-01T10:15:35.273Z ERROR webdriver: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-7]   (session not created: DevToolsActivePort file doesn't exist)
+[0-7]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:58445/session" with method "POST"
+[0-7] 2026-11-01T10:15:35.273Z ERROR webdriver: session not created: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-7]   (session not created: DevToolsActivePort file doesn't exist)
+[0-7]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:58445/session" with method "POST"
+[0-7]     at FetchRequest._request (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:2309:19)
+[0-7]     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[0-7]     at async startWebDriverSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1376:16)
+[0-7]     at async _WebDriver.newSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1798:41)
+[0-7]     at async remote (E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\webdriverio\build\node.js:10415:20)
+[0-7]     at async Runner._startSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:877:24)
+[0-7]     at async Runner._initSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:851:22)
+[0-7]     at async Runner.run (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:744:16)
+[0-7] 2026-11-01T10:15:35.313Z ERROR @wdio/runner: Error: WebDriverError: session not created: Chrome failed to start: crashed.
+[0-7]   (session not created: DevToolsActivePort file doesn't exist)
+[0-7]   (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:58445/session" with method "POST"
+[0-7]     at startWebDriverSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1380:11)
+[0-7]     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[0-7]     at async _WebDriver.newSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/webdriver/build/node.js:1798:41)
+[0-7]     at async remote (E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\webdriverio\build\node.js:10415:20)
+[0-7]     at async Runner._startSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:877:24)
+[0-7]     at async Runner._initSession (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:851:22)
+[0-7]     at async Runner.run (file:///E:/Coding/Code/Python/policyflow-ai/frontend/node_modules/@wdio/runner/build/index.js:744:16)
+[0-7] FAILED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/state-recovery.e2e.ts
+
+ "spec" Reporter:
+------------------------------------------------------------------
+[chrome 152.0.7977.78 (unknown) #0-0] Running: chrome (v152.0.7977.78) on (unknown)
+[chrome 152.0.7977.78 (unknown) #0-0]
+[chrome 152.0.7977.78 (unknown) #0-0] ✖ Failed to create a session:
+[chrome 152.0.7977.78 (unknown) #0-0] WebDriverError: session not created: Chrome failed to start: crashed.
+  (session not created: DevToolsActivePort file doesn't exist)
+  (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:54622/session" with method "POST"
+[chrome 152.0.7977.78 (unknown) #0-0]
+------------------------------------------------------------------
+[chrome 152.0.7977.78 (unknown) #0-1] Running: chrome (v152.0.7977.78) on (unknown)
+[chrome 152.0.7977.78 (unknown) #0-1]
+[chrome 152.0.7977.78 (unknown) #0-1] ✖ Failed to create a session:
+[chrome 152.0.7977.78 (unknown) #0-1] WebDriverError: session not created: Chrome failed to start: crashed.
+  (session not created: DevToolsActivePort file doesn't exist)
+  (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:53192/session" with method "POST"
+[chrome 152.0.7977.78 (unknown) #0-1]
+------------------------------------------------------------------
+[chrome 152.0.7977.78 (unknown) #0-2] Running: chrome (v152.0.7977.78) on (unknown)
+[chrome 152.0.7977.78 (unknown) #0-2]
+[chrome 152.0.7977.78 (unknown) #0-2] ✖ Failed to create a session:
+[chrome 152.0.7977.78 (unknown) #0-2] WebDriverError: session not created: Chrome failed to start: crashed.
+  (session not created: DevToolsActivePort file doesn't exist)
+  (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:53203/session" with method "POST"
+[chrome 152.0.7977.78 (unknown) #0-2]
+------------------------------------------------------------------
+[chrome 152.0.7977.78 (unknown) #0-3] Running: chrome (v152.0.7977.78) on (unknown)
+[chrome 152.0.7977.78 (unknown) #0-3]
+[chrome 152.0.7977.78 (unknown) #0-3] ✖ Failed to create a session:
+[chrome 152.0.7977.78 (unknown) #0-3] WebDriverError: session not created: Chrome failed to start: crashed.
+  (session not created: DevToolsActivePort file doesn't exist)
+  (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59812/session" with method "POST"
+[chrome 152.0.7977.78 (unknown) #0-3]
+------------------------------------------------------------------
+[chrome 152.0.7977.78 (unknown) #0-4] Running: chrome (v152.0.7977.78) on (unknown)
+[chrome 152.0.7977.78 (unknown) #0-4]
+[chrome 152.0.7977.78 (unknown) #0-4] ✖ Failed to create a session:
+[chrome 152.0.7977.78 (unknown) #0-4] WebDriverError: session not created: Chrome failed to start: crashed.
+  (session not created: DevToolsActivePort file doesn't exist)
+  (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59828/session" with method "POST"
+[chrome 152.0.7977.78 (unknown) #0-4]
+------------------------------------------------------------------
+[chrome 152.0.7977.78 (unknown) #0-5] Running: chrome (v152.0.7977.78) on (unknown)
+[chrome 152.0.7977.78 (unknown) #0-5]
+[chrome 152.0.7977.78 (unknown) #0-5] ✖ Failed to create a session:
+[chrome 152.0.7977.78 (unknown) #0-5] WebDriverError: session not created: Chrome failed to start: crashed.
+  (session not created: DevToolsActivePort file doesn't exist)
+  (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:59839/session" with method "POST"
+[chrome 152.0.7977.78 (unknown) #0-5]
+------------------------------------------------------------------
+[chrome 152.0.7977.78 (unknown) #0-6] Running: chrome (v152.0.7977.78) on (unknown)
+[chrome 152.0.7977.78 (unknown) #0-6]
+[chrome 152.0.7977.78 (unknown) #0-6] ✖ Failed to create a session:
+[chrome 152.0.7977.78 (unknown) #0-6] WebDriverError: session not created: Chrome failed to start: crashed.
+  (session not created: DevToolsActivePort file doesn't exist)
+  (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:58413/session" with method "POST"
+[chrome 152.0.7977.78 (unknown) #0-6]
+------------------------------------------------------------------
+[chrome 152.0.7977.78 (unknown) #0-7] Running: chrome (v152.0.7977.78) on (unknown)
+[chrome 152.0.7977.78 (unknown) #0-7]
+[chrome 152.0.7977.78 (unknown) #0-7] ✖ Failed to create a session:
+[chrome 152.0.7977.78 (unknown) #0-7] WebDriverError: session not created: Chrome failed to start: crashed.
+  (session not created: DevToolsActivePort file doesn't exist)
+  (The process started from chrome location E:\Coding\Code\Python\policyflow-ai\frontend\node_modules\electron\dist\electron.exe is no longer running, so ChromeDriver is assuming that Chrome has crashed.) when running "http://localhost:58445/session" with method "POST"
+[chrome 152.0.7977.78 (unknown) #0-7]
+
+
+Spec Files:	 0 passed, 8 failed, 8 total (100% completed) in 00:00:29  
+

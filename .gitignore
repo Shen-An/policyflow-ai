@@ -34,6 +34,11 @@ session.json
 # Log
 *.log
 logs/
+# ...except evidence logs under artifacts/: they are the checked-in proof that the
+# Stage 8 UI run and the acceptance / quickstart runs actually happened, so a fresh
+# clone has to be able to read them. The bare ``*.log`` rule above would silently
+# drop them from the repo (that is the "evidence hole" called out in the README).
+!artifacts/**/*.log
 
 # Runtime data
 uploads/

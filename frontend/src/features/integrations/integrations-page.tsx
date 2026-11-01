@@ -14,10 +14,11 @@ import {
   Space,
   Typography,
 } from 'antd'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { MCPServer, MCPServerInput, MCPServerUpdate } from '../../api/mcp'
 import { LoadingState } from '../../components/feedback/state-views'
-import { QuietChip, statusTone } from '../../components/ui/quiet-chip'
+import { QuietChip } from '../../components/ui/quiet-chip'
+import { statusTone } from '../../components/ui/chip-tone'
 import { confirmAction } from '../../lib/confirm'
 import { formatDateTime } from '../../lib/datetime'
 import {
@@ -235,20 +236,27 @@ function MCPServerDialog({
   const pending = create.isPending || update.isPending
   const mutationError = create.error ?? update.error
 
-  useEffect(() => {
-    if (!open) return
-    setName(server?.name ?? '')
-    setIntegrationMode(
-      server?.integrationMode === 'stdio' || server?.integrationMode === 'http'
-        ? server.integrationMode
-        : 'mock',
-    )
-    setEndpoint(server?.endpoint ?? '')
-    setCommand('')
-    setEnabled(server?.enabled ?? false)
-    setConfigText(server ? '' : '{\n  "mode": "mock"\n}')
-    setFormError('')
-  }, [open, server])
+  // Re-seed the form when the dialog opens for a different server. Adjusting state
+  // during render (instead of in an effect) keeps the first paint correct and avoids
+  // an extra render pass.
+  const formKey = `${open ? 'open' : 'closed'}:${server?.id ?? 'new'}`
+  const [seededKey, setSeededKey] = useState(formKey)
+  if (seededKey !== formKey) {
+    setSeededKey(formKey)
+    if (open) {
+      setName(server?.name ?? '')
+      setIntegrationMode(
+        server?.integrationMode === 'stdio' || server?.integrationMode === 'http'
+          ? server.integrationMode
+          : 'mock',
+      )
+      setEndpoint(server?.endpoint ?? '')
+      setCommand('')
+      setEnabled(server?.enabled ?? false)
+      setConfigText(server ? '' : '{\n  "mode": "mock"\n}')
+      setFormError('')
+    }
+  }
 
   function validateEndpoint(value: string): boolean {
     try {

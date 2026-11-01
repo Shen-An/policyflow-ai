@@ -174,15 +174,15 @@ flowchart LR
 
 | 项 | 现状 | 证据 |
 |---|---|---|
-| 后端测试 | **626 passed / 196 skipped / 1 failed**（全量，2026-10） | `artifacts/acceptance/backend/`（原始输出 + SHA-256） |
+| 后端测试 | **942 passed / 197 skipped / 0 failed**（全量，2026-10-21 05 分钟重跑） | `artifacts/acceptance/pytest-full-2026-10-21b.txt` |
 | 前端测试 | **48 文件 / 162 用例全绿**（2026-10-21 重跑） | `npm --prefix frontend run test` |
-| 契约测试 | 内部契约 22 passed + 1 xfail（已知缺口：`JobQueue.lease` 无 lane 过滤） | `tests/contract/` |
+| 契约测试 | 内部契约 **23 passed、0 xfail**（原来的 lane 过滤缺口已补：`JobService.lease(lanes=...)` + `LocalJobRunner` 透传） | `tests/contract/` |
 | 压测 profile | 2200 用户画像（1000 会话 / 1000 SSE / 200 文件+隔离）、真实并发采集、逐帧 SSE 计时 | `tests/load/`（29 passed），**但没跑过验收** |
 
 两件必须讲清楚的：
 
-- **skip ≠ pass**。那 196 个 skip 大多需要 PostgreSQL / Milvus / MinIO / Redis / RabbitMQ，依赖不在就跳过——所以必须写 skip 数，不能只报「626 passed」。
-- 那 **1 failed** 是 `test_readiness_distinguishes_unmigrated_from_unreachable`：本机 PostgreSQL 没起，本该判「环境不可达」，用例没分类对。是**测试分类缺陷，不是产品回归**，记在 `quickstart-validation.md`，没藏。
+- **skip ≠ pass**。那 197 个 skip 大多需要 PostgreSQL / Milvus / MinIO / Redis / RabbitMQ，依赖不在就跳过——所以必须写 skip 数，不能只报「942 passed」。
+- 上一版这里记的 **1 failed**（`test_readiness_distinguishes_unmigrated_from_unreachable`）已经修掉了：`require_pg_server()` helper 在 PostgreSQL 不可达时直接 skip，不再算成失败。本机 PG 没起，实测该用例 **1 skipped**，全量重跑 0 failed。
 
 ### 别信我，自己跑
 
@@ -190,12 +190,12 @@ flowchart LR
 # 后端：契约 / 评估 / 负载 / 入口一致性（本项目最核心的四块）
 python -m pytest -q tests/contract tests/eval tests/load \
                    tests/integration/test_entrypoint_conclusion_parity.py
-# 期望：全绿 + 1 xfailed；skip 数取决于你本地有没有 PG / Milvus / MinIO
+# 期望：全绿（0 failed）；skip 数取决于你本地有没有 PG / Milvus / MinIO
 
 # 前端
 npm --prefix frontend run typecheck && npm --prefix frontend run test
 
-# 全量（会跑 6 分钟，skip 会因为依赖缺失变多——这不是失败）
+# 全量（本机实测 5 分钟：942 passed / 197 skipped / 0 failed，skip 因依赖缺失变多——这不是失败）
 python -m pytest -q tests/contract tests/unit tests/integration tests/security \
                    tests/recovery tests/migration tests/reconciliation
 ```
@@ -210,7 +210,7 @@ python -m pytest -q tests/contract tests/unit tests/integration tests/security \
 
 **没验过（有代码但拿不出跑通证据）**
 
-1. **Electron 全量 E2E 现在跑不起来**。2026-10-18 那轮是**真绿**的：8 spec / 33 条用例全过（1 分 55 秒，真实 Electron 44 + Chromium 152）；之后复跑变成 **0 passed / 8 failed**，8 个 spec（含 `security.e2e.ts`）全卡在「建会话」阶段，报 `DevToolsActivePort file doesn't exist`。所以「渲染进程拿不到 token」这条边界：**历史上被 E2E 证过一次，现在没有可复跑的绿灯**，只有代码 + vitest 单测兜着。日志只证明启动失败，还没查明是环境回退还是驱动问题。
+1. **Electron 全量 E2E 在当前环境跑不起来（已定位到环境限制，不是代码回归）**。2026-10-18 那轮是**真绿**的：8 spec / 33 条用例全过（1 分 55 秒，真实 Electron 44 + Chromium 152）；之后复跑变成 **0 passed / 8 failed**，8 个 spec（含 `security.e2e.ts`）全卡在「建会话」阶段，报 `DevToolsActivePort file doesn't exist`。2026-10-21 排查到失败点在 **electron.exe 启动层**，不在 wdio / ChromeDriver / 本项目代码：直接 `electron.exe --app=dist-electron/main/index.cjs`（完全绕开 wdio）也是**立即退出、stdout/stderr 全空**，exit code `-2147483645`（`0x80000003` STATUS_BREAKPOINT）；加 `--no-sandbox --disable-gpu` 后进程能起来，但报 `Lock file can not be created: 拒绝访问 (0x5)`（Chromium 单实例 / userData 锁被拒）+ `GPU process launch failed`，随后自己退出 0。也就是当前会话环境不允许 Chromium 起 GUI 进程。顺带修掉一个真实隐患：宿主注入的 `ELECTRON_RUN_AS_NODE=1` 会让 electron.exe 退化成纯 node，wdio 配置里已经 `delete` 掉（必要但不充分——去掉它之后仍是同样的 8 failed）。所以「渲染进程拿不到 token」这条边界：**历史上被 E2E 证过一次，现在没有可复跑的绿灯**，只有代码 + vitest 单测兜着。
 2. **容量数字一个都没有**。1000 并发 held-open SSE、30 分钟 soak、200 RPS p95——profile 和判定逻辑写好了，**验收环境没跑**；本机跑出来也不代表验收环境，所以不产出结论。
 3. **真实用户可用性研究没做**：SC-010（90% 员工 5 分钟内完成核心流程）、SC-011（评分 ≥4/5）都因为「无真实被试」判 inconclusive。
 
@@ -223,7 +223,7 @@ python -m pytest -q tests/contract tests/unit tests/integration tests/security \
 
 **证据本身的坑（诚实也算到这一层）**
 
-8. `*.log` 被 `.gitignore` 忽略，所以 Stage 8 的那两份原始日志（`e2e-full.log`、`accessibility.log`）**不在仓库里**，别人 clone 只能看到 `artifacts/ui/stage8/README.md` 里的摘述。这是我已知的取证缺口，还没修。
+8. ~~`*.log` 被 `.gitignore` 忽略，Stage 8 原始日志不在仓库里~~ —— **2026-10-21 已修**。原来的 `*.log` 规则会把 `artifacts/ui/stage8/e2e-full.log`、`accessibility.log` 一起吞掉，clone 只能看到 `README.md` 的摘述。现在 `.gitignore` 补了否定规则 `!artifacts/**/*.log`，7 份证据日志已入库：`artifacts/ui/stage8/{e2e-full,accessibility}.log`、`artifacts/acceptance/quickstart-server.log`、`artifacts/load/baseline/{run,runner-console}.log`、`artifacts/pg-{start,phase9}.log`，可以和摘述互相校验。
 
 **验收总账（16 项，逐项判定在 `artifacts/acceptance/SC-001-SC-016.md`）**
 

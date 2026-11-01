@@ -25,6 +25,14 @@ const STUB_PORT = Number(process.env.POLICYFLOW_STUB_PORT ?? 59117)
 process.env.POLICYFLOW_API_BASE_URL = `http://127.0.0.1:${STUB_PORT}`
 delete process.env.ELECTRON_RENDERER_URL
 
+// Some tool shells / IDE-managed terminals export ELECTRON_RUN_AS_NODE=1 so that
+// electron.exe can double as a plain node runner. Inherited into the WebDriver
+// session it turns the app into a bare Node process: electron.exe exits immediately
+// and ChromeDriver reports "Chrome failed to start: crashed / DevToolsActivePort file
+// doesn't exist" for every single spec. The suite needs the real GUI runtime, so the
+// variable is stripped from the environment the driver hands to Electron.
+delete process.env.ELECTRON_RUN_AS_NODE
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let stub: { close: () => Promise<void>; state: any } | undefined
 

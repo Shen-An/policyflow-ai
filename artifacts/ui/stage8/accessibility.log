@@ -1,0 +1,33 @@
+
+  dist-electron\preload\index.cjs  2.3kb
+
+Done in 4ms
+
+  dist-electron\main\index.cjs  561.2kb
+
+Done in 20ms
+Electron main/preload bundled → dist-electron/
+
+Execution of 1 workers started at 2026-10-07T11:52:00.371Z
+
+[0-0] RUNNING in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/accessibility.e2e.ts
+[0-0] PASSED in chrome(152.0.7977.78) - file:///E:/Coding/Code/Python/policyflow-ai/frontend/tests/electron/accessibility.e2e.ts
+
+ "spec" Reporter:
+------------------------------------------------------------------
+[chrome 152.0.7977.78 windows #0-0] Running: chrome (v152.0.7977.78) on windows
+[chrome 152.0.7977.78 windows #0-0] Session ID: 516b468ee715f018c6d73a7345911463
+[chrome 152.0.7977.78 windows #0-0]
+[chrome 152.0.7977.78 windows #0-0] » tests\electron\accessibility.e2e.ts
+[chrome 152.0.7977.78 windows #0-0] T126 accessibility and responsive layout
+[chrome 152.0.7977.78 windows #0-0]    ✓ has no blocking axe violations on chat across small/medium/large
+[chrome 152.0.7977.78 windows #0-0]    ✓ has no blocking axe violations on the workspace surface
+[chrome 152.0.7977.78 windows #0-0]    ✓ exposes landmark semantics for the shell
+[chrome 152.0.7977.78 windows #0-0]    ✓ reaches the composer by keyboard and shows a visible focus ring
+[chrome 152.0.7977.78 windows #0-0]    ✓ keeps the sidebar and main content from overlapping, with no horizontal overflow
+[chrome 152.0.7977.78 windows #0-0]
+[chrome 152.0.7977.78 windows #0-0] 5 passing (15.2s)
+
+
+Spec Files:	 1 passed, 1 total (100% completed) in 00:00:17  
+

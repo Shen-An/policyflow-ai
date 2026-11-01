@@ -1,0 +1,2 @@
+2026-10-18 19:50:14.532 CST [42112] FATAL:  could not open directory "pg_notify": No such file or directory
+2026-10-18 19:50:14.533 CST [42112] LOG:  database system is shut down

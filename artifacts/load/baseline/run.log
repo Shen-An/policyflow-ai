@@ -1,0 +1,9 @@
+profile=smoke samples=1 status_codes=[200] failures=0 latency={'min': 27.295, 'p50': 27.295, 'max': 27.295}
+profile=load samples=3 status_codes=[200] failures=0 latency={'min': 11.636, 'p50': 12.489, 'max': 13.024}
+profile=stress samples=3 status_codes=[200] failures=0 latency={'min': 11.208, 'p50': 11.395, 'max': 11.926}
+profile=spike samples=3 status_codes=[200] failures=0 latency={'min': 10.908, 'p50': 11.239, 'max': 12.796}
+profile=soak samples=3 status_codes=[200] failures=0 latency={'min': 11.756, 'p50': 12.03, 'max': 12.342}
+profile=sse samples=1 status_codes=[200] failures=0 latency={'min': 16.048, 'p50': 16.048, 'max': 16.048}
+profile=file-workflow samples=1 status_codes=[201] failures=0 latency={'min': 20.871, 'p50': 20.871, 'max': 20.871}
+profile=saturation samples=3 status_codes=[200] failures=0 latency={'min': 11.556, 'p50': 12.278, 'max': 12.45}
+profile=tenant-isolation samples=1 status_codes=[200] failures=0 latency={'min': 11.59, 'p50': 11.59, 'max': 11.59}

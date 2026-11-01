@@ -15,12 +15,13 @@ import {
   message as staticMessage,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { Skill } from '../../api/skills'
 import type { ToolCallLog } from '../../api/tools'
 import { LoadingState } from '../../components/feedback/state-views'
-import { QuietChip, statusTone } from '../../components/ui/quiet-chip'
+import { QuietChip } from '../../components/ui/quiet-chip'
+import { statusTone } from '../../components/ui/chip-tone'
 import { confirmAction } from '../../lib/confirm'
 import { formatDateTime } from '../../lib/datetime'
 import { skillRiskLabel, toolLogStatusLabel } from '../../lib/labels'
@@ -61,17 +62,20 @@ function SkillRegistry() {
   const toggle = useSetSkillEnabledMutation()
   const [runningSkill, setRunningSkill] = useState<Skill | null>(null)
 
-  function changeStatus(skill: Skill) {
-    const enabled = !skill.enabled
-    confirmAction({
-      title: `${enabled ? '启用' : '禁用'} Skill`,
-      content: `确认${enabled ? '启用' : '禁用'} Skill“${skill.name}”吗？该操作会写入审计日志。`,
-      okText: enabled ? '启用' : '禁用',
-      okButtonProps: enabled ? undefined : { danger: true },
-      cancelText: '取消',
-      onOk: () => toggle.mutateAsync({ name: skill.name, enabled }),
-    })
-  }
+  const changeStatus = useCallback(
+    (skill: Skill) => {
+      const enabled = !skill.enabled
+      confirmAction({
+        title: `${enabled ? '启用' : '禁用'} Skill`,
+        content: `确认${enabled ? '启用' : '禁用'} Skill“${skill.name}”吗？该操作会写入审计日志。`,
+        okText: enabled ? '启用' : '禁用',
+        okButtonProps: enabled ? undefined : { danger: true },
+        cancelText: '取消',
+        onOk: () => toggle.mutateAsync({ name: skill.name, enabled }),
+      })
+    },
+    [toggle],
+  )
 
   const columns: ColumnsType<Skill> = useMemo(
     () => [
@@ -164,7 +168,7 @@ function SkillRegistry() {
         ),
       },
     ],
-    [toggle.isPending],
+    [changeStatus, toggle.isPending],
   )
 
   return (

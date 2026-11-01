@@ -22,6 +22,8 @@ tree / preview / version / diff / target / status。
 
 a11y 单独跑日志见 `accessibility.log`。
 
+> 2026-10-21 补：这两个原始日志此前被 `.gitignore` 的 `*.log` 吞掉、不在仓库里（clone 只能看到本文件的摘述）。`.gitignore` 已补 `!artifacts/**/*.log`，`e2e-full.log` 与 `accessibility.log` 现在随仓库一起分发，可以和上面的表逐条对照。
+
 ## 窗口 + a11y 证据
 - axe 在 1024×680 / 1280×800 / 1680×1050 三档窗口对 chat 与 workspace 真实扫描，0 阻断项。
 - 窗口布局断言：三档下侧栏不遮挡主内容、无横向溢出。
@@ -29,9 +31,9 @@ a11y 单独跑日志见 `accessibility.log`。
 
 ## 四项工程校验（不回归）
 - `npm --prefix frontend run typecheck` → 绿
-- `npm --prefix frontend run lint` → 13 problems（12 err + 1 warn，全部为 Phase 1–6 既有债 `styles/theme.tsx`、`features/skills/skills-page.tsx`；本轮新代码 0 lint 错）
-- `npm --prefix frontend run test`（vitest）→ 45 文件 / 150 passed（含新增 `design-system/states.test.tsx` 5 条）
-- `npm --prefix frontend run test:electron:e2e` → 8/8 spec
+- `npm --prefix frontend run lint` → **0 problem**（2026-10-21 复核；本文件最初记的「13 problems / 12 err + 1 warn」是 Phase 1–6 既有债，已在当天清零：`buttonVariants` 拆去 `components/ui/button-variants.ts`、`statusTone`/`ChipTone` 拆去 `components/ui/chip-tone.ts`、`useResolvedColorMode`/`useHasMounted` 拆去 `styles/use-color-mode.ts`、effect 内 setState 改渲染期调整或 `useSyncExternalStore`）
+- `npm --prefix frontend run test`（vitest）→ **48 文件 / 162 passed**（2026-10-21 复核；本文件最初记的「45 文件 / 150 passed」已过期）
+- `npm --prefix frontend run test:electron:e2e` → **复跑 8 failed / 0 passed**（2026-10-21）：下面的 8/8 是 **2026-10-18 的历史真绿记录**，当前宿主环境里 Chromium 起不来（`electron.exe` 直接启动即 0x80000003，与 wdio / 本项目代码无关，详见仓库根 README「没做/没验过」第 1 条）
 
 ## 诚实边界
 见 `usability-study.md`：目标员工可用性研究（SC-010–SC-012）因本机无真实被试，标 `[~]`。

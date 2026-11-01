@@ -1,0 +1,226 @@
+{"timestamp": "2026-09-13T10:18:51.193627+00:00", "level": "INFO", "logger": "backend.app.db.init_db", "message": "Database seed completed", "seed_summary": {"roles_created": 3, "departments_created": 5, "knowledge_bases_created": 7, "permissions_created": 14, "users_created": 1, "model_providers_created": 0, "skills_created": 7, "tools_created": 10}}
+{"timestamp": "2026-09-13T10:18:51.193627+00:00", "level": "INFO", "logger": "backend.app.main", "message": "Application started", "environment": "development", "database_seed": {"roles_created": 3, "departments_created": 5, "knowledge_bases_created": 7, "permissions_created": 14, "users_created": 1, "model_providers_created": 0, "skills_created": 7, "tools_created": 10}}
+{"timestamp": "2026-09-13T10:18:51.243012+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "440e64bf-8792-4d89-ab47-54027ad9de9a", "request_method": "POST", "request_path": "/api/auth/login", "status_code": 200, "duration_ms": 47.93}
+{"timestamp": "2026-09-13T10:18:51.243999+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/auth/login \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.284738+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "f7772923-d445-4e97-ac3b-2d826a30cf1f", "request_method": "GET", "request_path": "/api/knowledge-bases", "status_code": 200, "duration_ms": 39.96}
+{"timestamp": "2026-09-13T10:18:51.285738+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: GET http://testserver/api/knowledge-bases \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.294739+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "cf9bc59d-d941-4fbc-86a9-99b4b59dfbdd", "request_method": "GET", "request_path": "/api/departments", "status_code": 200, "duration_ms": 8.17}
+{"timestamp": "2026-09-13T10:18:51.295738+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: GET http://testserver/api/departments \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.357450+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "c5d7ce42-a8d9-4504-9a34-ab1460cfe311", "request_method": "POST", "request_path": "/api/users", "status_code": 201, "duration_ms": 60.52}
+{"timestamp": "2026-09-13T10:18:51.358449+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/users \"HTTP/1.1 201 Created\""}
+{"timestamp": "2026-09-13T10:18:51.399918+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "e6d85f52-b934-4ea6-a723-cec603d40b6a", "request_method": "POST", "request_path": "/api/users", "status_code": 201, "duration_ms": 41.08}
+{"timestamp": "2026-09-13T10:18:51.401634+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/users \"HTTP/1.1 201 Created\""}
+{"timestamp": "2026-09-13T10:18:51.441701+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "78cc290e-ddaa-4aa6-9143-be87ddb32d43", "request_method": "POST", "request_path": "/api/auth/login", "status_code": 200, "duration_ms": 39.52}
+{"timestamp": "2026-09-13T10:18:51.442701+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/auth/login \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.470456+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "c25b2145-5a81-4c59-9666-18fc7a430faf", "request_method": "POST", "request_path": "/api/chat", "status_code": 200, "duration_ms": 25.72}
+{"timestamp": "2026-09-13T10:18:51.471449+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.484031+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "b89cf59c-49f9-46b5-81a1-87588f976f4e", "request_method": "POST", "request_path": "/api/chat", "status_code": 200, "duration_ms": 10.82}
+{"timestamp": "2026-09-13T10:18:51.484031+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.496646+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "25791a88-6621-4841-b10a-bad083005bbf", "request_method": "POST", "request_path": "/api/chat", "status_code": 200, "duration_ms": 11.42}
+{"timestamp": "2026-09-13T10:18:51.497647+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.508648+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "6ea8b0a3-3982-4f44-92da-9465e1c7f116", "request_method": "POST", "request_path": "/api/chat", "status_code": 200, "duration_ms": 10.08}
+{"timestamp": "2026-09-13T10:18:51.509647+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.520646+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "93676ad6-57ed-415e-9bb4-360d24555b3d", "request_method": "POST", "request_path": "/api/chat", "status_code": 200, "duration_ms": 9.9}
+{"timestamp": "2026-09-13T10:18:51.521646+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.532646+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "7bd98d2d-966a-4bbf-a937-81c83ffe7325", "request_method": "POST", "request_path": "/api/chat", "status_code": 200, "duration_ms": 10.17}
+{"timestamp": "2026-09-13T10:18:51.533648+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.543647+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "2ab608d3-ad5a-4c4e-a2c1-eda2dbf3f1eb", "request_method": "POST", "request_path": "/api/chat", "status_code": 200, "duration_ms": 9.71}
+{"timestamp": "2026-09-13T10:18:51.544648+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.555654+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "45dfd1a1-31f5-4d4d-9a1e-611dff2ff232", "request_method": "POST", "request_path": "/api/chat", "status_code": 200, "duration_ms": 9.38}
+{"timestamp": "2026-09-13T10:18:51.556653+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.566658+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "49108ad0-5242-4078-98ad-1d99d2ebf3ba", "request_method": "POST", "request_path": "/api/chat", "status_code": 200, "duration_ms": 9.71}
+{"timestamp": "2026-09-13T10:18:51.567657+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.579911+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "093473ba-fcb4-49b1-9a9a-913d354637f6", "request_method": "POST", "request_path": "/api/chat", "status_code": 200, "duration_ms": 11.13}
+{"timestamp": "2026-09-13T10:18:51.580910+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.592911+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "156bbadd-8bd6-4060-90b8-2071b33b84ce", "request_method": "POST", "request_path": "/api/chat", "status_code": 200, "duration_ms": 10.59}
+{"timestamp": "2026-09-13T10:18:51.593912+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.604911+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "c7de40de-1ea7-4fee-a180-a2a28ee6621d", "request_method": "POST", "request_path": "/api/chat", "status_code": 200, "duration_ms": 10.05}
+{"timestamp": "2026-09-13T10:18:51.605910+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.616911+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "9a512c70-2e24-4b39-b47d-8ca4b95c542b", "request_method": "POST", "request_path": "/api/chat", "status_code": 200, "duration_ms": 10.44}
+{"timestamp": "2026-09-13T10:18:51.617910+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.621911+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "f3b02ebe-163a-4c8a-b7c8-99fe9fbd91f8", "request_method": "POST", "request_path": "/api/chat/stream", "status_code": 200, "duration_ms": 2.63}
+{"timestamp": "2026-09-13T10:18:51.633911+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/chat/stream \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.643910+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "c434176b-87e6-41cb-9b50-c0fff2e9b8eb", "request_method": "POST", "request_path": "/api/knowledge-bases/dc8ca783-ba69-43b0-9eae-5eb9fcc7e366/documents", "status_code": 201, "duration_ms": 8.22}
+{"timestamp": "2026-09-13T10:18:51.650910+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/knowledge-bases/dc8ca783-ba69-43b0-9eae-5eb9fcc7e366/documents \"HTTP/1.1 201 Created\""}
+{"timestamp": "2026-09-13T10:18:51.654909+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "39f9fc26-f609-42b5-ad92-c0207cae50cb", "request_method": "GET", "request_path": "/api/documents/4478ef49-247e-4670-96a1-4648339c8956/status", "status_code": 200, "duration_ms": 3.71}
+{"timestamp": "2026-09-13T10:18:51.655909+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: GET http://testserver/api/documents/4478ef49-247e-4670-96a1-4648339c8956/status \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.668915+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "9bcca5f6-d4cd-42e8-8f05-ba4cc16c2f5a", "request_method": "POST", "request_path": "/api/chat", "status_code": 200, "duration_ms": 10.53}
+{"timestamp": "2026-09-13T10:18:51.668915+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.680425+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "22b117b0-fd1a-409c-b792-a4a17eacbb44", "request_method": "POST", "request_path": "/api/chat", "status_code": 200, "duration_ms": 10.01}
+{"timestamp": "2026-09-13T10:18:51.680425+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.691937+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "3f32f974-d5a0-47b1-9cc7-cfa539def4a9", "request_method": "POST", "request_path": "/api/chat", "status_code": 200, "duration_ms": 10.85}
+{"timestamp": "2026-09-13T10:18:51.692936+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: POST http://testserver/api/chat \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.701721+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "165cd1e6-cb52-4097-8447-06a24d7e4765", "request_method": "GET", "request_path": "/api/knowledge-bases", "status_code": 200, "duration_ms": 6.43}
+{"timestamp": "2026-09-13T10:18:51.701721+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: GET http://testserver/api/knowledge-bases \"HTTP/1.1 200 OK\""}
+{"timestamp": "2026-09-13T10:18:51.704721+00:00", "level": "WARNING", "logger": "backend.app.core.exceptions", "message": "Application request failed", "request_id": "aa6b3f8d-c2fa-4f4f-a57c-319bcd255db7", "request_path": "/api/knowledge-bases/449a8555-9f2a-4de8-988b-c618741c02f8", "request_method": "GET", "error_code": "KB_ACCESS_DENIED", "status_code": 403}
+{"timestamp": "2026-09-13T10:18:51.705722+00:00", "level": "INFO", "logger": "backend.app.main", "message": "HTTP request completed", "request_id": "aa6b3f8d-c2fa-4f4f-a57c-319bcd255db7", "request_method": "GET", "request_path": "/api/knowledge-bases/449a8555-9f2a-4de8-988b-c618741c02f8", "status_code": 403, "duration_ms": 2.76}
+{"timestamp": "2026-09-13T10:18:51.705722+00:00", "level": "INFO", "logger": "httpx2", "message": "HTTP Request: GET http://testserver/api/knowledge-bases/449a8555-9f2a-4de8-988b-c618741c02f8 \"HTTP/1.1 403 Forbidden\""}
+{"timestamp": "2026-09-13T10:18:51.714491+00:00", "level": "INFO", "logger": "backend.app.main", "message": "Application stopped"}
+{
+  "artifact_root": "E:\\Coding\\Code\\Python\\policyflow-ai\\artifacts\\load\\baseline",
+  "raw_artifact_count": 40,
+  "profiles": [
+    {
+      "profile": "smoke",
+      "samples": 1,
+      "status_codes": [
+        200
+      ],
+      "failures": 0,
+      "status_counts": {
+        "200": 1
+      },
+      "latency_ms": {
+        "min": 27.295,
+        "p50": 27.295,
+        "max": 27.295
+      },
+      "isolation_pass": true,
+      "sse_event_count": null
+    },
+    {
+      "profile": "load",
+      "samples": 3,
+      "status_codes": [
+        200
+      ],
+      "failures": 0,
+      "status_counts": {
+        "200": 3
+      },
+      "latency_ms": {
+        "min": 11.636,
+        "p50": 12.489,
+        "max": 13.024
+      },
+      "isolation_pass": true,
+      "sse_event_count": null
+    },
+    {
+      "profile": "stress",
+      "samples": 3,
+      "status_codes": [
+        200
+      ],
+      "failures": 0,
+      "status_counts": {
+        "200": 3
+      },
+      "latency_ms": {
+        "min": 11.208,
+        "p50": 11.395,
+        "max": 11.926
+      },
+      "isolation_pass": true,
+      "sse_event_count": null
+    },
+    {
+      "profile": "spike",
+      "samples": 3,
+      "status_codes": [
+        200
+      ],
+      "failures": 0,
+      "status_counts": {
+        "200": 3
+      },
+      "latency_ms": {
+        "min": 10.908,
+        "p50": 11.239,
+        "max": 12.796
+      },
+      "isolation_pass": true,
+      "sse_event_count": null
+    },
+    {
+      "profile": "soak",
+      "samples": 3,
+      "status_codes": [
+        200
+      ],
+      "failures": 0,
+      "status_counts": {
+        "200": 3
+      },
+      "latency_ms": {
+        "min": 11.756,
+        "p50": 12.03,
+        "max": 12.342
+      },
+      "isolation_pass": true,
+      "sse_event_count": null
+    },
+    {
+      "profile": "sse",
+      "samples": 1,
+      "status_codes": [
+        200
+      ],
+      "failures": 0,
+      "status_counts": {
+        "200": 1
+      },
+      "latency_ms": {
+        "min": 16.048,
+        "p50": 16.048,
+        "max": 16.048
+      },
+      "isolation_pass": true,
+      "sse_event_count": 25
+    },
+    {
+      "profile": "file-workflow",
+      "samples": 1,
+      "status_codes": [
+        201
+      ],
+      "failures": 0,
+      "status_counts": {
+        "201": 1
+      },
+      "latency_ms": {
+        "min": 20.871,
+        "p50": 20.871,
+        "max": 20.871
+      },
+      "isolation_pass": true,
+      "sse_event_count": null
+    },
+    {
+      "profile": "saturation",
+      "samples": 3,
+      "status_codes": [
+        200
+      ],
+      "failures": 0,
+      "status_counts": {
+        "200": 3
+      },
+      "latency_ms": {
+        "min": 11.556,
+        "p50": 12.278,
+        "max": 12.45
+      },
+      "isolation_pass": true,
+      "sse_event_count": null
+    },
+    {
+      "profile": "tenant-isolation",
+      "samples": 1,
+      "status_codes": [
+        200
+      ],
+      "failures": 0,
+      "status_counts": {
+        "200": 1
+      },
+      "latency_ms": {
+        "min": 11.59,
+        "p50": 11.59,
+        "max": 11.59
+      },
+      "isolation_pass": true,
+      "sse_event_count": null
+    }
+  ]
+}
