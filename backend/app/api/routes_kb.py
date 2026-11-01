@@ -14,6 +14,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from starlette.concurrency import run_in_threadpool
 
 from backend.app.api.deps import CurrentUser, SessionDep
 from backend.app.core.permissions import require_roles
@@ -200,7 +201,14 @@ async def post_document_index(
     user: CurrentUser,
     session: SessionDep,
 ) -> IndexJobResponse:
-    response = create_index_job(session, user, document_id, _client_ip(request))
+    # ``create_index_job`` is still a synchronous service (it writes the
+    # RagIndexJob, flips the document to pending, records the audit row and
+    # commits), so it must not run on the event-loop thread: the commit is real
+    # database I/O and parks every other request, including open chat SSE
+    # streams, for its duration.
+    response = await run_in_threadpool(
+        create_index_job, session, user, document_id, _client_ip(request)
+    )
     await submit_document_index(
         app=request.app,
         background_tasks=background_tasks,

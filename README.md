@@ -184,14 +184,14 @@ flowchart LR
 
 | 项 | 现状 | 证据 |
 |---|---|---|
-| 后端测试 | **942 passed / 197 skipped / 0 failed**（全量，2026-10-21 05 分钟重跑） | `artifacts/acceptance/pytest-full-2026-10-21b.txt` |
+| 后端测试 | **961 passed / 197 skipped / 0 failed**（全量，2026-11-01 重跑，约 6 分钟） | `artifacts/acceptance/pytest-full-2026-11-01-kboffload.txt` |
 | 前端测试 | **48 文件 / 162 用例全绿**（2026-10-21 重跑） | `npm --prefix frontend run test` |
 | 契约测试 | 内部契约 **23 passed、0 xfail**（原来的 lane 过滤缺口已补：`JobService.lease(lanes=...)` + `LocalJobRunner` 透传） | `tests/contract/` |
 | 压测 profile | 2200 用户画像（1000 会话 / 1000 SSE / 200 文件+隔离）、真实并发采集、逐帧 SSE 计时 | `tests/load/`（29 passed），**但没跑过验收** |
 
 两件必须讲清楚的：
 
-- **skip ≠ pass**。那 197 个 skip 大多需要 PostgreSQL / Milvus / MinIO / Redis / RabbitMQ，依赖不在就跳过——所以必须写 skip 数，不能只报「942 passed」。
+- **skip ≠ pass**。那 197 个 skip 大多需要 PostgreSQL / Milvus / MinIO / Redis / RabbitMQ，依赖不在就跳过——所以必须写 skip 数，不能只报「961 passed」。
 - 上一版这里记的 **1 failed**（`test_readiness_distinguishes_unmigrated_from_unreachable`）已经修掉了：`require_pg_server()` helper 在 PostgreSQL 不可达时直接 skip，不再算成失败。本机 PG 没起，实测该用例 **1 skipped**，全量重跑 0 failed。
 
 ### 别信我，自己跑
@@ -205,7 +205,7 @@ python -m pytest -q tests/contract tests/eval tests/load \
 # 前端
 npm --prefix frontend run typecheck && npm --prefix frontend run test
 
-# 全量（本机实测 5 分钟：942 passed / 197 skipped / 0 failed，skip 因依赖缺失变多——这不是失败）
+# 全量（本机实测约 6 分钟：961 passed / 197 skipped / 0 failed，skip 因依赖缺失变多——这不是失败）
 python -m pytest -q tests/contract tests/unit tests/integration tests/security \
                    tests/recovery tests/migration tests/reconciliation
 ```
@@ -245,7 +245,7 @@ python -m pytest -q tests/contract tests/unit tests/integration tests/security \
 
 **换句话说：7/16 有通过结论**（2026-11-01 SC-012 从 partial 升 pass）。功能能跑、核心安全性有测试，但容量、可用性、桌面整机流程这三块目前是空的。
 
-**2026-10-21 这轮修掉的（每条都能在仓库里翻到证据）**
+**2026-10-21 → 11-01 这几轮修掉的（每条都能在仓库里翻到证据）**
 
 | 修了什么 | 证据 | commit |
 |---|---|---|
@@ -260,6 +260,7 @@ python -m pytest -q tests/contract tests/unit tests/integration tests/security \
 | **T053：Chat+Eval 与文件/审批仍是两套编排** | 抽出 `graph/state.py`（`ChatTurnState`）+ `graph/nodes.py` 共享节点（route/tot 真体搬迁，execute 是薄适配）+ `graph/shadow.py` 影子对比（`GRAPH_SHADOW_MODE` 默认关、不切流量、不写库）；全量 **950 passed / 197 skipped / 0 failed**；**T053 仍 `[~]`**（`_execute_plan` ~550 行编排未搬） | 本次提交 |
 | **f0–f6 十二条 E2E 全是陈旧定位器**（应用已改 `createHashRouter`，spec 还用路径导航 + 旧文案 + strict-mode 多命中） | 七个 spec 按真实 DOM 重写定位（`#/` 哈希路由、antd `Modal.confirm`、本地化标签、`.page-toolbar` 作用域），`tsc -b` 0 / `eslint .` 0，全量 **19 passed** | 本次提交 |
 | **移动端没有导航抽屉（f1 的键盘可达契约一直是红的，属真产品缺口不是测试陈旧）** | `frontend/src/components/layout/app-shell.tsx` 加 `打开导航` 抽屉（`aria-expanded` + `aria-controls` + Escape 关闭 + 复用同一份 `nav[aria-label="主导航"]`），`@media (max-width: 899px)` 隐藏 rail；f1 五条全绿 | 本次提交 |
+| **T035：文档重建索引走的是同步 service（`create_index_job` 读库、置 pending、记审计、`commit()` 全在事件循环线程上）**——会把包括已打开的 chat SSE 流在内的所有请求停住 | `routes_kb.py` 的 `post_document_index` 改走 `run_in_threadpool`；新增 `tests/contract/test_kb_index_route_offload.py` 2 passed（把调用 revert 回内联即 1 failed，证明用例真钉住修复）；`knowledge_base_service.py` 一行未动，**T035 仍 `[~]`**；全量 **961 passed / 197 skipped / 0 failed** | 本次提交 |
 
 一处必须说清的口径：**Playwright 全量套件现在是全绿**（`npx playwright test` → **19 passed**，1.3 分钟，日志 `artifacts/acceptance/e2e-full-2026-11-01e.txt`）。这一轮不是靠放宽断言做到的：f0–f6 十二条是把陈旧定位器按真实 DOM 重写（`#/` 哈希路由、antd `Modal.confirm`、本地化标签、`.page-toolbar` 作用域），f1 的移动端键盘契约则是**真的把抽屉实现出来**（`打开导航` + `aria-expanded` + Escape + 复用同一份 `nav[aria-label="主导航"]`）。
 

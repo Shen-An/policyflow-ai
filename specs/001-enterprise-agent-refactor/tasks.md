@@ -74,7 +74,7 @@ description: "企业级智能体重构的可执行实施任务清单"
 - [X] T033 在 `backend/app/api/deps.py` 中接入 principal、async Unit of Work 与 fresh authorization 依赖，并禁止路由从 body/query 接受 tenant/user 身份
 - [X] T034 在 `backend/app/main.py` 中接入 async lifespan、v2 router、health/readiness 与 OTel，移除 correctness 对进程锁、队列、缓存和 startup migration 的依赖
 - [~] T035 将 `backend/app/services/memory_service.py`、`backend/app/services/knowledge_base_service.py` 和 `backend/app/services/eval_service.py` 的权威读写迁移到 tenant-aware async repository，并保持四层记忆非权威与现有 Eval 语义（依赖 T027、T033）
-  - **`[~]` = 部分完成，勿读作全绿。** 2026-09-19 只做了 `memory_service` 子范围（用户明确选择「memory 先做全+验证」）；`eval_service` 与 `knowledge_base_service`（剩余 6 处核对）**尚未迁移**。2026-10-21 补了 eval 侧的**线程池切片**（`routes_eval.py` 的 3 处同步调用改走 `run_in_threadpool`，`tests/contract/test_eval_routes_offload.py` 2 passed），但 `eval_service.py` 本身仍是同步 Session、**未迁到 async repository**，因此任务行仍为 `[~]`。三文件全部迁完前不得打 `[X]`。见下「T035 memory_service 子范围落地」与「T035 eval 侧最小切片」。
+  - **`[~]` = 部分完成，勿读作全绿。** 2026-09-19 只做了 `memory_service` 子范围（用户明确选择「memory 先做全+验证」）；`eval_service` 与 `knowledge_base_service`（剩余 6 处核对）**尚未迁移**。2026-10-21 补了 eval 侧的**线程池切片**（`routes_eval.py` 的 3 处同步调用改走 `run_in_threadpool`，`tests/contract/test_eval_routes_offload.py` 2 passed），2026-11-01 又补了 KB 侧的同类切片（`routes_kb.py:196` 的 `post_document_index` 把同步 `create_index_job` 交给 `run_in_threadpool`，`tests/contract/test_kb_index_route_offload.py` 2 passed），但 `eval_service.py`、`knowledge_base_service.py` 本身**仍是同步 Session、未迁到 async repository**，因此任务行仍为 `[~]`。三文件全部迁完前不得打 `[X]`。见下「T035 memory_service 子范围落地」与「T035 eval 侧最小切片」。
   - **2026-10-21 复核回应（R41）**：`eval_service` 已不是“0 处租户感知”（该测量已过期）。本轮修的是**跨租户泄露面**：`create_eval_case` / `list_eval_cases` / `list_retrieval_items` 的 `tenant_id` 由可选改为 keyword-only 必填，空值抛 `TENANT_REQUIRED`（403）——此前 `list_eval_cases(session)` 不传租户即**无 WHERE 子句**，会枚举所有租户。**仍未做**：两文件的同步 `Session` → tenant-aware async repository 迁移。证据：`pytest tests -k "eval or tenant or isolation"` → 101 passed / 34 skipped。详见 `review-fixes-2026-10-21.md` §4。
 
 **T035 开工前的暴露面测量（2026-09-15，尚未开始实现）**
@@ -196,7 +196,27 @@ description: "企业级智能体重构的可执行实施任务清单"
 
 为了让「`[~]` 还差什么」可复现而不是凭印象，加了只读扫描脚本 `scripts/_scan_async_routes.py`：遍历 `backend/app/api/routes_*.py`，对每个 `async def` 体内找**未被 `await` / 未包 `run_in_threadpool`**、且名字形如 `get_/list_/create_/delete_/update_/publish_/import_/export_/ensure_/require_/resolve_/seed_/cleanup_/build_/compute_/index_/upsert_/purge_*` 的调用。
 
-实测（21 个 `routes_*.py`）：**只有 1 条命中，且是正则误报**——`backend/app/api/routes_admin.py:102` 的 `return await _admin_service(request).list_roles(principal)`（调用本身已 `await`，正则只抓到了方法名）。→ 结论：**async 端点这一层已经没有会阻塞事件循环的同步 service 内联调用**。
+实测（21 个 `routes_*.py`）：只有 **1 条正则命中**——`backend/app/api/routes_admin.py:102` 的 `return await _admin_service(request).list_roles(principal)`（调用本身已 `await`，正则只抓到了方法名），是误报。
+
+**但这份扫描并不足以宣布「这一层干净」——它漏掉了真缺陷。** 复核 `backend/app/api/routes_kb.py` 时发现该文件 262 行里只有 2 个 `async def`：`post_document`（`:148`，体内 `await upload_document(...)` 与 `await submit_document_index(...)` 都已是 async，无阻塞）与 `post_document_index`（`:196`）；其余 20 个端点都是同步 `def`（由 Starlette 线程池执行，不占事件循环）。而 `post_document_index` 里原来是**直接同步调用**：
+
+```python
+response = create_index_job(session, user, document_id, _client_ip(request))
+```
+
+`backend/app/services/document_service.py:386` 的 `create_index_job(session, user, document_id, ip_address)` 是同步 service：读文档与知识库、`require_knowledge_base_permission`、`session.add(job)`、`record_audit(...)`、**`session.commit()` + `session.refresh(job)`**。也就是说它在事件循环线程上做真数据库写并提交，提交期间会把**所有**请求（包括已打开的 chat SSE 流）一起停住。这与 eval 侧那三处是同一类缺陷，只是扫描正则漏了它（名字是 `create_index_job`，落在 `create_` 前缀、但扫描只报了 `routes_admin.py:102` 那一处）。
+
+已修（`backend/app/api/routes_kb.py`，+9/−1）：
+
+```python
+response = await run_in_threadpool(
+    create_index_job, session, user, document_id, _client_ip(request)
+)
+```
+
+并加了 `from starlette.concurrency import run_in_threadpool`。回归锚点 `tests/contract/test_kb_index_route_offload.py`（2 passed，用 `threading.get_ident()` 断言 service 与 async 后续不在同一线程；可证伪：把改动还原成内联调用后该用例 1 failed / 1 passed，重新应用后 2 passed）。
+
+→ 修正后的结论：**修完 routes_kb 这条之后**，async 端点这一层已不存在会阻塞事件循环的同步 service 内联调用；但**不能**把「扫描脚本 0 命中」当作这条结论的证据，脚本的正则只覆盖了部分命名形态。
 
 因此 T035 剩下的全部是**服务层换实现**（同步 `Session` → tenant-aware async repository，牵动 `eval_service.py` 约 25 个入口与 `knowledge_base_service.py`），属需要完整预算的重构决策，不是可机械修补的缺陷；任务行继续保持 `[~]`。
 
@@ -1010,6 +1030,7 @@ Phase 2 status: T033/T034/T036 complete; **T035 部分完成**（`memory_service
 
 - **前端 lint 债清零**：`frontend` 从 12 error + 1 warning → **0 problem**（`buttonVariants` 拆到 `components/ui/button-variants.ts`、`ChipTone`/`statusTone` 拆到 `components/ui/chip-tone.ts`、新增 `styles/use-color-mode.ts` 用 `useSyncExternalStore` 替代 effect 内 setState、integrations/chat 的表单与会话重置改「渲染期调整」、PlanStepRow/PlanWaveGroup 的 `<details>` 改受控 `open`）。`tsc -b` 0 error，`vitest run` **48 文件 / 162 passed**。
 - **契约缺口补齐（T151）**：`JobService.lease(..., lanes: Sequence[str] | None = None)` 在候选查询上加 `DurableJob.priority_lane.in_(tuple(lanes))`（`None` = 旧行为，显式空序列 = 该 worker 不服务任何 lane），`LocalJobRunner(lanes=...)` 透传 `drain_once()`；strict xfail 删除，`tests/contract` **23 passed、0 xfailed**。
+- **T035 KB 侧最小切片（2026-11-01）**：`routes_kb.py` 262 行里只有 2 个 `async def`，其中 `post_document_index`（`:196`）同步调用 `create_index_job`（`document_service.py:386`，会 `session.commit()`），在事件循环线程上做真 I/O，提交期间连已打开的 chat SSE 流一起停住 → 改为 `await run_in_threadpool(create_index_job, ...)`；回归锚点 `tests/contract/test_kb_index_route_offload.py`（2 passed，线程 ident 断言 + 可证伪实验：还原内联调用后 1 failed/1 passed）。`knowledge_base_service.py` 一行未动，故 T035 仍 `[~]`。
 - **T035 eval 侧最小切片**：先取证（`routes_eval.py` 14 个端点里只有 4 个 `async def`，其余同步 `def` 由 Starlette 线程池执行并不阻塞事件循环），再只改真正跑在事件循环线程上的三处同步 service 调用（`seed_enterprise_eval_dataset`、`create_eval_run`、`pending_index_job_id` 推导）→ `run_in_threadpool`；`eval_service.py` 一行未动，故 T035 仍 `[~]`。回归锚点 `tests/contract/test_eval_routes_offload.py`（2 passed，用线程 ident 断言可证伪）。
 - **T152 双门 preflight**：`scripts/t152_legacy_column_consumers.py` 改为分类版并拆两门——`columns_gate`（`draft_type`/`related_sources`/`source_question` 是否仍被读）与 `path_gate`（Draft 模型/drafts 表是否仍被引用），实测 `legacy_column_consumers=1`（仅 `services/draft_service.py:87` 的 `Draft.draft_type` 过滤）、`legacy_path_consumers=43`，两门均 false，报告 `artifacts/acceptance/t152-consumer-report-2026-10-21.md`。**结论：T152 卡的不是列级 contract，而是 T159/T160 的整模型退场。**
 - **新发现的真 bug（已修）：种子角色 `actions` 恒为空 → 管理面 403**。`ROLE_SEEDS` 只有 code/name/description，`init_db` 从不写 `Role.actions`，而 principal 的 scopes 是请求时从 `role.actions` 现算（`backend/app/api/deps.py:178`），于是**任何全新种子安装上** `/api/v2/admin/*` 对 sys_admin 也一律 403（`AUTH_MISSING_SCOPE`）——三个新 admin 页端到端不可用。修法：`ROLE_SEEDS` 携带 actions（employee `read`；kb_admin `read/edit/publish`；sys_admin 含 `admin` 等 7 项，**刻意不含 `cross_tenant_admin`**——跨租户读取仍是显式单独授予的能力，`/api/v2/admin/capacity` 对种子 `sys_admin` 保持 403；2026-11-01 的 admin E2E 契约用例把这条钉住了），`seed_initial_data` 对「actions 为空」的已有角色**只回填一次**（`SeedSummary.roles_repaired` 计数），刻意收窄过的角色不动。回归：`tests/test_role_seed_actions.py`（3）覆盖「声明即生效 / 空则回填 / 不覆盖人工收窄」；`pytest tests/test_role_seed_actions.py tests/test_phase0.py tests/security tests/integration/test_admin_capacity.py -q` → **96 passed, 23 skipped**。
