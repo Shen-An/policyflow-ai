@@ -2391,3 +2391,25 @@ a.ws-activity__row:hover {
     animation: none !important;
   }
 }
+
+/* Mobile navigation drawer (AppShell).
+   Below the 900px breakpoint the static rail is hidden and the header exposes
+   a keyboard-dismissible drawer trigger, matching the e2e contract in
+   frontend/e2e/f1-auth.spec.ts ('mobile AppShell drawer is keyboard dismissible'). */
+.ds-shell-mobile-trigger {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .ds-shell-sidebar {
+    display: none !important;
+  }
+
+  .ds-shell-collapse {
+    display: none !important;
+  }
+
+  .ds-shell-mobile-trigger {
+    display: grid;
+  }
+}

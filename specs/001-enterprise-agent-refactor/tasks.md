@@ -1016,3 +1016,18 @@ Phase 2 status: T033/T034/T036 complete; **T035 部分完成**（`memory_service
 - **e2e 基础设施**：`frontend/e2e/global-setup.ts` 新增 `POLICYFLOW_PYTHON` 覆盖项——PATH 上的 `python.exe` 常是没装项目依赖的另一个安装（本机是 conda base 3.13），后端会 import 阶段秒退，而 `stdio: 'ignore'` 把它吞成 `real FastAPI backend exited with code 1`。
 - **vitest 单点超时**：`src/features/skills/skills-page.test.tsx` 里「runs only implemented Skills…」是端到端式单测（jsdom + antd Table/Modal，实测 ~11s，全量跑时 15.08s 撞 15s 上限），只给该用例 `60_000` 预算，不动全局 `testTimeout`。`vitest run` → **48 文件 / 162 passed**。
 - **全量 e2e 的诚实状态**：`npx playwright test`（19 tests）当前 **6 passed / 13 failed**，失败集中在 f0–f6 的陈旧定位器（应用已改 `createHashRouter`，spec 仍用路径导航 + 旧文案，另有 strict-mode 多命中）与 f7 首页对比度（后者已修）。f0–f6 单独一轮修，修完前**不许**说「Playwright e2e 全绿」。
+
+## R43 补充（2026-11-01，Playwright 全量 19/19 与移动端抽屉）
+
+- 起点：fe7ec81 之后全量 e2e 是 19 tests / 6 passed / 13 failed（f7/f8 六条真绿，f0–f6 十二条陈旧定位器）。
+- f0–f6 十二条按真实 DOM 重写定位（反作弊 grep `test.skip|test.fixme|test.fail|expect(true|disableRules` 无命中）：
+  - 全站：`page.goto('/x')` → `page.goto('/#/x')`（`frontend/src/app/router.tsx:36` 用 `createHashRouter`）。
+  - f0：登录标题改为 `<Typography.Title level={3}>PolicyFlow AI</Typography.Title>`（`frontend/src/features/login/login-page.tsx:68-79`，Card 标题是「登录账户」）；not-found 链接 `#/`。
+  - f1/f5/f6：页面标题 `level:2` → `level:1`（唯一 `<h1>` 在 `frontend/src/components/layout/app-shell.tsx:326`）。
+  - f1/f2：`.page-toolbar` 限定「创建用户」；本地化标签 `kb_admin→知识库管理员`、`admin→管理`、`indexed→已索引`、`read→只读`、`success→成功`。
+  - f4：`制度问答` → `getByTestId('nav-chat')`；草稿页工具栏按钮限定 `.page-toolbar`（空状态 `frontend/src/features/drafts/draft-list-page.tsx:170-175` 有同名按钮）。
+  - f5/f6：`window.confirm` → antd `Modal.confirm` OK 按钮；antd 关闭按钮用 `.ant-modal-close`；健康检查是 `<Alert type="success">`（role=alert）。
+- **真产品缺口并已实现**：移动端 <900px 没有导航抽屉（`MOBILE_BREAKPOINT = 900`，原小视口只把 rail 收成图标栏，无 `aria-expanded`、无 Escape、无「打开导航」）。在 `frontend/src/components/layout/app-shell.tsx` 加 `ds-shell-mobile-trigger` 按钮（`aria-label` 开/关、`aria-expanded`、`aria-controls="ds-mobile-nav"`）、抽出 `renderNav()` 复用同一份 `nav[aria-label="主导航"]`、抽屉 + 遮罩、Escape 关闭；`frontend/src/styles/index.css` 加 `@media (max-width: 899px)`（隐藏 rail 与折叠按钮，显示触发按钮）。
+- 结果：`npx playwright test --reporter=list --workers=1` → **19 passed / 0 failed，1.3 分钟**（`artifacts/acceptance/e2e-full-2026-11-01e.txt`）；`tsc -b` 0、`eslint .` 0。
+- 仍未覆盖（不许含糊）：Electron 整机 E2E（宿主 Chromium 单实例锁 / GPU 进程）；f5 的「回答评估 run」分支（e2e 种子没有 `code=eval_test` 语料，改断言真实检索 Run，属未覆盖而非通过）；antd rc-select 交互后隐藏 listbox 缺 `aria-label`（上游组件问题，未 disableRules）。
+- 顺带可复现性改进：`frontend/e2e/global-setup.ts` 支持 `POLICYFLOW_PYTHON`（PATH 上的 `python` 常是没装项目依赖的安装，会把启动失败吞成 `exited with code 1`）。

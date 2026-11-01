@@ -1,7 +1,7 @@
-﻿import { expect, test } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 async function loginAsAdmin(page: import('@playwright/test').Page) {
-  await page.goto('/login')
+  await page.goto('/#/login')
   await page.getByLabel('用户名').fill('admin')
   await page.getByLabel('密码').fill('frontend-e2e-only')
   await page.getByRole('button', { name: '登录' }).click()
@@ -12,11 +12,11 @@ async function loginAsAdmin(page: import('@playwright/test').Page) {
 
 test('sys_admin lists, searches, creates, and updates a user through real APIs', async ({ page }) => {
   await loginAsAdmin(page)
-  await expect(page.getByRole('button', { name: '创建用户' })).toBeVisible()
+  await expect(page.locator('.page-toolbar').getByRole('button', { name: '创建用户' })).toBeVisible()
 
   const suffix = String(Date.now())
   const username = `e2e_user_${suffix}`
-  await page.getByRole('button', { name: '创建用户' }).click()
+  await page.locator('.page-toolbar').getByRole('button', { name: '创建用户' }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('用户名').fill(username)
   await dialog.getByLabel('邮箱').fill(`${username}@example.com`)
@@ -29,12 +29,13 @@ test('sys_admin lists, searches, creates, and updates a user through real APIs',
   await search.fill(username)
   const row = page.getByRole('row', { name: new RegExp(username, 'u') })
   await expect(row).toBeVisible()
+  await expect(row).not.toContainText('知识库管理员')
   await row.getByRole('button', { name: '修改角色' }).click()
   const roleDialog = page.getByRole('dialog')
   await roleDialog.getByLabel('知识库管理员').check()
   await roleDialog.getByRole('button', { name: '保存角色' }).click()
   await expect(roleDialog).not.toBeVisible()
-  await expect(row).toContainText('kb_admin')
+  await expect(row).toContainText('知识库管理员')
 })
 
 

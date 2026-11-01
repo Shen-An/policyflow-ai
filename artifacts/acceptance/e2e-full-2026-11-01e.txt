@@ -1,0 +1,26 @@
+
+Running 19 tests using 1 worker
+
+(node:6632) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  1 [chromium] › e2e\f0-foundation.spec.ts:3:1 › F0 build remains available and Vite proxies the real FastAPI health endpoint (1.2s)
+  ok  2 [chromium] › e2e\f0-foundation.spec.ts:11:1 › unknown routes expose an accessible not-found state (852ms)
+  ok  3 [chromium] › e2e\f1-auth.spec.ts:9:1 › anonymous deep link returns after real admin login, restores, and logs out (2.6s)
+  ok  4 [chromium] › e2e\f1-auth.spec.ts:26:1 › invalid credentials show a stable error and keep the form (1.3s)
+  ok  5 [chromium] › e2e\f1-auth.spec.ts:33:1 › employee is redirected to forbidden for sys_admin route (2.6s)
+  ok  6 [chromium] › e2e\f1-auth.spec.ts:40:1 › expired local session is cleared before protected content is shown (2.1s)
+  ok  7 [chromium] › e2e\f1-auth.spec.ts:59:1 › mobile AppShell drawer is keyboard dismissible (2.1s)
+  ok  8 [chromium] › e2e\f2-users.spec.ts:13:1 › sys_admin lists, searches, creates, and updates a user through real APIs (2.5s)
+  ok  9 [chromium] › e2e\f3-knowledge-bases.spec.ts:11:1 › admin creates a real knowledge base and indexed document while employee remains read-only (4.2s)
+  ok 10 [chromium] › e2e\f4-chat-drafts.spec.ts:3:1 › employee asks with evidence, submits feedback, restores history, and completes a draft (6.3s)
+  ok 11 [chromium] › e2e\f5-quality.spec.ts:3:1 › admin reviews FAQ, inspects audit, runs answer evaluation, and debugs retrieval (10.3s)
+  ok 12 [chromium] › e2e\f6-admin.spec.ts:3:1 › admin runs Skills, inspects redacted Tool logs, and manages mock MCP integrations (6.7s)
+  ok 13 [chromium] › e2e\f6-admin.spec.ts:71:1 › employee cannot open F6 administration routes (2.1s)
+  ok 14 [chromium] › e2e\f7-accessibility.spec.ts:11:1 › public and authenticated production routes pass automated accessibility checks (7.1s)
+  ok 15 [chromium] › e2e\f8-admin-governance.spec.ts:38:1 › tenant governance page renders from the app shell, keeps its controls reachable and passes accessibility checks (4.4s)
+  ok 16 [chromium] › e2e\f8-admin-governance.spec.ts:103:1 › run audit page renders from the app shell, keeps its filters keyboard reachable and passes accessibility checks (3.2s)
+  ok 17 [chromium] › e2e\f8-admin-governance.spec.ts:146:1 › reconciliation page renders from the app shell, keeps its filters keyboard reachable and passes accessibility checks (3.3s)
+  ok 18 [chromium] › e2e\f8-admin-governance.spec.ts:192:1 › v2 admin endpoints accept the bootstrap sys_admin session (3.7s)
+  ok 19 [chromium] › e2e\f8-admin-governance.spec.ts:225:1 › employee cannot open the new administration routes (2.9s)
+
+  19 passed (1.3m)

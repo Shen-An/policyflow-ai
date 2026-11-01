@@ -197,6 +197,59 @@ export function AppShell() {
   const roleText = formatRoles(user?.roles)
   const sidebarWidth = collapsed ? 'var(--ds-sidebar-collapsed)' : 'var(--ds-sidebar-width)'
 
+  // The drawer is keyed by the path it was opened on, so any navigation closes
+  // it without a setState-in-effect (react-hooks/set-state-in-effect).
+  const [mobileNavPath, setMobileNavPath] = useState<string | null>(null)
+  const mobileNavOpen = mobileNavPath === location.pathname
+
+  useEffect(() => {
+    if (!mobileNavOpen) {
+      return
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileNavPath(null)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [mobileNavOpen])
+
+  const renderNav = (isCollapsed: boolean) => (
+    <nav aria-label="主导航" style={{ flex: 1, overflowY: 'auto', paddingTop: 8 }}>
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+        {primaryLinks.map((link) => (
+          <NavItem key={link.to} link={link} active={isActive(link.to)} collapsed={isCollapsed} />
+        ))}
+      </ul>
+      {adminLinks.length > 0 ? (
+        <div data-testid="nav-admin" style={{ marginTop: 12 }}>
+          {!isCollapsed ? (
+            <div
+              style={{
+                padding: '8px 20px 4px',
+                fontSize: 'var(--ds-text-xs)',
+                fontWeight: 600,
+                letterSpacing: '0.04em',
+                color: 'var(--ds-text-muted)',
+                textTransform: 'uppercase',
+              }}
+            >
+              管理
+            </div>
+          ) : (
+            <div style={{ height: 1, background: 'var(--ds-divider)', margin: '8px 12px' }} />
+          )}
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {adminLinks.map((link) => (
+              <NavItem key={link.to} link={link} active={isActive(link.to)} collapsed={isCollapsed} />
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </nav>
+  )
+
   return (
     <div
       data-testid="app-shell"
@@ -210,6 +263,7 @@ export function AppShell() {
       }}
     >
       <aside
+        className="ds-shell-sidebar"
         style={{
           width: sidebarWidth,
           flexShrink: 0,
@@ -256,38 +310,7 @@ export function AppShell() {
           ) : null}
         </Link>
 
-        <nav aria-label="主导航" style={{ flex: 1, overflowY: 'auto', paddingTop: 8 }}>
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-            {primaryLinks.map((link) => (
-              <NavItem key={link.to} link={link} active={isActive(link.to)} collapsed={collapsed} />
-            ))}
-          </ul>
-          {adminLinks.length > 0 ? (
-            <div data-testid="nav-admin" style={{ marginTop: 12 }}>
-              {!collapsed ? (
-                <div
-                  style={{
-                    padding: '8px 20px 4px',
-                    fontSize: 'var(--ds-text-xs)',
-                    fontWeight: 600,
-                    letterSpacing: '0.04em',
-                    color: 'var(--ds-text-muted)',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  管理
-                </div>
-              ) : (
-                <div style={{ height: 1, background: 'var(--ds-divider)', margin: '8px 12px' }} />
-              )}
-              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                {adminLinks.map((link) => (
-                  <NavItem key={link.to} link={link} active={isActive(link.to)} collapsed={collapsed} />
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </nav>
+        {renderNav(collapsed)}
       </aside>
 
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
@@ -306,9 +329,29 @@ export function AppShell() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
               type="button"
+              onClick={() => setMobileNavPath(mobileNavOpen ? null : location.pathname)}
+              aria-label={mobileNavOpen ? '关闭导航' : '打开导航'}
+              aria-expanded={mobileNavOpen}
+              aria-controls="ds-mobile-nav"
+              className="ds-focusable ds-shell-mobile-trigger"
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--ds-text-secondary)',
+                cursor: 'pointer',
+                placeItems: 'center',
+                width: 34,
+                height: 34,
+                borderRadius: 'var(--ds-radius-sm)',
+              }}
+            >
+              <List size={18} />
+            </button>
+            <button
+              type="button"
               onClick={() => setCollapsed((value) => !value)}
               aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
-              className="ds-focusable"
+              className="ds-focusable ds-shell-collapse"
               style={{
                 border: 'none',
                 background: 'transparent',
@@ -392,6 +435,69 @@ export function AppShell() {
           </div>
         </main>
       </div>
+
+      {mobileNavOpen ? (
+        <div
+          id="ds-mobile-nav"
+          data-testid="mobile-nav-drawer"
+          style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex' }}
+        >
+          <div
+            aria-hidden
+            data-testid="mobile-nav-scrim"
+            onClick={() => setMobileNavPath(null)}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(16, 24, 32, 0.45)' }}
+          />
+          <div
+            style={{
+              position: 'relative',
+              width: 280,
+              maxWidth: '84vw',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              background: 'var(--ds-sidebar)',
+              borderRight: '1px solid var(--ds-border)',
+              boxShadow: '0 24px 64px rgba(16, 24, 32, 0.28)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                height: 'var(--ds-header-height)',
+                padding: '0 16px',
+                borderBottom: '1px solid var(--ds-border)',
+              }}
+            >
+              <span style={{ fontWeight: 650, letterSpacing: '-0.02em' }}>PolicyFlow</span>
+              <button
+                type="button"
+                onClick={() => setMobileNavPath(null)}
+                aria-label="关闭导航面板"
+                className="ds-focusable"
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'var(--ds-text-secondary)',
+                  cursor: 'pointer',
+                  display: 'grid',
+                  placeItems: 'center',
+                  width: 34,
+                  height: 34,
+                  borderRadius: 'var(--ds-radius-sm)',
+                }}
+              >
+                <span aria-hidden style={{ fontSize: 20, lineHeight: 1 }}>
+                  ×
+                </span>
+              </button>
+            </div>
+            {renderNav(false)}
+          </div>
+        </div>
+      ) : null}
 
       <div id="toast-root" aria-live="polite" aria-atomic="true" />
       <div id="dialog-root" />

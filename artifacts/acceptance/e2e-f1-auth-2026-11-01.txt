@@ -1,0 +1,12 @@
+
+Running 5 tests using 1 worker
+
+(node:36424) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 [chromium] › e2e\f1-auth.spec.ts:9:1 › anonymous deep link returns after real admin login, restores, and logs out (3.0s)
+  ok 2 [chromium] › e2e\f1-auth.spec.ts:26:1 › invalid credentials show a stable error and keep the form (1.3s)
+  ok 3 [chromium] › e2e\f1-auth.spec.ts:33:1 › employee is redirected to forbidden for sys_admin route (2.1s)
+  ok 4 [chromium] › e2e\f1-auth.spec.ts:40:1 › expired local session is cleared before protected content is shown (2.0s)
+  ok 5 [chromium] › e2e\f1-auth.spec.ts:59:1 › mobile AppShell drawer is keyboard dismissible (2.1s)
+
+  5 passed (16.5s)
