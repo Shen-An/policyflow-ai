@@ -156,10 +156,37 @@ SQLITE_COLUMN_MIGRATIONS = {
     },
 }
 
+# The action vocabulary comes from backend.app.auth.authorization.Action, and a
+# role with an empty action list grants nothing at all: principal scopes are
+# built from ``role.actions`` (backend/app/api/deps.py) so an empty list refuses
+# every Action.ADMIN gate, including sys_admin's own admin surface. The seeds
+# therefore declare their capabilities explicitly instead of leaving the column
+# empty. Today only Action.ADMIN and Action.CROSS_TENANT_ADMIN are enforced
+# (backend/app/services/admin_service.py); the other actions are declared so the
+# seeded roles state their intent rather than carrying an empty capability set.
 ROLE_SEEDS = (
-    ("employee", "普通员工", "可查询已授权的企业制度知识库"),
-    ("kb_admin", "知识库管理员", "可维护被授权的知识库与文档"),
-    ("sys_admin", "系统管理员", "拥有系统级管理权限"),
+    ("employee", "普通员工", "可查询已授权的企业制度知识库", ("read",)),
+    (
+        "kb_admin",
+        "知识库管理员",
+        "可维护被授权的知识库与文档",
+        ("read", "edit", "publish"),
+    ),
+    (
+        "sys_admin",
+        "系统管理员",
+        "拥有系统级管理权限",
+        (
+            "read",
+            "edit",
+            "approve",
+            "submit",
+            "publish",
+            "delete",
+            "admin",
+            "cross_tenant_admin",
+        ),
+    ),
 )
 
 DEPARTMENT_SEEDS = (
@@ -213,6 +240,7 @@ TOOL_SEEDS = (
 @dataclass(frozen=True)
 class SeedSummary:
     roles_created: int = 0
+    roles_repaired: int = 0
     departments_created: int = 0
     knowledge_bases_created: int = 0
     permissions_created: int = 0
@@ -608,6 +636,7 @@ def seed_initial_data(
     database_engine = engine or get_engine()
     app_settings = settings or get_settings()
     roles_created = 0
+    roles_repaired = 0
     departments_created = 0
     knowledge_bases_created = 0
     permissions_created = 0
@@ -623,17 +652,28 @@ def seed_initial_data(
         tenant_id = tenant.id
 
         roles: dict[str, Role] = {}
-        for code, name, description in ROLE_SEEDS:
+        for code, name, description, actions in ROLE_SEEDS:
             role = session.exec(
                 select(Role).where(Role.tenant_id == tenant_id, Role.code == code)
             ).first()
             if role is None:
                 role = Role(
-                    tenant_id=tenant_id, code=code, name=name, description=description
+                    tenant_id=tenant_id,
+                    code=code,
+                    name=name,
+                    description=description,
+                    actions=list(actions),
                 )
                 session.add(role)
                 session.flush()
                 roles_created += 1
+            elif not role.actions:
+                # Databases seeded before the roles carried actions keep their
+                # rows; backfill only the empty case, so an operator that
+                # deliberately narrowed a role is left untouched.
+                role.actions = list(actions)
+                session.add(role)
+                roles_repaired += 1
             roles[code] = role
 
         departments: dict[str, Department] = {}
@@ -802,6 +842,7 @@ def seed_initial_data(
 
     summary = SeedSummary(
         roles_created=roles_created,
+        roles_repaired=roles_repaired,
         departments_created=departments_created,
         knowledge_bases_created=knowledge_bases_created,
         permissions_created=permissions_created,
