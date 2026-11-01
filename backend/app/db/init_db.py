@@ -176,16 +176,10 @@ ROLE_SEEDS = (
         "sys_admin",
         "系统管理员",
         "拥有系统级管理权限",
-        (
-            "read",
-            "edit",
-            "approve",
-            "submit",
-            "publish",
-            "delete",
-            "admin",
-            "cross_tenant_admin",
-        ),
+        # Deliberately no "cross_tenant_admin": cross-tenant reads stay a separate,
+        # explicitly granted capability (README「cross_tenant_admin 默认谁都不给」),
+        # so /api/v2/admin/capacity keeps answering 403 for a seeded sys_admin.
+        ("read", "edit", "approve", "submit", "publish", "delete", "admin"),
     ),
 )
 

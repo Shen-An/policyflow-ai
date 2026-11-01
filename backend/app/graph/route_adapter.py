@@ -49,8 +49,34 @@ __all__ = ["GraphRouteAdapter"]
 class GraphRouteAdapter:
     """Routes live Chat/Eval endpoints through the shared graph with telemetry."""
 
-    def __init__(self, telemetry: AdapterUsageTelemetry | None) -> None:
+    def __init__(
+        self,
+        telemetry: AdapterUsageTelemetry | None,
+        *,
+        shadow: Any = None,
+    ) -> None:
         self._telemetry = telemetry
+        # T053 slice 1: optional shadow runner (backend.app.graph.shadow). It only
+        # *observes* the authoritative run and compares it against a second replay
+        # through the shared graph nodes; ``None`` (the default, and the only value
+        # unless GRAPH_SHADOW_MODE is on) keeps this adapter behaviour unchanged.
+        self._shadow = shadow
+
+    def _shadow_wrap(self, pipeline: AgentPipeline, *, user: User, data: ChatRequest) -> Any:
+        """Return the pipeline handle to pass downstream (proxy only in shadow mode).
+
+        ``ShadowRecording`` delegates every attribute to the real pipeline and only
+        overrides ``run`` to tee the stage/event callbacks, so the authoritative
+        execution path is untouched.
+        """
+
+        if self._shadow is None:
+            return pipeline
+        return self._shadow.wrap(
+            pipeline,
+            tenant_id=str(getattr(user, "tenant_id", "") or ""),
+            conversation_id=str(getattr(data, "conversation_id", "") or ""),
+        )
 
     def _record(self, adapter: str, tenant_id: str, run_id: str) -> None:
         if self._telemetry is None:
@@ -75,12 +101,17 @@ class GraphRouteAdapter:
     ) -> ChatResponse:
         from backend.app.services.chat_service import send_chat_message
 
-        response = await send_chat_message(session, user, data, pipeline, **deps)
+        target = self._shadow_wrap(pipeline, user=user, data=data)
+        response = await send_chat_message(session, user, data, target, **deps)
         self._record(
             "route_chat",
             getattr(user, "tenant_id", ""),
             str(getattr(response, "query_log_id", "") or ""),
         )
+        if target is not pipeline:
+            # Shadow comparison runs *after* the authoritative response exists, and
+            # swallows its own failures — the served response is never affected.
+            await self._shadow.finish(target, response=response)
         return response
 
     async def chat_events(
@@ -97,8 +128,18 @@ class GraphRouteAdapter:
         # Record at stream entry: the authoritative run id is only known once the
         # final event lands, and telemetry deliberately carries no payload.
         self._record("route_chat_stream", getattr(user, "tenant_id", ""), "")
-        async for event in iter_chat_events(session, user, data, pipeline, **deps):
-            yield event
+        target = self._shadow_wrap(pipeline, user=user, data=data)
+        final_payload: Any = None
+        try:
+            async for event in iter_chat_events(session, user, data, target, **deps):
+                if target is not pipeline and isinstance(event, tuple) and event[0] == "final":
+                    # The final SSE payload is the ChatResponse dump — the authoritative
+                    # surface the diff record summarises field-by-field.
+                    final_payload = event[1]
+                yield event
+        finally:
+            if target is not pipeline:
+                await self._shadow.finish(target, response=final_payload)
 
     async def run_eval(
         self,

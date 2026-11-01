@@ -24,6 +24,14 @@ function buildTheme(p: typeof palette | typeof darkPalette, mode: 'light' | 'dar
       colorText: p.text,
       colorTextSecondary: p.textSecondary,
       colorTextTertiary: p.textTertiary,
+      // Ant Design derives `colorTextDescription` (used by Typography type="secondary")
+      // from the tertiary ink, which lands at ~2.7:1 on the light canvas and fails
+      // WCAG 2 AA (1.4.3). Pin it to the secondary ink (~6:1) instead.
+      colorTextDescription: p.textSecondary,
+      // antd derives `colorTextPlaceholder` from rgba(0,0,0,0.25) → #bfbfbf on white,
+      // which is 1.8:1 and fails WCAG 2 AA (1.4.3) for the 14px Select placeholders
+      // used by the admin filters. #6b7780 measures ~4.6:1 on white.
+      colorTextPlaceholder: isDark ? p.textTertiary : '#6b7780',
       colorFillAlter: p.bgMuted,
       colorFillSecondary: p.primarySoft,
       controlOutline: isDark ? 'rgba(52, 211, 153, 0.18)' : 'rgba(15, 154, 116, 0.12)',
@@ -99,7 +107,9 @@ function buildTheme(p: typeof palette | typeof darkPalette, mode: 'light' | 'dar
         cellPaddingInline: 14,
       },
       Tabs: {
-        itemSelectedColor: p.primary,
+        // The brand green (#0f9a74) on the active-tab pill (#eaf3ee) is 3.14:1 and
+        // fails WCAG 2 AA (1.4.3); #0b7a5b measures ~4.7:1 against the same pill.
+        itemSelectedColor: isDark ? p.primary : '#0b7a5b',
         inkBarColor: p.primary,
         itemHoverColor: p.primaryHover,
       },

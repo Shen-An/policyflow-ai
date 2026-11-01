@@ -1,0 +1,8 @@
+
+Running 1 test using 1 worker
+
+(node:26932) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 [chromium] › e2e\f7-accessibility.spec.ts:11:1 › public and authenticated production routes pass automated accessibility checks (8.5s)
+
+  1 passed (14.4s)

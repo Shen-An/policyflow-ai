@@ -69,6 +69,7 @@ from backend.app.db.session import (
 from backend.app.frontend import mount_frontend
 from backend.app.graph.compat import AdapterUsageTelemetry
 from backend.app.graph.route_adapter import GraphRouteAdapter
+from backend.app.graph.shadow import ChatShadowRunner
 from backend.app.graph.service import GraphService
 from backend.app.jobs.celery_app import build_celery_app
 from backend.app.jobs.metrics import install_job_state_gauge
@@ -279,8 +280,19 @@ def create_app(
     # Live-endpoint route adapter (T051/T052): when ROUTE_VIA_GRAPH_ADAPTER is on,
     # Chat/Eval go through this instead of calling the services directly, feeding
     # the removal-ledger telemetry above. Delegates to the shared pipeline graph.
+    # T053 slice 1 shadow comparison. Off unless GRAPH_SHADOW_MODE is on: the chat
+    # turn is then replayed through the shared graph nodes behind the adapter and a
+    # structured diff (ChatResponse fields + SSE event sequence) is written under
+    # artifacts/graph/shadow/. The adapter's authoritative path is unchanged either
+    # way — shadow failures are swallowed and never reach the response.
+    application.state.graph_shadow_runner = (
+        ChatShadowRunner(telemetry=application.state.adapter_usage_telemetry)
+        if bool(getattr(app_settings, "GRAPH_SHADOW_MODE", False))
+        else None
+    )
     application.state.graph_route_adapter = GraphRouteAdapter(
-        application.state.adapter_usage_telemetry
+        application.state.adapter_usage_telemetry,
+        shadow=application.state.graph_shadow_runner,
     )
     application.state.skill_registry = skill_registry
     application.state.tool_registry = tool_registry

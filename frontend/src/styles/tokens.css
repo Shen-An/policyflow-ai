@@ -24,7 +24,10 @@
   /* text — cooler near-neutral */
   --color-text-primary: #18212b;
   --color-text-secondary: #5a6570;
-  --color-text-tertiary: #8a949e;
+  /* tertiary ink must stay >=4.5:1 on the white canvas (WCAG 2 AA 1.4.3):
+     #8a949e measured 3.08:1 and produced 233 axe color-contrast violations on
+     the workspace home; #6b7780 measures ~4.6:1. */
+  --color-text-tertiary: #6b7780;
 
   /* borders */
   --color-border: #dde3df;

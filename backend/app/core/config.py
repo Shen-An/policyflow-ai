@@ -234,6 +234,14 @@ class Settings(BaseSettings):
     # GraphService; real-corpus conclusion parity is unverified without the retrieval
     # stack (docs/08 §10, scripts/graph_realcorpus_parity.py).
     ROUTE_VIA_GRAPH_ADAPTER: bool = True
+    # T053 slice 1 shadow comparison. OFF by default: when enabled, the chat turn
+    # is replayed through the extraction-sharing graph nodes
+    # (backend.app.graph.shadow) while the existing pipeline graph still owns the
+    # response, and a structured diff (ChatResponse fields + SSE event sequence)
+    # is written under artifacts/graph/shadow/ plus a shadow_chat telemetry event.
+    # Never switches traffic; the shadow run's failures are swallowed. Do not flip
+    # to True in production until the recorded diffs are zero.
+    GRAPH_SHADOW_MODE: bool = False
     # Off-topic gate. Preferred signal is the cross-encoder relevance score, which is
     # semantic; the lexical bigram-coverage ratio is only the fallback for retrieval
     # paths that produced no real rerank score (rerank off, or local lexical fusion).

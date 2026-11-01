@@ -30,6 +30,7 @@ from pydantic import BaseModel, ConfigDict, Field
 __all__ = [
     "SCHEMA_VERSION",
     "AgentRunState",
+    "ChatTurnState",
     "GraphError",
     "GraphStatus",
     "NodeName",
@@ -314,3 +315,92 @@ class AgentRunState(BaseModel):
             errors=tuple(GraphError.from_dict(item) for item in payload.get("errors", [])),
             retry_counts=dict(payload.get("retry_counts", {})),
         )
+
+
+# -- chat turn view (T053 slice 1) -----------------------------------------
+#
+# 与上面的 AgentRunState 刻意不同：AgentRunState 是可序列化、可落 checkpoint 的
+# 持久运行态（见 _require_json_value 的强校验）；ChatTurnState 只是**一轮对话**
+# 在进程内的实时视图，字段里放的是活对象（RouterResult / PlanStep / 合规结果）。
+# 它的用途是让同一份节点实现（backend.app.graph.nodes 里的 chat_route_node /
+# chat_tot_node / chat_execute_node）在被第二个 driver 复跑时，能把"这一轮到底
+# 决定了什么"交回来做 diff —— 它不进 checkpoint，也不写数据库。
+
+
+def _event_summary(payload: Any) -> Any:
+    """Reduce an event payload to a small JSON-safe summary (no answer text)."""
+
+    if isinstance(payload, dict):
+        picked = {
+            key: payload[key]
+            for key in ("difficulty", "reasoning_mode", "plan_source", "status", "stage")
+            if key in payload
+        }
+        return picked or {"keys": sorted(str(key) for key in payload)}
+    if isinstance(payload, (list, tuple)):
+        return {"items": len(payload)}
+    return type(payload).__name__
+
+
+class ChatTurnState(BaseModel):
+    """In-process view of one chat turn's orchestration decisions.
+
+    Not durable and not JSON-serializable by design: it carries live objects so
+    two drivers can be compared field by field. See the section comment above.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    question: str = ""
+    #: RouterAgent output for this turn (``RouterResult``), kept as a live object.
+    router_result: Any | None = None
+    #: Normalized plan steps chosen for this turn (``PlanStep`` instances).
+    plan_steps: list[Any] = Field(default_factory=list)
+    #: Tree-of-Thought candidate options when the turn went through the tot node.
+    plan_options: list[Any] = Field(default_factory=list)
+    #: Skill suggestions / hits collected during the turn.
+    skill_hits: list[dict[str, Any]] = Field(default_factory=list)
+    #: Compliance result for the produced answer (``ComplianceResult``).
+    compliance: Any | None = None
+    #: Structured diagnostics assembled from the turn's stage / command events.
+    diagnostics: dict[str, Any] = Field(default_factory=dict)
+    #: ``"tot"`` or ``"execute"`` once the route node decided; empty before that.
+    route_kind: str = ""
+    #: Ordered node names visited by the driver that produced this view.
+    node_trace: list[str] = Field(default_factory=list)
+    #: Ordered ``(event, summary)`` pairs handed to the event stream.
+    events: list[dict[str, Any]] = Field(default_factory=list)
+    #: ``PipelineResult`` produced by the execute node, when one exists.
+    result: Any | None = None
+
+    def record_node(self, node: str) -> None:
+        self.node_trace.append(node)
+
+    def record_stage(self, stage: str, status: str, message: str) -> None:
+        commands = self.diagnostics.setdefault("commands", [])
+        commands.append({"name": stage, "status": status, "summary": message})
+
+    def record_event(self, event: str, payload: Any) -> None:
+        self.events.append({"event": event, "payload": _event_summary(payload)})
+
+    def record_skill_hit(self, name: str, status: str, summary: str = "") -> None:
+        self.skill_hits.append({"name": name, "status": status, "summary": summary})
+
+    def event_names(self) -> list[str]:
+        return [item["event"] for item in self.events]
+
+    def summary(self) -> dict[str, Any]:
+        """JSON-safe digest used for shadow-mode diffing."""
+
+        return {
+            "question": self.question,
+            "route_kind": self.route_kind,
+            "node_trace": list(self.node_trace),
+            "event_names": self.event_names(),
+            "plan_steps": len(self.plan_steps),
+            "plan_options": len(self.plan_options),
+            "skill_hits": len(self.skill_hits),
+            "has_compliance": self.compliance is not None,
+            "command_count": len(self.diagnostics.get("commands", [])),
+            "has_result": self.result is not None,
+        }

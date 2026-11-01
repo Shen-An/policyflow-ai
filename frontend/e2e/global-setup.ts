@@ -1,4 +1,4 @@
-﻿import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -152,9 +152,16 @@ async function stopChild(child: ChildProcess): Promise<void> {
 }
 
 export default async function globalSetup() {
-  const pythonCommand = process.platform === 'win32' ? 'python.exe' : 'python'
-  const backend = spawn(pythonCommand, ['scripts/start-e2e-backend.py'], {
-    cwd: frontendRoot,
+  // The backend needs a Python that actually has the project dependencies (celery,
+  // fastapi, ...) installed. A bare `python` on PATH is frequently a different
+  // installation (for example conda base), which dies immediately and shows up here
+  // as "real FastAPI backend exited with code 1" with no further detail.
+  const pythonCommand =
+    process.env.POLICYFLOW_PYTHON ?? (process.platform === 'win32' ? 'python.exe' : 'python')
+  const backend = spawn(pythonCommand, [path.join(frontendRoot, 'scripts/start-e2e-backend.py')], {
+    // Run from the repo root so backend Settings reads the project .env instead of
+    // frontend/.env (Vite-only keys such as VITE_ENABLE_MSW are rejected by extra="forbid").
+    cwd: path.resolve(frontendRoot, '..'),
     stdio: 'ignore',
     windowsHide: true,
   })

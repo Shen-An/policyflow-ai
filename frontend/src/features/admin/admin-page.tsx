@@ -19,7 +19,13 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import type { Dayjs } from 'dayjs'
 import { useState } from 'react'
-import type { AdminGrant, AdminRole, QuotaPolicy, QuotaUsage } from '../../api/admin'
+import type {
+  AdminGrant,
+  AdminRole,
+  HealthCountBucket,
+  QuotaPolicy,
+  QuotaUsage,
+} from '../../api/admin'
 import { EmptyState, ErrorState, LoadingState } from '../../components/feedback/state-views'
 import { formatDateTime } from '../../lib/datetime'
 import {
@@ -33,14 +39,16 @@ import {
 
 const PAGE_SIZE = 20
 
-function CountList({ counts }: { counts: Record<string, number> }) {
-  const entries = Object.entries(counts).sort(([a], [b]) => a.localeCompare(b))
-  if (entries.length === 0) return <Typography.Text type="secondary">无</Typography.Text>
+// 后端返回的是按状态分桶的直方图数组（[{ value, count }]），不是 { key: count } 映射，
+// 所以这里按数组渲染，空桶时给一个明确的空状态（见 api/admin.ts 的 HealthCountBucket）。
+function CountList({ counts }: { counts: HealthCountBucket[] }) {
+  if (counts.length === 0) return <Typography.Text type="secondary">暂无数据</Typography.Text>
+  const buckets = [...counts].sort((a, b) => a.value.localeCompare(b.value))
   return (
     <Space size={[4, 4]} wrap>
-      {entries.map(([key, value]) => (
-        <Tag key={key}>
-          {key} · {value}
+      {buckets.map((bucket) => (
+        <Tag key={bucket.value}>
+          {bucket.value} · {bucket.count}
         </Tag>
       ))}
     </Space>

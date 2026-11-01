@@ -1,0 +1,12 @@
+
+Running 5 tests using 1 worker
+
+(node:9392) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 [chromium] › e2e\f8-admin-governance.spec.ts:38:1 › tenant governance page renders from the app shell, keeps its controls reachable and passes accessibility checks (4.7s)
+  ok 2 [chromium] › e2e\f8-admin-governance.spec.ts:103:1 › run audit page renders from the app shell, keeps its filters keyboard reachable and passes accessibility checks (3.4s)
+  ok 3 [chromium] › e2e\f8-admin-governance.spec.ts:146:1 › reconciliation page renders from the app shell, keeps its filters keyboard reachable and passes accessibility checks (3.6s)
+  ok 4 [chromium] › e2e\f8-admin-governance.spec.ts:192:1 › v2 admin endpoints accept the bootstrap sys_admin session (4.3s)
+  ok 5 [chromium] › e2e\f8-admin-governance.spec.ts:225:1 › employee cannot open the new administration routes (3.0s)
+
+  5 passed (24.6s)

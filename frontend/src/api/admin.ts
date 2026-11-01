@@ -52,12 +52,15 @@ export type QuotaSummary = {
   liveLeases: number
 }
 
+/** 后端按状态分桶返回的直方图（admin_service.py 的 jobs/documents/submissions/workspaces）。 */
+export type HealthCountBucket = { value: string; count: number }
+
 export type HealthSummary = {
-  jobs: Record<string, number>
+  jobs: HealthCountBucket[]
   oldestQueuedAt: string | null
-  documents: Record<string, number>
-  submissions: Record<string, number>
-  workspaces: Record<string, number>
+  documents: HealthCountBucket[]
+  submissions: HealthCountBucket[]
+  workspaces: HealthCountBucket[]
   retrieval: {
     retrievableManifests: number
     manifestsWithCountDrift: number
@@ -189,11 +192,11 @@ type RawUsage = {
 }
 
 type RawHealth = {
-  jobs: Record<string, number>
+  jobs: HealthCountBucket[]
   oldest_queued_at: string | null
-  documents: Record<string, number>
-  submissions: Record<string, number>
-  workspaces: Record<string, number>
+  documents: HealthCountBucket[]
+  submissions: HealthCountBucket[]
+  workspaces: HealthCountBucket[]
   retrieval: {
     retrievable_manifests: number
     manifests_with_count_drift: number

@@ -43,10 +43,12 @@ def test_seeded_roles_declare_the_actions_they_advertise(tmp_path: Path) -> None
     roles = _roles(engine)
     assert roles["employee"] == ["read"]
     assert roles["kb_admin"] == ["read", "edit", "publish"]
-    # sys_admin is the only role allowed through every Action.ADMIN gate, and
-    # Action.CROSS_TENANT_ADMIN is required by the capacity endpoint as well.
+    # sys_admin is the only role allowed through every Action.ADMIN gate.
     assert "admin" in roles["sys_admin"]
-    assert "cross_tenant_admin" in roles["sys_admin"]
+    # Action.CROSS_TENANT_ADMIN is deliberately *not* seeded: cross-tenant reads
+    # stay an explicit, separately granted capability, so /api/v2/admin/capacity
+    # must keep answering 403 for a seeded sys_admin (README honors that default).
+    assert "cross_tenant_admin" not in roles["sys_admin"]
 
 
 def test_seed_backfills_roles_that_have_no_actions(tmp_path: Path) -> None:

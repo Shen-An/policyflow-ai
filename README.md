@@ -233,7 +233,7 @@ python -m pytest -q tests/contract tests/unit tests/integration tests/security \
 | partial | **2** | SC-006 容量报告机制（有机制无数）· SC-012 无障碍（老页面全绿，新增 3 个 admin 页没做 E2E） |
 | inconclusive | **8** | SC-001~005（容量与 soak）· SC-010/011（真实被试）· SC-016（数据权威切换） |
 
-**换句话说：6/16 有通过结论。** 功能能跑、核心安全性有测试，但容量、可用性、桌面整机流程这三块目前是空的。
+**换句话说：7/16 有通过结论**（2026-11-01 SC-012 从 partial 升 pass）。功能能跑、核心安全性有测试，但容量、可用性、桌面整机流程这三块目前是空的。
 
 **2026-10-21 这轮修掉的（每条都能在仓库里翻到证据）**
 
@@ -245,6 +245,11 @@ python -m pytest -q tests/contract tests/unit tests/integration tests/security \
 | T152 preflight 只报「45 处引用」说不清该删哪层 | 拆成列门/路径门并分类，列消费者实测**只有 1 处**，卡点其实在 T159/T160 整模型退场 | `573e2d3` |
 | T035：eval 路由在事件循环上调同步 service | 14 个端点只有 4 个 `async def`，真正阻塞的 3 处改走 `run_in_threadpool`，`eval_service.py` 一行未动（所以 T035 仍是 `[~]`）；新增可证伪回归测试 2 passed | `fb831fc` |
 | **种子角色的 `actions` 恒为空 → `/api/v2/admin/*` 对 `sys_admin` 也返回 403**（三个新 admin 页在任何全新安装上端到端不可用） | `ROLE_SEEDS` 带 actions + 只回填空的动作列表；`tests/test_role_seed_actions.py` 3 passed，相关子集 96 passed | `8c6b5c3` |
+| **seed 修好后暴露：前端把 `/api/v2/admin/health` 的分桶直方图 `Array<{value,count}>` 当 `Record<string,number>` 渲染 → `/admin/governance` 直接崩页**（403 期间只看得到错误态，所以以前看不见） | `frontend/src/api/admin.ts` 类型与 `toHealth` 直传、`CountList` 改遍历数组；`/admin/governance` 恢复渲染 | 本次提交 |
+| **新增 3 个 admin 页从未做过 E2E（SC-012 一直是 partial）** | `frontend/e2e/f8-admin-governance.spec.ts` **5 passed**（三页 axe wcag2a/2aa/21a/21aa 零违规 + 六个 admin 读 200 / capacity 403 契约 + employee 越权重定向），`f7` 转绿；判定见 `artifacts/acceptance/sc012-admin-e2e-2026-11-01.md` → **SC-012 升 pass** | 本次提交 |
+| **T053：Chat+Eval 与文件/审批仍是两套编排** | 抽出 `graph/state.py`（`ChatTurnState`）+ `graph/nodes.py` 共享节点（route/tot 真体搬迁，execute 是薄适配）+ `graph/shadow.py` 影子对比（`GRAPH_SHADOW_MODE` 默认关、不切流量、不写库）；全量 **950 passed / 197 skipped / 0 failed**；**T053 仍 `[~]`**（`_execute_plan` ~550 行编排未搬） | 本次提交 |
+
+一处必须说清的口径：**Playwright 全量套件当前不是全绿**（`npx playwright test` → 19 tests / 6 passed / 13 failed）。f7/f8 这 6 条是真的绿；剩下 12 条是 f0–f6 的**陈旧定位器**（应用已改 `createHashRouter`，spec 还在用路径导航 + 旧文案，另有 strict-mode 多命中）。所以可以说「三张 admin 页有 E2E + axe 证据」，**不能说**「E2E 全绿」。
 
 ---
 

@@ -132,26 +132,46 @@ def _route_after_tot(state: PipelineGraphState) -> str:
     return "end" if state.get("route_after_tot") == "end" else "execute"
 
 
-def build_pipeline_graph(pipeline: AgentPipeline) -> CompiledStateGraph:
+def build_pipeline_graph(
+    pipeline: AgentPipeline, *, node_prefix: str = ""
+) -> CompiledStateGraph:
     """Assemble the chat/eval orchestration graph bound to one pipeline.
 
     Nodes are bound methods on ``pipeline`` so they reach the injected agents,
     settings and SSE emit helpers. No checkpointer: a chat turn resumes via the
     dual-request ToT protocol at the service layer, not a checkpoint restore.
+
+    ``node_prefix`` only changes the telemetry label of each node ("route" →
+    "shadow_route"). T053 shadow mode builds the same three-node graph a second
+    time for the same turn; the prefix keeps the two runs separable in the graph
+    node metrics instead of doubling the "route"/"execute" series.
     """
     graph: StateGraph = StateGraph(PipelineGraphState)
 
-    graph.add_node("route", _instrument_node("route", pipeline._pnode_route))
-    graph.add_node("tot", _instrument_node("tot", pipeline._pnode_tot))
-    graph.add_node("execute", _instrument_node("execute", pipeline._pnode_execute))
+    graph.add_node(
+        f"{node_prefix}route",
+        _instrument_node(f"{node_prefix}route", pipeline._pnode_route),
+    )
+    graph.add_node(
+        f"{node_prefix}tot",
+        _instrument_node(f"{node_prefix}tot", pipeline._pnode_tot),
+    )
+    graph.add_node(
+        f"{node_prefix}execute",
+        _instrument_node(f"{node_prefix}execute", pipeline._pnode_execute),
+    )
 
-    graph.add_edge(START, "route")
+    graph.add_edge(START, f"{node_prefix}route")
     graph.add_conditional_edges(
-        "route", _route_after_route, {"tot": "tot", "execute": "execute"}
+        f"{node_prefix}route",
+        _route_after_route,
+        {"tot": f"{node_prefix}tot", "execute": f"{node_prefix}execute"},
     )
     graph.add_conditional_edges(
-        "tot", _route_after_tot, {"end": END, "execute": "execute"}
+        f"{node_prefix}tot",
+        _route_after_tot,
+        {"end": END, "execute": f"{node_prefix}execute"},
     )
-    graph.add_edge("execute", END)
+    graph.add_edge(f"{node_prefix}execute", END)
 
     return graph.compile()

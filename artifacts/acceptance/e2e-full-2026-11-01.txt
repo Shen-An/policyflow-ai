@@ -1,0 +1,838 @@
+
+Running 19 tests using 1 worker
+
+(node:27576) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x   1 [chromium] › e2e\f0-foundation.spec.ts:3:1 › F0 build remains available and Vite proxies the real FastAPI health endpoint (5.9s)
+(node:15348) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x   2 [chromium] › e2e\f0-foundation.spec.ts:11:1 › unknown routes expose an accessible not-found state (5.9s)
+(node:13684) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x   3 [chromium] › e2e\f1-auth.spec.ts:9:1 › anonymous deep link returns after real admin login, restores, and logs out (963ms)
+(node:26808) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  4 [chromium] › e2e\f1-auth.spec.ts:26:1 › invalid credentials show a stable error and keep the form (2.8s)
+  x   5 [chromium] › e2e\f1-auth.spec.ts:33:1 › employee is redirected to forbidden for sys_admin route (7.5s)
+(node:18216) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x   6 [chromium] › e2e\f1-auth.spec.ts:40:1 › expired local session is cleared before protected content is shown (7.0s)
+(node:10300) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x   7 [chromium] › e2e\f1-auth.spec.ts:53:1 › mobile AppShell drawer is keyboard dismissible (6.4s)
+(node:29492) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x   8 [chromium] › e2e\f2-users.spec.ts:13:1 › sys_admin lists, searches, creates, and updates a user through real APIs (2.1s)
+(node:14824) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x   9 [chromium] › e2e\f3-knowledge-bases.spec.ts:11:1 › admin creates a real knowledge base and indexed document while employee remains read-only (6.8s)
+(node:27124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x  10 [chromium] › e2e\f4-chat-drafts.spec.ts:3:1 › employee asks with evidence, submits feedback, restores history, and completes a draft (1.8s)
+(node:27304) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x  11 [chromium] › e2e\f5-quality.spec.ts:3:1 › admin reviews FAQ, inspects audit, runs answer evaluation, and debugs retrieval (8.1s)
+(node:29560) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x  12 [chromium] › e2e\f6-admin.spec.ts:3:1 › admin runs Skills, inspects redacted Tool logs, and manages mock MCP integrations (7.1s)
+(node:14696) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x  13 [chromium] › e2e\f6-admin.spec.ts:60:1 › employee cannot open F6 administration routes (7.5s)
+(node:29488) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x  14 [chromium] › e2e\f7-accessibility.spec.ts:11:1 › public and authenticated production routes pass automated accessibility checks (4.2s)
+(node:26760) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 15 [chromium] › e2e\f8-admin-governance.spec.ts:38:1 › tenant governance page renders from the app shell, keeps its controls reachable and passes accessibility checks (4.8s)
+  ok 16 [chromium] › e2e\f8-admin-governance.spec.ts:103:1 › run audit page renders from the app shell, keeps its filters keyboard reachable and passes accessibility checks (3.4s)
+  ok 17 [chromium] › e2e\f8-admin-governance.spec.ts:146:1 › reconciliation page renders from the app shell, keeps its filters keyboard reachable and passes accessibility checks (3.5s)
+  ok 18 [chromium] › e2e\f8-admin-governance.spec.ts:192:1 › v2 admin endpoints accept the bootstrap sys_admin session (4.4s)
+  ok 19 [chromium] › e2e\f8-admin-governance.spec.ts:225:1 › employee cannot open the new administration routes (3.5s)
+
+
+  1) [chromium] › e2e\f0-foundation.spec.ts:3:1 › F0 build remains available and Vite proxies the real FastAPI health endpoint 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: '登录 PolicyFlow AI' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('heading', { name: '登录 PolicyFlow AI' })
+
+
+      3 | test('F0 build remains available and Vite proxies the real FastAPI health endpoint', async ({ page, request }) => {
+      4 |   await page.goto('/login')
+    > 5 |   await expect(page.getByRole('heading', { name: '登录 PolicyFlow AI' })).toBeVisible()
+        |                                                                         ^
+      6 |   const response = await request.get('/health')
+      7 |   expect(response.ok()).toBe(true)
+      8 |   expect(await response.json()).toEqual({ status: 'ok' })
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f0-foundation.spec.ts:5:73
+
+    Error Context: test-results\f0-foundation-F0-build-rem-11b2f-eal-FastAPI-health-endpoint-chromium\error-context.md
+
+  2) [chromium] › e2e\f0-foundation.spec.ts:11:1 › unknown routes expose an accessible not-found state 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: '页面不存在' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('heading', { name: '页面不存在' })
+
+
+      11 | test('unknown routes expose an accessible not-found state', async ({ page }) => {
+      12 |   await page.goto('/missing')
+    > 13 |   await expect(page.getByRole('heading', { name: '页面不存在' })).toBeVisible()
+         |                                                              ^
+      14 |   await expect(page.getByRole('link', { name: '返回首页' })).toHaveAttribute('href', '/')
+      15 | })
+      16 |
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f0-foundation.spec.ts:13:62
+
+    Error Context: test-results\f0-foundation-unknown-rout-d4db3--accessible-not-found-state-chromium\error-context.md
+
+  3) [chromium] › e2e\f1-auth.spec.ts:9:1 › anonymous deep link returns after real admin login, restores, and logs out 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "/admin/users"
+    Received: "/"
+
+      10 |   await page.goto('/admin/users')
+      11 |   await expect(page).toHaveURL(/\/login$/u)
+    > 12 |   expect(await page.evaluate(() => sessionStorage.getItem('policyflow.auth.return-to'))).toBe('/admin/users')
+         |                                                                                          ^
+      13 |   await login(page, 'admin', 'frontend-e2e-only')
+      14 |   await expect(page).toHaveURL(/\/admin\/users$/u)
+      15 |   await expect(page.getByRole('heading', { name: '用户管理', level: 2 })).toBeVisible()
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f1-auth.spec.ts:12:90
+
+    Error Context: test-results\f1-auth-anonymous-deep-lin-f1cb5-login-restores-and-logs-out-chromium\error-context.md
+
+  4) [chromium] › e2e\f1-auth.spec.ts:33:1 › employee is redirected to forbidden for sys_admin route 
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /\/forbidden$/u
+    Received string:  "http://127.0.0.1:5173/admin/users#/"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toHaveURL" with timeout 5000ms
+        3 × unexpected value "http://127.0.0.1:5173/admin/users#/login"
+        11 × unexpected value "http://127.0.0.1:5173/admin/users#/"
+
+
+      34 |   await page.goto('/admin/users')
+      35 |   await login(page, 'frontend_employee', 'employee-password')
+    > 36 |   await expect(page).toHaveURL(/\/forbidden$/u)
+         |                      ^
+      37 |   await expect(page.getByRole('alert').getByRole('heading', { name: '无访问权限' })).toBeVisible()
+      38 | })
+      39 |
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f1-auth.spec.ts:36:22
+
+    Error Context: test-results\f1-auth-employee-is-redire-14119-rbidden-for-sys-admin-route-chromium\error-context.md
+
+  5) [chromium] › e2e\f1-auth.spec.ts:40:1 › expired local session is cleared before protected content is shown 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: '登录 PolicyFlow AI' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('heading', { name: '登录 PolicyFlow AI' })
+
+
+      47 |   await page.reload()
+      48 |   await expect(page).toHaveURL(/\/login$/u)
+    > 49 |   await expect(page.getByRole('heading', { name: '登录 PolicyFlow AI' })).toBeVisible()
+         |                                                                         ^
+      50 | })
+      51 |
+      52 |
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f1-auth.spec.ts:49:73
+
+    Error Context: test-results\f1-auth-expired-local-sess-bea7a--protected-content-is-shown-chromium\error-context.md
+
+  6) [chromium] › e2e\f1-auth.spec.ts:53:1 › mobile AppShell drawer is keyboard dismissible ────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: '打开导航' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('button', { name: '打开导航' })
+
+
+      56 |   await login(page, 'admin', 'frontend-e2e-only')
+      57 |   const trigger = page.getByRole('button', { name: '打开导航' })
+    > 58 |   await expect(trigger).toBeVisible()
+         |                         ^
+      59 |   await trigger.click()
+      60 |   await expect(page.getByRole('navigation', { name: '主导航' }).filter({ visible: true })).toBeVisible()
+      61 |   await page.keyboard.press('Escape')
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f1-auth.spec.ts:58:25
+
+    Error Context: test-results\f1-auth-mobile-AppShell-drawer-is-keyboard-dismissible-chromium\error-context.md
+
+  7) [chromium] › e2e\f2-users.spec.ts:13:1 › sys_admin lists, searches, creates, and updates a user through real APIs 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: '创建用户' })
+    Expected: visible
+    Error: strict mode violation: getByRole('button', { name: '创建用户' }) resolved to 2 elements:
+        1) <button type="button" class="ant-btn css-dev-only-do-not-override-1pi45l5 css-var-_r_0_ ant-btn-primary ant-btn-color-primary ant-btn-variant-solid">…</button> aka getByRole('button', { name: '创建用户' }).first()
+        2) <button type="button" class="ant-btn css-dev-only-do-not-override-1pi45l5 css-var-_r_0_ ant-btn-primary ant-btn-color-primary ant-btn-variant-solid ant-btn-sm">…</button> aka getByRole('cell', { name: '还没有用户 创建账户后可分配角色。 创建用户' }).getByRole('button')
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('button', { name: '创建用户' })
+
+
+      13 | test('sys_admin lists, searches, creates, and updates a user through real APIs', async ({ page }) => {
+      14 |   await loginAsAdmin(page)
+    > 15 |   await expect(page.getByRole('button', { name: '创建用户' })).toBeVisible()
+         |                                                            ^
+      16 |
+      17 |   const suffix = String(Date.now())
+      18 |   const username = `e2e_user_${suffix}`
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f2-users.spec.ts:15:60
+
+    Error Context: test-results\f2-users-sys-admin-lists-s-9fea3-es-a-user-through-real-APIs-chromium\error-context.md
+
+  8) [chromium] › e2e\f3-knowledge-bases.spec.ts:11:1 › admin creates a real knowledge base and indexed document while employee remains read-only 
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /\/knowledge-bases$/u
+    Received string:  "http://127.0.0.1:5173/login#/knowledge"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toHaveURL" with timeout 5000ms
+        14 × unexpected value "http://127.0.0.1:5173/login#/knowledge"
+
+
+      18 |   await login(page, 'admin', 'frontend-e2e-only')
+      19 |   await page.getByRole('link', { name: '知识库', exact: true }).click()
+    > 20 |   await expect(page).toHaveURL(/\/knowledge-bases$/u)
+         |                      ^
+      21 |
+      22 |   await page.getByRole('button', { name: '创建知识库' }).click()
+      23 |   const createDialog = page.getByRole('dialog')
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f3-knowledge-bases.spec.ts:20:22
+
+    Error Context: test-results\f3-knowledge-bases-admin-c-39086--employee-remains-read-only-chromium\error-context.md
+
+  9) [chromium] › e2e\f4-chat-drafts.spec.ts:3:1 › employee asks with evidence, submits feedback, restores history, and completes a draft 
+
+    Error: locator.click: Error: strict mode violation: getByRole('link', { name: '制度问答' }) resolved to 2 elements:
+        1) <a href="#/chat" class="ds-focusable" data-discover="true" data-testid="nav-chat">…</a> aka getByTestId('nav-chat')
+        2) <a href="#/chat" data-discover="true">…</a> aka getByRole('link', { name: '制度问答 向授权知识库提问，获取制度依据与引用溯源。 进入' })
+
+    Call log:
+      - waiting for getByRole('link', { name: '制度问答' })
+
+
+      12 |   await expect(page).not.toHaveURL(/\/login$/u)
+      13 |
+    > 14 |   await page.getByRole('link', { name: '制度问答' }).click()
+         |                                                  ^
+      15 |   await expect(page).toHaveURL(/\/chat$/u)
+      16 |   await page.getByLabel('问题').fill('What is the travel approval process?')
+      17 |   await page.getByRole('button', { name: '发送问题' }).click()
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f4-chat-drafts.spec.ts:14:50
+
+    Error Context: test-results\f4-chat-drafts-employee-as-bdb25-story-and-completes-a-draft-chromium\error-context.md
+
+  10) [chromium] › e2e\f5-quality.spec.ts:3:1 › admin reviews FAQ, inspects audit, runs answer evaluation, and debugs retrieval 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: getByRole('status')
+    Expected substring: "FAQ 文档索引状态"
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toContainText" with timeout 5000ms
+      - waiting for getByRole('status')
+
+
+      14 |   page.once('dialog', (dialog) => dialog.accept())
+      15 |   await firstFAQ.getByRole('button', { name: '审核通过' }).click()
+    > 16 |   await expect(page.getByRole('status')).toContainText('FAQ 文档索引状态')
+         |                                          ^
+      17 |   await secondFAQ.getByRole('button', { name: '驳回' }).click()
+      18 |   const rejectDialog = page.getByRole('dialog')
+      19 |   await rejectDialog.getByLabel('驳回原因').fill('E2E duplicate topic')
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f5-quality.spec.ts:16:42
+
+    Error Context: test-results\f5-quality-admin-reviews-F-c0107-uation-and-debugs-retrieval-chromium\error-context.md
+
+  11) [chromium] › e2e\f6-admin.spec.ts:3:1 › admin runs Skills, inspects redacted Tool logs, and manages mock MCP integrations 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('heading', { name: 'Skill 管理', level: 2 })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('heading', { name: 'Skill 管理', level: 2 })
+
+
+       9 |
+      10 |   await page.getByRole('link', { name: 'Skill 管理' }).click()
+    > 11 |   await expect(page.getByRole('heading', { name: 'Skill 管理', level: 2 })).toBeVisible()
+         |                                                                           ^
+      12 |   const summaryRow = page.getByRole('row').filter({ hasText: 'summary' })
+      13 |   await expect(summaryRow).toContainText('已实现')
+      14 |   await summaryRow.getByRole('button', { name: '手动运行' }).click()
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f6-admin.spec.ts:11:75
+
+    Error Context: test-results\f6-admin-admin-runs-Skills-59a60-nages-mock-MCP-integrations-chromium\error-context.md
+
+  12) [chromium] › e2e\f6-admin.spec.ts:60:1 › employee cannot open F6 administration routes ───────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('alert').getByRole('heading', { name: '无访问权限' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('alert').getByRole('heading', { name: '无访问权限' })
+
+
+      66 |
+      67 |   await page.goto('/admin/skills')
+    > 68 |   await expect(page.getByRole('alert').getByRole('heading', { name: '无访问权限' })).toBeVisible()
+         |                                                                                 ^
+      69 |   await page.goto('/admin/integrations')
+      70 |   await expect(page.getByRole('alert').getByRole('heading', { name: '无访问权限' })).toBeVisible()
+      71 | })
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f6-admin.spec.ts:68:81
+
+    Error Context: test-results\f6-admin-employee-cannot-open-F6-administration-routes-chromium\error-context.md
+
+  13) [chromium] › e2e\f7-accessibility.spec.ts:11:1 › public and authenticated production routes pass automated accessibility checks 
+
+    Error: /: [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "tags": [
+          "cat.color",
+          "wcag2aa",
+          "wcag143",
+          "TTv5",
+          "TT13.c",
+          "EN-301-549",
+          "EN-9.1.4.3",
+          "ACT",
+          "RGAAv4",
+          "RGAA-3.2.1"
+        ],
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+        "nodes": [
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": "#8a949e",
+                  "bgColor": "#ffffff",
+                  "contrastRatio": 3.08,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<div class=\"ant-card ant-card-bordered css-dev-only-do-not-override-1pi45l5 css-var-_r_0_\">",
+                    "target": [
+                      ".ant-col-sm-12.ant-col-lg-6.ant-col:nth-child(1) > .ant-card.ant-card-bordered.css-dev-only-do-not-override-1pi45l5"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<span class=\"ws-stat__suffix\">授权</span>",
+            "target": [
+              ".ant-col-sm-12.ant-col-lg-6.ant-col:nth-child(1) > .ant-card.ant-card-bordered.css-dev-only-do-not-override-1pi45l5 > .ant-card-body > .ws-stat > div:nth-child(1) > .ws-stat__value > .ws-stat__suffix"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+          },
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": "#8a949e",
+                  "bgColor": "#ffffff",
+                  "contrastRatio": 3.08,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<div class=\"ant-card ant-card-bordered css-dev-only-do-not-override-1pi45l5 css-var-_r_0_\">",
+                    "target": [
+                      ".ant-col-sm-12.ant-col-lg-6.ant-col:nth-child(2) > .ant-card.ant-card-bordered.css-dev-only-do-not-override-1pi45l5"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<span class=\"ws-stat__suffix\">会话</span>",
+            "target": [
+              ".ant-col-sm-12.ant-col-lg-6.ant-col:nth-child(2) > .ant-card.ant-card-bordered.css-dev-only-do-not-override-1pi45l5 > .ant-card-body > .ws-stat > div:nth-child(1) > .ws-stat__value > .ws-stat__suffix"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+          },
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": "#8a949e",
+                  "bgColor": "#ffffff",
+                  "contrastRatio": 3.08,
+                  "fontSize": "9.4pt (12.5px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<div class=\"ant-card ant-card-bordered ant-card-hoverable css-dev-only-do-not-override-1pi45l5 css-var-_r_0_\" style=\"height: 100%;\">",
+                    "target": [
+                      "a[href$=\"#/chat\"] > .ant-card-hoverable.ant-card.ant-card-bordered"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<span class=\"ws-shortcut__cta\">",
+            "target": [
+              "a[href$=\"#/chat\"] > .ant-card-hoverable.ant-card.ant-card-bordered > .ant-card-body > .ws-shortcut > .ws-shortcut__cta"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1"
+          },
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": "#8a949e",
+                  "bgColor": "#ffffff",
+                  "contrastRatio": 3.08,
+                  "fontSize": "9.4pt (12.5px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<div class=\"ant-card ant-card-bordered ant-card-hoverable css-dev-only-do-not-override-1pi45l5 css-var-_r_0_\" style=\"height: 100%;\">",
+                    "target": [
+                      "a[href$=\"#/drafts\"] > .ant-card-hoverable.ant-card.ant-card-bordered"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<span class=\"ws-shortcut__cta\">",
+            "target": [
+              "a[href$=\"#/drafts\"] > .ant-card-hoverable.ant-card.ant-card-bordered > .ant-card-body > .ws-shortcut > .ws-shortcut__cta"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1"
+          },
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": "#8a949e",
+                  "bgColor": "#ffffff",
+                  "contrastRatio": 3.08,
+                  "fontSize": "9.4pt (12.5px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<div class=\"ant-card ant-card-bordered ant-card-hoverable css-dev-only-do-not-override-1pi45l5 css-var-_r_0_\" style=\"height: 100%;\">",
+                    "target": [
+                      "a[href$=\"#/knowledge-bases\"] > .ant-card-hoverable.ant-card.ant-card-bordered"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<span class=\"ws-shortcut__cta\">",
+            "target": [
+              "a[href$=\"#/knowledge-bases\"] > .ant-card-hoverable.ant-card.ant-card-bordered > .ant-card-body > .ws-shortcut > .ws-shortcut__cta"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1"
+          },
+          {
+            "any": [
+              {
+                "id": "color-contrast",
+                "data": {
+                  "fgColor": "#8a949e",
+                  "bgColor": "#ffffff",
+                  "contrastRatio": 3.08,
+                  "fontSize": "9.4pt (12.5px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                },
+                "relatedNodes": [
+                  {
+                    "html": "<div class=\"ant-card ant-card-bordered ant-card-hoverable css-dev-only-do-not-override-1pi45l5 css-var-_r_0_\" style=\"height: 100%;\">",
+                    "target": [
+                      "a[href$=\"#/evaluation\"] > .ant-card-hoverable.ant-card.ant-card-bordered"
+                    ]
+                  }
+                ],
+                "impact": "serious",
+                "message": "Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "serious",
+            "html": "<span class=\"ws-shortcut__cta\">",
+            "target": [
+              "a[href$=\"#/evaluation\"] > .ant-card-hoverable.ant-card.ant-card-bordered > .ant-card-body > .ws-shortcut > .ws-shortcut__cta"
+            ],
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1"
+          }
+        ]
+      }
+    ]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -   1
+    + Received  + 233
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#ffffff",
+    +               "contrastRatio": 3.08,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8a949e",
+    +               "fontSize": "9.0pt (12px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<div class=\"ant-card ant-card-bordered css-dev-only-do-not-override-1pi45l5 css-var-_r_0_\">",
+    +                 "target": Array [
+    +                   ".ant-col-sm-12.ant-col-lg-6.ant-col:nth-child(1) > .ant-card.ant-card-bordered.css-dev-only-do-not-override-1pi45l5",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"ws-stat__suffix\">授权</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".ant-col-sm-12.ant-col-lg-6.ant-col:nth-child(1) > .ant-card.ant-card-bordered.css-dev-only-do-not-override-1pi45l5 > .ant-card-body > .ws-stat > div:nth-child(1) > .ws-stat__value > .ws-stat__suffix",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#ffffff",
+    +               "contrastRatio": 3.08,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8a949e",
+    +               "fontSize": "9.0pt (12px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<div class=\"ant-card ant-card-bordered css-dev-only-do-not-override-1pi45l5 css-var-_r_0_\">",
+    +                 "target": Array [
+    +                   ".ant-col-sm-12.ant-col-lg-6.ant-col:nth-child(2) > .ant-card.ant-card-bordered.css-dev-only-do-not-override-1pi45l5",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"ws-stat__suffix\">会话</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".ant-col-sm-12.ant-col-lg-6.ant-col:nth-child(2) > .ant-card.ant-card-bordered.css-dev-only-do-not-override-1pi45l5 > .ant-card-body > .ws-stat > div:nth-child(1) > .ws-stat__value > .ws-stat__suffix",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#ffffff",
+    +               "contrastRatio": 3.08,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8a949e",
+    +               "fontSize": "9.4pt (12.5px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<div class=\"ant-card ant-card-bordered ant-card-hoverable css-dev-only-do-not-override-1pi45l5 css-var-_r_0_\" style=\"height: 100%;\">",
+    +                 "target": Array [
+    +                   "a[href$=\"#/chat\"] > .ant-card-hoverable.ant-card.ant-card-bordered",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"ws-shortcut__cta\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"#/chat\"] > .ant-card-hoverable.ant-card.ant-card-bordered > .ant-card-body > .ws-shortcut > .ws-shortcut__cta",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#ffffff",
+    +               "contrastRatio": 3.08,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8a949e",
+    +               "fontSize": "9.4pt (12.5px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<div class=\"ant-card ant-card-bordered ant-card-hoverable css-dev-only-do-not-override-1pi45l5 css-var-_r_0_\" style=\"height: 100%;\">",
+    +                 "target": Array [
+    +                   "a[href$=\"#/drafts\"] > .ant-card-hoverable.ant-card.ant-card-bordered",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"ws-shortcut__cta\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"#/drafts\"] > .ant-card-hoverable.ant-card.ant-card-bordered > .ant-card-body > .ws-shortcut > .ws-shortcut__cta",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#ffffff",
+    +               "contrastRatio": 3.08,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8a949e",
+    +               "fontSize": "9.4pt (12.5px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<div class=\"ant-card ant-card-bordered ant-card-hoverable css-dev-only-do-not-override-1pi45l5 css-var-_r_0_\" style=\"height: 100%;\">",
+    +                 "target": Array [
+    +                   "a[href$=\"#/knowledge-bases\"] > .ant-card-hoverable.ant-card.ant-card-bordered",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"ws-shortcut__cta\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"#/knowledge-bases\"] > .ant-card-hoverable.ant-card.ant-card-bordered > .ant-card-body > .ws-shortcut > .ws-shortcut__cta",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#ffffff",
+    +               "contrastRatio": 3.08,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#8a949e",
+    +               "fontSize": "9.4pt (12.5px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<div class=\"ant-card ant-card-bordered ant-card-hoverable css-dev-only-do-not-override-1pi45l5 css-var-_r_0_\" style=\"height: 100%;\">",
+    +                 "target": Array [
+    +                   "a[href$=\"#/evaluation\"] > .ant-card-hoverable.ant-card.ant-card-bordered",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.08 (foreground color: #8a949e, background color: #ffffff, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"ws-shortcut__cta\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "a[href$=\"#/evaluation\"] > .ant-card-hoverable.ant-card.ant-card-bordered > .ant-card-body > .ws-shortcut > .ws-shortcut__cta",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +       "RGAAv4",
+    +       "RGAA-3.2.1",
+    +     ],
+    +   },
+    + ]
+
+       6 |     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+       7 |     .analyze()
+    >  8 |   expect(results.violations, `${label}: ${JSON.stringify(results.violations, null, 2)}`).toEqual([])
+         |                                                                                          ^
+       9 | }
+      10 |
+      11 | test('public and authenticated production routes pass automated accessibility checks', async ({ page }) => {
+        at expectNoAccessibilityViolations (E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f7-accessibility.spec.ts:8:90)
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f7-accessibility.spec.ts:44:5
+
+    Error Context: test-results\f7-accessibility-public-an-65c7d-omated-accessibility-checks-chromium\error-context.md
+
+  13 failed
+    [chromium] › e2e\f0-foundation.spec.ts:3:1 › F0 build remains available and Vite proxies the real FastAPI health endpoint 
+    [chromium] › e2e\f0-foundation.spec.ts:11:1 › unknown routes expose an accessible not-found state 
+    [chromium] › e2e\f1-auth.spec.ts:9:1 › anonymous deep link returns after real admin login, restores, and logs out 
+    [chromium] › e2e\f1-auth.spec.ts:33:1 › employee is redirected to forbidden for sys_admin route 
+    [chromium] › e2e\f1-auth.spec.ts:40:1 › expired local session is cleared before protected content is shown 
+    [chromium] › e2e\f1-auth.spec.ts:53:1 › mobile AppShell drawer is keyboard dismissible ─────────
+    [chromium] › e2e\f2-users.spec.ts:13:1 › sys_admin lists, searches, creates, and updates a user through real APIs 
+    [chromium] › e2e\f3-knowledge-bases.spec.ts:11:1 › admin creates a real knowledge base and indexed document while employee remains read-only 
+    [chromium] › e2e\f4-chat-drafts.spec.ts:3:1 › employee asks with evidence, submits feedback, restores history, and completes a draft 
+    [chromium] › e2e\f5-quality.spec.ts:3:1 › admin reviews FAQ, inspects audit, runs answer evaluation, and debugs retrieval 
+    [chromium] › e2e\f6-admin.spec.ts:3:1 › admin runs Skills, inspects redacted Tool logs, and manages mock MCP integrations 
+    [chromium] › e2e\f6-admin.spec.ts:60:1 › employee cannot open F6 administration routes ─────────
+    [chromium] › e2e\f7-accessibility.spec.ts:11:1 › public and authenticated production routes pass automated accessibility checks 
+  6 passed (2.6m)

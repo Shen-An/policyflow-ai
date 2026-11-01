@@ -96,7 +96,7 @@ SQLite（25+ 表，全 FK/状态列索引；WAL + busy_timeout；物理删除含
 
 ## 6. 工程质量现状（截至 2026-10-21）
 
-- **测试规模**：后端 pytest 全量 **942 passed / 197 skipped / 0 failed**（2026-10-21 实测，`artifacts/acceptance/pytest-full-2026-10-21b.txt`）；前端 vitest 48 文件 162 用例；Playwright e2e f0–f8。skip 数取决于本机是否起了 PG / Milvus / MinIO，不是失败。
+- **测试规模**：后端 pytest 全量 **942 passed / 197 skipped / 0 failed**（2026-10-21 实测，`artifacts/acceptance/pytest-full-2026-10-21b.txt`）；前端 vitest 48 文件 162 用例；Playwright e2e 有 f0–f8 八个 spec，其中 **f7/f8 六条用例已真绿**，f0–f6 的十二条仍在修陈旧定位器（应用已改 `createHashRouter`，spec 还在用路径导航 + 旧文案）。skip 数取决于本机是否起了 PG / Milvus / MinIO，不是失败。
 - **类型与风格**：`tsc -b` 通过；ruff + mypy(strict) 已配置；**eslint 0 problem**（2026-10-21 清完存量 12 error + 1 warning，靠拆出 `button-variants.ts` / `chip-tone.ts` / `use-color-mode.ts` 与消除 effect 内 setState）。
 - **性能与健壮性**（本轮优化落地）：
   - SQLite 开启 WAL / `synchronous=NORMAL` / `busy_timeout=5000` / 外键强制；
@@ -105,7 +105,7 @@ SQLite（25+ 表，全 FK/状态列索引；WAL + busy_timeout；物理删除含
   - 前端 `MutationCache.onError` 全局兜底 + antd message 桥接，44 处写操作失败不再静默；自带内联错误 UI 的 mutation 用 `selfHandledMutation` meta 跳过，避免双重提示；
   - 删除 30 个未使用 shadcn 组件与 8 个死依赖（node_modules -251 包）。
 - **已知待办**（识别未做，见 [08 §1.2](08-de-toy-multiagent-skill-eval-strategy.md)）：LLM/embedding 调用的 `httpx.AsyncClient` 连接复用；`routes_chat` 少数 `async def` 端点持同步 Session（**eval 侧 2026-10-21 已交线程池**，见 `tests/contract/test_eval_routes_offload.py`；`eval_service` / `knowledge_base_service` 仍是同步 Session）；BM25 每查询全量加载语料的指纹优化。
-- **诚实边界（2026-10-21）**：容量数字仍然一条都没有（1000 SSE / 30 分钟 soak / 200 RPS p95 全未在验收环境跑过），只拿到限流与降级行为的真跑证据，口径见 `artifacts/acceptance/capacity-boundary-2026-10-21.md`；Electron 全量 E2E 卡在宿主的 Chromium 单实例锁 / GPU 进程（非代码回归）；验收总账仍只有 6/16 有通过结论。
+- **诚实边界（2026-10-21）**：容量数字仍然一条都没有（1000 SSE / 30 分钟 soak / 200 RPS p95 全未在验收环境跑过），只拿到限流与降级行为的真跑证据，口径见 `artifacts/acceptance/capacity-boundary-2026-10-21.md`；Electron 全量 E2E 卡在宿主的 Chromium 单实例锁 / GPU 进程（非代码回归）；验收总账 **7/16** 有通过结论（2026-11-01 SC-012 键盘/焦点/语义/对比度从 partial 升 pass，证据 `artifacts/acceptance/sc012-admin-e2e-2026-11-01.md`）；Playwright 全量套件仍不是全绿（19 tests / 6 passed），所以「E2E 全绿」这个说法不成立。
 
 ## 7. UI / 设计系统
 

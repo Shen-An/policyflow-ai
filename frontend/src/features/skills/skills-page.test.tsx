@@ -122,7 +122,10 @@ describe('SkillsPage', () => {
     await user.click(within(logDialog).getByText('脱敏输入参数'))
     expect(await within(logDialog).findByText(/\[REDACTED\]/u)).toBeVisible()
     expect(within(logDialog).getByText(/visible/u)).toBeVisible()
-  }, 15_000)
+    // jsdom + antd Table/Modal make this an end-to-end-sized unit test: it takes
+    // ~11s on an idle machine and crossed the previous 15s ceiling under load.
+    // One slow test gets one explicit budget; no global timeout change.
+  }, 60_000)
 
   it('requires confirmation before changing Skill state', async () => {
     let disabled = false
