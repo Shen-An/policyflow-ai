@@ -1,0 +1,16 @@
+records: 1
+- 20261101T133700740772-32d975798df1.json: ok=True strict=False comparable=False mismatches=['answer', 'skills'] unexplained=[] events_match=False first_divergence=17 error=None
+
+strict match:     0/1
+comparable match: 0/1
+shadow ok:        1/1
+event sequence:   0/1
+
+mismatch field counts:
+  answer: 1
+  skills: 1
+unexplained field counts:
+
+explanations:
+  answer: 1
+  skills: 1

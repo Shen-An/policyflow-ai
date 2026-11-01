@@ -36,6 +36,7 @@ diff 归零之前不能切流量**。
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import logging
@@ -56,6 +57,12 @@ SHADOW_SCHEMA_VERSION = "ChatShadowDiff@1"
 #: Where the diff records land (relative to the process working directory).
 DEFAULT_SHADOW_DIR = Path("artifacts") / "graph" / "shadow"
 
+#: Confidence bonus ``estimate_answer_confidence`` gives a successful skill result
+#: (``backend/app/agents/grounding.py``). The shadow run never executes skills, so it
+#: always misses exactly this much confidence — which is why ``answer`` mismatches are
+#: only ever explained away when the delta is *exactly* this value.
+SKILL_CONFIDENCE_BONUS = 0.03
+
 #: Positional prefix of ``AgentPipeline.run``; everything else arrives as a kwarg.
 _RUN_POSITIONAL = (
     "question",
@@ -74,6 +81,72 @@ def _fingerprint(text: Any) -> dict[str, Any] | None:
     if not isinstance(text, str) or not text:
         return None
     return {"len": len(text), "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]}
+
+
+def _explain_degradation(
+    field_diff: dict[str, Any],
+    *,
+    side_effects_disabled: bool,
+) -> dict[str, str]:
+    """Mismatches that the shadow's deliberate degradation already explains."""
+
+    explained: dict[str, str] = {}
+    if not side_effects_disabled:
+        return explained
+
+    skills = field_diff.get("skills")
+    if skills is not None and not skills.get("match"):
+        explained["skills"] = (
+            "影子跑不执行 skill（disable_side_effects=True → "
+            "execute_skills=False），skill 结果恒为空"
+        )
+
+    answer = field_diff.get("answer")
+    if answer is not None and not answer.get("match"):
+        left = answer.get("authoritative") or {}
+        right = answer.get("shadow") or {}
+        same_text = left.get("text") == right.get("text")
+        same_tools = left.get("tool_trace") == right.get("tool_trace")
+        try:
+            delta = round(
+                float(left.get("confidence") or 0.0)
+                - float(right.get("confidence") or 0.0),
+                4,
+            )
+        except (TypeError, ValueError):
+            delta = None
+        if (
+            same_text
+            and same_tools
+            and delta is not None
+            and abs(delta - SKILL_CONFIDENCE_BONUS) < 1e-6
+        ):
+            explained["answer"] = (
+                "答案正文与工具轨迹一致；仅 confidence 低 0.03 = "
+                "estimate_answer_confidence 对成功 skill 的加分，"
+                "影子不执行 skill 故缺失"
+            )
+
+    return explained
+
+
+def _event_label(item: dict[str, Any]) -> str:
+    """Stable label for one recorded event.
+
+    Stage callbacks all arrive as ``event="stage"``; the interesting part is which
+    stage reported which status, so the label keeps both. A stage event that carries
+    no stage/status metadata stays a plain ``"stage"`` label, so missing metadata can
+    never be mistaken for a real divergence.
+    """
+
+    name = str(item.get("event", ""))
+    if name != "stage":
+        return name
+    stage = str(item.get("stage", "") or "")
+    status = str(item.get("status", "") or "")
+    if not stage and not status:
+        return "stage"
+    return f"stage:{stage}:{status}"
 
 
 def _result_digest(result: Any) -> dict[str, Any]:
@@ -380,19 +453,39 @@ class ChatShadowRunner:
                 "match": left == right,
             }
         mismatch = [key for key, item in field_diff.items() if not item["match"]]
+        side_effects_disabled = bool(shadow.get("side_effects_disabled", True))
+        explained = _explain_degradation(
+            field_diff, side_effects_disabled=side_effects_disabled
+        )
+        unexplained = [key for key in mismatch if key not in explained]
 
         auth_names = [item["event"] for item in authoritative_events]
         shadow_names = [item["event"] for item in shadow_events]
+        auth_labels = [_event_label(item) for item in authoritative_events]
+        shadow_labels = [_event_label(item) for item in shadow_events]
         first_divergence: int | None = None
-        for index, (left, right) in enumerate(zip(auth_names, shadow_names)):
+        for index, (left, right) in enumerate(zip(auth_labels, shadow_labels)):
             if left != right:
                 first_divergence = index
                 break
-        if first_divergence is None and len(auth_names) != len(shadow_names):
-            first_divergence = min(len(auth_names), len(shadow_names))
+        if first_divergence is None and len(auth_labels) != len(shadow_labels):
+            first_divergence = min(len(auth_labels), len(shadow_labels))
 
-        events_match = auth_names == shadow_names
+        edit_script = [
+            {
+                "op": tag,
+                "authoritative": auth_labels[i1:i2],
+                "shadow": shadow_labels[j1:j2],
+            }
+            for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(
+                a=auth_labels, b=shadow_labels, autojunk=False
+            ).get_opcodes()
+            if tag != "equal"
+        ]
+        names_match = auth_names == shadow_names
+        events_match = auth_labels == shadow_labels
         match = bool(shadow.get("ok")) and not mismatch and events_match
+        comparable_match = bool(shadow.get("ok")) and not unexplained and events_match
 
         identifier = (recording.conversation_id or "").strip() or uuid.uuid4().hex[:12]
         return {
@@ -410,13 +503,24 @@ class ChatShadowRunner:
             "authoritative_response_digest": _response_digest(response),
             "diff": {
                 "match": match,
+                "comparable_match": comparable_match,
                 "field_mismatches": mismatch,
+                "unexplained_mismatches": unexplained,
+                "explained_by_degradation": explained,
                 "fields": field_diff,
                 "event_sequence": {
                     "match": events_match,
-                    "authoritative": auth_names,
-                    "shadow": shadow_names,
+                    "match_names": names_match,
+                    "authoritative": auth_labels,
+                    "shadow": shadow_labels,
+                    "authoritative_names": auth_names,
+                    "shadow_names": shadow_names,
+                    "lengths": {
+                        "authoritative": len(auth_names),
+                        "shadow": len(shadow_names),
+                    },
                     "first_divergence_index": first_divergence,
+                    "edit_script": edit_script,
                 },
             },
             "shadow": {

@@ -155,9 +155,18 @@ async def test_shadow_mode_records_diff_when_paths_disagree(monkeypatch, tmp_pat
     # (b) SSE event sequence: authoritative emitted stage+final, shadow did not.
     events = diff["event_sequence"]
     assert events["match"] is False
-    assert events["authoritative"] == ["stage", "final"]
-    assert events["shadow"][0] == "stage"
-    assert events["first_divergence_index"] == 1
+    # ``authoritative``/``shadow`` hold *labelled* events (stage name + status) so the
+    # diff can tell "one stage missing" from "two stages reordered"; the raw event names
+    # stay available as ``authoritative_names``/``shadow_names``.
+    assert events["authoritative_names"] == ["stage", "final"]
+    assert events["shadow_names"][0] == "stage"
+    assert events["authoritative"][0].startswith("stage")
+    # Divergence is already at index 0 *by label*: the authoritative stream reports a
+    # single ``AnswerAgent`` stage before the final answer, while the shadow run walks the
+    # whole graph and opens with ``RouterAgent``. Under bare event names the first entry
+    # would look identical ("stage" vs "stage"), which is exactly why the diff compares
+    # labels.
+    assert events["first_divergence_index"] == 0
 
     # No answer text is persisted — only lengths and hash prefixes.
     assert "权威答案" not in raw

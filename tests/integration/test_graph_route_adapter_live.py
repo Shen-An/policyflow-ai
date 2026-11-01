@@ -19,6 +19,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from backend.app.core.config import Settings
+from backend.app.graph.legacy_adapter import AdapterMode
 from backend.app.main import create_app
 from tests.test_f4_frontend_contract import (
     F4LightRAG,
@@ -72,10 +73,24 @@ def test_flag_on_preserves_chat_contract_and_records_telemetry(tmp_path: Path) -
     # The flag-ON path must feed the Stage 9 removal-ledger telemetry.
     telemetry = app.state.adapter_usage_telemetry
     assert telemetry.usage_count("route_chat") >= 1
-    event = telemetry.events[-1]
+    # Select the authoritative routing event by adapter name rather than by
+    # position: with GRAPH_SHADOW_MODE=1 the shadow runner appends its own
+    # ``shadow_chat`` event after the authoritative one, so ``events[-1]`` is
+    # only the routing event when shadowing is off.
+    routing_events = [e for e in telemetry.events if e.adapter == "route_chat"]
+    assert routing_events, "no route_chat telemetry recorded"
+    event = routing_events[-1]
     # Telemetry carries routing metadata only, never payload content.
     assert event.run_id == chat["query_log_id"]
-    assert "travel" not in repr(event).lower()
+    assert event.mode is AdapterMode.ACTIVE
+    # Every recorded event — shadow included — must stay payload-free.
+    for recorded in telemetry.events:
+        assert "travel" not in repr(recorded).lower()
+    if telemetry.usage_count("shadow_chat"):
+        shadow_events = [e for e in telemetry.events if e.adapter == "shadow_chat"]
+        assert all(e.mode is AdapterMode.SHADOW for e in shadow_events)
+        # Shadow parity is recorded as a verdict, not as content.
+        assert all(isinstance(e.parity_match, bool) for e in shadow_events)
 
 
 def test_flag_off_does_not_record_telemetry(tmp_path: Path) -> None:

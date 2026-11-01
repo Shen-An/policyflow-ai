@@ -1039,3 +1039,13 @@ Phase 2 status: T033/T034/T036 complete; **T035 部分完成**（`memory_service
 - 结果：`npx playwright test --reporter=list --workers=1` → **19 passed / 0 failed，1.3 分钟**（`artifacts/acceptance/e2e-full-2026-11-01e.txt`）；`tsc -b` 0、`eslint .` 0。
 - 仍未覆盖（不许含糊）：Electron 整机 E2E（宿主 Chromium 单实例锁 / GPU 进程）；f5 的「回答评估 run」分支（e2e 种子没有 `code=eval_test` 语料，改断言真实检索 Run，属未覆盖而非通过）；antd rc-select 交互后隐藏 listbox 缺 `aria-label`（上游组件问题，未 disableRules）。
 - 顺带可复现性改进：`frontend/e2e/global-setup.ts` 支持 `POLICYFLOW_PYTHON`（PATH 上的 `python` 常是没装项目依赖的安装，会把启动失败吞成 `exited with code 1`）。
+
+## R44 补充（2026-11-01，T053 切片2 判定：不切流量）
+
+- 问题只有一个：影子图与权威路径的差异有没有清零到可以**把 chat 流量切到持久图**。结论：**没有，不切**。`GRAPH_SHADOW_MODE` 保持默认 `False`，T053 仍 `[~]`。证据与复现命令见 `artifacts/acceptance/t053-slice2-shadow-parity-2026-11-01.md`。
+- **双口径**（`backend/app/graph/shadow.py`）：`match` 仍是严格口径（字段全等 + 事件序列标签级全等 + 影子 `ok`）；新增 `comparable_match`（字段差异全部能由「影子刻意不执行 skill」解释，且事件序列全等）、`unexplained_mismatches`、`explained_by_degradation`。严格口径没有被稀释。
+- **字段级差异已完全归因**：`answer` 与 `skills` 两项，正文与 `sha256` 完全相同，只有 `confidence` 差 **0.03**（0.67 vs 0.64）。根因在 `backend/app/agents/grounding.py:258-259`——成功 skill 加分 `+0.03`，影子跑 `execute_skills=False` 自然少这一档。`_explain_degradation()` 只在「正文与 `tool_trace` 相同且差值恰为 `SKILL_CONFIDENCE_BONUS=0.03`」时解释，答案正文不同 / 差值不是 0.03 / `router`·`compliance`·`errors` 不一致一律不解释（`tests/contract/test_graph_shadow_parity_classification.py` 4 条反向断言）。
+- **事件级差异没清零**：真实 chat 记录 index 0–16 逐位相同；index 17 起权威发 `diagnostics_partial`、影子发 `stage:SkillAgent:success`，之后 `AnswerAgent`/`ReflectionLoop`/`CritiqueAgent`/`ComplianceAgent` 的 stage 整体错位一位；权威 31 个事件、影子 30 个，差的正是末尾那个 `diagnostics_partial`。客户端可见的 `plan` / `plan_step` 一个不少 → 分歧全在「stage 进度回调与 diagnostics 更新的交错顺序」。是噪声，但不是「已知安全」：SSE 客户端眼里顺序确实不同。
+- **方法学教训（值得保留）**：只比事件名会掩盖真实差异。裸名字层两边都以 `"stage"` 开头，LCS 只报「少一个 `diagnostics_partial`」；把 stage 打成 `stage:<stage>:<status>` 标签后才看出是整体错位。所以 `_event_label()` 现在参与 `first_divergence` / `edit_script` / `events_match`，`event_sequence` 同时保留标签（`authoritative`/`shadow`）与裸名（`authoritative_names`/`shadow_names`/`match_names`）。裸 `{"event":"stage"}` 缺元数据时降级为 `"stage"`，避免把「没元数据」误判成分歧（`tests/contract/test_graph_shadow_event_labels.py` 4 用例钉住）。
+- **切流量还差三件事**：①事件顺序对齐或把「stage 与 diagnostics 交错顺序」写成有 SSE 契约测试支撑的可忽略项；②在**真开 skill**（`execute_skills=True`）的路径上重取一轮记录，而不是继续用降级影子比对 confidence；③规模——现在一次跑只有 1 份真实 chat 记录，切片 2 的最低证据量应是多问句 × 多入口的一批。
+- 验证：`GRAPH_SHADOW_MODE=1` 与 `=0` 各跑 4 个文件（shadow_mode / event_labels / parity_classification / route_adapter_live）→ **13 passed / 13 passed**。运行期记录 `artifacts/graph/shadow/*.json` 不提交（时间戳与 uuid 每次都变），入库的是汇总 `artifacts/acceptance/shadow-parity-summary.txt` 与上文判定文档。
