@@ -16,7 +16,7 @@ from fastapi import (
 )
 from starlette.concurrency import run_in_threadpool
 
-from backend.app.api.deps import CurrentUser, SessionDep
+from backend.app.api.deps import CurrentUser, SessionDep, UnitOfWorkDep
 from backend.app.core.permissions import require_roles
 from backend.app.db.models import User
 from backend.app.jobs.runner import submit_document_index
@@ -48,10 +48,10 @@ from backend.app.services.document_service import (
 from backend.app.services.knowledge_base_service import (
     create_knowledge_base,
     delete_knowledge_base,
-    get_knowledge_base_create_options,
-    get_knowledge_base_detail,
-    list_departments,
-    list_knowledge_bases,
+    get_knowledge_base_create_options_async,
+    get_knowledge_base_detail_async,
+    list_departments_async,
+    list_knowledge_bases_async,
     update_knowledge_base,
 )
 
@@ -81,31 +81,38 @@ def post_knowledge_base(
     )
 
 
+# These four are read-only, so they run on the async unit of work: a sync
+# ``Session`` here would hold a thread of the pool for the whole request and,
+# worse, invite the next author to add a write to a path that has no transaction
+# of its own. Writes below still use the synchronous session on purpose.
 @router.get("", response_model=KnowledgeBaseListResponse)
-def get_knowledge_bases(user: CurrentUser, session: SessionDep) -> KnowledgeBaseListResponse:
-    return list_knowledge_bases(session, user)
+async def get_knowledge_bases(
+    user: CurrentUser,
+    uow: UnitOfWorkDep,
+) -> KnowledgeBaseListResponse:
+    return await list_knowledge_bases_async(uow, user)
 
 
 @departments_router.get("", response_model=DepartmentListResponse)
-def get_departments(_: CurrentUser, session: SessionDep) -> DepartmentListResponse:
-    return list_departments(session)
+async def get_departments(_: CurrentUser, uow: UnitOfWorkDep) -> DepartmentListResponse:
+    return await list_departments_async(uow)
 
 
 @router.get("/create-options", response_model=KnowledgeBaseCreateOptions)
-def get_create_options(
+async def get_create_options(
     _: KnowledgeAdmin,
-    session: SessionDep,
+    uow: UnitOfWorkDep,
 ) -> KnowledgeBaseCreateOptions:
-    return get_knowledge_base_create_options(session)
+    return await get_knowledge_base_create_options_async(uow)
 
 
 @router.get("/{knowledge_base_id}", response_model=KnowledgeBaseRead)
-def get_knowledge_base(
+async def get_knowledge_base(
     knowledge_base_id: UUID,
     user: CurrentUser,
-    session: SessionDep,
+    uow: UnitOfWorkDep,
 ) -> KnowledgeBaseRead:
-    return get_knowledge_base_detail(session, user, str(knowledge_base_id))
+    return await get_knowledge_base_detail_async(uow, user, str(knowledge_base_id))
 
 
 @router.patch("/{knowledge_base_id}", response_model=KnowledgeBaseRead)

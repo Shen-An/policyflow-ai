@@ -1,0 +1,206 @@
+........................................................................ [  6%]
+........................................................................ [ 12%]
+........................................................................ [ 18%]
+........................................................................ [ 24%]
+..........................................ssssssssssssssss.sssssss...... [ 31%]
+........................................................................ [ 37%]
+........................................................................ [ 43%]
+.............................ssss.ssss..............s...............ss.s [ 49%]
+........sssssssssss...ssssssssssssss.sssssssssssssssssss.sssssssssssssss [ 55%]
+sssssssss.sssss...sssssssssssss......................................sss [ 62%]
+sssss........sssssssssssssssssssss....ssssssssssssss.................... [ 68%]
+ssssssssss.........sssssssssssssss...................................... [ 74%]
+...........ssssssss..................................................... [ 80%]
+.................................................................F...... [ 87%]
+........................................................................ [ 93%]
+........................................................................ [ 99%]
+......                                                                   [100%]
+================================== FAILURES ===================================
+_____________ test_official_lightrag_indexes_and_queries_document _____________
+
+self = <backend.app.rag.inprocess_lightrag.InProcessLightRAGAdapter object at 0x000001E07CAF8BD0>
+knowledge_base = KnowledgeBase(id='3562592d-7368-455f-8467-b98089c1ad92', tenant_id='db1ba2e9-992d-47b0-bd36-cde3185cacd9', name='������Դ��...fo=datetime.timezone.utc), updated_at=datetime.datetime(2026, 11, 1, 14, 19, 38, 158131, tzinfo=datetime.timezone.utc))
+document = KnowledgeDocument(id='6a4c67f5-2119-4cd3-88a1-236a8b7d7ef9', tenant_id=None, knowledge_base_id='3562592d-7368-455f-846...fo=datetime.timezone.utc), updated_at=datetime.datetime(2026, 11, 1, 14, 19, 38, 219307, tzinfo=datetime.timezone.utc))
+
+    async def insert_document(
+        self, knowledge_base: KnowledgeBase, document: KnowledgeDocument
+    ) -> None:
+        if not document.content_text:
+            raise ApplicationError("DOCUMENT_CONTENT_EMPTY", "Document has no indexable text", 422)
+        rag = await self._workspace(knowledge_base)
+        try:
+            await rag.adelete_by_doc_id(document.id)
+            await rag.ainsert(
+                document.content_text,
+                ids=document.id,
+                file_paths=self._file_source(knowledge_base, document),
+            )
+            statuses = await rag.aget_docs_by_ids(document.id)
+            status = statuses.get(document.id, {})
+            if status.get("status") != "processed":
+>               raise RuntimeError(
+                    str(status.get("error_msg") or "LightRAG did not finish indexing")
+                )
+E               RuntimeError: [WinError 5] �ܾ����ʡ�: 'C:\\Users\\Administrator\\AppData\\Local\\Temp\\pytest-of-Administrator\\pytest-84\\test_official_lightrag_indexes0\\rag\\hr\\kv_store_doc_status.json.tmp.36500.31828.1793542778953577700' -> 'C:\\Users\\Administrator\\AppData\\Local\\Temp\\pytest-of-Administrator\\pytest-84\\test_official_lightrag_indexes0\\rag\\hr\\kv_store_doc_status.json'
+
+backend\app\rag\inprocess_lightrag.py:257: RuntimeError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/Administrator/AppData/Local/Temp/pytest-of-Administrator/pytest-84/test_official_lightrag_indexes0')
+
+    @pytest.mark.asyncio
+    async def test_official_lightrag_indexes_and_queries_document(tmp_path: Path) -> None:
+        settings = Settings(
+            DATABASE_URL=f"sqlite:///{(tmp_path / 'lightrag.db').as_posix()}",
+            LOG_DIR=tmp_path / "logs",
+            RAG_WORKSPACE_DIR=tmp_path / "rag",
+            BOOTSTRAP_ADMIN_PASSWORD="test-password",
+            LLM_BASE_URL=None,
+            LLM_CHAT_MODEL=None,
+            LLM_EMBEDDING_MODEL=None,
+            _env_file=None,
+        )
+        engine = build_engine(settings.DATABASE_URL)
+        initialize_database(engine, settings)
+        with Session(engine) as session:
+            session.exec(delete(ModelProvider))
+            session.add(
+                ModelProvider(
+                    name="chat-test",
+                    capability="chat",
+                    base_url="http://test",
+                    api_key_env="TEST_KEY",
+                    default_chat_model="fake-chat",
+                )
+            )
+            session.add(
+                ModelProvider(
+                    name="embedding-test",
+                    capability="embedding",
+                    base_url="http://test",
+                    api_key_env="TEST_KEY",
+                    default_chat_model="fake-embedding",
+                    default_embedding_model="fake-embedding",
+                    config_json={"embedding_dim": 8},
+                )
+            )
+            session.commit()
+            knowledge_base = session.exec(select(KnowledgeBase).where(KnowledgeBase.code == "hr")).one()
+            knowledge_base.rag_workspace = str(tmp_path / "rag" / "hr")
+            session.add(knowledge_base)
+            session.commit()
+            document = KnowledgeDocument(
+                knowledge_base_id=knowledge_base.id,
+                title="Leave Policy",
+                file_path="leave.txt",
+                file_type="txt",
+                content_text="Annual leave requires manager approval.",
+                content_hash="lightrag-test",
+                index_status="pending",
+                created_by="system",
+            )
+            session.add(document)
+            session.commit()
+            session.refresh(knowledge_base)
+            session.refresh(document)
+            empty_knowledge_base = session.exec(
+                select(KnowledgeBase).where(KnowledgeBase.code == "legal")
+            ).one()
+            empty_knowledge_base.rag_workspace = str(tmp_path / "rag" / "legal")
+            session.add(empty_knowledge_base)
+            session.commit()
+            session.refresh(empty_knowledge_base)
+            session.refresh(knowledge_base)
+            session.refresh(document)
+            detached_empty_kb = KnowledgeBase.model_validate(empty_knowledge_base.model_dump())
+            detached_kb = KnowledgeBase.model_validate(knowledge_base.model_dump())
+            detached_document = KnowledgeDocument.model_validate(document.model_dump())
+    
+        adapter = InProcessLightRAGAdapter(
+            engine,
+            settings,
+            FakeGraphLLM(),
+            FakeEmbeddingService(),
+        )
+>       await adapter.insert_document(detached_kb, detached_document)
+
+tests\test_inprocess_lightrag.py:109: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <backend.app.rag.inprocess_lightrag.InProcessLightRAGAdapter object at 0x000001E07CAF8BD0>
+knowledge_base = KnowledgeBase(id='3562592d-7368-455f-8467-b98089c1ad92', tenant_id='db1ba2e9-992d-47b0-bd36-cde3185cacd9', name='������Դ��...fo=datetime.timezone.utc), updated_at=datetime.datetime(2026, 11, 1, 14, 19, 38, 158131, tzinfo=datetime.timezone.utc))
+document = KnowledgeDocument(id='6a4c67f5-2119-4cd3-88a1-236a8b7d7ef9', tenant_id=None, knowledge_base_id='3562592d-7368-455f-846...fo=datetime.timezone.utc), updated_at=datetime.datetime(2026, 11, 1, 14, 19, 38, 219307, tzinfo=datetime.timezone.utc))
+
+    async def insert_document(
+        self, knowledge_base: KnowledgeBase, document: KnowledgeDocument
+    ) -> None:
+        if not document.content_text:
+            raise ApplicationError("DOCUMENT_CONTENT_EMPTY", "Document has no indexable text", 422)
+        rag = await self._workspace(knowledge_base)
+        try:
+            await rag.adelete_by_doc_id(document.id)
+            await rag.ainsert(
+                document.content_text,
+                ids=document.id,
+                file_paths=self._file_source(knowledge_base, document),
+            )
+            statuses = await rag.aget_docs_by_ids(document.id)
+            status = statuses.get(document.id, {})
+            if status.get("status") != "processed":
+                raise RuntimeError(
+                    str(status.get("error_msg") or "LightRAG did not finish indexing")
+                )
+        except Exception as exc:
+            logger.exception(
+                "LightRAG document indexing failed",
+                extra={"knowledge_base_id": knowledge_base.id, "document_id": document.id},
+            )
+>           raise ApplicationError(
+                "LIGHTRAG_INDEX_ERROR", "LightRAG document indexing failed", 502
+            ) from exc
+E           backend.app.core.exceptions.ApplicationError: LightRAG document indexing failed
+
+backend\app\rag\inprocess_lightrag.py:265: ApplicationError
+---------------------------- Captured stderr call -----------------------------
+{"timestamp": "2026-11-01T14:19:38.215304+00:00", "level": "INFO", "logger": "backend.app.db.init_db", "message": "Database seed completed", "seed_summary": {"roles_created": 3, "roles_repaired": 0, "departments_created": 5, "knowledge_bases_created": 7, "permissions_created": 14, "users_created": 1, "model_providers_created": 0, "skills_created": 7, "tools_created": 10, "tenants_created": 1}}
+INFO: [hr] Created new empty graph file: C:\Users\Administrator\AppData\Local\Temp\pytest-of-Administrator\pytest-84\test_official_lightrag_indexes0\rag\hr\graph_chunk_entity_relation.graphml
+{"timestamp": "2026-11-01T14:19:38.942570+00:00", "level": "INFO", "logger": "nano-vectordb", "message": "Init {'embedding_dim': 8, 'metric': 'cosine', 'storage_file': 'C:\\\\Users\\\\Administrator\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-Administrator\\\\pytest-84\\\\test_official_lightrag_indexes0\\\\rag\\\\hr\\\\vdb_entities.json'} 0 data"}
+{"timestamp": "2026-11-01T14:19:38.942570+00:00", "level": "INFO", "logger": "nano-vectordb", "message": "Init {'embedding_dim': 8, 'metric': 'cosine', 'storage_file': 'C:\\\\Users\\\\Administrator\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-Administrator\\\\pytest-84\\\\test_official_lightrag_indexes0\\\\rag\\\\hr\\\\vdb_relationships.json'} 0 data"}
+{"timestamp": "2026-11-01T14:19:38.943578+00:00", "level": "INFO", "logger": "nano-vectordb", "message": "Init {'embedding_dim': 8, 'metric': 'cosine', 'storage_file': 'C:\\\\Users\\\\Administrator\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-Administrator\\\\pytest-84\\\\test_official_lightrag_indexes0\\\\rag\\\\hr\\\\vdb_chunks.json'} 0 data"}
+INFO: Role LLM Configuration (initialized):
+INFO:  - extract: None/None, host=None, max_async=4, timeout=240
+INFO:  - keyword: None/None, host=None, max_async=4, timeout=240
+INFO:  - query: None/None, host=None, max_async=4, timeout=240
+INFO:  - vlm: None/None, host=None, max_async=4, timeout=240
+INFO: [hr] Process 36500 KV load full_docs with 0 records
+INFO: [hr] Process 36500 KV load text_chunks with 0 records
+INFO: [hr] Process 36500 KV load full_entities with 0 records
+INFO: [hr] Process 36500 KV load full_relations with 0 records
+INFO: [hr] Process 36500 KV load entity_chunks with 0 records
+INFO: [hr] Process 36500 KV load relation_chunks with 0 records
+INFO: [hr] Process 36500 KV load llm_response_cache with 0 records
+INFO: [hr] Process 36500 doc status load doc_status with 0 records
+{"timestamp": "2026-11-01T14:19:38.945580+00:00", "level": "INFO", "logger": "backend.app.rag.inprocess_lightrag", "message": "LightRAG workspace initialized", "knowledge_base_id": "3562592d-7368-455f-8467-b98089c1ad92", "workspace": "hr", "embedding_dimension": 8}
+INFO: Starting deletion process for document 6a4c67f5-2119-4cd3-88a1-236a8b7d7ef9
+WARNING: Document 6a4c67f5-2119-4cd3-88a1-236a8b7d7ef9 not found
+INFO: Deletion process completed for document: 6a4c67f5-2119-4cd3-88a1-236a8b7d7ef9
+INFO: Processing 1 document(s)
+INFO: Parsing (native): 6a4c67f5-2119-4cd3-88a1-236a8b7d7ef9
+ERROR: Analyze worker failed: [WinError 5] �ܾ����ʡ�: 'C:\\Users\\Administrator\\AppData\\Local\\Temp\\pytest-of-Administrator\\pytest-84\\test_official_lightrag_indexes0\\rag\\hr\\kv_store_doc_status.json.tmp.36500.31828.1793542778953577700' -> 'C:\\Users\\Administrator\\AppData\\Local\\Temp\\pytest-of-Administrator\\pytest-84\\test_official_lightrag_indexes0\\rag\\hr\\kv_store_doc_status.json'
+INFO: Enqueued document processing pipeline stopped
+{"timestamp": "2026-11-01T14:19:38.955569+00:00", "level": "ERROR", "logger": "backend.app.rag.inprocess_lightrag", "message": "LightRAG document indexing failed", "knowledge_base_id": "3562592d-7368-455f-8467-b98089c1ad92", "document_id": "6a4c67f5-2119-4cd3-88a1-236a8b7d7ef9", "exception": "Traceback (most recent call last):\n  File \"E:\\Coding\\Code\\Python\\policyflow-ai\\backend\\app\\rag\\inprocess_lightrag.py\", line 257, in insert_document\n    raise RuntimeError(\nRuntimeError: [WinError 5] �ܾ����ʡ�: 'C:\\\\Users\\\\Administrator\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-Administrator\\\\pytest-84\\\\test_official_lightrag_indexes0\\\\rag\\\\hr\\\\kv_store_doc_status.json.tmp.36500.31828.1793542778953577700' -> 'C:\\\\Users\\\\Administrator\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-Administrator\\\\pytest-84\\\\test_official_lightrag_indexes0\\\\rag\\\\hr\\\\kv_store_doc_status.json'"}
+------------------------------ Captured log call ------------------------------
+INFO     backend.app.db.init_db:init_db.py:849 Database seed completed
+INFO     nano-vectordb:dbs.py:81 Init {'embedding_dim': 8, 'metric': 'cosine', 'storage_file': 'C:\\Users\\Administrator\\AppData\\Local\\Temp\\pytest-of-Administrator\\pytest-84\\test_official_lightrag_indexes0\\rag\\hr\\vdb_entities.json'} 0 data
+INFO     nano-vectordb:dbs.py:81 Init {'embedding_dim': 8, 'metric': 'cosine', 'storage_file': 'C:\\Users\\Administrator\\AppData\\Local\\Temp\\pytest-of-Administrator\\pytest-84\\test_official_lightrag_indexes0\\rag\\hr\\vdb_relationships.json'} 0 data
+INFO     nano-vectordb:dbs.py:81 Init {'embedding_dim': 8, 'metric': 'cosine', 'storage_file': 'C:\\Users\\Administrator\\AppData\\Local\\Temp\\pytest-of-Administrator\\pytest-84\\test_official_lightrag_indexes0\\rag\\hr\\vdb_chunks.json'} 0 data
+INFO     backend.app.rag.inprocess_lightrag:inprocess_lightrag.py:219 LightRAG workspace initialized
+ERROR    backend.app.rag.inprocess_lightrag:inprocess_lightrag.py:261 LightRAG document indexing failed
+Traceback (most recent call last):
+  File "E:\Coding\Code\Python\policyflow-ai\backend\app\rag\inprocess_lightrag.py", line 257, in insert_document
+    raise RuntimeError(
+RuntimeError: [WinError 5] �ܾ����ʡ�: 'C:\\Users\\Administrator\\AppData\\Local\\Temp\\pytest-of-Administrator\\pytest-84\\test_official_lightrag_indexes0\\rag\\hr\\kv_store_doc_status.json.tmp.36500.31828.1793542778953577700' -> 'C:\\Users\\Administrator\\AppData\\Local\\Temp\\pytest-of-Administrator\\pytest-84\\test_official_lightrag_indexes0\\rag\\hr\\kv_store_doc_status.json'
+=========================== short test summary info ===========================
+FAILED tests/test_inprocess_lightrag.py::test_official_lightrag_indexes_and_queries_document
+1 failed, 960 passed, 197 skipped in 324.95s (0:05:24)

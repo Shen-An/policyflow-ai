@@ -1,6 +1,7 @@
 """Knowledge-base ACL resolution."""
 
-from typing import Literal, cast
+from collections.abc import Collection, Iterable
+from typing import Any, Literal, cast
 
 from sqlmodel import Session, select
 
@@ -34,34 +35,55 @@ def get_document(session: Session, document_id: str) -> KnowledgeDocument:
     return document
 
 
+def subject_pairs_for(user: User, role_ids: Iterable[str]) -> set[tuple[str, str]]:
+    """Return every ``(subject_type, subject_id)`` pair that can grant access."""
+    pairs: set[tuple[str, str]] = {("user", user.id)}
+    pairs.update(("role", role_id) for role_id in role_ids)
+    if user.department_id:
+        pairs.add(("department", user.department_id))
+    return pairs
+
+
+def resolve_permission_level(
+    role_codes: Collection[str],
+    subject_pairs: Collection[tuple[str, str]],
+    permissions: Iterable[Any],
+) -> PermissionLevel | None:
+    """Resolve the strongest permission those pairs hold on one knowledge base.
+
+    One implementation, two callers: the synchronous ``Session`` path below and
+    the asynchronous unit-of-work path in ``knowledge_base_service``. Extracting
+    it is what keeps the ACL from forking into two copies that can disagree.
+    """
+    if "sys_admin" in role_codes or "kb_admin" in role_codes:
+        return "admin"
+    allowed = set(subject_pairs)
+    matched: list[PermissionLevel] = [
+        cast(PermissionLevel, item.permission)
+        for item in permissions
+        if (item.subject_type, item.subject_id) in allowed
+    ]
+    if not matched:
+        return None
+    return max(matched, key=PERMISSION_RANK.__getitem__)
+
+
 def get_knowledge_base_permission(
     session: Session,
     user: User,
     knowledge_base: KnowledgeBase,
 ) -> PermissionLevel | None:
-    role_codes = set(get_user_role_codes(session, user.id))
-    if "sys_admin" in role_codes or "kb_admin" in role_codes:
-        return "admin"
-
     role_links = session.exec(select(UserRole).where(UserRole.user_id == user.id)).all()
-    subject_pairs = {("user", user.id)}
-    subject_pairs.update(("role", link.role_id) for link in role_links)
-    if user.department_id:
-        subject_pairs.add(("department", user.department_id))
-
     permissions = session.exec(
         select(KnowledgeBasePermission).where(
             KnowledgeBasePermission.knowledge_base_id == knowledge_base.id
         )
     ).all()
-    matched: list[PermissionLevel] = [
-        cast(PermissionLevel, item.permission)
-        for item in permissions
-        if (item.subject_type, item.subject_id) in subject_pairs
-    ]
-    if not matched:
-        return None
-    return max(matched, key=PERMISSION_RANK.__getitem__)
+    return resolve_permission_level(
+        set(get_user_role_codes(session, user.id)),
+        subject_pairs_for(user, [link.role_id for link in role_links]),
+        permissions,
+    )
 
 
 def require_knowledge_base_permission(

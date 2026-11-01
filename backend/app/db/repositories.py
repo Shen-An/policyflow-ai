@@ -55,20 +55,25 @@ from backend.app.core.config import get_settings
 from backend.app.core.exceptions import ApplicationError
 from backend.app.core.logging import get_logger
 from backend.app.db.models import (
-    RUN_STATUSES,
     AgentRun,
     AuditEvent,
     Conversation,
+    Department,
     EvalCase,
     EvalRun,
     GraphCheckpointBinding,
     IdempotencyRecord,
+    KnowledgeBase,
+    KnowledgeBasePermission,
+    KnowledgeDocument,
     MemoryItem,
+    RUN_STATUSES,
     RetrievalEvalItem,
     Role,
     RunEvent,
     Tenant,
     User,
+    UserRole,
     UserRoleGrant,
     new_id,
     utc_now,
@@ -2270,6 +2275,93 @@ async def append_audit_event(
 # --- Unit of work -----------------------------------------------------------
 
 
+class KnowledgeBaseRepository:
+    """Read views over the knowledge-base tables, scoped by the caller's tenant.
+
+    Only reads live here. Creation, update and physical deletion still run on the
+    synchronous session because they own filesystem side effects and audit rows;
+    moving those is a separate change with its own failure modes, and this
+    repository deliberately does not pretend to cover them.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        """Bind the repository to the session of the unit of work that owns it."""
+        self._session = session
+
+    async def list_active(self, tenant_id: str | None) -> list[_Row]:
+        """Return the tenant's active knowledge bases, ordered by name.
+
+        A ``None`` tenant keeps the pre-tenant behaviour of enumerating every
+        active row, which is what an un-scoped single-tenant deployment needs;
+        a tenant is never *derived* here, only applied.
+        """
+        statement = select(KnowledgeBase).where(KnowledgeBase.status == "active")
+        if tenant_id is not None:
+            statement = statement.where(_tenant_predicate(KnowledgeBase, tenant_id))
+        return await _fetch_all(self._session, statement.order_by(KnowledgeBase.name))
+
+    async def get_optional(self, knowledge_base_id: str) -> _Row | None:
+        """Return one knowledge base by id, or ``None`` when it does not exist.
+
+        ``status`` is left to the caller: a soft-deleted row must stay readable
+        for the revive and import paths, so this method cannot decide that.
+        """
+        return await _fetch_optional(self._session, KnowledgeBase, knowledge_base_id)
+
+    async def list_departments(self) -> list[_Row]:
+        """Return every department, ordered by name."""
+        return await _fetch_all(
+            self._session, select(Department).order_by(Department.name)
+        )
+
+    async def count_live_documents(self, knowledge_base_ids: Collection[str]) -> dict[str, int]:
+        """Return the live document count of each knowledge base in one query.
+
+        ``deleted`` documents are excluded exactly as the synchronous helper did,
+        so the count a caller reads here matches the count it read before.
+        """
+        identifiers = tuple(dict.fromkeys(knowledge_base_ids))
+        if not identifiers:
+            return {}
+        statement = (
+            select(KnowledgeDocument.knowledge_base_id, func.count())
+            .where(KnowledgeDocument.knowledge_base_id.in_(identifiers))
+            .where(KnowledgeDocument.index_status != "deleted")
+            .group_by(KnowledgeDocument.knowledge_base_id)
+        )
+        rows = (await self._session.execute(statement)).all()
+        return {str(row[0]): int(row[1]) for row in rows}
+
+    async def role_codes_for_user(self, user_id: str) -> set[str]:
+        """Return the codes of every role the user currently holds."""
+        statement = (
+            select(Role.code)
+            .join(UserRole, UserRole.role_id == Role.id)
+            .where(UserRole.user_id == user_id)
+        )
+        return {str(code) for code in (await self._session.execute(statement)).scalars().all()}
+
+    async def role_ids_for_user(self, user_id: str) -> list[str]:
+        """Return the ids of every role the user currently holds."""
+        statement = select(UserRole.role_id).where(UserRole.user_id == user_id)
+        return [str(role_id) for role_id in (await self._session.execute(statement)).scalars().all()]
+
+    async def permissions_for(
+        self, knowledge_base_ids: Collection[str]
+    ) -> dict[str, list[_Row]]:
+        """Return the ACL rows of the given knowledge bases, grouped by base id."""
+        identifiers = tuple(dict.fromkeys(knowledge_base_ids))
+        if not identifiers:
+            return {}
+        statement = select(KnowledgeBasePermission).where(
+            KnowledgeBasePermission.knowledge_base_id.in_(identifiers)
+        )
+        grouped: dict[str, list[_Row]] = {}
+        for row in await _fetch_all(self._session, statement):
+            grouped.setdefault(str(row.knowledge_base_id), []).append(row)
+        return grouped
+
+
 class UnitOfWork:
     """One transaction, one session and the repositories that share both.
 
@@ -2366,6 +2458,11 @@ class UnitOfWork:
     def eval_cases(self) -> EvalCaseRepository:
         """Return the eval-case repository bound to this transaction."""
         return self._repository("eval_cases", EvalCaseRepository)
+
+    @property
+    def knowledge_bases(self) -> KnowledgeBaseRepository:
+        """Return the knowledge-base repository bound to this transaction."""
+        return self._repository("knowledge_bases", KnowledgeBaseRepository)
 
     @property
     def retrieval_eval_items(self) -> RetrievalEvalItemRepository:

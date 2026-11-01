@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from backend.app.core.config import Settings
 from backend.app.core.exceptions import ApplicationError, ConflictError
+from backend.app.db.repositories import UnitOfWork
 from backend.app.db.models import (
     Department,
     FAQDraft,
@@ -33,6 +34,8 @@ from backend.app.services.permission_service import (
     PermissionLevel,
     get_knowledge_base_permission,
     require_knowledge_base_permission,
+    resolve_permission_level,
+    subject_pairs_for,
 )
 
 
@@ -46,11 +49,16 @@ def _document_count(session: Session, knowledge_base_id: str) -> int:
     return len(documents)
 
 
-def to_knowledge_base_read(
-    session: Session,
+def to_knowledge_base_read_from_count(
     knowledge_base: KnowledgeBase,
     permission: PermissionLevel,
+    document_count: int,
 ) -> KnowledgeBaseRead:
+    """Project a row and a pre-computed document count into the API schema.
+
+    The count is passed in rather than queried per row so the asynchronous path
+    can fetch every count in one statement instead of N.
+    """
     return KnowledgeBaseRead(
         id=knowledge_base.id,
         name=knowledge_base.name,
@@ -61,7 +69,19 @@ def to_knowledge_base_read(
         default_query_mode=knowledge_base.default_query_mode,
         status=knowledge_base.status,
         permission=permission,
-        document_count=_document_count(session, knowledge_base.id),
+        document_count=document_count,
+    )
+
+
+def to_knowledge_base_read(
+    session: Session,
+    knowledge_base: KnowledgeBase,
+    permission: PermissionLevel,
+) -> KnowledgeBaseRead:
+    return to_knowledge_base_read_from_count(
+        knowledge_base,
+        permission,
+        _document_count(session, knowledge_base.id),
     )
 
 
@@ -329,4 +349,86 @@ def delete_knowledge_base(
         status="deleted",
         deleted=True,
         documents_deleted=deleted_docs,
+    )
+
+
+async def list_knowledge_bases_async(
+    uow: UnitOfWork,
+    user: User,
+) -> KnowledgeBaseListResponse:
+    """List the caller's knowledge bases through the async unit of work.
+
+    Same rules as :func:`list_knowledge_bases`: only ``active`` rows, only the
+    caller's tenant, and only rows some permission pair actually covers. The
+    difference is that the tenant predicate, the ACL rows, the role codes and
+    the document counts are four statements instead of one per knowledge base.
+    """
+    knowledge_bases = await uow.knowledge_bases.list_active(user.tenant_id)
+    identifiers = [str(knowledge_base.id) for knowledge_base in knowledge_bases]
+    permissions = await uow.knowledge_bases.permissions_for(identifiers)
+    counts = await uow.knowledge_bases.count_live_documents(identifiers)
+    role_codes = await uow.knowledge_bases.role_codes_for_user(user.id)
+    role_ids = await uow.knowledge_bases.role_ids_for_user(user.id)
+    pairs = subject_pairs_for(user, role_ids)
+    items = []
+    for knowledge_base in knowledge_bases:
+        permission = resolve_permission_level(
+            role_codes,
+            pairs,
+            permissions.get(str(knowledge_base.id), ()),
+        )
+        if permission is None:
+            continue
+        items.append(
+            to_knowledge_base_read_from_count(
+                knowledge_base,
+                permission,
+                counts.get(str(knowledge_base.id), 0),
+            )
+        )
+    return KnowledgeBaseListResponse(items=items, total=len(items))
+
+
+async def list_departments_async(uow: UnitOfWork) -> DepartmentListResponse:
+    """List the departments through the async unit of work."""
+    departments = await uow.knowledge_bases.list_departments()
+    return DepartmentListResponse(
+        items=[
+            DepartmentOption(id=department.id, code=department.code, name=department.name)
+            for department in departments
+        ]
+    )
+
+
+async def get_knowledge_base_create_options_async(
+    uow: UnitOfWork,
+) -> KnowledgeBaseCreateOptions:
+    """Return the create-form options through the async unit of work."""
+    return KnowledgeBaseCreateOptions(departments=(await list_departments_async(uow)).items)
+
+
+async def get_knowledge_base_detail_async(
+    uow: UnitOfWork,
+    user: User,
+    knowledge_base_id: str,
+) -> KnowledgeBaseRead:
+    """Return one knowledge base the caller may read, through the async unit of work."""
+    knowledge_base = await uow.knowledge_bases.get_optional(knowledge_base_id)
+    if knowledge_base is None or knowledge_base.status == "deleted":
+        raise ApplicationError("KB_NOT_FOUND", "Knowledge base not found", 404)
+    permissions = await uow.knowledge_bases.permissions_for([knowledge_base_id])
+    role_codes = await uow.knowledge_bases.role_codes_for_user(user.id)
+    role_ids = await uow.knowledge_bases.role_ids_for_user(user.id)
+    permission = resolve_permission_level(
+        role_codes,
+        subject_pairs_for(user, role_ids),
+        permissions.get(knowledge_base_id, ()),
+    )
+    if permission is None:
+        raise ApplicationError("KB_ACCESS_DENIED", "Knowledge-base permission denied", 403)
+    counts = await uow.knowledge_bases.count_live_documents([knowledge_base_id])
+    return to_knowledge_base_read_from_count(
+        knowledge_base,
+        permission,
+        counts.get(knowledge_base_id, 0),
     )

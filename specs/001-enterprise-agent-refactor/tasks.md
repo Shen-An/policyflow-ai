@@ -220,6 +220,20 @@ response = await run_in_threadpool(
 
 因此 T035 剩下的全部是**服务层换实现**（同步 `Session` → tenant-aware async repository，牵动 `eval_service.py` 约 25 个入口与 `knowledge_base_service.py`），属需要完整预算的重构决策，不是可机械修补的缺陷；任务行继续保持 `[~]`。
 
+### T035 服务层第一刀：KB 四个只读端点迁到 `UnitOfWork` + `AsyncSession`（2026-11-01）
+
+上面那句「剩下的全是服务层换实现」在这一轮被切掉一小块：`knowledge_base_service.py` 的**四个只读路径**不再吃同步 `Session`。选这四个的理由是它们全仓只有一个调用方（`backend/app/api/routes_kb.py:48`）且无文件系统副作用，是这条长征里唯一能一次改完并验证的切口；写端点（create/update/delete/index）有 rmtree、审计行、unique 冲突重试，事务边界要单独设计，不在本轮。
+
+- 新增 `backend/app/db/repositories.py::KnowledgeBaseRepository`（`list_active` / `get_optional` / `list_departments` / `count_live_documents` / `role_codes_for_user` / `role_ids_for_user` / `permissions_for`），并在 `UnitOfWork` 上暴露 `knowledge_bases`——用的就是既有的 `_tenant_predicate` / `_fetch_all` 与 `_repository(name, cls)` 懒建模式，没有引入第二套仓储风格。
+- ACL 收成**单一实现**：`backend/app/services/permission_service.py` 抽出纯函数 `subject_pairs_for(user, role_ids)` 与 `resolve_permission_level(role_codes, subject_pairs, permissions)`，同步的 `get_knowledge_base_permission` 改为调用它们。异步路径若另写一份判定，「同一用户走同步/异步两条路拿到不同权限」会成为普通用例发现不了的静默缺陷。
+- `knowledge_base_service.py` 增 `to_knowledge_base_read_from_count(...)` 与 `list_knowledge_bases_async` / `list_departments_async` / `get_knowledge_base_create_options_async` / `get_knowledge_base_detail_async`；`routes_kb.py` 的 `GET /api/knowledge-bases`、`/departments`、`/create-options`、`/{knowledge_base_id}` 改 `async def` + `UnitOfWorkDep`。
+
+**验证**：`tests/contract/test_kb_read_async.py`（6 passed）——4 个端点用 `asyncio.iscoroutinefunction` + `inspect.signature` 断言「异步 + 有 `uow` + 无 `session`」，并用仍同步的 `get_documents` 做**对照**（否则断言可能在什么都没做时空转），再用 monkeypatch `KnowledgeBaseRepository.list_active` 的 spy 断言读操作真跑在事件循环上（`asyncio.get_running_loop()` 可取到）；`tests/contract/test_kb_index_route_offload.py` 2 passed 继续钉住索引端点的线程池调用。全量 **967 passed / 197 skipped / 0 failed**（`artifacts/acceptance/pytest-full-2026-11-01-kbasync2.txt`）。
+
+**写测试时踩到的坑（记下来省下次）**：`create_app()` 生成的 app 里业务路由**不是**扁平 `APIRoute`，而是 `fastapi.routing._IncludedRouter`（`path`/`name` 都是 `None`）——按路由名遍历 `app.routes` 会一无所获，所以断言直接落在 handler 函数上。
+
+**诚实边界**：`eval_service.py`（817 行、约 25 个入口）一行未动；`memory_service.py` 未迁；KB 写端点仍同步。所以 T035 仍 `[~]`。
+
 ### 跨实例缺陷：`rag_index_jobs` 的认领曾不是数据库级（2026-09-15 已修）
 
 这是此前在 T036 小节里记为「最值得下一步查」的那个问题的**答案：不是**。
