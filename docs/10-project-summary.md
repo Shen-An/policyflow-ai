@@ -104,7 +104,7 @@ SQLite（25+ 表，全 FK/状态列索引；WAL + busy_timeout；物理删除含
   - 启动期历史回填迁移改为 `app_backfill_migrations` 标记表**只跑一次**（原每次启动全表扫描 ToolCallLog）；
   - 前端 `MutationCache.onError` 全局兜底 + antd message 桥接，44 处写操作失败不再静默；自带内联错误 UI 的 mutation 用 `selfHandledMutation` meta 跳过，避免双重提示；
   - 删除 30 个未使用 shadcn 组件与 8 个死依赖（node_modules -251 包）。
-- **已知待办**（识别未做，见 [08 §1.2](08-de-toy-multiagent-skill-eval-strategy.md)）：LLM/embedding 调用的 `httpx.AsyncClient` 连接复用；`routes_chat` 少数 `async def` 端点持同步 Session（**eval 侧 2026-10-21 已交线程池**，见 `tests/contract/test_eval_routes_offload.py`；`eval_service` / `knowledge_base_service` 仍是同步 Session）；BM25 每查询全量加载语料的指纹优化。
+- **已知待办**（识别未做，见 [08 §1.2](08-de-toy-multiagent-skill-eval-strategy.md)）：LLM/embedding 调用的 `httpx.AsyncClient` 连接复用；`routes_chat` 少数 `async def` 端点持同步 Session（**eval 侧 2026-10-21 已交线程池**，见 `tests/contract/test_eval_routes_offload.py`；`eval_service` / `knowledge_base_service` 仍是同步 Session）；BM25 每查询全量加载语料的指纹优化。**async 端点这一层已无同步阻塞调用**（2026-11-01 用 `scripts/_scan_async_routes.py` 扫全部 21 个 `routes_*.py`，唯一命中是 `routes_admin.py:102` 的正则误报，调用本身已 `await`），剩下的纯是服务层换实现：`eval_service.py`（约 25 个入口）与 `knowledge_base_service.py` 的同步 `Session` → tenant-aware async repository。
 - **诚实边界（2026-10-21）**：容量数字仍然一条都没有（1000 SSE / 30 分钟 soak / 200 RPS p95 全未在验收环境跑过），只拿到限流与降级行为的真跑证据，口径见 `artifacts/acceptance/capacity-boundary-2026-10-21.md`；Electron 全量 E2E 卡在宿主的 Chromium 单实例锁 / GPU 进程（非代码回归）；验收总账 **7/16** 有通过结论（2026-11-01 SC-012 键盘/焦点/语义/对比度从 partial 升 pass，证据 `artifacts/acceptance/sc012-admin-e2e-2026-11-01.md`）；Playwright 全量套件 19/19 真绿（`artifacts/acceptance/e2e-full-2026-11-01e.txt`），但 E2E 仍不覆盖 Electron 整机流程与「回答评估 run」分支（e2e 种子没有 `code=eval_test` 语料）。
 
 ## 7. UI / 设计系统

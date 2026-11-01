@@ -192,6 +192,14 @@ description: "企业级智能体重构的可执行实施任务清单"
 
 **诚实边界**：`eval_service.py`（798 行）与 `knowledge_base_service.py` 仍在同步 Session 上，**任务行保持 `[~]`**；本轮只是把「async 端点里的同步阻塞」这一层清掉了，async repository 迁移（`uow`/`AsyncSession`）仍在原地。
 
+**T035 剩余面扫描（2026-11-01）：确认「async 端点里已无同步阻塞调用」**
+
+为了让「`[~]` 还差什么」可复现而不是凭印象，加了只读扫描脚本 `scripts/_scan_async_routes.py`：遍历 `backend/app/api/routes_*.py`，对每个 `async def` 体内找**未被 `await` / 未包 `run_in_threadpool`**、且名字形如 `get_/list_/create_/delete_/update_/publish_/import_/export_/ensure_/require_/resolve_/seed_/cleanup_/build_/compute_/index_/upsert_/purge_*` 的调用。
+
+实测（21 个 `routes_*.py`）：**只有 1 条命中，且是正则误报**——`backend/app/api/routes_admin.py:102` 的 `return await _admin_service(request).list_roles(principal)`（调用本身已 `await`，正则只抓到了方法名）。→ 结论：**async 端点这一层已经没有会阻塞事件循环的同步 service 内联调用**。
+
+因此 T035 剩下的全部是**服务层换实现**（同步 `Session` → tenant-aware async repository，牵动 `eval_service.py` 约 25 个入口与 `knowledge_base_service.py`），属需要完整预算的重构决策，不是可机械修补的缺陷；任务行继续保持 `[~]`。
+
 ### 跨实例缺陷：`rag_index_jobs` 的认领曾不是数据库级（2026-09-15 已修）
 
 这是此前在 T036 小节里记为「最值得下一步查」的那个问题的**答案：不是**。
