@@ -211,7 +211,7 @@ python -m pytest -q tests/contract tests/unit tests/integration tests/security \
 **没验过（有代码但拿不出跑通证据）**
 
 1. **Electron 全量 E2E 在当前环境跑不起来（已定位到环境限制，不是代码回归）**。2026-10-18 那轮是**真绿**的：8 spec / 33 条用例全过（1 分 55 秒，真实 Electron 44 + Chromium 152）；之后复跑变成 **0 passed / 8 failed**，8 个 spec（含 `security.e2e.ts`）全卡在「建会话」阶段，报 `DevToolsActivePort file doesn't exist`。2026-10-21 排查到失败点在 **electron.exe 启动层**，不在 wdio / ChromeDriver / 本项目代码：直接 `electron.exe --app=dist-electron/main/index.cjs`（完全绕开 wdio）也是**立即退出、stdout/stderr 全空**，exit code `-2147483645`（`0x80000003` STATUS_BREAKPOINT）；加 `--no-sandbox --disable-gpu` 后进程能起来，但报 `Lock file can not be created: 拒绝访问 (0x5)`（Chromium 单实例 / userData 锁被拒）+ `GPU process launch failed`，随后自己退出 0。也就是当前会话环境不允许 Chromium 起 GUI 进程。顺带修掉一个真实隐患：宿主注入的 `ELECTRON_RUN_AS_NODE=1` 会让 electron.exe 退化成纯 node，wdio 配置里已经 `delete` 掉（必要但不充分——去掉它之后仍是同样的 8 failed）。所以「渲染进程拿不到 token」这条边界：**历史上被 E2E 证过一次，现在没有可复跑的绿灯**，只有代码 + vitest 单测兜着。
-2. **容量数字一个都没有**。1000 并发 held-open SSE、30 分钟 soak、200 RPS p95——profile 和判定逻辑写好了，**验收环境没跑**；本机跑出来也不代表验收环境，所以不产出结论。
+2. **容量数字一个都没有**。1000 并发 held-open SSE、30 分钟 soak、200 RPS p95——profile 和判定逻辑写好了，**验收环境没跑**；本机跑出来也不代表验收环境，所以不产出结论。2026-10-21 补了一份边界说明 [`artifacts/acceptance/capacity-boundary-2026-10-21.md`](artifacts/acceptance/capacity-boundary-2026-10-21.md)：这轮真正跑出来的是**限流与降级行为**（`tests/load/test_stage4_capacity.py` 3 passed，真 Redis、100 并发过载只放行预算内请求、其余 429/503 带 `Retry-After`、零 5xx；SSE 并发收尾 gauge 归零；Redis 断连时 admission fail-closed），**产能数字依旧留空**，并且写清了对外表述的红线（不许说支持 1000 并发 / 200 RPS / p95<500ms）。
 3. **真实用户可用性研究没做**：SC-010（90% 员工 5 分钟内完成核心流程）、SC-011（评分 ≥4/5）都因为「无真实被试」判 inconclusive。
 
 **没做（缺环境或刻意推迟）**
@@ -234,6 +234,17 @@ python -m pytest -q tests/contract tests/unit tests/integration tests/security \
 | inconclusive | **8** | SC-001~005（容量与 soak）· SC-010/011（真实被试）· SC-016（数据权威切换） |
 
 **换句话说：6/16 有通过结论。** 功能能跑、核心安全性有测试，但容量、可用性、桌面整机流程这三块目前是空的。
+
+**2026-10-21 这轮修掉的（每条都能在仓库里翻到证据）**
+
+| 修了什么 | 证据 | commit |
+|---|---|---|
+| 前端 lint 12 error + 1 warning → **0 problem**（拆 `button-variants.ts` / `chip-tone.ts` / `use-color-mode.ts`，effect 内 setState 改渲染期调整，`<details>` 改受控 `open`） | `npx eslint .` 0 / `tsc -b` 0 / vitest 48 文件 162 passed | `8ed6b2e` |
+| 契约测试唯一 strict xfail（`JobQueue.lease` 无 lane 过滤）补齐 | `JobService.lease(..., lanes=...)` + `LocalJobRunner(lanes=...)` 透传；contract **23 passed, 0 xfail** | `8ed6b2e` |
+| 证据日志被 `.gitignore` 吞掉 | `!artifacts/**/*.log`，7 份 E2E/a11y/quickstart 日志入库 | `8ed6b2e` |
+| T152 preflight 只报「45 处引用」说不清该删哪层 | 拆成列门/路径门并分类，列消费者实测**只有 1 处**，卡点其实在 T159/T160 整模型退场 | `573e2d3` |
+| T035：eval 路由在事件循环上调同步 service | 14 个端点只有 4 个 `async def`，真正阻塞的 3 处改走 `run_in_threadpool`，`eval_service.py` 一行未动（所以 T035 仍是 `[~]`）；新增可证伪回归测试 2 passed | `fb831fc` |
+| **种子角色的 `actions` 恒为空 → `/api/v2/admin/*` 对 `sys_admin` 也返回 403**（三个新 admin 页在任何全新安装上端到端不可用） | `ROLE_SEEDS` 带 actions + 只回填空的动作列表；`tests/test_role_seed_actions.py` 3 passed，相关子集 96 passed | `8c6b5c3` |
 
 ---
 
