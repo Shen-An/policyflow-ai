@@ -74,7 +74,7 @@ description: "企业级智能体重构的可执行实施任务清单"
 - [X] T033 在 `backend/app/api/deps.py` 中接入 principal、async Unit of Work 与 fresh authorization 依赖，并禁止路由从 body/query 接受 tenant/user 身份
 - [X] T034 在 `backend/app/main.py` 中接入 async lifespan、v2 router、health/readiness 与 OTel，移除 correctness 对进程锁、队列、缓存和 startup migration 的依赖
 - [~] T035 将 `backend/app/services/memory_service.py`、`backend/app/services/knowledge_base_service.py` 和 `backend/app/services/eval_service.py` 的权威读写迁移到 tenant-aware async repository，并保持四层记忆非权威与现有 Eval 语义（依赖 T027、T033）
-  - **`[~]` = 部分完成，勿读作全绿。** 本轮（2026-09-19）只做了 `memory_service` 子范围（用户明确选择「memory 先做全+验证」）；`eval_service` 与 `knowledge_base_service`（剩余 6 处核对）**尚未迁移**，留待专门一轮。三文件全部迁完前不得打 `[X]`。见下「T035 memory_service 子范围落地」。
+  - **`[~]` = 部分完成，勿读作全绿。** 2026-09-19 只做了 `memory_service` 子范围（用户明确选择「memory 先做全+验证」）；`eval_service` 与 `knowledge_base_service`（剩余 6 处核对）**尚未迁移**。2026-10-21 补了 eval 侧的**线程池切片**（`routes_eval.py` 的 3 处同步调用改走 `run_in_threadpool`，`tests/contract/test_eval_routes_offload.py` 2 passed），但 `eval_service.py` 本身仍是同步 Session、**未迁到 async repository**，因此任务行仍为 `[~]`。三文件全部迁完前不得打 `[X]`。见下「T035 memory_service 子范围落地」与「T035 eval 侧最小切片」。
   - **2026-10-21 复核回应（R41）**：`eval_service` 已不是“0 处租户感知”（该测量已过期）。本轮修的是**跨租户泄露面**：`create_eval_case` / `list_eval_cases` / `list_retrieval_items` 的 `tenant_id` 由可选改为 keyword-only 必填，空值抛 `TENANT_REQUIRED`（403）——此前 `list_eval_cases(session)` 不传租户即**无 WHERE 子句**，会枚举所有租户。**仍未做**：两文件的同步 `Session` → tenant-aware async repository 迁移。证据：`pytest tests -k "eval or tenant or isolation"` → 101 passed / 34 skipped。详见 `review-fixes-2026-10-21.md` §4。
 
 **T035 开工前的暴露面测量（2026-09-15，尚未开始实现）**
@@ -174,6 +174,23 @@ description: "企业级智能体重构的可执行实施任务清单"
 **验证方式与一处诚实边界（2026-09-19）**：单进程一次性跑全部 501 用例在 Windows 上会**挂起**在 `tests/contract/test_error_audit_contract.py::test_orm_persistence_is_idempotent_on_the_event_id_unique_constraint`（该用例用自持 in-memory `aiosqlite`，**单独跑 0.21s 通过**，`tests/contract` 整目录 205 passed 也通过）。这是 pytest-asyncio 事件循环在收齐 501 个混合 sync/async 用例时的 **Windows 收集顺序 flake**，**非本任务代码缺陷、亦非产品缺陷**。因此改为**分组分进程**验证，各组均绿：contract 205、integration 41、migration 8、security 8、load 8、根目录 `tests/*.py` 232 —— 记忆锚点分布其中（`test_memory_repository` 在 integration，`test_memory_system` + `test_phase3` + `test_memory_management_api` 在根目录）。
 
 **顺带修复的既有测试缺陷（非 T035 引入）**：`tests/integration/test_index_claim.py` 的 `_pending_index_job` 用固定 `code="claim-test-department"` 播种，而该 helper 被模块内两个用例调用、DB 为 `module` 作用域，第二次调用必然撞 `ix_departments_code` 唯一约束。单跑该用例通过、整模块跑则第二个红。已改为按 `uuid4` 后缀生成唯一 department/base/workspace/doc 标识。该文件不在 memory 改动集内，属 Phase 2 遗留缺陷，只在整模块运行时暴露。
+
+**T035 eval 侧最小切片（2026-10-21）：先取证，再只改真正阻塞事件循环的那 3 处**
+
+上一轮把 `eval_service` / `knowledge_base_service` 留作「专门一轮」，理由是同步服务的 async 化要动 798 + 数百行的调用链。本轮先做了**形状取证**再决定动到哪里，结论与预期不同：
+
+- `backend/app/api/routes_eval.py` 共 14 个端点，**只有 4 个是 `async def`**（`post_crud_import`、`post_enterprise_eval_seed`、`post_eval_run`、`post_retrieval_debug`）；其余 10 个是同步 `def`，由 Starlette 线程池执行，**本来就不阻塞事件循环**。`post_retrieval_debug` 的主体是 `await retrieval_debug(...)`（该服务函数已是 async）。→ 真正的债只有 3 处：`seed_enterprise_eval_dataset(...)`、`create_eval_run(...)`、以及 `pending_index_job_id(session, ...)` 的列表推导（crud-import 与 enterprise-seed 各一份）。
+- 改动（`backend/app/api/routes_eval.py`，+34/−17）：把这三处同步调用交给 `starlette.concurrency.run_in_threadpool`——`items = await run_in_threadpool(_resolve_pending_index_items, session, result.pending_index_document_ids)`、`result = await run_in_threadpool(seed_enterprise_eval_dataset, session, user, indexer=indexer, settings=...)`、`eval_run = await run_in_threadpool(create_eval_run, session, rag_service, user, data, request_id, reranker_backend=..., reranker_method=...)`。`pending_index_job_id` 的循环被提成**模块级** `_resolve_pending_index_items(session, document_ids)`（原来是端点内的局部 import + 推导；模块级函数才能被 `run_in_threadpool` 接收）。
+- **`eval_service` 一行未动**：它仍是同步服务。本轮改的是「谁在哪个线程上调它」，不是它本身。
+
+**验证（可证伪）**：`tests/contract/test_eval_routes_offload.py`（新增，2 passed）直接钉住 offload 本身而不是它的效果——效果（run 仍成功）在同步调用下同样成立，因此不能判别：
+
+1. `test_eval_run_creation_does_not_run_on_the_event_loop`：给 `routes_eval.create_eval_run` 装 spy 记 `threading.get_ident()`，给 `routes_eval.submit_eval_run`（同一请求内、在端点体里 `await`）另装 async spy 记事件循环线程 ident，断言两者**不同**。改前两者必然相同。
+2. `test_pending_index_lookup_runs_off_the_event_loop`：同样方式钉 `_resolve_pending_index_items`；若该应用未接真实 indexer（resolver 不被触达），用例**主动跳过线程比较**而不是假装通过。
+
+可行性的前提是 SQLite 下 `check_same_thread=False`（`backend/app/db/session.py:102-103`），否则把 Session 交给工作线程会直接抛 thread 亲和性错误。
+
+**诚实边界**：`eval_service.py`（798 行）与 `knowledge_base_service.py` 仍在同步 Session 上，**任务行保持 `[~]`**；本轮只是把「async 端点里的同步阻塞」这一层清掉了，async repository 迁移（`uow`/`AsyncSession`）仍在原地。
 
 ### 跨实例缺陷：`rag_index_jobs` 的认领曾不是数据库级（2026-09-15 已修）
 

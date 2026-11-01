@@ -1,11 +1,12 @@
 """Evaluation case, run, and retrieval-debug API routes."""
 
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal, Sequence
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, status
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from starlette.concurrency import run_in_threadpool
 
 from backend.app.api.deps import SessionDep
 from backend.app.core.permissions import require_roles
@@ -51,6 +52,25 @@ from backend.app.services.rag_service import RAGService
 
 router = APIRouter(prefix="/api/eval", tags=["evaluation"])
 EvalAdmin = Annotated[User, Depends(require_roles("kb_admin", "sys_admin"))]
+
+
+def _resolve_pending_index_items(
+    session: Any, document_ids: Sequence[str]
+) -> list[tuple[str, str]]:
+    """Pair each document with its pending RagIndexJob id (sync DB work).
+
+    Module level (not a closure) so the async routes can hand it to
+    ``run_in_threadpool``: ``pending_index_job_id`` hits the session
+    synchronously and would otherwise run on the event loop thread.
+    """
+    from backend.app.services.indexing_service import pending_index_job_id
+
+    items: list[tuple[str, str]] = []
+    for document_id in document_ids:
+        job_id = pending_index_job_id(session, document_id)
+        if job_id is not None:
+            items.append((document_id, job_id))
+    return items
 
 
 @router.get("/reranker-status", response_model=RerankerStatus)
@@ -156,8 +176,6 @@ async def post_crud_import(
     Document indexing is submitted as durable jobs (DurableJob/outbox) and drained
     broker-free so the UI does not hang on long LightRAG inserts.
     """
-    from backend.app.services.indexing_service import pending_index_job_id
-
     indexer = getattr(request.app.state, "lightrag_adapter", None)
     result = await import_crud_dataset(
         session,
@@ -170,11 +188,9 @@ async def post_crud_import(
     if data.index_documents and indexer is not None:
         # The RagIndexJob id (one pending job per document) keys idempotency so a
         # redelivered submit dedups while each real import attempt enqueues its own.
-        items = [
-            (document_id, job_id)
-            for document_id in result.pending_index_document_ids
-            if (job_id := pending_index_job_id(session, document_id)) is not None
-        ]
+        items = await run_in_threadpool(
+            _resolve_pending_index_items, session, result.pending_index_document_ids
+        )
         await submit_document_index_batch(
             app=request.app,
             background_tasks=background_tasks,
@@ -198,20 +214,19 @@ async def post_enterprise_eval_seed(
 ) -> EnterpriseEvalSeedResult:
     """Create the isolated, built-in enterprise policy evaluation suite."""
     indexer = getattr(request.app.state, "lightrag_adapter", None)
-    result = seed_enterprise_eval_dataset(
+    # Seeding walks the whole dataset synchronously; keep the event loop free so
+    # a long seed cannot stall in-flight chat/SSE requests.
+    result = await run_in_threadpool(
+        seed_enterprise_eval_dataset,
         session,
         user,
         indexer=indexer,
         settings=request.app.state.settings,
     )
     if indexer is not None:
-        from backend.app.services.indexing_service import pending_index_job_id
-
-        items = [
-            (document_id, job_id)
-            for document_id in result.pending_index_document_ids
-            if (job_id := pending_index_job_id(session, document_id)) is not None
-        ]
+        items = await run_in_threadpool(
+            _resolve_pending_index_items, session, result.pending_index_document_ids
+        )
         await submit_document_index_batch(
             app=request.app,
             background_tasks=background_tasks,
@@ -232,7 +247,9 @@ async def post_eval_run(
     rag_service: RAGService = request.app.state.rag_service
     reranker_method = data.retrieval_config.reranker_method
     reranker_backend = "cross_encoder" if reranker_method == "cross_encoder" else "local"
-    eval_run = create_eval_run(
+    # create_eval_run validates + materialises cases through the sync session.
+    eval_run = await run_in_threadpool(
+        create_eval_run,
         session,
         rag_service,
         user,
