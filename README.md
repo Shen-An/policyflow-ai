@@ -1,12 +1,8 @@
 # PolicyFlow AI
 
-**问公司制度，它先去翻你公司的文件，翻到了才回答，翻不到就说「查不到」。**
+PolicyFlow AI 是一个企业内部政策问答与流程助手。员工可以查询差旅、报销、请假等制度，查看回答引用的原文，也可以根据制度生成清单和待填写的草稿。
 
-一个企业内部政策问答 + 流程助手。核心取舍只有一句：**宁可答不出来，也不答错。**
-
-> 这份 README 的规矩：凡是写「已完成」的，后面都能翻到日志或测试；翻不到证据的，我就写「没做」或「没验过」。不留中间地带。
-
-2026-11-15：上轮审查 R1–R5 已修复，后端 **981 passed / 197 skipped**，前端 **167 passed**，类型检查与 lint 通过，默认生产浏览器并行 E2E 已通过。桌面 chat 已接真实 AgentPipeline；报销流程生成待填写 Markdown，审批恢复后仅模拟提交，生产沙箱和完整材料选择器仍待接入。详细证据与范围见 [修复报告](specs/001-enterprise-agent-refactor/repair-report-2026-11-15.md)。
+问答采用 RAG 检索和工具调用：先查知识库，再依据检索结果回答。多轮对话支持上下文补全和记忆；涉及提交的操作需要人工审批。
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)
@@ -15,49 +11,34 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 <p align="center">
-  <img src="artifacts/ui/stage8/screens/chat-large.png" alt="制度问答：引用可点、阶段可见" width="880">
+  <img src="artifacts/ui/stage8/screens/chat-large.png" alt="制度问答：引用与检索进度" width="880">
 </p>
 
----
+## 功能
 
-## 这玩意儿到底解决什么
-
-企业里问「出差住宿标准多少」，员工一般三条路：翻共享盘、问 HR、问 ChatGPT。前两条慢，第三条会**一本正经地编**。
-
-PolicyFlow 的做法：
-
-1. 公司制度文档切块、索引、按租户隔离存好；
-2. 员工提问 → 先检索 → **检到可靠文档才生成制度回答**，每句话带可点的引用；
-3. 检索不到可靠依据 → 硬拒答；如果是模型常识硬答的，界面明确标成「模型参考 · 不可信」，不当作制度依据；
-4. 涉及改材料 / 提交这类有副作用的动作 → 沙箱出草稿，人来批，批准后至多执行一次（**提交目标目前是 mock，响应带 `status=mock`**）。
-
----
-
-## 你能看到什么
-
-| 模块 | 人话版 | 状态 |
+| 模块 | 功能 | 当前状态 |
 |---|---|---|
-| **制度问答** | 流式输出，边检索边显示进度；回答每句能点回原文档；支持「给我个模板」这种短跟进（自动补全上下文再检索） | 可用 |
-| **多轮记忆** | 记住你上次问的是「年假」还是「病假」；但**记忆不算证据**，不许用它替代制度原文 | 可用 |
-| **知识库** | 多库管理、上传即后台索引、按人授权可见；删库是真删（文件 + 向量 + 记录一起清） | 可用 |
-| **材料 / 工作区** | 按文件版本选材，能看 diff；政策原件**只读**，助手改不了 | 可用 |
-| **审批 / 提交** | 草稿 → 差异 + 哈希 + 副作用 + 有效期 → 人批 → 至多一次提交 | 可用，**提交是 mock** |
-| **评估中心** | 公开金标跑 Hit@1 / Hit@5 / Hit@10 / MRR，多策略对比，负样本单独算拦截率 | 可用，数字得自己跑 |
-| **管理员治理** | 角色授予/撤销立即生效、配额健康、按 `run_id` 的脱敏审计时间线、失败任务恢复 | 可用 |
-| **Skill / Tool / MCP** | Skill = 绑证据的业务规程；Tool 调用有审计；MCP 走真 stdio/http 协议，**企业连接器是 mock 且带 `status=mock`** | 协议真，连接器 mock |
-| **桌面端** | Electron 外壳：渲染进程不拿 token、不拿 Node、不拿任意文件；认证与 SSE 走主进程代理 | 代码在、跑通过一次、**现在跑不起来**（见下） |
+| 制度问答 | SSE 流式回答、文档引用、检索进度；“给我模板”等短跟进会结合历史改写查询 | Web 可用；桌面任务已接入同一 AgentPipeline |
+| 多轮记忆 | 保存近期对话、滚动摘要和长期记忆；支持查看、删除本人的记忆 | 可用，记忆不替代本轮制度证据 |
+| 知识库 | 多库管理、按用户授权、上传后后台索引、物理删除文档和关联数据 | 可用 |
+| 材料与工作区 | 按版本绑定材料、查看差异；输入原件只读 | 服务已实现，桌面目前手工输入已有材料版本 ID |
+| 文件流程 | 根据政策依据生成待填写的 Markdown 报销草稿，审批后恢复任务并提交 | 本地流程已接通，提交使用 mock 连接器 |
+| 评估中心 | Hit@1 / Hit@5 / Hit@10 / MRR、多策略对比、逐条结果和负样本拦截率 | 可用，结果随语料与模型配置变化 |
+| 管理员治理 | 角色授予和撤销立即生效、配额健康、脱敏审计时间线、失败任务恢复 | 已实现，审计可按 run_id 查询 |
+| Skill / Tool / MCP | Skill 根据证据组织业务规程，Tool 调用记录审计，MCP 使用 stdio/http 协议 | 企业连接器返回 `status=mock` |
+| 桌面端 | Electron 主进程代理认证与 SSE；渲染进程不持有 token、Node 或任意文件访问权限 | 业务任务和事件契约已修复，完整 GUI E2E 待复验 |
 
-界面：React 19 + Vite + antd，浅/深双主题，路由集中在 `route-elements.tsx` 用 `React.lazy` 拆包。
+界面使用 React 19、Vite 和 antd，支持浅色、深色主题。路由在 `route-elements.tsx` 中通过 `React.lazy` 拆包。
+
+无可靠检索证据时，默认拒绝生成制度结论。启用模型参考回答时，界面会标注“模型参考 · 不可信”。文件流程的外部提交目前为模拟提交，响应带 `status=mock`。
 
 <p align="center">
-  <img src="artifacts/ui/stage8/screens/workspace-medium.png" alt="材料 / 工作区：版本、diff 与审批目标" width="820">
+  <img src="artifacts/ui/stage8/screens/workspace-medium.png" alt="材料与工作区：版本、差异和审批" width="820">
 </p>
 
----
+## 快速开始
 
-## 跑起来（装依赖占大头，约 10 分钟）
-
-需要 Python 3.11+、Node 18+、conda（或自建虚拟环境）。
+需要 Python 3.11+ 和 Node.js（20.19.x 及以上的 20.x，或 22.12+）。下例使用 conda，也可以自行创建 Python 虚拟环境。
 
 ```powershell
 git clone https://github.com/Shen-An/policyflow-ai.git
@@ -68,208 +49,202 @@ conda activate policyflow
 pip install -e ".[dev]"
 
 copy .env.example .env      # macOS/Linux: cp .env.example .env
-# 打开 .env，至少改这两个：
-#   SECRET_KEY=<随便一串长随机字符串>
-#   BOOTSTRAP_ADMIN_PASSWORD=<你的管理员密码>
+# 在 .env 中配置：
+#   SECRET_KEY=<长随机字符串>
+#   BOOTSTRAP_ADMIN_PASSWORD=<管理员密码>
 
 cd frontend; npm install; cd ..
 .\start.bat                  # 或 python start.py
 ```
 
-浏览器开 `http://127.0.0.1:8000`，`admin` + 你刚设的密码登录。
+打开 `http://127.0.0.1:8000`，用 `admin` 和设置的密码登录。
 
-**然后两件事不做，问什么都是「查不到」**：进 **模型设置** 填 Chat 和 Embedding（任何 OpenAI 兼容服务）；进 **知识库** 传几篇制度文档，等索引变绿。
+首次使用需要在模型设置中配置 Chat 和 Embedding 服务，支持 OpenAI 兼容接口。随后在知识库上传制度文档，等待索引完成后即可提问。
 
-> ⚠️ 这条路径用 SQLite + 进程内检索，**只适合开发和演示**。它不启 RLS、不校验 schema，**不能用来证明租户隔离**。
+默认启动使用 SQLite 和本地检索，适合开发与演示。PostgreSQL 的 RLS 和迁移检查需要在企业栈中单独验证。
 
 <details>
-<summary><b>另外两种启动方式</b>（桌面外壳 / 完整企业栈）</summary>
+<summary>桌面与企业栈启动</summary>
 
-**桌面外壳**
+桌面端：
 
 ```bash
-npm --prefix frontend run electron:build   # 打包 renderer + main/preload
-npm --prefix frontend run electron:start   # 本机启动
+npm --prefix frontend run electron:build   # 构建 renderer + main/preload
+npm --prefix frontend run electron:start
 npm --prefix frontend run test:electron    # WDIO 安全套件
 ```
 
-**企业栈（PostgreSQL 16 + Milvus + MinIO + Redis + RabbitMQ）**
+企业栈包括 PostgreSQL 16、Milvus、MinIO、Redis 和 RabbitMQ：
 
 ```bash
 docker compose -f infra/dev/compose.yaml up -d
 ```
 
+数据库按 expand、backfill、enforce 顺序迁移：
+
 ```powershell
 $env:DATABASE_URL = "postgresql+psycopg://<user>:<pass>@<host>:5432/<db>"
-alembic upgrade 001                            # 1) expand：先加列
-python -m migrations.backfill_legacy_tenant    # 2) backfill：可重跑，带账本和校验和
-alembic upgrade head                           # 3) enforce：NOT NULL / 复合唯一 / FORCE RLS
+alembic upgrade 001                            # expand：增加字段
+python -m migrations.backfill_legacy_tenant    # backfill：带账本和校验和，可重跑
+alembic upgrade head                           # enforce：NOT NULL / 复合唯一 / FORCE RLS
 ```
 
-直接 `alembic upgrade head` 会失败，**这是故意的**——没回填就收紧约束等于删数据。
+已有 legacy 数据时，先完成回填再收紧约束。跳过回填直接执行 `alembic upgrade head` 会被迁移检查阻止。
 
 </details>
 
----
+## 检索与评估
 
-## 检索效果怎么量（这里不吹）
+评估页以 Hit@1、Hit@5、Hit@10 和 MRR 为主。记录结果时需要同时注明检索策略、样本量 N 和干扰文档设置；embedding 模型和语料变化也会影响结果。
 
-主指标四个：**Hit@1 / Hit@5 / Hit@10 / MRR**。报数必须带三样：**检索策略 + 样本量 N + 干扰设置**。少一样这个数就没意义。
+1. 导入 CRUD_RAG 的 `questanswer_*` 问答金标，数据只进入 `code=eval_test` 的“测试库”。建议同时导入至少 200 篇干扰文档。
+2. 先随机抽取 50 或 100 条用例。大批量用例叠加多种策略会增加运行时间。
+3. 查看各策略的 Hit@K / MRR，再展开逐条结果检查未命中的问题。
 
-**为什么 README 里没有「Hit@5 = 0.93」？** 同一个代码，换 embedding 模型、换你的文档、换 N，结果就变。写死一个数挂首页，那是营销不是工程。
+负样本没有可回答的金标，单独统计 `negative_gate` 拦截率，不计入 Hit@K / MRR。看板的 N 只统计正样本。
 
-**拿你自己的数字，三步：**
+Hybrid 通过 RRF 融合向量与 BM25 检索结果，默认本地 rerank 使用词法融合。也可以在 run 中选择 NVIDIA cross-encoder，服务不可用时返回 503。整篇文档匹配的简单任务中，Hybrid 和 BM25 可能接近，应结合具体任务解释差异。
 
-1. 评估中心 → 导入金标（本项目用公开中文问答集 `questanswer`，**只灌「测试库」，业务库永不灌金标**）+ 建议 ≥200 篇干扰文档（1 篇文档的小库轻松刷出 100%，那是自欺欺人）。
-2. 随机抽 50 或 100 条起跑（别一上来全选几百条，多策略会成倍变慢）。
-3. 看板读 Hit@1/5/10 + MRR，下拉能看逐条命中结果。
-
-三个刻意的设计：
-
-- **负样本绝不进 Hit@K/MRR**。「库里根本答不了的问题」没有金标，混进去要么白送 0 分要么白送满分；它们单独算「该闭没闭嘴」的拦截率（`negative_gate`），看板 `N=` 只数正样本。
-- **本地 rerank 是词法融合，不是 cross-encoder**。想要真模型重排可按 run 选 NVIDIA cross-encoder（不可用直接 503，不偷偷降级），两种都能 A/B。
-- 1 篇文档整篇匹配的任务上，Hybrid 和 BM25 打平是正常现象。**打平就说打平**。
-
-> 附一个真实例子，说明为什么不能拿这种数当卖点：在做「图切换前后结论一致」的 parity 验证时，embedding 臂的 `hit@1 = 1.0`——因为那是 1 篇文档整篇匹配 + 2 篇干扰的小规模恒等性检查。**这个 1.0 只能证明切换透明，不能证明检索好**，所以它没资格出现在指标区（原件在 `artifacts/graph/stage3/realcorpus_parity.json`）。
-
----
+[realcorpus_parity.json](artifacts/graph/stage3/realcorpus_parity.json) 中的 embedding `hit@1=1.0` 来自 1 篇目标文档和 2 篇干扰文档，用于检查图切换前后的一致性。11 月修复测试中的 BM25 N=1 也用于验证 worker 接线。这两组数据都不作为检索质量结论。
 
 ## 架构
 
 ```mermaid
 flowchart LR
-  U["员工"] --> E["Electron 外壳<br/>token 只在主进程"]
-  U --> B["浏览器 SPA"]
-  E --> A["FastAPI /api/v2<br/>runs · materials · workspaces<br/>approvals · admin"]
-  B --> A
-  A --> G1["图 A：问答 / 评估<br/>进程内，不 checkpoint"]
-  A --> G2["图 B：文件 / 审批<br/>持久化 checkpoint"]
-  G1 --> R["检索 Service<br/>Hybrid：向量 + BM25 + RRF"]
-  G1 --> Q{"证据够不够？"}
-  Q -->|够| ANS["带引用的回答"]
-  Q -->|不够| REF["硬拒答"]
-  A --> PG[("PostgreSQL 16<br/>租户 · RLS")]
-  A --> MV[("Milvus<br/>向量")]
-  A --> S3[("MinIO<br/>版本化对象")]
-  A --> RD[("Redis<br/>配额 · SSE 回放")]
-  A -.-> MQ[("RabbitMQ<br/>持久任务")]
-  MQ --> W["worker<br/>租约 + CAS"]
+  B["浏览器 SPA"] --> A["FastAPI"]
+  E["Electron 主进程代理"] --> A
+  A --> C["Web Chat / Eval"]
+  A --> J["DurableJob / worker"]
+  J --> D["桌面 Chat / 文件准备"]
+  C --> P["AgentPipeline"]
+  D --> P
+  P --> R["检索 Service<br/>向量 / BM25 / Hybrid"]
+  R --> G["证据检查与回答"]
+  G --> Q["带引用的回答 / 无证据拒答"]
+  G -->|文件任务且证据充分| F["文件草稿"]
+  F --> H["人工审批与恢复"]
+  H --> M["模拟提交<br/>status=mock"]
 ```
 
-**图上画了两个图 A/B，因为现在确实是两个**——这是本项目当前最大的架构债，下面单独说。
+Web Chat、Eval 和桌面业务任务使用同一 AgentPipeline。检索由 Service 提供；Skill 在本轮证据上组织清单、对比和模板，Tool 执行具体操作。
 
-### 设计目标 vs 现在实际
+桌面文件流程分为准备和恢复两个 durable job。准备阶段保存只读输入、ChangeSet、审批摘要和 AgentRun checkpoint，等待审批时释放 worker 租约。批准后校验材料版本、草稿哈希和权限，再由 SubmissionService 执行至多一次模拟提交。
 
-| 设计目标 | 现在实际 | 证据 |
+| 设计项 | 当前实现 | 测试或说明 |
 |---|---|---|
-| 问答、评估、文件流程**共用一套编排** | ❌ **没做到**。问答/评估跑图 A（`pipeline_graph`），文件流程跑图 B（`builder.py`）。入口层有个 adapter，但它只记遥测然后委派，不改变控制流。切片 1 已让两个图共用同一份节点实现（`graph/nodes.py`），切片 2 的实测差距见下文 | `backend/app/graph/route_adapter.py`、`review-fixes-2026-10-21.md` §1、`artifacts/acceptance/t053-slice2-shadow-parity-2026-11-01.md` |
-| 授权在服务端逐次判定，跨租户与「不存在」同形 404 | ✅ | `tests/security/`、`tests/integration/test_admin_rbac.py` |
-| 高影响动作：草稿 → 人批 → 至多一次提交 | ✅（**提交目标是 mock**，真的外部副作用没接） | `tests/recovery/test_submission_idempotency.py` |
-| 无可靠证据默认硬拒答 | ✅ | `tests/eval/test_evidence_gate_parity.py`、`tests/integration/test_entrypoint_conclusion_parity.py` |
-| run / job / SSE / 审批有持久状态，可恢复、不重复提交 | ✅ | `tests/recovery/test_run_restart_recovery.py` |
+| 共用问答编排 | Chat / Eval / 桌面调用同一 AgentPipeline；生产持久图的完整迁移仍在进行 | [修复报告](specs/001-enterprise-agent-refactor/repair-report-2026-11-15.md)、T053 |
+| 服务端授权 | 请求与任务执行时检查身份和权限；资源读取时，越权与不存在返回同形 404 | `tests/security/`、`tests/integration/test_admin_rbac.py` |
+| 评估清理隔离 | 读取、删除、禁用和统计均限定认证租户 | `tests/contract/test_eval_cleanup_tenant.py` |
+| 审批与提交 | 保存差异、哈希、副作用和有效期；审批决定与恢复任务原子提交 | `tests/contract/test_business_jobs.py`、`tests/recovery/test_submission_idempotency.py` |
+| 状态恢复 | run、job、审批和 SSE milestone 持久化；重连携带 Last-Event-ID | `tests/recovery/test_run_restart_recovery.py`、`tests/contract/test_sse_endpoint.py` |
+| 证据门控 | 无可靠证据时拒答，记忆与偏好不修改制度结论 | `tests/eval/test_evidence_gate_parity.py`、`tests/integration/test_entrypoint_conclusion_parity.py` |
 
-**为什么单一编排没做完、也没急着做**：把问答迁到持久图上，得先把完整输出契约（router / plan / skill / compliance / diagnostics / ToT 双请求暂停）搬进图状态，再让 1200 行的 chat service 在新编排下逐条对齐 SSE 事件顺序。这是跨 `agents/`、`graph/`、`services/`、`api/` 的结构性改动，回归面覆盖整个问答契约套件。在验收环境还没跑通时硬上，只会把「诚实的两个图」换成「两个图 + 半迁移」，更难验。切片方案见 `review-fixes-2026-10-21.md` §1。
+开发环境使用 SQLite。企业栈的分工是 PostgreSQL 保存租户数据并执行 RLS，Milvus 保存向量，MinIO 保存版本化对象，Redis 提供配额和 SSE 回放，RabbitMQ 分发持久任务；worker 使用租约和 CAS 协调执行。
 
-**2026-11-01 已把切片 1 和切片 2 的取证做完，结论是仍然不切流量**：
+## 验证
 
-- **切片 1（共用实现 + 影子模式）**：`ChatTurnState` 与 route/ToT/execute 三个节点抽到 `backend/app/graph/{state,nodes}.py`，`pipeline_graph` 和持久图**共用同一份节点实现**（不是复制出第二份分叉）；新增 `ChatShadowRunner`，开关 `GRAPH_SHADOW_MODE` 默认 `false`，影子跑时 `disable_side_effects=True`（不写库、不执行 skill、答案正文不落盘，只记长度与 sha256 前缀）。
-- **切片 2（拿真实流量比差距）**：打开影子跑真实 `/api/chat`，把权威 `PipelineResult` 和影子跑图结果逐字段 + 逐事件比对，记录写到 `artifacts/graph/shadow/`（运行期产物，不入库）。实测：
-  - **字段级只剩两项**：`answer.confidence` 与 `skills`，且**全部**能被「影子刻意不执行 skill」解释——`grounding.py` 里对成功 skill 有 0.03 加分，0.67 → 0.64 正好是这一项；`unexplained_mismatches` 为空。router / 检索证据数 / compliance / errors / reasoning_mode 全部一致。
-  - **事件级没清零**：前 17 个事件逐位相同，之后 `stage` 进度回调与 `diagnostics_partial` 整体错位一位，权威 31 个事件、影子 30 个。客户端可见的 `plan` / `plan_step` 一个不少，差异只在编排层回调的交错顺序上。
-  - 双口径都记在记录里：`match`（严格，字段+事件全同）与 `comparable_match`（把已归因的降级差异排除后是否一致），避免用一个宽松口径冒充"对齐了"。
+以下结果来自 2026-11-15 的本机运行，完整命令和适用范围见 [修复报告](specs/001-enterprise-agent-refactor/repair-report-2026-11-15.md)。
 
-所以 `GRAPH_SHADOW_MODE` 保持默认关、问答仍跑 `AgentPipeline`。判定与复现命令见 `artifacts/acceptance/t053-slice2-shadow-parity-2026-11-01.md`，逐条汇总见 `artifacts/acceptance/shadow-parity-summary.txt`。要真切流量还差三件事：让影子以只读方式对齐 skill/confidence、把事件顺序对齐到逐位相同、再在验收环境跑一遍全量问答契约。
-
----
-
-## 工程质量（数字都是跑出来的）
-
-| 项 | 现状 | 证据 |
+| 检查 | 结果 | 日志 |
 |---|---|---|
-| 后端测试 | **967 passed / 197 skipped / 0 failed**（全量，2026-11-01 重跑，约 6 分钟） | `artifacts/acceptance/pytest-full-2026-11-01-kbasync2.txt` |
-| 前端测试 | **48 文件 / 162 用例全绿**（2026-10-21 重跑） | `npm --prefix frontend run test` |
-| 契约测试 | 内部契约 **23 passed、0 xfail**（原来的 lane 过滤缺口已补：`JobService.lease(lanes=...)` + `LocalJobRunner` 透传） | `tests/contract/` |
-| 压测 profile | 2200 用户画像（1000 会话 / 1000 SSE / 200 文件+隔离）、真实并发采集、逐帧 SSE 计时 | `tests/load/`（29 passed），**但没跑过验收** |
+| 后端全量 pytest | 981 passed / 197 skipped / 0 failed，307.45 秒 | [pytest-final.txt](artifacts/review/2026-11-15/pytest-final.txt) |
+| 前端 Vitest | 49 个文件，167 passed | [vitest-final.txt](artifacts/review/2026-11-15/vitest-final.txt) |
+| Ruff / TypeScript / ESLint | 通过 | [Ruff](artifacts/review/2026-11-15/ruff-final.txt)、[TypeScript](artifacts/review/2026-11-15/typecheck-final.txt)、[ESLint](artifacts/review/2026-11-15/lint-frontend-final.txt) |
+| 生产前端构建 | 通过 | [build-final.txt](artifacts/review/2026-11-15/build-final.txt) |
+| 生产浏览器 E2E | 19 passed，10 workers，25.5 秒 | [production-final-3.txt](artifacts/review/2026-11-15/production-final-3.txt) |
 
-两件必须讲清楚的：
+197 个跳过的测试包括需要 PostgreSQL、Milvus、MinIO、Redis、RabbitMQ 等外部依赖的套件。浏览器 E2E 使用 FastAPI 和隔离 SQLite，LLM / LightRAG 使用确定性替身；它覆盖页面、API 和并发交互，模型与检索质量需要另行评测。
 
-- **skip ≠ pass**。那 197 个 skip 大多需要 PostgreSQL / Milvus / MinIO / Redis / RabbitMQ，依赖不在就跳过——所以必须写 skip 数，不能只报「967 passed」。
-- 上一版这里记的 **1 failed**（`test_readiness_distinguishes_unmigrated_from_unreachable`）已经修掉了：`require_pg_server()` helper 在 PostgreSQL 不可达时直接 skip，不再算成失败。本机 PG 没起，实测该用例 **1 skipped**，全量重跑 0 failed。
+在项目根目录运行：
 
-### 别信我，自己跑
+```powershell
+conda activate policyflow
+python -m pytest -q -ra --tb=short
+python -m ruff check backend/app --output-format concise
 
-```bash
-# 后端：契约 / 评估 / 负载 / 入口一致性（本项目最核心的四块）
-python -m pytest -q tests/contract tests/eval tests/load \
-                   tests/integration/test_entrypoint_conclusion_parity.py
-# 期望：全绿（0 failed）；skip 数取决于你本地有没有 PG / Milvus / MinIO
+npm --prefix frontend run typecheck
+npm --prefix frontend run lint
+npm --prefix frontend test
 
-# 前端
-npm --prefix frontend run typecheck && npm --prefix frontend run test
-
-# 全量（本机实测约 6 分钟：967 passed / 197 skipped / 0 failed，skip 因依赖缺失变多——这不是失败）
-python -m pytest -q tests/contract tests/unit tests/integration tests/security \
-                   tests/recovery tests/migration tests/reconciliation
+$env:POLICYFLOW_PYTHON = (Get-Command python).Source
+npm --prefix frontend run e2e:production
 ```
 
-跑出来跟我写的不一样，以你跑出来的为准，并且请开 issue——那说明我的 README 又该改了。
+生产 E2E 需要空闲的 8000 和 4173 端口，会使用项目内专用的 `frontend/.tmp/e2e-backend` 测试目录。测试耗时和 skip 数取决于本地环境。
 
----
+## 当前进度
 
-## 这个项目**没做 / 没验过**的部分
+[任务清单](specs/001-enterprise-agent-refactor/tasks.md) 共 164 项：145 项完成、19 项部分完成、0 项未开始。后续工作主要包括：
 
-写在这里，是因为「敢说自己哪不行」比「全都行」值钱。
+- 文件流程：完整材料选择器、生产沙箱执行器。当前只生成待填写 Markdown，不解析票据、不修改原件；生产缺少执行器时返回 `MISSING_DEPENDENCY`。
+- 编排与数据迁移：完成目标持久图的输出和事件契约对齐，继续 T035 服务层迁移。旧 adapter 和旧界面保留使用遥测，数据权威切换及 destructive contract 需先具备消费者清单和恢复点，并完成一个发布窗口的零使用检查。
+- 企业栈：在对应环境验证 PostgreSQL / RLS、对象存储、RabbitMQ 恢复、gVisor 内核隔离与 Linux prefork 资源生命周期。当前没有 K8s 集群，gVisor manifest 和策略已准备，本机只验证路径校验。
+- 容量：已有 2200 用户 profile（1000 会话、1000 SSE、200 文件与隔离），并发采集和逐帧 SSE 计时已实现。1000 held-open SSE、30 分钟 soak、200 RPS / p95 仍是待验收目标。
+- 桌面交付：复验完整 Electron GUI E2E，生成签名包。签名门和 fuses 已实现，企业证书尚未提供。
+- 用户研究：SC-010 的“90% 员工在 5 分钟内完成核心流程”和 SC-011 的“评分至少 4/5”尚无真实被试结果。
 
-**没验过（有代码但拿不出跑通证据）**
+<details>
+<summary>历史验收与修复记录</summary>
 
-1. **Electron 全量 E2E 在当前环境跑不起来（已定位到环境限制，不是代码回归）**。2026-10-18 那轮是**真绿**的：8 spec / 33 条用例全过（1 分 55 秒，真实 Electron 44 + Chromium 152）；之后复跑变成 **0 passed / 8 failed**，8 个 spec（含 `security.e2e.ts`）全卡在「建会话」阶段，报 `DevToolsActivePort file doesn't exist`。2026-10-21 排查到失败点在 **electron.exe 启动层**，不在 wdio / ChromeDriver / 本项目代码：直接 `electron.exe --app=dist-electron/main/index.cjs`（完全绕开 wdio）也是**立即退出、stdout/stderr 全空**，exit code `-2147483645`（`0x80000003` STATUS_BREAKPOINT）；加 `--no-sandbox --disable-gpu` 后进程能起来，但报 `Lock file can not be created: 拒绝访问 (0x5)`（Chromium 单实例 / userData 锁被拒）+ `GPU process launch failed`，随后自己退出 0。也就是当前会话环境不允许 Chromium 起 GUI 进程。顺带修掉一个真实隐患：宿主注入的 `ELECTRON_RUN_AS_NODE=1` 会让 electron.exe 退化成纯 node，wdio 配置里已经 `delete` 掉（必要但不充分——去掉它之后仍是同样的 8 failed）。所以「渲染进程拿不到 token」这条边界：**历史上被 E2E 证过一次，现在没有可复跑的绿灯**，只有代码 + vitest 单测兜着。
-2. **容量数字一个都没有**。1000 并发 held-open SSE、30 分钟 soak、200 RPS p95——profile 和判定逻辑写好了，**验收环境没跑**；本机跑出来也不代表验收环境，所以不产出结论。2026-10-21 补了一份边界说明 [`artifacts/acceptance/capacity-boundary-2026-10-21.md`](artifacts/acceptance/capacity-boundary-2026-10-21.md)：这轮真正跑出来的是**限流与降级行为**（`tests/load/test_stage4_capacity.py` 3 passed，真 Redis、100 并发过载只放行预算内请求、其余 429/503 带 `Retry-After`、零 5xx；SSE 并发收尾 gauge 归零；Redis 断连时 admission fail-closed），**产能数字依旧留空**，并且写清了对外表述的红线（不许说支持 1000 并发 / 200 RPS / p95<500ms）。
-3. **真实用户可用性研究没做**：SC-010（90% 员工 5 分钟内完成核心流程）、SC-011（评分 ≥4/5）都因为「无真实被试」判 inconclusive。
+### 编排迁移（2026-11-01）
 
-**没做（缺环境或刻意推迟）**
+当时 Chat / Eval 使用 `pipeline_graph`，文件流程使用 `builder.py` 的持久图，`route_adapter.py` 负责遥测和委派。两个图的共享节点已抽到 `graph/nodes.py`。迁移方案见 [review-fixes-2026-10-21.md](specs/001-enterprise-agent-refactor/review-fixes-2026-10-21.md) §1；完整迁移需要对齐 router、plan、skill、compliance、diagnostics、ToT 双请求暂停以及 SSE 事件顺序，涉及 `agents/`、`graph/`、`services/` 和 `api/`。
 
-4. **gVisor 沙箱没真起 pod**（没有 K8s 集群）。manifest 和策略完备，本机路径校验真跑，内核级隔离待集群。
-5. **Electron 签名打包没真跑**（没有企业证书）。签名门和 fuses 已实现并逐例验证，最终签名产物待证书。
-6. **数据权威切换没执行**（destructive contract 需要先有消费者清单和恢复点）。旧路径也还在：老 adapter、旧界面都带使用遥测，靠「一个发布窗口零使用」判定能不能删，窗口没走完，所以没删——**不是忘了**。
-7. **单一编排没达成**（见上表）。2026-11-01 已经把切片 1（共用节点 + 影子模式）和切片 2（真实流量上的差距量化）做完：**字段级差异全部可以归因到影子不执行 skill，事件级差异（`stage` 进度回调与 `diagnostics_partial` 的交错顺序）没清零**，所以 `GRAPH_SHADOW_MODE` 保持默认关、问答仍跑旧路径。剩下的是「对齐」而不是「有没有证据」。
+切片 1 将 `ChatTurnState` 与 route / ToT / execute 节点抽到 `backend/app/graph/{state,nodes}.py`，两图共用实现。`ChatShadowRunner` 的 `GRAPH_SHADOW_MODE` 默认 `false`，影子运行使用 `disable_side_effects=True`，不写库、不执行 skill，答案只记录长度和 sha256 前缀。
 
-**证据本身的坑（诚实也算到这一层）**
+切片 2 对 `/api/chat` 的 PipelineResult 和影子结果逐字段、逐事件比较，运行期记录写入 `artifacts/graph/shadow/`。当时的结果：
 
-8. ~~`*.log` 被 `.gitignore` 忽略，Stage 8 原始日志不在仓库里~~ —— **2026-10-21 已修**。原来的 `*.log` 规则会把 `artifacts/ui/stage8/e2e-full.log`、`accessibility.log` 一起吞掉，clone 只能看到 `README.md` 的摘述。现在 `.gitignore` 补了否定规则 `!artifacts/**/*.log`，7 份证据日志已入库：`artifacts/ui/stage8/{e2e-full,accessibility}.log`、`artifacts/acceptance/quickstart-server.log`、`artifacts/load/baseline/{run,runner-console}.log`、`artifacts/pg-{start,phase9}.log`，可以和摘述互相校验。
+- 字段差异为 `answer.confidence` 和 `skills`。影子不执行 skill，少了 `grounding.py` 的 0.03 加分，confidence 从 0.67 变为 0.64；`unexplained_mismatches` 为空。router、检索证据数、compliance、errors 和 reasoning_mode 一致。
+- 前 17 个事件逐位相同，随后 `stage` 回调与 `diagnostics_partial` 错位一位，权威路径 31 个事件、影子路径 30 个。客户端的 `plan` / `plan_step` 均保留。
+- 记录同时保留严格的 `match` 和排除已归因差异后的 `comparable_match`。
 
-**验收总账（16 项，逐项判定在 `artifacts/acceptance/SC-001-SC-016.md`）**
+这轮保留 AgentPipeline 和默认关闭的影子模式。持久图切换仍需对齐 skill / confidence 和事件顺序，增加样本，并运行全量问答契约。记录见 [切片 2 报告](artifacts/acceptance/t053-slice2-shadow-parity-2026-11-01.md) 和 [汇总](artifacts/acceptance/shadow-parity-summary.txt)。2026-11-15 的桌面接线已更新，当前文件审批恢复使用 AgentRun checkpoint，T053 仍为部分完成。
 
-| 判定 | 数量 | 是哪些 |
+### 历史测试与验收
+
+2026-11-01 后端全量为 967 passed / 197 skipped / 0 failed，日志见 [pytest-full-2026-11-01-kbasync2.txt](artifacts/acceptance/pytest-full-2026-11-01-kbasync2.txt)。2026-10-21 前端为 48 个文件、162 passed，内部契约为 23 passed / 0 xfail，负载测试为 29 passed。`test_readiness_distinguishes_unmigrated_from_unreachable` 的历史失败通过 `require_pg_server()` 在 PG 不可达时跳过处理，本机该用例为 1 skipped。
+
+[综合验收总账](artifacts/acceptance/SC-001-SC-016.md) 在 2026-11-01 的记录如下：
+
+| 判定 | 数量 | 项目 |
 |---|---|---|
-| pass | **7** | SC-007 越权/跨租户 0 泄露 · SC-008 至多一次副作用 · SC-009 重启恢复 · SC-012 无障碍（老页面 + 3 个 admin 页 + 移动端抽屉，全量 e2e/axe 真绿）· SC-013 三入口证据门控一致 · SC-014 无证据 0 错误放行 · SC-015 核对发现预置故障 |
-| partial | **1** | SC-006 容量报告机制（有机制无数） |
-| inconclusive | **8** | SC-001~005（容量与 soak）· SC-010/011（真实被试）· SC-016（数据权威切换） |
+| pass | 7 | SC-007 已测试入口的授权与租户隔离、SC-008 至多一次副作用、SC-009 重启恢复、SC-012 无障碍、SC-013 三入口证据门控一致、SC-014 无证据拦截、SC-015 发现预置故障 |
+| partial | 1 | SC-006 容量报告机制 |
+| inconclusive | 8 | SC-001–005 容量与 soak、SC-010/011 用户研究、SC-016 数据权威切换 |
 
-**换句话说：7/16 有通过结论**（2026-11-01 SC-012 从 partial 升 pass）。功能能跑、核心安全性有测试，但容量、可用性、桌面整机流程这三块目前是空的。
+SC-012 覆盖老页面、3 个 admin 页和移动导航抽屉。上述 verdict 对应当时的验收范围；11 月发现的评估清理跨租户问题已另加双租户回归，不能把历史 SC-007 推广为所有接口的验证结果。
 
-**2026-10-21 → 11-01 这几轮修掉的（每条都能在仓库里翻到证据）**
+### Electron 与容量排查
 
-| 修了什么 | 证据 | commit |
+2026-10-18 Electron GUI E2E 为 8 spec / 33 passed，耗时 1 分 55 秒，使用 Electron 44 和 Chromium 152。后续复跑为 0 passed / 8 failed，均卡在建会话阶段并报 `DevToolsActivePort file doesn't exist`。10 月 21 日直接运行 `electron.exe --app=dist-electron/main/index.cjs` 也立即退出，stdout / stderr 为空，退出码为 `-2147483645`（`0x80000003` STATUS_BREAKPOINT）。
+
+加入 `--no-sandbox --disable-gpu` 后，进程出现 userData 锁拒绝访问（`Lock file can not be created: 拒绝访问 (0x5)`）和 `GPU process launch failed`，随后退出 0。WDIO 配置已删除宿主注入的 `ELECTRON_RUN_AS_NODE=1`，但该环境的 GUI 启动仍失败。11 月另行修复了业务 handler 和 SSE 契约；完整 GUI 复验仍待支持的宿主环境。
+
+[容量排查记录](artifacts/acceptance/capacity-boundary-2026-10-21.md) 覆盖限流与降级：`tests/load/test_stage4_capacity.py` 为 3 passed，使用 Redis，100 并发过载时只放行预算内请求，其余返回带 `Retry-After` 的 429 / 503，无 5xx；SSE 收尾 gauge 归零，Redis 断连时 admission fail-closed。该结果没有给出吞吐量或 p95 容量结论。
+
+### 2026-10-21 至 11-01 的修复
+
+| 修复 | 验证或改动 | commit |
 |---|---|---|
-| 前端 lint 12 error + 1 warning → **0 problem**（拆 `button-variants.ts` / `chip-tone.ts` / `use-color-mode.ts`，effect 内 setState 改渲染期调整，`<details>` 改受控 `open`） | `npx eslint .` 0 / `tsc -b` 0 / vitest 48 文件 162 passed | `8ed6b2e` |
-| 契约测试唯一 strict xfail（`JobQueue.lease` 无 lane 过滤）补齐 | `JobService.lease(..., lanes=...)` + `LocalJobRunner(lanes=...)` 透传；contract **23 passed, 0 xfail** | `8ed6b2e` |
-| 证据日志被 `.gitignore` 吞掉 | `!artifacts/**/*.log`，7 份 E2E/a11y/quickstart 日志入库 | `8ed6b2e` |
-| T152 preflight 只报「45 处引用」说不清该删哪层 | 拆成列门/路径门并分类，列消费者实测**只有 1 处**，卡点其实在 T159/T160 整模型退场 | `573e2d3` |
-| T035：eval 路由在事件循环上调同步 service | 14 个端点只有 4 个 `async def`，真正阻塞的 3 处改走 `run_in_threadpool`，`eval_service.py` 一行未动（所以 T035 仍是 `[~]`）；新增可证伪回归测试 2 passed | `fb831fc` |
-| **种子角色的 `actions` 恒为空 → `/api/v2/admin/*` 对 `sys_admin` 也返回 403**（三个新 admin 页在任何全新安装上端到端不可用） | `ROLE_SEEDS` 带 actions + 只回填空的动作列表；`tests/test_role_seed_actions.py` 3 passed，相关子集 96 passed | `8c6b5c3` |
-| **seed 修好后暴露：前端把 `/api/v2/admin/health` 的分桶直方图 `Array<{value,count}>` 当 `Record<string,number>` 渲染 → `/admin/governance` 直接崩页**（403 期间只看得到错误态，所以以前看不见） | `frontend/src/api/admin.ts` 类型与 `toHealth` 直传、`CountList` 改遍历数组；`/admin/governance` 恢复渲染 | `fe7ec81` |
-| **新增 3 个 admin 页从未做过 E2E（SC-012 一直是 partial）** | `frontend/e2e/f8-admin-governance.spec.ts` **5 passed**（三页 axe wcag2a/2aa/21a/21aa 零违规 + 六个 admin 读 200 / capacity 403 契约 + employee 越权重定向），`f7` 转绿；判定见 `artifacts/acceptance/sc012-admin-e2e-2026-11-01.md` → **SC-012 升 pass** | `fe7ec81` |
-| **T053：Chat+Eval 与文件/审批仍是两套编排** | 抽出 `graph/state.py`（`ChatTurnState`）+ `graph/nodes.py` 共享节点（route/tot 真体搬迁，execute 是薄适配）+ `graph/shadow.py` 影子对比（`GRAPH_SHADOW_MODE` 默认关、不切流量、不写库）；全量 **950 passed / 197 skipped / 0 failed**；**T053 仍 `[~]`**（`_execute_plan` ~550 行编排未搬） | `fe7ec81` |
-| **f0–f6 十二条 E2E 全是陈旧定位器**（应用已改 `createHashRouter`，spec 还用路径导航 + 旧文案 + strict-mode 多命中） | 七个 spec 按真实 DOM 重写定位（`#/` 哈希路由、antd `Modal.confirm`、本地化标签、`.page-toolbar` 作用域），`tsc -b` 0 / `eslint .` 0，全量 **19 passed** | `d391bc2` |
-| **移动端没有导航抽屉（f1 的键盘可达契约一直是红的，属真产品缺口不是测试陈旧）** | `frontend/src/components/layout/app-shell.tsx` 加 `打开导航` 抽屉（`aria-expanded` + `aria-controls` + Escape 关闭 + 复用同一份 `nav[aria-label="主导航"]`），`@media (max-width: 899px)` 隐藏 rail；f1 五条全绿 | `d391bc2` |
-| **T035：文档重建索引走的是同步 service（`create_index_job` 读库、置 pending、记审计、`commit()` 全在事件循环线程上）**——会把包括已打开的 chat SSE 流在内的所有请求停住 | `routes_kb.py` 的 `post_document_index` 改走 `run_in_threadpool`；新增 `tests/contract/test_kb_index_route_offload.py` 2 passed（把调用 revert 回内联即 1 failed，证明用例真钉住修复）；`knowledge_base_service.py` 一行未动，**T035 仍 `[~]`**；全量 **961 passed / 197 skipped / 0 failed** | `8b029ca` |
-| **T035：`knowledge_base_service` 的四个只读端点仍在同步 `Session` 上**（`GET /api/knowledge-bases`、`/departments`、`/create-options`、`/{id}`） | 新增 `KnowledgeBaseRepository` + `UnitOfWork.knowledge_bases`，四个端点改 `async def` + `UnitOfWorkDep`；ACL 抽成纯函数 `subject_pairs_for` / `resolve_permission_level` 让同步与异步共用同一份判定；新增 `tests/contract/test_kb_read_async.py` **6 passed**（含仍同步的 `get_documents` 做对照 + spy 断言读操作真在事件循环上）；`eval_service.py` 一行未动，**T035 仍 `[~]`**；全量 **967 passed / 197 skipped / 0 failed** | `46ea8bb` |
+| 前端 lint 12 error + 1 warning | 拆分 `button-variants.ts` / `chip-tone.ts` / `use-color-mode.ts`，effect 内 setState 改渲染期调整，`<details>` 改受控 open；ESLint / TypeScript 通过，Vitest 48 文件 / 162 passed | `8ed6b2e` |
+| JobQueue lane 过滤 | `JobService.lease(..., lanes=...)` 与 LocalJobRunner 透传；契约 23 passed / 0 xfail | `8ed6b2e` |
+| `.gitignore` 忽略证据日志 | 增加 `!artifacts/**/*.log`，7 份日志入库 | `8ed6b2e` |
+| T152 preflight 引用分类 | 45 处引用按列门和路径门分类，列消费者实际 1 处，其余阻塞在 T159 / T160 模型退场 | `573e2d3` |
+| T035 Eval 路由同步阻塞 | 14 个端点中 4 个为 async，3 处同步调用改线程池；当时未改 eval_service，新增回归 2 passed，T035 保留部分完成 | `fb831fc` |
+| 新安装管理员接口返回 403 | ROLE_SEEDS 增加 actions，仅回填空列表；角色种子测试 3 passed，相关子集 96 passed | `8c6b5c3` |
+| 治理页直方图渲染崩溃 | 前端将 `Array<{value,count}>` 修正为数组处理，替换原 `Record<string,number>` 假设，toHealth 直传、CountList 遍历数组 | `fe7ec81` |
+| 3 个 admin 页缺少 E2E | f8 的 5 个用例通过：3 页 axe wcag2a / 2aa / 21a / 21aa、6 个 admin 读接口 200、capacity 403、employee 越权重定向；f7 通过，SC-012 升为 pass | `fe7ec81` |
+| T053 共享节点 | 抽出 graph/state.py、graph/nodes.py、graph/shadow.py；route / ToT 共用实现，execute 为薄适配；950 passed / 197 skipped，约 550 行 _execute_plan 编排未迁移，T053 保留部分完成 | `fe7ec81` |
+| f0–f6 的 12 条陈旧 E2E 定位器 | 7 个 spec 按 hash 路由、antd Modal.confirm、本地化标签和 page-toolbar 作用域更新；TypeScript / ESLint 通过，E2E 19 passed | `d391bc2` |
+| 移动端导航抽屉 | app-shell.tsx 增加“打开导航”、aria-expanded、aria-controls 和 Escape 关闭，复用主导航；899px 以下隐藏 rail，f1 的 5 个用例通过 | `d391bc2` |
+| T035 文档索引同步阻塞 | routes_kb.py 的 create_index_job 改在线程池中调用；新增回归 2 passed，回退为内联时 1 failed；当时未改 knowledge_base_service，961 passed / 197 skipped | `8b029ca` |
+| T035 知识库读取 | KnowledgeBaseRepository 与 UnitOfWork.knowledge_bases 接入 4 个 async 端点；ACL 共用 subject_pairs_for / resolve_permission_level；6 passed，含同步 get_documents 对照和事件循环 spy；当时未改 eval_service，967 passed / 197 skipped | `46ea8bb` |
 
-一处必须说清的口径：**Playwright 全量套件现在是全绿**（`npx playwright test` → **19 passed**，1.3 分钟，日志 `artifacts/acceptance/e2e-full-2026-11-01e.txt`）。这一轮不是靠放宽断言做到的：f0–f6 十二条是把陈旧定位器按真实 DOM 重写（`#/` 哈希路由、antd `Modal.confirm`、本地化标签、`.page-toolbar` 作用域），f1 的移动端键盘契约则是**真的把抽屉实现出来**（`打开导航` + `aria-expanded` + Escape + 复用同一份 `nav[aria-label="主导航"]`）。
+7 份证据日志包括 `artifacts/ui/stage8/{e2e-full,accessibility}.log`、`artifacts/acceptance/quickstart-server.log`、`artifacts/load/baseline/{run,runner-console}.log` 和 `artifacts/pg-{start,phase9}.log`。
 
-仍然**没有**覆盖的地方也要写清：①Electron 整机 E2E（宿主 Chromium 单实例锁/GPU 限制，见上文）；②f5 里「回答评估 run」这一段换成断言**真实检索 Run** 跑到成功并出 Hit@1/MRR 列——回答评估需要 `code=eval_test` 的评测语料，e2e 种子没有种，属于未覆盖分支而不是通过；③antd rc-select 展开后留下的 `height:0` 隐藏 listbox 缺 `aria-label`，是上游组件问题，axe 断言前移到页面首次渲染态，**没有**用 `disableRules`。
+11 月 1 日 Playwright 全量 19 passed，耗时 1.3 分钟，日志见 [e2e-full-2026-11-01e.txt](artifacts/acceptance/e2e-full-2026-11-01e.txt)。当时 f5 覆盖检索 Run 成功及 Hit@1 / MRR 展示，未覆盖缺少 eval_test 种子语料的回答评估分支。rc-select 展开后的隐藏 listbox 缺少 aria-label，axe 检查采用页面首次渲染态，未关闭规则。Electron 整机 E2E 另行验收。
 
----
+</details>
 
 ## 目录
 
@@ -281,41 +256,38 @@ frontend/electron/  桌面外壳：main / preload / shared
 migrations/         Alembic 分阶段迁移 001–005 + legacy 回填
 infra/              compose.yaml、gVisor sandbox manifest
 tests/              单元 / 契约 / 集成 / 安全 / 恢复 / 迁移 / 核对 / 负载
-artifacts/          每个阶段的原始证据（日志、哈希、JSON，不是截图）
-specs/              SDD 规格；tasks.md 是进度权威
+artifacts/          各阶段日志、截图、哈希与 JSON
+specs/              规格、计划与任务清单
 ```
-
----
 
 ## 文档
 
-| 想知道 | 去哪 |
+| 内容 | 文档 |
 |---|---|
-| 到底做完了多少、每项凭什么 | [`tasks.md`](specs/001-enterprise-agent-refactor/tasks.md) ← 唯一权威 |
-| 综合验收 16 项逐条判定 | [`SC-001-SC-016.md`](artifacts/acceptance/SC-001-SC-016.md) |
-| 最近一轮外部复核发现了什么、修了没修 | [`review-fixes-2026-10-21.md`](specs/001-enterprise-agent-refactor/review-fixes-2026-10-21.md) |
-| 为什么不玩「多智能体」那套词 | [`docs/08`](docs/08-de-toy-multiagent-skill-eval-strategy.md) |
-| 数据库迁移 / 多租户 / RLS | [`docs/12`](docs/12-postgresql-multitenancy-design.md) |
-| 检索、评估、记忆的算法细节 | [`docs/04`](docs/04-ai-pipeline-rag-eval-design.md) |
-| 一页看完定位与边界 | [`docs/10`](docs/10-project-summary.md) |
-| 名词看不懂 / 要面试讲这套 | [`docs/interview/`](docs/interview/README.md)（含白话术语表） |
-
----
+| 当前任务进度 | [tasks.md](specs/001-enterprise-agent-refactor/tasks.md) |
+| 11 月审查与 R1–R5 修复 | [审查记录](specs/001-enterprise-agent-refactor/progress-review-2026-11-15.md)、[修复报告](specs/001-enterprise-agent-refactor/repair-report-2026-11-15.md) |
+| 综合验收 | [SC-001-SC-016.md](artifacts/acceptance/SC-001-SC-016.md) |
+| 10 月审查修复 | [review-fixes-2026-10-21.md](specs/001-enterprise-agent-refactor/review-fixes-2026-10-21.md) |
+| Skill / Tool / MCP 与评估策略 | [docs/08](docs/08-de-toy-multiagent-skill-eval-strategy.md) |
+| 数据库迁移、多租户与 RLS | [docs/12](docs/12-postgresql-multitenancy-design.md) |
+| RAG、评估与记忆设计 | [docs/04](docs/04-ai-pipeline-rag-eval-design.md) |
+| 项目早期总结 | [docs/10](docs/10-project-summary.md) |
+| 面试演示与术语 | [docs/interview/](docs/interview/README.md) |
 
 ## 角色
 
-| 角色 | 能干什么 |
+| 角色 | 权限 |
 |---|---|
-| `employee` | 问答、写草稿、看被授权的知识库、发起/查看审批 |
-| `kb_admin` | 维护知识库、审 FAQ、跑评估 |
-| `sys_admin` | 管用户和角色、看审计、配 Skill/MCP/模型、租户治理 |
-| `cross_tenant_admin` | 跨租户只读（平台容量这类），**默认谁都不给** |
+| `employee` | 问答、写草稿、查看被授权的知识库、发起和查看审批 |
+| `kb_admin` | 维护知识库、审核 FAQ、运行评估 |
+| `sys_admin` | 用户与角色管理、审计、Skill / MCP / 模型配置、租户治理 |
+| `cross_tenant_admin` | 跨租户只读，例如平台容量；默认不授予 |
 
-## 几个坑先提醒
+## 配置注意事项
 
-- 换了 embedding 模型或维度，**必须重建索引**，否则检索结果会莫名其妙。
-- 记忆不会写进制度条款措辞，也不会覆盖当轮检索证据——这是刻意的。
-- 生产必改 `SECRET_KEY` 和管理员密码；桌面端 token 只存在主进程的 OS `safeStorage` 里。
+- 更换 embedding 模型或维度后需要重建索引。
+- 记忆和偏好不写入制度条款，也不覆盖本轮检索证据。
+- 部署时设置独立的 `SECRET_KEY` 和管理员密码。桌面 token 由主进程通过 OS `safeStorage` 保存。
 
 ## License
 
