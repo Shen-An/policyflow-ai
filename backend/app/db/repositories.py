@@ -55,6 +55,7 @@ from backend.app.core.config import get_settings
 from backend.app.core.exceptions import ApplicationError
 from backend.app.core.logging import get_logger
 from backend.app.db.models import (
+    RUN_STATUSES,
     AgentRun,
     AuditEvent,
     Conversation,
@@ -67,7 +68,6 @@ from backend.app.db.models import (
     KnowledgeBasePermission,
     KnowledgeDocument,
     MemoryItem,
-    RUN_STATUSES,
     RetrievalEvalItem,
     Role,
     RunEvent,

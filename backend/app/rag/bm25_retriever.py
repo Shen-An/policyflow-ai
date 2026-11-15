@@ -42,14 +42,12 @@ def extract_snippet(text: str, query_tokens: list[str], target: int = _SNIPPET_T
 
     lowered = cleaned.lower()
     match_index = -1
-    match_length = 0
     for token in query_tokens:
         if not token:
             continue
         found = lowered.find(token.lower())
         if found >= 0 and (match_index < 0 or found < match_index):
             match_index = found
-            match_length = len(token)
 
     if match_index < 0:
         start = 0

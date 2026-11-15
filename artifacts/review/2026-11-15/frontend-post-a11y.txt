@@ -1,0 +1,11 @@
+
+ RUN  v4.1.10 E:/Coding/Code/Python/policyflow-ai/frontend
+
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+
+ Test Files  2 passed (2)
+      Tests  15 passed (15)
+   Start at  14:47:24
+   Duration  8.07s (transform 208ms, setup 367ms, import 3.11s, tests 4.12s, environment 1.20s)
+

@@ -6,6 +6,8 @@
 
 > 这份 README 的规矩：凡是写「已完成」的，后面都能翻到日志或测试；翻不到证据的，我就写「没做」或「没验过」。不留中间地带。
 
+2026-11-15：上轮审查 R1–R5 已修复，后端 **981 passed / 197 skipped**，前端 **167 passed**，类型检查与 lint 通过，默认生产浏览器并行 E2E 已通过。桌面 chat 已接真实 AgentPipeline；报销流程生成待填写 Markdown，审批恢复后仅模拟提交，生产沙箱和完整材料选择器仍待接入。详细证据与范围见 [修复报告](specs/001-enterprise-agent-refactor/repair-report-2026-11-15.md)。
+
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)

@@ -26,21 +26,25 @@ live quota path ran.
 
 from __future__ import annotations
 
+import asyncio
 import math
 from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Any, Protocol
 
-from fastapi import APIRouter, Header, Request
+from fastapi import APIRouter, BackgroundTasks, Header, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sse_starlette.sse import EventSourceResponse
 
 from backend.app.api.deps import PrincipalDep
 from backend.app.core.exceptions import ApplicationError, NotFoundError
-from backend.app.db.models import JOB_TERMINAL_STATES, DurableJob
+from backend.app.db.models import JOB_TERMINAL_STATES, AgentRun, DurableJob
+from backend.app.jobs.business import ensure_run, public_snapshot, selected_versions
+from backend.app.jobs.runner import JobContext, _resolve_runner, default_registry
 from backend.app.jobs.service import (
     JobIdempotencyConflict,
     JobService,
@@ -48,7 +52,8 @@ from backend.app.jobs.service import (
     retry_tuning_from_settings,
 )
 from backend.app.observability import telemetry
-from backend.app.sse.endpoint import sse_event_source
+from backend.app.schemas.chat import ChatRequest
+from backend.app.sse.endpoint import _frame, sse_event_source
 from backend.app.sse.run_events import is_terminal_event
 from backend.app.sse.snapshot import DurableRunSnapshot
 from backend.app.sse.stream import RunEventStream
@@ -177,6 +182,7 @@ async def create_run(
     body: RunRequest,
     principal: PrincipalDep,
     request: Request,
+    background_tasks: BackgroundTasks,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> Any:
     """Enqueue a durable run for the caller's tenant.
@@ -194,6 +200,31 @@ async def create_run(
             f"{IDEMPOTENCY_KEY_MAX} characters",
             status_code=400,
         )
+
+    registry = getattr(request.app.state, "job_handler_registry", None) or default_registry()
+    # Index/eval/resume are internal jobs with separately authorized submitters.
+    if body.kind in {"document_index", "eval_run", "file_workflow_resume"} or registry.get(body.kind) is None:
+        raise ApplicationError("RUN_KIND_UNSUPPORTED", "unsupported public run kind", status_code=422)
+    payload = dict(body.payload)
+    if body.kind in {"chat", "file_workflow"}:
+        for field in ("tenant_id", "user_id", "actor_id"):
+            if field in payload:
+                raise ApplicationError("RUN_IDENTITY_INVALID", "identity comes from authentication", status_code=422)
+        payload["actor_id"] = principal.user_id
+        if body.kind == "chat":
+            try:
+                ChatRequest.model_validate(payload)
+            except ValueError as exc:
+                raise ApplicationError("RUN_INPUT_INVALID", "a valid chat question is required", status_code=422) from exc
+        else:
+            ids = payload.get("material_version_ids")
+            if not isinstance(ids, list) or not 1 <= len(ids) <= 50 or not all(isinstance(v, str) for v in ids):
+                raise ApplicationError("RUN_INPUT_INVALID", "select 1..50 existing material versions", status_code=422)
+            try:
+                await selected_versions(JobContext(engine=request.app.state.engine,
+                    app_state=request.app.state, tenant_id=principal.tenant_id), ids)
+            except ValueError as exc:
+                raise ApplicationError("RESOURCE_NOT_FOUND", "selected material is unavailable", status_code=404) from exc
 
     identity = f"{principal.tenant_id}:{principal.user_id}"
     outcome = await _admission(request).admit(resource=body.kind, identity=identity)
@@ -218,7 +249,7 @@ async def create_run(
         job = await service.enqueue(
             tenant_id=principal.tenant_id,
             kind=body.kind,
-            payload=body.payload,
+            payload=payload,
             idempotency_key=key,
             max_attempts=body.max_attempts,
             priority_lane=body.priority_lane,
@@ -227,7 +258,24 @@ async def create_run(
         raise ApplicationError(
             "IDEMPOTENCY_KEY_CONFLICT", str(exc), status_code=409
         ) from exc
-    return _run_view(job)
+    view = _run_view(job)
+    if body.kind in {"chat", "file_workflow"}:
+        row = await ensure_run(JobContext(engine=request.app.state.engine, app_state=request.app.state,
+            tenant_id=principal.tenant_id, run_id=job.run_id or job.id), payload, body.kind)
+        view["state"] = row.status
+        if not request.app.state.settings.CELERY_BROKER_URL:
+            background_tasks.add_task(_resolve_runner(request.app, service).drain_once)
+    return view
+
+
+async def _business_run(request: Request, job: DurableJob, user_id: str):
+    async with request.app.state.uow_factory() as uow:
+        await uow.set_tenant_context(job.tenant_id)
+        row = await uow.session.scalar(select(AgentRun).where(
+            AgentRun.tenant_id == job.tenant_id, AgentRun.run_id == (job.run_id or job.id)))
+        if row is not None and row.user_id != user_id:
+            raise NotFoundError("run not found")
+        return row
 
 
 @router.get("/runs/{run_id}")
@@ -237,7 +285,11 @@ async def get_run(run_id: str, principal: PrincipalDep, request: Request) -> Any
     job = await service.get(run_id)
     if job is None or job.tenant_id != principal.tenant_id:
         raise NotFoundError("run not found")
-    return _run_view(job)
+    view = _run_view(job)
+    row = await _business_run(request, job, principal.user_id)
+    if row is not None:
+        view["state"] = row.status
+    return view
 
 
 @router.post("/runs/{run_id}/cancel")
@@ -258,6 +310,18 @@ async def cancel_run(run_id: str, principal: PrincipalDep, request: Request) -> 
     job = await service.get(run_id)
     if job is None or job.tenant_id != principal.tenant_id:
         raise NotFoundError("run not found")
+    row = await _business_run(request, job, principal.user_id)
+    if row is not None and row.status == "waiting_approval":
+        from backend.app.approvals.service import ApprovalConflict
+        from backend.app.jobs.business import save
+        ctx = JobContext(engine=request.app.state.engine, app_state=request.app.state,
+                         tenant_id=job.tenant_id, run_id=job.run_id or job.id)
+        try:
+            await save(ctx, status="cancelled", expected_status="waiting_approval",
+                       milestones=[("run.cancelled", {})])
+        except ApprovalConflict as exc:
+            raise ApplicationError("RUN_NOT_CANCELLABLE", str(exc), status_code=409) from exc
+        return {**_run_view(job), "state": "cancelled"}
     try:
         job = await service.request_cancel(job_id=job.id)
     except JobStateError as exc:
@@ -274,27 +338,54 @@ async def stream_run_events(
     request: Request,
     last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
 ) -> EventSourceResponse:
-    """Stream a run's SSE events for the caller's tenant: replay, then close.
+    """Tenant/owner-authorized replay and live tail, ending at a terminal event.
 
-    The tenant is authorised the same way as :func:`get_run` -- an unknown run,
-    or one owned by another tenant, is a ``404`` before any stream is opened, so
-    the event log never leaks across tenants. The response then replays every
-    event retained since the client's ``Last-Event-ID``; when the resume point was
-    trimmed (or Redis was flushed) it emits ``snapshot_required`` and replays the
-    authoritative durable milestones from PostgreSQL, then returns once the backlog
-    drains.
-
-    This is the **replay/catch-up** surface, verifiable end-to-end against a real
-    Redis with no worker running. The live tail (a producer fanning worker events
-    into a per-connection :class:`~backend.app.sse.channel.BoundedEventChannel`)
-    is implemented at the generator level but not wired here: it depends on the
-    Celery consumers (T064) and is gated on the broker, so this endpoint does not
-    pretend to hold a connection open for events that nothing is producing yet.
+    Business runs poll durable ordered milestones (including without Redis).
+    Other runs replay Redis with durable recovery and then tail its live stream.
     """
     service = _job_service(request)
     job = await service.get(run_id)
     if job is None or job.tenant_id != principal.tenant_id:
         raise NotFoundError("run not found")
+
+    business = await _business_run(request, job, principal.user_id)
+    if business is not None:
+        async def durable_events():
+            sequence = 0
+            if last_event_id:
+                try:
+                    if not last_event_id.startswith("d"):
+                        raise ValueError("invalid durable cursor")
+                    sequence = int(last_event_id.removeprefix("d"))
+                    if sequence < 0:
+                        raise ValueError("negative cursor")
+                except ValueError:
+                    sequence = 0
+                    yield _frame("snapshot_required", {"run_id": run_id})
+            snapshot_reader = _durable_snapshot(request)
+            initial = await snapshot_reader.milestones(tenant_id=job.tenant_id,
+                run_id=job.run_id or job.id, after_sequence=0)
+            if sequence > (int(initial[-1].data["sequence"]) if initial else 0):
+                sequence = 0
+                yield _frame("snapshot_required", {"run_id": run_id})
+            while not await request.is_disconnected():
+                events = await snapshot_reader.milestones(tenant_id=job.tenant_id,
+                    run_id=job.run_id or job.id, after_sequence=sequence)
+                for item in events:
+                    sequence = int(item.data["sequence"])
+                    yield _frame(item.event_type, item.data, item.id)
+                    if is_terminal_event(item):
+                        return
+                current = await _business_run(request, job, principal.user_id)
+                if current.status in {"succeeded", "cancelled", "terminal_failed"} and not events:
+                    # A crash between saving a final snapshot and appending its event
+                    # must still let the consumer recover the persisted result.
+                    name = {"succeeded": "run.succeeded", "cancelled": "run.cancelled",
+                            "terminal_failed": "run.failed"}[current.status]
+                    yield _frame(name, public_snapshot(current.result_snapshot), f"d{sequence + 1}")
+                    return
+                await asyncio.sleep(0.25)
+        return EventSourceResponse(_instrumented_stream(durable_events()))
 
     stream = _run_event_stream(request)
     public_run_id = job.run_id or job.id

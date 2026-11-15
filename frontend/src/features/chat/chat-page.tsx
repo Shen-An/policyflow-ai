@@ -364,6 +364,8 @@ function WebChatPage() {
         })
       }
       if (!conversationId) {
+        // Preserve the completed first turn while its history request catches up.
+        setSeededConversationId(result.conversationId)
         navigate(`/chat/${result.conversationId}`, { replace: true })
       }
     } catch {
@@ -917,6 +919,7 @@ function WebChatPage() {
 
           <Card title="检索模式" size="small" className="chat-page__side-card">
             <Select
+              aria-label="检索模式"
               style={{ width: '100%' }}
               value={queryMode}
               onChange={(value) => setQueryMode(value as QueryMode)}

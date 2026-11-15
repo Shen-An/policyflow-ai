@@ -7,16 +7,15 @@ import os
 from collections.abc import Sequence
 from typing import Any
 
+import httpx
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, select
 
-import httpx
-
 from backend.app.core.config import Settings
 from backend.app.core.exceptions import ApplicationError
+from backend.app.core.logging import get_logger
 from backend.app.core.mcp_security import decrypt_secret
 from backend.app.db.models import ModelProvider
-from backend.app.core.logging import get_logger
 from backend.app.schemas.retrieval import Evidence
 
 logger = get_logger(__name__)

@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 from typing import Any, Literal
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -42,7 +42,7 @@ _SHA256_HEX = re.compile(r"^[a-f0-9]{64}$")
 #: Scopes/roles that confer approval authority. The recheck is against the live
 #: principal, so a revoked grant is reflected immediately.
 _APPROVE_SCOPES = frozenset({"approval:decide", "approval:manage", "policy:manage"})
-_APPROVE_ROLES = frozenset({"admin", "approver", "policy_admin"})
+_APPROVE_ROLES = frozenset({"admin", "approver", "policy_admin", "sys_admin"})
 
 
 class ApprovalDecisionRequest(BaseModel):
@@ -81,6 +81,7 @@ async def decide_approval(
     body: ApprovalDecisionRequest,
     principal: PrincipalDep,
     request: Request,
+    background_tasks: BackgroundTasks,
 ) -> Any:
     """Approve or reject one approval for the caller's tenant.
 
@@ -101,6 +102,17 @@ async def decide_approval(
     service = ApprovalService(
         factory=_session_factory(request), authority_check=authority
     )
+    from sqlalchemy import select
+
+    from backend.app.db.models import AgentRun
+    from backend.app.jobs.business import enqueue_resume
+    from backend.app.jobs.runner import _resolve_job_service, _resolve_runner
+    async with _session_factory(request)() as session:
+        business_run = await session.scalar(select(AgentRun).where(
+            AgentRun.tenant_id == principal.tenant_id, AgentRun.run_id == run_id,
+            AgentRun.kind == "file_workflow"))
+    if business_run is not None and business_run.status != "waiting_approval":
+        raise ApplicationError("RUN_NOT_WAITING", "run is not waiting for approval", status_code=409)
     try:
         approval = await service.decide(
             tenant_id=principal.tenant_id,
@@ -110,6 +122,8 @@ async def decide_approval(
             expected_digest=body.action_digest,
             expected_version=body.expected_version,
             reason=body.reason,
+            expected_run_id=run_id,
+            on_decided=enqueue_resume if business_run is not None else None,
         )
     except ApprovalConflict as exc:
         raise ApplicationError(exc.code, str(exc), status_code=409) from exc
@@ -125,6 +139,8 @@ async def decide_approval(
         raise ApplicationError(
             "RESOURCE_NOT_FOUND", "no such approval under this run", status_code=404
         )
+    if business_run is not None and not request.app.state.settings.CELERY_BROKER_URL:
+        background_tasks.add_task(_resolve_runner(request.app, _resolve_job_service(request.app)).drain_once)
 
     return {
         "approval_id": approval.id,

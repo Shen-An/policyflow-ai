@@ -69,8 +69,8 @@ from backend.app.db.session import (
 from backend.app.frontend import mount_frontend
 from backend.app.graph.compat import AdapterUsageTelemetry
 from backend.app.graph.route_adapter import GraphRouteAdapter
-from backend.app.graph.shadow import ChatShadowRunner
 from backend.app.graph.service import GraphService
+from backend.app.graph.shadow import ChatShadowRunner
 from backend.app.jobs.celery_app import build_celery_app
 from backend.app.jobs.metrics import install_job_state_gauge
 from backend.app.jobs.publisher import OutboxPublisher
@@ -212,6 +212,11 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        from importlib import import_module
+
+        from starlette.concurrency import run_in_threadpool
+
+        await run_in_threadpool(import_module, "backend.app.graph.pipeline_graph")
         configure_telemetry(service_name=app_settings.PROJECT_NAME)
         summary = initialize_database(engine, app_settings)
         # Authoritative durable-job queue-depth gauge (T071): the observable
@@ -263,6 +268,7 @@ def create_app(
     application.state.settings = app_settings
     application.state.engine = engine
     application.state.async_engine = async_engine
+    application.state.async_session_factory = async_session_factory
     application.state.uow_factory = build_unit_of_work
     application.state.lightrag_adapter = adapter
     application.state.llm_service = language_model

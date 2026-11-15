@@ -66,7 +66,7 @@ function FileTree({
 
 export function WorkflowPage() {
   const workflow = useWorkflow()
-  const { changeSet, approval, submission, rejected, failure, reconnecting, events, startWorkflow } = workflow
+  const { changeSet, approval, submission, rejected, failure, reconnecting, events, reset } = workflow
   const [selected, setSelected] = useState('')
 
   const items = changeSet?.items ?? []
@@ -81,13 +81,23 @@ export function WorkflowPage() {
         <ErrorState
           title="流程未能完成"
           description={failure.message}
-          onRetry={() => void startWorkflow()}
+          onRetry={() => reset()}
         />
       </div>
     )
   }
 
   if (!changeSet) {
+    if (workflow.phase === 'succeeded' || workflow.phase === 'cancelled') {
+      const terminal = [...events].reverse().find((event) => event.eventType === 'run.succeeded')
+      return (
+        <section data-testid="workflow-page" role="status" className="ds-card" style={{ padding: 'var(--ds-space-4)' }}>
+          <h2>{workflow.phase === 'cancelled' ? '流程已取消' : '未生成草稿'}</h2>
+          <p>{typeof terminal?.payload?.answer === 'string' ? terminal.payload.answer : '当前没有足够的制度依据生成草稿。'}</p>
+          <button type="button" onClick={reset}>重新选择材料</button>
+        </section>
+      )
+    }
     return (
       <div data-testid="workflow-page">
         <ThinkingProcess events={events} reconnecting={reconnecting} />
@@ -104,7 +114,7 @@ export function WorkflowPage() {
         <div className="ds-card" style={{ padding: 'var(--ds-space-3)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <span style={{ fontSize: 'var(--ds-text-sm)', fontWeight: 650 }}>生成的文件</span>
-            {!submission && !rejected ? (
+            {!submission && !rejected && workflow.phase !== 'cancelled' ? (
               <span
                 data-testid="draft-badge"
                 style={{
@@ -193,20 +203,20 @@ export function WorkflowPage() {
         >
           <CheckCircle size={22} weight="fill" aria-hidden style={{ color: 'var(--ds-success)' }} />
           <div>
-            <div style={{ fontWeight: 650 }}>已提交到 {submission.destination}</div>
+            <div style={{ fontWeight: 650 }}>{submission.status === 'mock' ? '模拟提交完成：' : '已提交到 '}{submission.destination}</div>
             <div style={{ fontSize: 'var(--ds-text-sm)', color: 'var(--ds-text-secondary)' }}>
               回执编号：{submission.receipt}
             </div>
           </div>
         </section>
-      ) : rejected ? (
+      ) : rejected || workflow.phase === 'cancelled' ? (
         <section
           data-testid="workflow-rejected"
           role="status"
           className="ds-card"
           style={{ padding: 'var(--ds-space-4)' }}
         >
-          <div style={{ fontWeight: 650 }}>已驳回</div>
+          <div style={{ fontWeight: 650 }}>{rejected ? '已驳回' : '流程已取消'}</div>
           <div style={{ fontSize: 'var(--ds-text-sm)', color: 'var(--ds-text-secondary)' }}>
             草稿文件未提交，保持为草稿。你可以修改材料后重新发起。
           </div>

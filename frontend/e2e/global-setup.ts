@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
 import path from 'node:path'
+import { createWriteStream, mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const frontendRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
@@ -152,6 +153,8 @@ async function stopChild(child: ChildProcess): Promise<void> {
 }
 
 export default async function globalSetup() {
+  mkdirSync(path.join(frontendRoot, '.tmp'), { recursive: true })
+  const backendLog = createWriteStream(path.join(frontendRoot, '.tmp/e2e-server.log'))
   // The backend needs a Python that actually has the project dependencies (celery,
   // fastapi, ...) installed. A bare `python` on PATH is frequently a different
   // installation (for example conda base), which dies immediately and shows up here
@@ -162,9 +165,11 @@ export default async function globalSetup() {
     // Run from the repo root so backend Settings reads the project .env instead of
     // frontend/.env (Vite-only keys such as VITE_ENABLE_MSW are rejected by extra="forbid").
     cwd: path.resolve(frontendRoot, '..'),
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   })
+  backend.stdout?.pipe(backendLog, { end: false })
+  backend.stderr?.pipe(backendLog, { end: false })
   const productionMode = process.env.POLICYFLOW_E2E_PRODUCTION === 'true'
   const frontendPort = productionMode ? 4173 : 5173
   const viteArguments = [
@@ -193,10 +198,12 @@ export default async function globalSetup() {
     await seedF6Data()
   } catch (error) {
     await Promise.all([stopChild(backend), stopChild(vite)])
+    backendLog.end()
     throw error
   }
 
   return async () => {
     await Promise.all([stopChild(backend), stopChild(vite)])
+    backendLog.end()
   }
 }

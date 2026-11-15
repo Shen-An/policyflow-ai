@@ -270,6 +270,8 @@ class ApprovalService:
         expected_version: int,
         reason: str | None = None,
         required_authority: str = "approve",
+        expected_run_id: str | None = None,
+        on_decided: Callable[[AsyncSession, ApprovalRequest], Awaitable[None]] | None = None,
     ) -> ApprovalRequest:
         """Approve or reject a pending approval.
 
@@ -287,6 +289,8 @@ class ApprovalService:
 
         async with self._factory() as session:
             approval = await self._load(session, tenant_id, approval_id)
+            if expected_run_id is not None and approval.run_id != expected_run_id:
+                raise ApprovalError("RESOURCE_NOT_FOUND", "no approval under this run")
             if approval.version != expected_version:
                 raise ApprovalConflict(
                     "APPROVAL_VERSION_CONFLICT",
@@ -323,6 +327,8 @@ class ApprovalService:
                 change_set = await session.get(ChangeSet, approval.change_set_id)
                 if change_set is not None:
                     await self._cas_change_set(session, change_set, state="approved")
+            if on_decided is not None:
+                await on_decided(session, approval)
             await session.commit()
             await session.refresh(approval)
             return approval

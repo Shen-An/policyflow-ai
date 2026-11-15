@@ -111,7 +111,10 @@ def app(tmp_path: Path):
     asyncio.run(_seed(url))
     settings = Settings(DATABASE_URL=url, LOG_DIR=tmp_path / "logs", SECRET_KEY=SECRET,
                         REDIS_URL=REDIS_URL, SSE_LIVE_TAIL_BLOCK_MS=500, _env_file=None)
-    return create_app(settings)
+    app = create_app(settings)
+    from tests.contract.test_runs_api import register_transport_probe
+    register_transport_probe(app)
+    return app
 
 
 def _stream(prefix: str) -> RunEventStream:

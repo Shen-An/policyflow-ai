@@ -37,7 +37,7 @@ __all__ = [
 ]
 
 
-class AdapterMode(str, Enum):
+class AdapterMode(str, Enum):  # noqa: UP042 - preserve existing string representation
     ACTIVE = "active"
     SHADOW = "shadow"
 

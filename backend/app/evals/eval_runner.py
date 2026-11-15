@@ -313,7 +313,8 @@ class EvalRunner:
             eval_run.total_cases = len(retrieval_items) * strategy_multiplier + len(cases)
             eval_run.started_at = utc_now()
             session.add(eval_run)
-            session.commit()
+            from starlette.concurrency import run_in_threadpool
+            await run_in_threadpool(session.commit)
 
         results: list[EvalResult] = []
         retrieval_metric_sets: list[dict[str, Any]] = []
@@ -447,7 +448,7 @@ class EvalRunner:
         with Session(self.engine) as session:
             for result in results:
                 session.add(result)
-            session.commit()
+            await run_in_threadpool(session.commit)
 
         with Session(self.engine) as session:
             eval_run = session.get(EvalRun, run_id)
@@ -459,4 +460,4 @@ class EvalRunner:
                 )
                 eval_run.finished_at = utc_now()
                 session.add(eval_run)
-                session.commit()
+                await run_in_threadpool(session.commit)

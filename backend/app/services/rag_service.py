@@ -12,9 +12,9 @@ from backend.app.rag.protocols import Reranker, Retriever
 from backend.app.rag.rerank_service import RerankService
 from backend.app.schemas.retrieval import (
     Evidence,
+    RerankerMethod,
     RetrievalRequest,
     RetrievalResult,
-    RerankerMethod,
     RetrievalStrategy,
     RetrievalTraceItem,
 )

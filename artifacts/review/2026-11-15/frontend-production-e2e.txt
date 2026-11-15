@@ -1,0 +1,328 @@
+
+> policyflow-ai-frontend@0.1.0 e2e:production
+> npm run build && playwright test --config=playwright.production.config.ts
+
+
+> policyflow-ai-frontend@0.1.0 build
+> node scripts/verify-production-config.mjs && tsc -b && vite build && node scripts/verify-production-build.mjs
+
+Production environment check passed.
+vite v8.1.4 building client environment for production...
+[2K
+transforming...✓ 6611 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                              5.20 kB │ gzip:  1.42 kB
+dist/assets/geist-cyrillic-ext-wght-normal-DjL33-gN.woff2    7.42 kB
+dist/assets/geist-vietnamese-wght-normal-6IgcOCM7.woff2      8.00 kB
+dist/assets/geist-cyrillic-wght-normal-BEAKL7Jp.woff2       15.08 kB
+dist/assets/geist-latin-ext-wght-normal-DC-KSUi6.woff2      16.51 kB
+dist/assets/geist-latin-wght-normal-BgDaEnEv.woff2          29.40 kB
+dist/.vite/manifest.json                                    45.41 kB │ gzip:  4.77 kB
+dist/assets/app-shell-BS4s0EmS.css                           3.80 kB │ gzip:  1.41 kB
+dist/assets/index-yLwEfQyJ.css                              70.93 kB │ gzip: 13.83 kB
+dist/assets/eval-COORi58l.js                                 0.06 kB │ gzip:  0.07 kB
+dist/assets/row-BvLWxW3v.js                                  0.06 kB │ gzip:  0.08 kB
+dist/assets/approval-page-D4r56gxI.js                        0.07 kB │ gzip:  0.08 kB
+dist/assets/workflow-page-Ba9LG1rd.js                        0.07 kB │ gzip:  0.08 kB
+dist/assets/permissions-DGA-bhJ3.js                          0.07 kB │ gzip:  0.09 kB
+dist/assets/global-feedback-e5yWhXep.js                      0.12 kB │ gzip:  0.11 kB
+dist/assets/mergeProps-yLeqvqMM.js                           0.12 kB │ gzip:  0.12 kB
+dist/assets/quiet-chip-i5SDU027.js                           0.20 kB │ gzip:  0.17 kB
+dist/assets/confirm-ap84TTLq.js                              0.20 kB │ gzip:  0.15 kB
+dist/assets/labels-BoK2KTZi.js                               0.35 kB │ gzip:  0.26 kB
+dist/assets/chip-tone-DFx1uLTs.js                            0.45 kB │ gzip:  0.22 kB
+dist/assets/desktop-auth-Bg-VfmIO.js                         0.49 kB │ gzip:  0.29 kB
+dist/assets/labels-B0Yluy9s.js                               0.56 kB │ gzip:  0.41 kB
+dist/assets/IconBase.es-BWC1TjnS.js                          0.60 kB │ gzip:  0.40 kB
+dist/assets/RightOutlined-xsIOTmPS.js                        0.83 kB │ gzip:  0.57 kB
+dist/assets/datetime-1GRVK7Lh.js                             0.98 kB │ gzip:  0.52 kB
+dist/assets/PurePanel-DOrWx_yN.js                            1.06 kB │ gzip:  0.66 kB
+dist/assets/desktop-api-CCga5-F7.js                          1.22 kB │ gzip:  0.62 kB
+dist/assets/modal-BR5KHgb_.js                                1.40 kB │ gzip:  0.76 kB
+dist/assets/Plus.es-gq8Fdnwl.js                              1.58 kB │ gzip:  0.59 kB
+dist/assets/ArrowLeft.es-BPB1LwtW.js                         1.59 kB │ gzip:  0.63 kB
+dist/assets/MagnifyingGlass.es-DZ3RvRcd.js                   1.67 kB │ gzip:  0.69 kB
+dist/assets/Copy.es-Cz2mj2xX.js                              1.83 kB │ gzip:  0.63 kB
+dist/assets/useBreakpoint-DLI1DpRR.js                        1.84 kB │ gzip:  0.89 kB
+dist/assets/use-run-events-CzaJuTET.js                       1.92 kB │ gzip:  0.96 kB
+dist/assets/CircleNotch.es-B9Ko1EhY.js                       1.96 kB │ gzip:  0.80 kB
+dist/assets/style-D_40IL4z.js                                1.96 kB │ gzip:  0.82 kB
+dist/assets/X.es-DPqzkruf.js                                 1.97 kB │ gzip:  0.68 kB
+dist/assets/queries-Cm7RFwej.js                              2.02 kB │ gzip:  0.73 kB
+dist/assets/auth-store-CkkCJidS.js                           2.03 kB │ gzip:  0.79 kB
+dist/assets/ArrowClockwise.es-BqG6T9B_.js                    2.05 kB │ gzip:  0.80 kB
+dist/assets/CheckCircle.es-b_UdAoJB.js                       2.13 kB │ gzip:  0.75 kB
+dist/assets/ChatCircle.es-CTKzWo5H.js                        2.14 kB │ gzip:  0.84 kB
+dist/assets/Lock.es-DIvH34tY.js                              2.21 kB │ gzip:  0.76 kB
+dist/assets/Info.es-BBlWhwHB.js                              2.25 kB │ gzip:  0.82 kB
+dist/assets/useMutation-0P3_oHXL.js                          2.32 kB │ gzip:  0.96 kB
+dist/assets/queries-Clrxj2XA.js                              2.42 kB │ gzip:  0.85 kB
+dist/assets/InfoCircleFilled-C3Xu8eFq.js                     2.43 kB │ gzip:  0.81 kB
+dist/assets/row-BSdxk5nk.js                                  2.49 kB │ gzip:  1.30 kB
+dist/assets/XCircle.es-bX1UAMHj.js                           2.49 kB │ gzip:  0.81 kB
+dist/assets/queries-BLdt6wT9.js                              2.49 kB │ gzip:  0.95 kB
+dist/assets/Trash.es-CRjUnbIM.js                             2.59 kB │ gzip:  0.81 kB
+dist/assets/palette-CRV2752T.js                              2.59 kB │ gzip:  0.96 kB
+dist/assets/knowledge-base-detail-page-dK3UHe-u.js           2.60 kB │ gzip:  1.25 kB
+dist/assets/BookOpen.es-BhMxP8lu.js                          2.62 kB │ gzip:  0.88 kB
+dist/assets/context-x03zi8qW.js                              2.64 kB │ gzip:  1.31 kB
+dist/assets/FileText.es-Mkzh26bb.js                          2.66 kB │ gzip:  0.82 kB
+dist/assets/message-C0dWqiBc.js                              2.81 kB │ gzip:  1.35 kB
+dist/assets/FolderOpen.es-DYaNqBp9.js                        2.96 kB │ gzip:  1.03 kB
+dist/assets/ClipboardText.es-BDsPzCi9.js                     3.13 kB │ gzip:  1.06 kB
+dist/assets/Users.es-C0iMXs1U.js                             3.18 kB │ gzip:  1.14 kB
+dist/assets/mutation-CoNQkMhK.js                             3.37 kB │ gzip:  1.12 kB
+dist/assets/Warning.es-v3wnwL8y.js                           3.38 kB │ gzip:  1.10 kB
+dist/assets/ShieldCheck.es-t7C7qFdt.js                       3.41 kB │ gzip:  1.20 kB
+dist/assets/popconfirm-Cd8wW_CZ.js                           3.47 kB │ gzip:  1.55 kB
+dist/assets/Input-BrT76drt.js                                3.50 kB │ gzip:  1.78 kB
+dist/assets/Wrench.es-T_omlojA.js                            3.79 kB │ gzip:  1.39 kB
+dist/assets/antd-theme-D4KbsTQN.js                           3.80 kB │ gzip:  1.57 kB
+dist/assets/knowledge-base-overview-page-Bfyun58y.js         3.91 kB │ gzip:  1.87 kB
+dist/assets/app-DsH4axJG.js                                  4.10 kB │ gzip:  1.98 kB
+dist/assets/workflow-store-CWK8XJp1.js                       4.35 kB │ gzip:  1.49 kB
+dist/assets/popover-CXsSZVtd.js                              4.48 kB │ gzip:  2.00 kB
+dist/assets/Database.es-D3m67m4j.js                          4.67 kB │ gzip:  1.39 kB
+dist/assets/empty-B9yXO6j2.js                                4.68 kB │ gzip:  2.01 kB
+dist/assets/queries-i3dAbnce.js                              4.81 kB │ gzip:  1.44 kB
+dist/assets/useForm-CfsOI6TE.js                              5.11 kB │ gzip:  2.28 kB
+dist/assets/draft-list-page-BdMsBuT1.js                      5.22 kB │ gzip:  2.45 kB
+dist/assets/login-page-DmwfxBUH.js                           5.36 kB │ gzip:  2.50 kB
+dist/assets/thinking-process-BcTmaVA8.js                     6.04 kB │ gzip:  2.23 kB
+dist/assets/reconciliation-page-DzgVUXxS.js                  6.16 kB │ gzip:  2.80 kB
+dist/assets/alert-BS-30wlU.js                                6.41 kB │ gzip:  2.71 kB
+dist/assets/eval-pXdaEZWV.js                                 6.47 kB │ gzip:  2.24 kB
+dist/assets/config-provider-BIXjRb6b.js                      6.54 kB │ gzip:  2.66 kB
+dist/assets/memory-page-CEAXKqUP.js                          7.32 kB │ gzip:  3.48 kB
+dist/assets/checkbox-BWC0Nn6d.js                             7.46 kB │ gzip:  3.10 kB
+dist/assets/knowledge-base-page-CquAIeTP.js                  7.71 kB │ gzip:  2.78 kB
+dist/assets/descriptions-Cnhk-RGE.js                         7.76 kB │ gzip:  2.73 kB
+dist/assets/jsx-runtime-n5LQ9ujS.js                          8.53 kB │ gzip:  3.26 kB
+dist/assets/audit-page-BhOGTmke.js                           8.86 kB │ gzip:  3.78 kB
+dist/assets/useQuery-NHloqtkq.js                             9.07 kB │ gzip:  3.33 kB
+dist/assets/faq-review-page-DMQAsTpm.js                      9.37 kB │ gzip:  3.83 kB
+dist/assets/queries-DGfj3CVp.js                              9.73 kB │ gzip:  3.74 kB
+dist/assets/approval-page-Dzo1x5SH.js                        9.75 kB │ gzip:  3.31 kB
+dist/assets/collapse-BMtXvtlf.js                             9.81 kB │ gzip:  3.66 kB
+dist/assets/workspace-page-4qQ9QoM0.js                      10.98 kB │ gzip:  3.74 kB
+dist/assets/draft-detail-page-DjwdJGUJ.js                   11.04 kB │ gzip:  4.01 kB
+dist/assets/use-auth-P4ive-Zv.js                            11.24 kB │ gzip:  4.15 kB
+dist/assets/knowledge-base-list-page-BjgaM0Fq.js            11.28 kB │ gzip:  4.47 kB
+dist/assets/input-CJpLFD3l.js                               11.59 kB │ gzip:  5.15 kB
+dist/assets/admin-page-C-AEuhgq.js                          12.36 kB │ gzip:  4.86 kB
+dist/assets/users-page-CPDcZTHs.js                          13.40 kB │ gzip:  5.12 kB
+dist/assets/skills-page-BPTO7tg6.js                         13.80 kB │ gzip:  4.89 kB
+dist/assets/drawer-By6E0Yqe.js                              14.27 kB │ gzip:  5.51 kB
+dist/assets/query-ChMwgRNV.js                               14.71 kB │ gzip:  5.02 kB
+dist/assets/states-BAmBPr1E.js                              15.01 kB │ gzip:  4.96 kB
+dist/assets/queries-CvBiYsNC.js                             15.56 kB │ gzip:  5.42 kB
+dist/assets/integrations-page-D4FjwXuo.js                   16.49 kB │ gzip:  5.90 kB
+dist/assets/document-list-page-RrfORVpE.js                  17.50 kB │ gzip:  6.39 kB
+dist/assets/workflow-page-CwpWA6ZX.js                       17.88 kB │ gzip:  5.66 kB
+dist/assets/typography-D3CIYCjn.js                          20.65 kB │ gzip:  8.11 kB
+dist/assets/form-CbX4TWy_.js                                21.74 kB │ gzip:  8.49 kB
+dist/assets/context-DobsG3g6.js                             23.61 kB │ gzip:  8.64 kB
+dist/assets/useModal-Cwp8aIM_.js                            24.50 kB │ gzip:  8.42 kB
+dist/assets/zod-Gl-k8M4P.js                                 30.60 kB │ gzip: 11.09 kB
+dist/assets/dist-CJYSmKfl.js                                30.77 kB │ gzip: 10.65 kB
+dist/assets/state-views-BXRnxRsE.js                         35.28 kB │ gzip: 11.44 kB
+dist/assets/app-shell-CwLp8tYo.js                           38.23 kB │ gzip: 10.25 kB
+dist/assets/model-settings-page-6O9QkTrq.js                 38.95 kB │ gzip: 13.96 kB
+dist/assets/card-rV0U2FWl.js                                44.13 kB │ gzip: 13.51 kB
+dist/assets/audit-run-page-Cq-BelP7.js                      44.23 kB │ gzip: 13.48 kB
+dist/assets/evaluation-page-5x1oIWlN.js                     46.79 kB │ gzip: 15.41 kB
+dist/assets/chat-page-BLc-D7x5.js                           65.55 kB │ gzip: 19.20 kB
+dist/assets/select-BnrA6UfI.js                              68.52 kB │ gzip: 23.45 kB
+dist/assets/client-Da_FXE7i.js                              69.71 kB │ gzip: 20.04 kB
+dist/assets/index-GvNU5ZjU.js                               77.20 kB │ gzip: 26.33 kB
+dist/assets/TextArea-BSETqgoG.js                            85.87 kB │ gzip: 27.37 kB
+dist/assets/tooltip-CAaMUhJt.js                             86.98 kB │ gzip: 29.47 kB
+dist/assets/chunk-KS7C4IRE-CvSiyPdY.js                      96.29 kB │ gzip: 31.89 kB
+dist/assets/date-picker-b6r9qLRF.js                        107.17 kB │ gzip: 34.02 kB
+dist/assets/markdown-content-B_h5ColO.js                   159.01 kB │ gzip: 47.80 kB
+dist/assets/table-CxP1xIMm.js                              217.62 kB │ gzip: 65.92 kB
+dist/assets/button-DyHBxP7X.js                             296.95 kB │ gzip: 98.47 kB
+
+✓ built in 496ms
+Production build check passed: hashed assets, no source maps, mocks, loopback URLs, or test credentials.
+Running 19 tests using 10 workers
+
+(node:27888) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3884) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:13060) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2836) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:31648) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:30500) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:30116) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:31072) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:23920) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15684) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  2 [chromium-production] › e2e\f0-foundation.spec.ts:11:1 › unknown routes expose an accessible not-found state (1.2s)
+  ok  1 [chromium-production] › e2e\f0-foundation.spec.ts:3:1 › F0 build remains available and Vite proxies the real FastAPI health endpoint (1.5s)
+  ok  3 [chromium-production] › e2e\f1-auth.spec.ts:26:1 › invalid credentials show a stable error and keep the form (1.7s)
+  ok  6 [chromium-production] › e2e\f1-auth.spec.ts:40:1 › expired local session is cleared before protected content is shown (2.2s)
+  ok  5 [chromium-production] › e2e\f1-auth.spec.ts:33:1 › employee is redirected to forbidden for sys_admin route (2.5s)
+  ok  8 [chromium-production] › e2e\f1-auth.spec.ts:59:1 › mobile AppShell drawer is keyboard dismissible (2.5s)
+  ok  4 [chromium-production] › e2e\f1-auth.spec.ts:9:1 › anonymous deep link returns after real admin login, restores, and logs out (3.2s)
+  ok 13 [chromium-production] › e2e\f6-admin.spec.ts:71:1 › employee cannot open F6 administration routes (1.6s)
+  ok  7 [chromium-production] › e2e\f2-users.spec.ts:13:1 › sys_admin lists, searches, creates, and updates a user through real APIs (4.4s)
+  x   9 [chromium-production] › e2e\f3-knowledge-bases.spec.ts:11:1 › admin creates a real knowledge base and indexed document while employee remains read-only (9.3s)
+  x  12 [chromium-production] › e2e\f6-admin.spec.ts:3:1 › admin runs Skills, inspects redacted Tool logs, and manages mock MCP integrations (7.8s)
+  x  10 [chromium-production] › e2e\f4-chat-drafts.spec.ts:3:1 › employee asks with evidence, submits feedback, restores history, and completes a draft (9.6s)
+  x  11 [chromium-production] › e2e\f5-quality.spec.ts:3:1 › admin reviews FAQ, inspects audit, runs answer evaluation, and debugs retrieval (8.5s)
+  x  19 [chromium-production] › e2e\f8-admin-governance.spec.ts:225:1 › employee cannot open the new administration routes (5.6s)
+  ok 16 [chromium-production] › e2e\f8-admin-governance.spec.ts:103:1 › run audit page renders from the app shell, keeps its filters keyboard reachable and passes accessibility checks (8.3s)
+  ok 17 [chromium-production] › e2e\f8-admin-governance.spec.ts:146:1 › reconciliation page renders from the app shell, keeps its filters keyboard reachable and passes accessibility checks (7.8s)
+  ok 18 [chromium-production] › e2e\f8-admin-governance.spec.ts:192:1 › v2 admin endpoints accept the bootstrap sys_admin session (7.6s)
+  ok 15 [chromium-production] › e2e\f8-admin-governance.spec.ts:38:1 › tenant governance page renders from the app shell, keeps its controls reachable and passes accessibility checks (9.5s)
+  ok 14 [chromium-production] › e2e\f7-accessibility.spec.ts:11:1 › public and authenticated production routes pass automated accessibility checks (13.1s)
+
+
+  1) [chromium-production] › e2e\f3-knowledge-bases.spec.ts:11:1 › admin creates a real knowledge base and indexed document while employee remains read-only 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('只读', { exact: true }).first()
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByText('只读', { exact: true }).first()
+
+
+      60 |   await expect(employeeCard).toContainText('只读')
+      61 |   await employeeCard.getByRole('link', { name: '查看详情' }).click()
+    > 62 |   await expect(page.getByText('只读', { exact: true }).first()).toBeVisible()
+         |                                                               ^
+      63 |   await page.getByRole('link', { name: '管理文档' }).click()
+      64 |   await expect(page.getByText('当前为只读权限，不能上传或重新索引。')).toBeVisible()
+      65 |   await expect(page.getByRole('row', { name: new RegExp(documentTitle, 'u') })).toBeVisible()
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f3-knowledge-bases.spec.ts:62:63
+
+    Error Context: test-results\f3-knowledge-bases-admin-c-39086--employee-remains-read-only-chromium-production\error-context.md
+
+  2) [chromium-production] › e2e\f4-chat-drafts.spec.ts:3:1 › employee asks with evidence, submits feedback, restores history, and completes a draft 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: getByRole('article', { name: 'PolicyFlow 回答' }).getByRole('status')
+    Expected substring: "已记录"
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toContainText" with timeout 5000ms
+      - waiting for getByRole('article', { name: 'PolicyFlow 回答' }).getByRole('status')
+
+
+      29 |   await answerCard.getByLabel('反馈备注').fill('E2E citation verified')
+      30 |   await answerCard.getByRole('button', { name: '提交反馈' }).click()
+    > 31 |   await expect(answerCard.getByRole('status')).toContainText('已记录')
+         |                                                ^
+      32 |
+      33 |   await expect(page).toHaveURL(/\/chat\/[0-9a-f-]+$/u)
+      34 |   await page.reload()
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f4-chat-drafts.spec.ts:31:48
+
+    Error Context: test-results\f4-chat-drafts-employee-as-bdb25-story-and-completes-a-draft-chromium-production\error-context.md
+
+  3) [chromium-production] › e2e\f5-quality.spec.ts:3:1 › admin reviews FAQ, inspects audit, runs answer evaluation, and debugs retrieval 
+
+    Error: expect(locator).not.toBeVisible() failed
+
+    Locator:  getByRole('dialog')
+    Expected: not visible
+    Received: visible
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "not toBeVisible" with timeout 5000ms
+      - waiting for getByRole('dialog')
+        4 × locator resolved to <div role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="_r_e_" class="ant-modal css-1pi45l5 ant-zoom-appear ant-zoom-appear-active ant-zoom">…</div>
+          - unexpected value "visible"
+        10 × locator resolved to <div role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="_r_e_" class="ant-modal css-1pi45l5">…</div>
+           - unexpected value "visible"
+
+
+      20 |   await rejectDialog.getByLabel('驳回原因').fill('E2E duplicate topic')
+      21 |   await rejectDialog.getByRole('button', { name: '确认驳回' }).click()
+    > 22 |   await expect(rejectDialog).not.toBeVisible()
+         |                                  ^
+      23 |
+      24 |   await page.getByRole('link', { name: '审计日志' }).click()
+      25 |   await expect(page.getByRole('heading', { name: '审计日志', level: 1 })).toBeVisible()
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f5-quality.spec.ts:22:34
+
+    Error Context: test-results\f5-quality-admin-reviews-F-c0107-uation-and-debugs-retrieval-chromium-production\error-context.md
+
+  4) [chromium-production] › e2e\f6-admin.spec.ts:3:1 › admin runs Skills, inspects redacted Tool logs, and manages mock MCP integrations 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('dialog', { name: '运行 summary' }).getByText('/Audit ID：/u')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('dialog', { name: '运行 summary' }).getByText('/Audit ID：/u')
+
+
+      16 |   await runDialog.getByLabel('运行参数').fill(JSON.stringify({ text: 'Annual leave requires approval.' }))
+      17 |   await runDialog.getByRole('button', { name: '确认运行' }).click()
+    > 18 |   await expect(runDialog.getByText(/Audit ID：/u)).toBeVisible()
+         |                                                   ^
+      19 |   await expect(runDialog.getByText(/Request ID：/u)).toBeVisible()
+      20 |   // The close affordance is `<span aria-label="关闭运行对话框">` nested inside the
+      21 |   // antd modal close button (skills-page.tsx:263), so the button itself carries no
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f6-admin.spec.ts:18:51
+
+    Error Context: test-results\f6-admin-admin-runs-Skills-59a60-nages-mock-MCP-integrations-chromium-production\error-context.md
+
+  5) [chromium-production] › e2e\f8-admin-governance.spec.ts:225:1 › employee cannot open the new administration routes 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: '退出登录' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('button', { name: '退出登录' })
+
+
+      25 |   await page.getByLabel('密码').fill(password)
+      26 |   await page.getByRole('button', { name: '登录' }).click()
+    > 27 |   await expect(page.getByRole('button', { name: '退出登录' })).toBeVisible()
+         |                                                            ^
+      28 | }
+      29 |
+      30 | /** 等一条 `/api/v2/admin/<path>` 的 GET 响应，用来证明页面真的发出了请求（而不是停在加载态）。 */
+        at loginAs (E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f8-admin-governance.spec.ts:27:60)
+        at E:\Coding\Code\Python\policyflow-ai\frontend\e2e\f8-admin-governance.spec.ts:227:3
+
+    Error Context: test-results\f8-admin-governance-employ-68fce-e-new-administration-routes-chromium-production\error-context.md
+
+  5 failed
+    [chromium-production] › e2e\f3-knowledge-bases.spec.ts:11:1 › admin creates a real knowledge base and indexed document while employee remains read-only 
+    [chromium-production] › e2e\f4-chat-drafts.spec.ts:3:1 › employee asks with evidence, submits feedback, restores history, and completes a draft 
+    [chromium-production] › e2e\f5-quality.spec.ts:3:1 › admin reviews FAQ, inspects audit, runs answer evaluation, and debugs retrieval 
+    [chromium-production] › e2e\f6-admin.spec.ts:3:1 › admin runs Skills, inspects redacted Tool logs, and manages mock MCP integrations 
+    [chromium-production] › e2e\f8-admin-governance.spec.ts:225:1 › employee cannot open the new administration routes 
+  14 passed (21.9s)

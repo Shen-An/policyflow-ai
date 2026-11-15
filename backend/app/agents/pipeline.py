@@ -11,11 +11,9 @@ from backend.app.agents.answer_agent import HARD_REFUSE_ANSWER, AnswerAgent
 from backend.app.agents.base import AnswerResult, MemoryWorkingSet, PipelineResult, TurnState
 from backend.app.agents.compliance_agent import ComplianceAgent
 from backend.app.agents.grounding import estimate_answer_confidence
-from backend.app.agents.plan_branch import generate_plan_options, pick_recommended_option
-from backend.app.agents.plan_executor import PlanExecutor, should_use_plan_executor
+from backend.app.agents.plan_executor import PlanExecutor
 from backend.app.agents.plan_normalize import (
     merge_plan_tool_hints,
-    normalize_plan,
     plan_needs_skill,
     primary_retrieve_query,
 )
@@ -522,7 +520,14 @@ class AgentPipeline:
         up the run-wide budget/flags and initial blackboard, then invokes the
         graph and returns the ``PipelineResult`` its terminal node assembled.
         """
-        from backend.app.graph.pipeline_graph import build_pipeline_graph
+        # The graph dependency is warmed before the server accepts traffic. Keep
+        # a threadpool fallback for standalone callers so a cold LangGraph import
+        # cannot freeze the event loop and unrelated requests.
+        from importlib import import_module
+
+        from starlette.concurrency import run_in_threadpool
+
+        graph_module = await run_in_threadpool(import_module, "backend.app.graph.pipeline_graph")
 
         active_budget = budget or current_turn_budget.get()
         if active_budget is None:
@@ -533,7 +538,7 @@ class AgentPipeline:
         if not state.question:
             state.question = question
 
-        graph = build_pipeline_graph(self)
+        graph = graph_module.build_pipeline_graph(self)
         graph_state = {
             "question": question,
             "knowledge_bases": knowledge_bases,

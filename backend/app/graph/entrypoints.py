@@ -21,7 +21,7 @@ __all__ = [
 ]
 
 
-class GraphEntrypoint(str, Enum):
+class GraphEntrypoint(str, Enum):  # noqa: UP042 - preserve existing string representation
     CHAT = "chat"
     STREAM = "stream"
     EVAL = "eval"

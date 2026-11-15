@@ -116,10 +116,6 @@ async def test_pipeline_pauses_before_retrieve_when_branched_and_hitl(monkeypatc
         return options
 
     monkeypatch.setattr(plan_branch_mod, "generate_plan_options", _fake_generate)
-    monkeypatch.setattr(
-        "backend.app.agents.pipeline.generate_plan_options",
-        _fake_generate,
-    )
 
     retrieval = _FakeRetrieval()
     pipeline = AgentPipeline(
@@ -226,10 +222,6 @@ async def test_pipeline_hitl_false_auto_picks_recommended(monkeypatch: pytest.Mo
         return options
 
     monkeypatch.setattr(plan_branch_mod, "generate_plan_options", _fake_generate)
-    monkeypatch.setattr(
-        "backend.app.agents.pipeline.generate_plan_options",
-        _fake_generate,
-    )
 
     retrieval = _FakeRetrieval()
     pipeline = AgentPipeline(

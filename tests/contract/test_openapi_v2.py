@@ -118,6 +118,8 @@ def client(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Any]:
     """A fully assembled app over a temp SQLite database (seeded two-tenant fixture)."""
     tmp_path = tmp_path_factory.mktemp("contract-v2")
     with admin_client(tmp_path) as test_client:
+        from tests.contract.test_runs_api import register_transport_probe
+        register_transport_probe(test_client.app)
         yield test_client
 
 
@@ -338,7 +340,7 @@ def test_runtime_error_bodies_match_problem(contract: dict[str, Any], client: An
     idempotency_key = "contract-openapi-key-0001"
     first = client.post(
         f"{API_PREFIX}/runs",
-        json={"kind": "chat", "payload": {"message": "one"}},
+        json={"kind": "kb_reindex", "payload": {"message": "one"}},
         headers={**admin_headers, "Idempotency-Key": idempotency_key},
     )
     assert first.status_code == 201
@@ -347,7 +349,7 @@ def test_runtime_error_bodies_match_problem(contract: dict[str, Any], client: An
     )
     conflict = client.post(
         f"{API_PREFIX}/runs",
-        json={"kind": "chat", "payload": {"message": "different"}},
+        json={"kind": "kb_reindex", "payload": {"message": "different"}},
         headers={**admin_headers, "Idempotency-Key": idempotency_key},
     )
     assert conflict.status_code == 409

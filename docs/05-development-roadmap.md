@@ -7,7 +7,7 @@
 
 > **现状提示（2026-09-14 追加）**
 >
-> 本文是 v0.1（2026-07-10）的路线图。**Phase 0–1 已完成，企业化改造的 Phase 2（Stage 2 基础阶段）已完成**；后续进度以权威任务清单为准：`specs/001-enterprise-agent-refactor/tasks.md`（当前 **137 / 164** 完成、11 项部分完成、16 项未开始；Phase 3–8 与 Phase 9 的 US5 已落地，Phase 9 US5 证据见 `artifacts/admin/us5/`）。
+> 本文是 v0.1（2026-07-10）的路线图。**Phase 0–1 已完成，企业化改造的 Phase 2（Stage 2 基础阶段）已完成**；后续进度以权威任务清单为准：`specs/001-enterprise-agent-refactor/tasks.md`（2026-11-15 核对：**145 / 164** 完成、19 项部分完成、0 项未开始；Phase 9 US5 历史证据见 `artifacts/admin/us5/`）。本轮 R1–R5 修复与部署边界见 [修复报告](../specs/001-enterprise-agent-refactor/repair-report-2026-11-15.md)。
 >
 > 两者关系：**本文的 Phase 编号与 Stage 2 的 Phase 编号不是同一套**。需要判断「现在做到哪」时，以 `tasks.md` 为唯一权威，本文仅作早期规划的历史记录。
 >

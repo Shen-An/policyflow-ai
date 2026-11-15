@@ -5,6 +5,7 @@ from time import perf_counter
 from typing import Any
 
 from sqlmodel import Session, col, select
+from starlette.concurrency import run_in_threadpool
 
 from backend.app.core.exceptions import ApplicationError
 from backend.app.core.logging import get_request_id
@@ -103,7 +104,7 @@ class ToolRegistry:
             log.latency_ms = int((perf_counter() - started_at) * 1000)
             session.add(log)
             try:
-                session.commit()
+                await run_in_threadpool(session.commit)
             except Exception as persist_exc:
                 session.rollback()
                 raise ApplicationError(
@@ -126,7 +127,7 @@ class ToolRegistry:
             log.latency_ms = int((perf_counter() - started_at) * 1000)
             session.add(log)
             try:
-                session.commit()
+                await run_in_threadpool(session.commit)
             except Exception as persist_exc:
                 session.rollback()
                 raise ApplicationError(
@@ -136,7 +137,7 @@ class ToolRegistry:
         log.latency_ms = int((perf_counter() - started_at) * 1000)
         session.add(log)
         try:
-            session.commit()
+            await run_in_threadpool(session.commit)
         except Exception as exc:
             session.rollback()
             raise ApplicationError(

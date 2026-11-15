@@ -42,7 +42,7 @@ __all__ = [
 SCHEMA_VERSION = "AgentRunState@1"
 
 
-class GraphStatus(str, Enum):
+class GraphStatus(str, Enum):  # noqa: UP042 - preserve existing string representation
     """Lifecycle of a single graph run."""
 
     CREATED = "created"
@@ -72,7 +72,7 @@ _ALLOWED_TRANSITIONS: dict[GraphStatus, frozenset[GraphStatus]] = {
 }
 
 
-class NodeName(str, Enum):
+class NodeName(str, Enum):  # noqa: UP042 - preserve existing string representation
     """The typed nodes of the shared graph.
 
     ``sandbox`` and ``approval_interrupt`` are only reached by the file

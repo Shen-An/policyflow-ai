@@ -30,7 +30,7 @@ from backend.app.graph.side_effects import RecordingSideEffectExecutor, SideEffe
 __all__ = ["ApprovalDecision", "GraphRuntime", "RunHandle", "RunStatus"]
 
 
-class RunStatus(str, Enum):
+class RunStatus(str, Enum):  # noqa: UP042 - preserve existing string representation
     RUNNING = "running"
     WAITING_APPROVAL = "waiting_approval"
     SUCCEEDED = "succeeded"
@@ -38,7 +38,7 @@ class RunStatus(str, Enum):
     FAILED = "failed"
 
 
-class ApprovalDecision(str, Enum):
+class ApprovalDecision(str, Enum):  # noqa: UP042 - preserve existing string representation
     APPROVED = "approved"
     REJECTED = "rejected"
 

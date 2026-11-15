@@ -64,6 +64,7 @@ function deriveApproval(events: RunEvent[]): ApprovalTarget | null {
   if (!a || Object.keys(a).length === 0) return null
   return {
     approvalId: str(a.approvalId),
+    version: typeof a.version === 'number' ? a.version : 1,
     action: str(a.action),
     destination: str(a.destination),
     actionDigest: str(a.actionDigest),
@@ -80,18 +81,19 @@ function deriveApproval(events: RunEvent[]): ApprovalTarget | null {
 }
 
 function deriveSubmission(events: RunEvent[]): Submission | null {
-  const payload = findLastPayload(events, 'run.completed')
+  const payload = findLastPayload(events, 'run.succeeded') ?? findLastPayload(events, 'run.completed')
   const s = payload ? record(payload.submission) : null
   if (!s || Object.keys(s).length === 0) return null
   return {
     submissionId: str(s.submissionId),
     receipt: str(s.receipt),
     destination: str(s.destination),
+    status: str(s.status),
   }
 }
 
 function deriveRejected(events: RunEvent[]): boolean {
-  const completed = findLastPayload(events, 'run.completed')
+  const completed = findLastPayload(events, 'run.cancelled') ?? findLastPayload(events, 'run.completed')
   if (completed && completed.rejected === true) return true
   const decided = findLastPayload(events, 'approval.decided')
   return Boolean(decided && str(decided.decision) === 'rejected')
@@ -119,13 +121,18 @@ export function WorkflowProvider({ children }: PropsWithChildren) {
   const approval = useMemo(() => deriveApproval(run.events), [run.events])
   const submission = useMemo(() => deriveSubmission(run.events), [run.events])
   const rejected = useMemo(() => deriveRejected(run.events), [run.events])
-  const failure = useMemo(() => deriveFailure(run.events), [run.events])
+  const failure = useMemo(() => deriveFailure(run.events) ?? (run.error ? {
+    code: 'CONNECTION_ERROR', message: run.error,
+  } : null), [run.events, run.error])
 
   const startWorkflow = useCallback(
-    async (scenario?: string): Promise<string | null> => {
+    async (materialVersionIds: string[], question?: string): Promise<string | null> => {
       setDecisionError(null)
       setDeciding(false)
-      return run.start({ kind: 'file_workflow', input: scenario ? { scenario } : {} })
+      return run.start({ kind: 'file_workflow', input: {
+        material_version_ids: materialVersionIds,
+        ...(question ? { question } : {}),
+      } })
     },
     [run],
   )
@@ -141,6 +148,7 @@ export function WorkflowProvider({ children }: PropsWithChildren) {
           approvalId: approval.approvalId,
           decision,
           actionDigest: approval.actionDigest,
+          expectedVersion: approval.version,
         })
         // On success the terminal events (approval.decided + run.completed) arrive on the
         // open stream and drive the result UI.

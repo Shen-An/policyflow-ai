@@ -126,6 +126,8 @@ def client(tmp_path: Path) -> Iterator[TestClient]:
         _env_file=None,
     )
     app = create_app(settings)
+    from tests.contract.test_runs_api import register_transport_probe
+    register_transport_probe(app)
     with TestClient(app) as test_client:
         test_client.app = app  # expose for admission injection
         yield test_client

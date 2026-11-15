@@ -418,7 +418,8 @@ class MemoryAgent:
                 await uow.commit()
         # The rolling summary lives on the conversations table, so it stays on the
         # request's synchronous session.
-        update_conversation_summary(session, conversation, new_summary)
+        from starlette.concurrency import run_in_threadpool
+        await run_in_threadpool(update_conversation_summary, session, conversation, new_summary)
 
     @staticmethod
     def _ttl_expiry(days: int) -> datetime | None:

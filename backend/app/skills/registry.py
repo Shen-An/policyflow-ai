@@ -4,11 +4,13 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 from sqlmodel import Session, select
+from starlette.concurrency import run_in_threadpool
 
 from backend.app.core.exceptions import ApplicationError
 from backend.app.core.logging import get_request_id
 from backend.app.core.redaction import redact_sensitive
 from backend.app.db.models import Skill, User, utc_now
+from backend.app.rag.protocols import LLMService
 from backend.app.schemas.skill import (
     PolicyCompareInput,
     ProcessChecklistInput,
@@ -18,7 +20,6 @@ from backend.app.schemas.skill import (
     SummaryInput,
 )
 from backend.app.services.audit_service import record_audit
-from backend.app.rag.protocols import LLMService
 from backend.app.skills.base import SkillHandler
 from backend.app.skills.handlers.builtin import (
     PolicyCompareSkill,
@@ -95,7 +96,9 @@ class SkillRegistry:
         payload: dict[str, Any],
         ip_address: str | None = None,
     ) -> SkillRunResponse:
-        skill = session.exec(select(Skill).where(Skill.name == name)).first()
+        skill = await run_in_threadpool(
+            lambda: session.exec(select(Skill).where(Skill.name == name)).first()
+        )
         if skill is None:
             raise ApplicationError("SKILL_NOT_FOUND", "Skill not found", 404)
         if not skill.enabled:
@@ -113,10 +116,8 @@ class SkillRegistry:
                 422,
                 exc.errors(include_context=False, include_input=False),
             ) from exc
-        try:
-            output = await handler.run(validated_payload)
-        except Exception:
-            record_audit(
+        def persist_audit(status: str):
+            audit = record_audit(
                 session,
                 action="skill.run",
                 target_type="skill",
@@ -124,30 +125,23 @@ class SkillRegistry:
                 target_id=skill.id,
                 detail={
                     "name": skill.name,
-                    "status": "failed",
+                    "status": status,
                     "input_summary": redact_sensitive(validated_payload),
                 },
                 ip_address=ip_address,
             )
             session.commit()
+            return audit.id
+
+        try:
+            output = await handler.run(validated_payload)
+        except Exception:
+            await run_in_threadpool(persist_audit, "failed")
             raise
-        audit = record_audit(
-            session,
-            action="skill.run",
-            target_type="skill",
-            actor_id=user.id,
-            target_id=skill.id,
-            detail={
-                "name": skill.name,
-                "status": "success",
-                "input_summary": redact_sensitive(validated_payload),
-            },
-            ip_address=ip_address,
-        )
-        session.commit()
+        audit_id = await run_in_threadpool(persist_audit, "success")
         return SkillRunResponse(
             name=name,
             output=output,
-            audit_id=audit.id,
+            audit_id=audit_id,
             request_id=get_request_id(),
         )

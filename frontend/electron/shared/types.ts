@@ -106,6 +106,7 @@ export type ApprovalDecisionRequest = {
   decision: ApprovalDecision
   /** Digest the reviewer is deciding on; a mismatch must be rejected server-side. */
   actionDigest: string
+  expectedVersion: number
   reason?: string
 }
 

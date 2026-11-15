@@ -1,0 +1,188 @@
+
+ RUN  v4.1.10 E:/Coding/Code/Python/policyflow-ai/frontend
+
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > sends a question, renders evidence, and submits feedback
+`NaN` is an invalid value for the `height` css style property.
+
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > renders a distinct no-evidence state without fake citations
+Warning: [antd: Alert] `message` is deprecated. Please use `title` instead.
+
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+ ❯ src/features/chat/chat-page.test.tsx (6 tests | 2 failed) 3977ms
+     × sends a question, renders evidence, and submits feedback 868ms
+     × renders a distinct no-evidence state without fake citations 647ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/features/chat/chat-page.test.tsx > ChatPage > sends a question, renders evidence, and submits feedback
+TestingLibraryElementError: Unable to find an element with the text: 查看引用（1）. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+<body>
+  <div>
+    <div
+      class="css-dev-only-do-not-override-1pi45l5 ant-app css-var-_r_0_"
+    >
+      <div
+        class="chat-page"
+      >
+        <div
+          class="chat-page__body"
+        >
+          <aside
+            aria-label="历史会话"
+            class="chat-page__history"
+          >
+            <div
+              class="ant-card ant-card-bordered ant-card-small chat-page__history-card css-dev-only-do-not-override-1pi45l5 css-var-_r_0_"
+            >
+              <div
+                class="ant-card-head"
+              >
+                <div
+                  class="ant-card-head-wrapper"
+                >
+                  <div
+                    class="ant-card-head-title"
+                  >
+                    <div
+                      class="ant-space css-dev-only-do-not-override-1pi45l5 ant-space-horizontal ant-space-align-center ant-space-gap-row-small ant-space-gap-col-small css-var-_r_0_"
+                    >
+                      <div
+                        class="ant-space-item"
+                      >
+                        <svg
+                          fill="currentColor"
+                          height="16"
+                          viewBox="0 0 256 256"
+                          width="16"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M216,128a88,88,0,1,1-88-88A88,88,0,0,1,216,128Z"
+                            opacity="0.2"
+                          />
+                          <path
+                            d="M136,80v43.47l36.12,21.67a8,8,0,0,1-8.24,13.72l-40-24A8,8,0,0,1,120,128V80a8,8,0,0,1,16,0Zm-8-48A95.44,95.44,0,0,0,60.08,60.15C52.81,67.51,46.35,74.59,40,82V64a8,8,0,0,0-16,0v40a8,8,0,0,0,8,8H72a8,8,0,0,0,0-16H49c7.15-8.42,14.27-16.35,22.39-24.57a80,80,0,1,1,1.66,114.75,8,8,0,1,0-11,11.64A96,96,0,1,0,128,32Z"
+                          />
+                        </svg>
+                      </div>
+                      <div
+                        class="ant-space-item"
+                      >
+                        历史会话
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="ant-card-extra"
+                  >
+                    <button
+                      class="ant-btn css-dev-only-do-not-override-1pi45l5 css-var-_r_0_ ant-btn-primary ant-btn-color-primary ant-btn-variant-solid ant-btn-sm"
+                      type="button"
+                    >
+                      <span
+                        class="ant-btn-icon"
+                      >
+                        <svg
+                          fill="currentColor"
+                          height="16"
+                          viewBox="0 0 256 256"
+                          width="16"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"
+                          />
+                        </svg>
+                      </span>
+                      <span>
+                        新建
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="ant-card-body"
+                style="padding: 0px;"
+              >
+                <div
+                  class="chat-history"
+                >
+                  <div
+                    class="chat-history__search"
+                  >
+                    <span
+                      class="ant-input-affix-wrapper css-dev-only-do-not-override-1pi45l5 ant-input-outlined css-var-_r_0_ ant-input-css-var"
+                    >
+                      <span
+                        class="ant-input-prefix"
+                      >
+                        <svg
+                          fill="currentColor"
+                          height="16"
+                          viewBox="0 0 256 256"
+                          width="16"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"
+                          />
+                        </svg>
+                      </span>
+                      <input
+                        aria-label="搜索历史会话"
+                        class="ant-input css-dev-only-do-not-override-1pi45l5"
+                        placeholder="搜索标题或最近消息"
+                        type="text"
+                        value=""
+                      />
+                      <span
+                        class="ant-input-suffix"
+                      >
+                        <button
+                          class="ant-input-clear-icon ant-input-clear-icon-hidden"
+                          type="button"
+                        >
+                          <span
+                            aria-label="close-circle"
+                            [...
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/features/chat/chat-page.test.tsx:260:19
+    258|       '差旅申请需要经理审批。',
+    259|     )
+    260|     expect(screen.getByText('查看引用（1）')).toBeVisible()
+       |                   ^
+    261|     const citationSection = screen.getByText('查看引用（1）').closest('detai…
+    262|     expect(citationSection).not.toBeNull()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/features/chat/chat-page.test.tsx > ChatPage > renders a distinct no-evidence state without fake citations
+Error: expect(element).toBeVisible()
+
+Received element is not visible (element is not in the document):
+  <div
+  class="ant-alert-title"
+/>
+ ❯ src/features/chat/chat-page.test.tsx:370:48
+    368|     await user.type(screen.getByLabelText('输入问题'), 'unknown policy')
+    369|     await user.click(screen.getByRole('button', { name: '发送' }))
+    370|     expect(await screen.findByText('未找到可靠依据')).toBeVisible()
+       |                                                ^
+    371|     expect(screen.getByText(/模型参考回答/u)).toBeVisible()
+    372|     expect(screen.getByText(/可信度 0%/u)).toBeVisible()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 4 passed (6)
+   Start at  13:35:05
+   Duration  7.95s (transform 167ms, setup 186ms, import 3.08s, tests 3.98s, environment 597ms)
+

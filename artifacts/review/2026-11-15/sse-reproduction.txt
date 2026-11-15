@@ -1,0 +1,16 @@
+{
+  "native_crlf_event_count": 0,
+  "normalized_lf_events": [
+    {
+      "eventId": "",
+      "runId": "",
+      "sequence": 0,
+      "eventType": "unknown",
+      "stage": null,
+      "status": "unknown",
+      "payload": {},
+      "occurredAt": null
+    }
+  ]
+}
+Confirmed: native SSE frames are dropped; LF normalization alone still loses event/id fields.

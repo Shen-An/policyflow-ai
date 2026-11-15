@@ -18,11 +18,11 @@ from typing import Any
 import anyio
 
 
-class SlowConsumer(RuntimeError):
+class SlowConsumer(RuntimeError):  # noqa: N818 - public condition name
     """The consumer did not drain within the send timeout (backpressure)."""
 
 
-class ChannelClosed(RuntimeError):
+class ChannelClosed(RuntimeError):  # noqa: N818 - public condition name
     """The channel was closed; no further events may be published."""
 
 

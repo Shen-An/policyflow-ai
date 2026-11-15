@@ -46,7 +46,7 @@ export function toRunEvent(raw: unknown): RunEvent {
     sequence: num(record.sequence),
     eventType: strOr(record.event_type ?? record.type, 'unknown'),
     stage: str(record.stage),
-    status: strOr(record.status, 'unknown'),
+    status: strOr(record.status ?? record.public_status, 'unknown'),
     payload: asRecord(record.payload ?? record.data),
     occurredAt: str(record.occurred_at ?? record.created_at),
   }

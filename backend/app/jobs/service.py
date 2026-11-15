@@ -49,7 +49,7 @@ class JobStateError(RuntimeError):
     """A transition was requested from a state (or by an owner) that forbids it."""
 
 
-class JobIdempotencyConflict(RuntimeError):
+class JobIdempotencyConflict(RuntimeError):  # noqa: N818 - public condition name
     """An idempotency key was reused with a different payload digest."""
 
 
@@ -169,7 +169,7 @@ class JobService:
             )
             session.add(job)
             await session.flush()
-            self._emit(session, job, "job.enqueued", job.version)
+            self.emit_enqueued(session, job)
             try:
                 await session.commit()
             except Exception:
@@ -509,8 +509,13 @@ class JobService:
             )
         return new_version
 
+    @classmethod
+    def emit_enqueued(cls, session: AsyncSession, job: DurableJob) -> None:
+        """Add the enqueue outbox row to a caller-owned transaction."""
+        cls._emit(session, job, "job.enqueued", job.version)
+
+    @staticmethod
     def _emit(
-        self,
         session: AsyncSession,
         job: DurableJob,
         event_type: str,

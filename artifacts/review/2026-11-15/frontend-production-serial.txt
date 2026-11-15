@@ -1,0 +1,26 @@
+
+Running 19 tests using 1 worker
+
+(node:36380) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  1 [chromium-production] › e2e\f0-foundation.spec.ts:3:1 › F0 build remains available and Vite proxies the real FastAPI health endpoint (514ms)
+  ok  2 [chromium-production] › e2e\f0-foundation.spec.ts:11:1 › unknown routes expose an accessible not-found state (177ms)
+  ok  3 [chromium-production] › e2e\f1-auth.spec.ts:9:1 › anonymous deep link returns after real admin login, restores, and logs out (1.8s)
+  ok  4 [chromium-production] › e2e\f1-auth.spec.ts:26:1 › invalid credentials show a stable error and keep the form (608ms)
+  ok  5 [chromium-production] › e2e\f1-auth.spec.ts:33:1 › employee is redirected to forbidden for sys_admin route (1.4s)
+  ok  6 [chromium-production] › e2e\f1-auth.spec.ts:40:1 › expired local session is cleared before protected content is shown (975ms)
+  ok  7 [chromium-production] › e2e\f1-auth.spec.ts:59:1 › mobile AppShell drawer is keyboard dismissible (1.4s)
+  ok  8 [chromium-production] › e2e\f2-users.spec.ts:13:1 › sys_admin lists, searches, creates, and updates a user through real APIs (2.1s)
+  ok  9 [chromium-production] › e2e\f3-knowledge-bases.spec.ts:11:1 › admin creates a real knowledge base and indexed document while employee remains read-only (2.9s)
+  ok 10 [chromium-production] › e2e\f4-chat-drafts.spec.ts:3:1 › employee asks with evidence, submits feedback, restores history, and completes a draft (5.1s)
+  ok 11 [chromium-production] › e2e\f5-quality.spec.ts:3:1 › admin reviews FAQ, inspects audit, runs answer evaluation, and debugs retrieval (7.7s)
+  ok 12 [chromium-production] › e2e\f6-admin.spec.ts:3:1 › admin runs Skills, inspects redacted Tool logs, and manages mock MCP integrations (5.1s)
+  ok 13 [chromium-production] › e2e\f6-admin.spec.ts:71:1 › employee cannot open F6 administration routes (1.4s)
+  ok 14 [chromium-production] › e2e\f7-accessibility.spec.ts:11:1 › public and authenticated production routes pass automated accessibility checks (5.8s)
+  ok 15 [chromium-production] › e2e\f8-admin-governance.spec.ts:38:1 › tenant governance page renders from the app shell, keeps its controls reachable and passes accessibility checks (2.8s)
+  ok 16 [chromium-production] › e2e\f8-admin-governance.spec.ts:103:1 › run audit page renders from the app shell, keeps its filters keyboard reachable and passes accessibility checks (2.5s)
+  ok 17 [chromium-production] › e2e\f8-admin-governance.spec.ts:146:1 › reconciliation page renders from the app shell, keeps its filters keyboard reachable and passes accessibility checks (2.5s)
+  ok 18 [chromium-production] › e2e\f8-admin-governance.spec.ts:192:1 › v2 admin endpoints accept the bootstrap sys_admin session (2.7s)
+  ok 19 [chromium-production] › e2e\f8-admin-governance.spec.ts:225:1 › employee cannot open the new administration routes (1.8s)
+
+  19 passed (55.1s)

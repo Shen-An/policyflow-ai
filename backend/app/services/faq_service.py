@@ -127,6 +127,7 @@ def approve_faq(
     document_id = new_id()
     document = KnowledgeDocument(
         id=document_id,
+        tenant_id=user.tenant_id,
         knowledge_base_id=knowledge_base.id,
         title=f"FAQ - {faq.question[:200]}",
         file_path=f"faq/{faq.id}.md",

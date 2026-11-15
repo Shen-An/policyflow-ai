@@ -26,6 +26,7 @@ export type ChangeSet = {
 export type ApprovalFile = { path: string; sha256: string }
 
 export type ApprovalTarget = {
+  version: number
   approvalId: string
   action: string
   destination: string
@@ -36,7 +37,7 @@ export type ApprovalTarget = {
   files: ApprovalFile[]
 }
 
-export type Submission = { submissionId: string; receipt: string; destination: string }
+export type Submission = { submissionId: string; receipt: string; destination: string; status?: string }
 
 export type DecisionError = 'permission' | 'conflict' | 'error' | null
 
@@ -53,7 +54,7 @@ export type WorkflowContextValue = {
   failure: { code: string; message: string } | null
   deciding: boolean
   decisionError: DecisionError
-  startWorkflow: (scenario?: string) => Promise<string | null>
+  startWorkflow: (materialVersionIds: string[], question?: string) => Promise<string | null>
   decide: (decision: 'approve' | 'reject') => Promise<void>
   reset: () => void
 }

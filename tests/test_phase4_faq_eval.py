@@ -329,6 +329,7 @@ def test_eval_cleanup_deletes_stale_and_disables_non_eval_test(tmp_path: Path) -
             tenant = session.exec(select(Tenant)).first()
             tenant_id = tenant.id if tenant else None
             live_doc = KnowledgeDocument(
+                tenant_id=tenant_id,
                 knowledge_base_id=sandbox_id,
                 title="Live gold",
                 file_path=str(tmp_path / "live.txt"),
@@ -339,6 +340,7 @@ def test_eval_cleanup_deletes_stale_and_disables_non_eval_test(tmp_path: Path) -
                 created_by="system",
             )
             deleted_doc = KnowledgeDocument(
+                tenant_id=tenant_id,
                 knowledge_base_id=sandbox_id,
                 title="Deleted gold",
                 file_path=str(tmp_path / "deleted.txt"),
@@ -377,12 +379,14 @@ def test_eval_cleanup_deletes_stale_and_disables_non_eval_test(tmp_path: Path) -
                 relevant_document_ids=[live_doc.id],
             )
             hr_case = EvalCase(
+                tenant_id=tenant_id,
                 question="hr case",
                 category="hr",
                 expected_answer_keywords=["x"],
                 expected_source_documents=[],
             )
             eval_case = EvalCase(
+                tenant_id=tenant_id,
                 question="eval case",
                 category="eval_test",
                 expected_answer_keywords=["y"],

@@ -1,0 +1,31 @@
+backend\app\agents\pipeline.py:14:44: F401 [*] `backend.app.agents.plan_branch.generate_plan_options` imported but unused
+backend\app\agents\pipeline.py:14:67: F401 [*] `backend.app.agents.plan_branch.pick_recommended_option` imported but unused
+backend\app\agents\pipeline.py:15:60: F401 [*] `backend.app.agents.plan_executor.should_use_plan_executor` imported but unused
+backend\app\agents\pipeline.py:18:5: F401 [*] `backend.app.agents.plan_normalize.normalize_plan` imported but unused
+backend\app\api\routes_eval.py:4:1: UP035 [*] Import from `collections.abc` instead: `Sequence`
+backend\app\api\routes_settings.py:3:1: I001 [*] Import block is un-sorted or un-formatted
+backend\app\db\base.py:3:1: I001 [*] Import block is un-sorted or un-formatted
+backend\app\db\repositories.py:36:1: I001 [*] Import block is un-sorted or un-formatted
+backend\app\graph\entrypoints.py:24:7: UP042 Class GraphEntrypoint inherits from both `str` and `enum.Enum`
+backend\app\graph\evidence_gate.py:46:7: UP042 Class EvidenceGateDecision inherits from both `str` and `enum.Enum`
+backend\app\graph\legacy_adapter.py:40:7: UP042 Class AdapterMode inherits from both `str` and `enum.Enum`
+backend\app\graph\nodes.py:41:41: F401 [*] `backend.app.graph.state.ChatTurnState` imported but unused
+backend\app\graph\runtime.py:33:7: UP042 Class RunStatus inherits from both `str` and `enum.Enum`
+backend\app\graph\runtime.py:41:7: UP042 Class ApprovalDecision inherits from both `str` and `enum.Enum`
+backend\app\graph\service.py:32:5: F401 [*] `backend.app.graph.entrypoints.GraphEntrypoint` imported but unused
+backend\app\graph\shadow.py:46:1: UP035 [*] Import from `collections.abc` instead: `Awaitable`, `Callable`
+backend\app\graph\state.py:45:7: UP042 Class GraphStatus inherits from both `str` and `enum.Enum`
+backend\app\graph\state.py:75:7: UP042 Class NodeName inherits from both `str` and `enum.Enum`
+backend\app\jobs\service.py:52:7: N818 Exception name `JobIdempotencyConflict` should be named with an Error suffix
+backend\app\main.py:3:1: I001 [*] Import block is un-sorted or un-formatted
+backend\app\mcp\client.py:64:35: UP037 [*] Remove quotes from type annotation
+backend\app\mcp\manager.py:77:13: F841 Local variable `loop` is assigned to but never used
+backend\app\rag\bm25_retriever.py:52:13: F841 Local variable `match_length` is assigned to but never used
+backend\app\rag\cross_encoder_rerank_service.py:3:1: I001 [*] Import block is un-sorted or un-formatted
+backend\app\services\knowledge_base_service.py:3:1: I001 [*] Import block is un-sorted or un-formatted
+backend\app\services\rag_service.py:3:1: I001 [*] Import block is un-sorted or un-formatted
+backend\app\skills\registry.py:3:1: I001 [*] Import block is un-sorted or un-formatted
+backend\app\sse\channel.py:21:7: N818 Exception name `SlowConsumer` should be named with an Error suffix
+backend\app\sse\channel.py:25:7: N818 Exception name `ChannelClosed` should be named with an Error suffix
+Found 29 errors.
+[*] 17 fixable with the `--fix` option (9 hidden fixes can be enabled with the `--unsafe-fixes` option).

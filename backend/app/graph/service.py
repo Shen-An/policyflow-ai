@@ -29,7 +29,6 @@ from backend.app.graph.checkpoints import (
 )
 from backend.app.graph.entrypoints import (
     ENTRYPOINT_REQUIRED_SCOPE,
-    GraphEntrypoint,
     GraphRequest,
 )
 

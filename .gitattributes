@@ -1,0 +1,5 @@
+# Preserve the backend encoder's CRLF bytes in cross-language SSE fixtures.
+frontend/electron/main/fixtures/*.sse -text whitespace=cr-at-eol,-blank-at-eof
+
+# Keep captured verification output byte-for-byte, including reporter spacing.
+artifacts/review/2026-11-15/*.txt -text whitespace=cr-at-eol,-blank-at-eol,-blank-at-eof

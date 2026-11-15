@@ -74,7 +74,7 @@ class MCPManager:
             return MCPHealthResult("healthy", tools)
 
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
         except RuntimeError:
             return asyncio.run(_run())
         # health() is sync (route is sync); if already in loop, run in a new loop threadlessly.

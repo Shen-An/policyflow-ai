@@ -127,9 +127,23 @@ def client(tmp_path: Path) -> Iterator[TestClient]:
         _env_file=None,
     )
     app = create_app(settings)
+    register_transport_probe(app)
     with TestClient(app) as test_client:
         test_client.app = app  # expose for admission injection
         yield test_client
+
+
+def register_transport_probe(app):
+    """Admission/SSE-only suites use an explicitly registered extension handler.
+
+    It is a transport probe, not evidence of a functioning business executor.
+    """
+    from backend.app.jobs.runner import default_registry
+    registry = default_registry()
+    async def probe(_context, _payload):
+        return None
+    registry.register("kb_reindex", probe)
+    app.state.job_handler_registry = registry
 
 
 def _headers(tenant_id: str, subject: str) -> dict[str, str]:

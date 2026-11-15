@@ -73,6 +73,10 @@ function buildTheme(p: typeof palette | typeof darkPalette, mode: 'light' | 'dar
         paddingLG: 20,
       },
       Button: {
+        colorPrimary: isDark ? p.primary : p.primaryHover,
+        colorPrimaryHover: isDark ? p.primaryHover : p.primaryActive,
+        colorPrimaryActive: isDark ? p.primaryActive : p.primaryDeep,
+        primaryColor: isDark ? p.bgContainer : '#ffffff',
         controlHeight: 36,
         borderRadius: 10,
         primaryShadow: isDark

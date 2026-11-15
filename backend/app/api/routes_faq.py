@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, status
+from starlette.concurrency import run_in_threadpool
 
 from backend.app.api.deps import SessionDep
 from backend.app.core.permissions import require_roles
@@ -62,7 +63,8 @@ async def post_faq_approve(
     session: SessionDep,
 ) -> FAQApproveResponse:
     ip_address = request.client.host if request.client is not None else None
-    response = approve_faq(
+    response = await run_in_threadpool(
+        approve_faq,
         session,
         user,
         faq_id,

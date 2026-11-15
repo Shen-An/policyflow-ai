@@ -103,6 +103,7 @@ export class ApiProxy {
   private readonly backendOrigin: string
   private readonly vault: CredentialVault
   private readonly fetchImpl: typeof fetch
+  private readonly eventCursors = new Map<string, string>()
 
   constructor(options: ApiProxyOptions) {
     this.baseUrl = options.backendBaseUrl.replace(/\/$/u, '')
@@ -197,6 +198,7 @@ export class ApiProxy {
 
   async logout(): Promise<void> {
     this.vault.clear()
+    this.eventCursors.clear()
   }
 
   async currentUser(): Promise<DesktopAuthUser | null> {
@@ -240,6 +242,8 @@ export class ApiProxy {
    */
   async *streamRunEvents(runId: string, signal: AbortSignal): AsyncGenerator<RunEvent> {
     const headers: Record<string, string> = { Accept: 'text/event-stream' }
+    const cursor = this.eventCursors.get(runId)
+    if (cursor) headers['Last-Event-ID'] = cursor
     const token = this.vault.getAccessToken()
     if (token) headers.Authorization = `Bearer ${token}`
 
@@ -265,11 +269,14 @@ export class ApiProxy {
         const { done, value } = await reader.read()
         if (done) break
         buffer += decoder.decode(value, { stream: true })
-        const blocks = buffer.split('\n\n')
+        const blocks = buffer.split(/\r?\n\r?\n/u)
         buffer = blocks.pop() ?? ''
         for (const block of blocks) {
-          const event = this.parseSseBlock(block)
-          if (event) yield event
+          const event = this.parseSseBlock(block, runId)
+          if (event) {
+            if (event.eventId) this.eventCursors.set(runId, event.eventId)
+            yield event
+          }
         }
       }
     } catch (error) {
@@ -283,14 +290,29 @@ export class ApiProxy {
     }
   }
 
-  private parseSseBlock(block: string): RunEvent | null {
+  private parseSseBlock(block: string, runId: string): RunEvent | null {
     const dataLines: string[] = []
-    for (const line of block.split('\n')) {
-      if (line.startsWith('data:')) dataLines.push(line.slice(5).trim())
+    let eventType: string | undefined
+    let eventId: string | undefined
+    for (const line of block.split(/\r?\n/u)) {
+      if (line.startsWith(':')) continue
+      const colon = line.indexOf(':')
+      const field = colon < 0 ? line : line.slice(0, colon)
+      const value = colon < 0 ? '' : line.slice(colon + 1).replace(/^ /u, '')
+      if (field === 'data') dataLines.push(value)
+      if (field === 'event') eventType = value
+      if (field === 'id' && !value.includes('\0')) eventId = value
     }
     if (dataLines.length === 0) return null
     try {
-      return toRunEvent(JSON.parse(dataLines.join('\n')))
+      const data = asRecord(JSON.parse(dataLines.join('\n')))
+      return toRunEvent({
+        ...data,
+        run_id: runId,
+        ...(eventType ? { event_type: eventType } : {}),
+        ...(eventId !== undefined ? { event_id: eventId } : {}),
+        payload: data.payload ?? data.data ?? data,
+      })
     } catch {
       return null
     }
@@ -326,6 +348,7 @@ export class ApiProxy {
     const body = {
       decision: request.decision,
       action_digest: request.actionDigest,
+      expected_version: request.expectedVersion,
       reason: request.reason,
     }
     const path = `/api/v2/runs/${encodeURIComponent(request.runId)}/approvals/${encodeURIComponent(request.approvalId)}`

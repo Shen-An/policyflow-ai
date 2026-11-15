@@ -40,7 +40,7 @@ function toCitations(value: unknown): Citation[] {
 function answerFromEvents(events: RunEvent[]): ChatAnswer | null {
   for (let i = events.length - 1; i >= 0; i -= 1) {
     const event = events[i]
-    if (event.eventType === 'run.completed' || event.eventType === 'run.failed') {
+    if (['run.succeeded', 'run.completed', 'run.failed', 'run.cancelled'].includes(event.eventType)) {
       const p = event.payload ?? {}
       const failed = event.eventType === 'run.failed'
       return {

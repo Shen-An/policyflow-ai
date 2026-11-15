@@ -41,9 +41,10 @@ import hashlib
 import json
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from backend.app.graph.legacy_adapter import AdapterMode, AdapterTelemetryEvent
 from backend.app.graph.state import ChatTurnState, _event_summary

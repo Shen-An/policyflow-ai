@@ -8,7 +8,6 @@ from sqlmodel import Session, select
 
 from backend.app.core.config import Settings
 from backend.app.core.exceptions import ApplicationError, ConflictError
-from backend.app.db.repositories import UnitOfWork
 from backend.app.db.models import (
     Department,
     FAQDraft,
@@ -19,6 +18,7 @@ from backend.app.db.models import (
     User,
     utc_now,
 )
+from backend.app.db.repositories import UnitOfWork
 from backend.app.schemas.knowledge import (
     DepartmentListResponse,
     DepartmentOption,

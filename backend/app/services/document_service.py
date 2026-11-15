@@ -251,7 +251,8 @@ async def upload_document(
             ip_address=ip_address,
         )
         try:
-            session.commit()
+            from starlette.concurrency import run_in_threadpool
+            await run_in_threadpool(session.commit)
         except Exception:
             session.rollback()
             file_path.unlink(missing_ok=True)
@@ -305,6 +306,7 @@ async def upload_document(
 
     document = KnowledgeDocument(
         id=document_id,
+        tenant_id=user.tenant_id,
         knowledge_base_id=knowledge_base.id,
         title=document_title,
         file_path=stored_reference,
@@ -330,7 +332,8 @@ async def upload_document(
         ip_address=ip_address,
     )
     try:
-        session.commit()
+        from starlette.concurrency import run_in_threadpool
+        await run_in_threadpool(session.commit)
     except Exception:
         session.rollback()
         file_path.unlink(missing_ok=True)
@@ -517,19 +520,24 @@ def _purge_document_row(
     document: KnowledgeDocument,
 ) -> None:
     """Physically remove one document row and its dependent rows/files."""
-    from backend.app.db.models import FAQDraft, RagIndexJob, RetrievalEvalItem
+    from backend.app.db.models import FAQDraft, KnowledgeBase, RagIndexJob, RetrievalEvalItem
 
     document_id = document.id
     file_path = document.file_path
 
     jobs = session.exec(
-        select(RagIndexJob).where(RagIndexJob.knowledge_document_id == document_id)
+        select(RagIndexJob).where(
+            RagIndexJob.knowledge_document_id == document_id,
+        )
     ).all()
     for job in jobs:
         session.delete(job)
 
     faq_links = session.exec(
-        select(FAQDraft).where(FAQDraft.source_document_id == document_id)
+        select(FAQDraft).join(KnowledgeBase, FAQDraft.knowledge_base_id == KnowledgeBase.id).where(
+            KnowledgeBase.tenant_id == document.tenant_id,
+            FAQDraft.source_document_id == document_id,
+        )
     ).all()
     for faq in faq_links:
         faq.source_document_id = None
@@ -539,7 +547,9 @@ def _purge_document_row(
     # JSON references in retrieval eval items — scrub document ids.
     # Empty-gold items become unusable (stale); delete them so random-N
     # sampling cannot pick guaranteed misses after document purge.
-    eval_items = session.exec(select(RetrievalEvalItem)).all()
+    eval_items = session.exec(select(RetrievalEvalItem).where(
+        RetrievalEvalItem.tenant_id == document.tenant_id
+    )).all()
     for item in eval_items:
         relevant = list(item.relevant_document_ids or [])
         if document_id not in relevant:

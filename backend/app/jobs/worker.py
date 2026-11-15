@@ -52,14 +52,27 @@ def build_registry():
     return registry
 
 
-def build_app():
+def build_app(settings=None):
     """Build the Celery app + runtime + registered task from the environment."""
-    settings = get_settings()
+    settings = settings or get_settings()
     app = build_celery_app(settings)
+    # Reuse the web application's dependency assembly without starting a web server
+    # or seeding a database. Both entrypoints use the same real RAG/pipeline/tools.
+    from backend.app.main import create_app
+
+    business_app = create_app(settings)
+    event_stream = _build_event_stream(settings)
+    context = JobContext(
+        engine=business_app.state.engine,
+        app_state=business_app.state,
+        lightrag_adapter=business_app.state.lightrag_adapter,
+        event_stream=event_stream,
+    )
     runtime = build_worker_runtime(
         database_url=settings.DATABASE_URL,
         registry=build_registry(),
-        event_stream=_build_event_stream(settings),
+        context=context,
+        event_stream=event_stream,
         worker_id=f"celery-worker:{os.getpid()}",
         lease_seconds=int(os.environ.get("POLICYFLOW_WORKER_LEASE_SECONDS", "15")),
         settings=settings,

@@ -1,7 +1,8 @@
 """Evaluation case, run, and retrieval-debug API routes."""
 
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Annotated, Any, Literal, Sequence
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, status
@@ -152,11 +153,11 @@ def get_retrieval_items(
 )
 def post_eval_cleanup(
     session: SessionDep,
-    _: EvalAdmin,
+    user: EvalAdmin,
     data: EvalCleanupRequest | None = None,
 ) -> EvalCleanupResult:
     """Delete stale gold items, disable non-eval_test items, purge soft-deleted docs."""
-    return cleanup_eval_dataset(session, data)
+    return cleanup_eval_dataset(session, data, tenant_id=user.tenant_id or "")
 
 
 @router.post(

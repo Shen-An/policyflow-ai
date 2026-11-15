@@ -61,7 +61,7 @@ class MCPClient:
     _request_id: int = field(default=0, init=False, repr=False)
     _initialized: bool = field(default=False, init=False, repr=False)
 
-    async def __aenter__(self) -> "MCPClient":
+    async def __aenter__(self) -> MCPClient:
         await self.connect()
         return self
 

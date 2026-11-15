@@ -16,9 +16,10 @@ export type RunPhase =
   | 'reconnecting'
   | 'succeeded'
   | 'failed'
+  | 'cancelled'
   | 'error'
 
-const TERMINAL_EVENT_TYPES = new Set(['run.completed', 'run.failed'])
+const TERMINAL_EVENT_TYPES = new Set(['run.succeeded', 'run.completed', 'run.failed', 'run.cancelled'])
 const TERMINAL_RUN_STATUS = new Set(['succeeded', 'failed', 'terminal_failed', 'cancelled', 'timed_out'])
 const IDLE_RECONNECT_MS = 1500
 const MAX_RECONNECTS = 4
@@ -44,13 +45,11 @@ export function useRunEvents(): UseRunEvents {
 
   const seenRef = useRef<Set<string>>(new Set())
   const terminalRef = useRef(false)
-  const lastStatusRef = useRef<string | null>(null)
   const reconnectsRef = useRef(0)
 
   const resetTracking = () => {
     seenRef.current = new Set()
     terminalRef.current = false
-    lastStatusRef.current = null
     reconnectsRef.current = 0
   }
 
@@ -74,7 +73,6 @@ export function useRunEvents(): UseRunEvents {
       if (cancelled || terminalRef.current) return
       // A run parked on an approval holds its stream open with no events; that silence
       // is expected, not a disconnect.
-      if (lastStatusRef.current === 'waiting_approval') return
       if (reconnectsRef.current >= MAX_RECONNECTS) {
         setPhase('error')
         setError('连接多次中断，仍未收到结果。请稍后重试。')
@@ -83,14 +81,17 @@ export function useRunEvents(): UseRunEvents {
       try {
         const run = await desktopApi.runs.get(runId)
         if (cancelled) return
+        if (run.status === 'waiting_approval') {
+          scheduleIdle()
+          return
+        }
+        reconnectsRef.current = 0
         if (TERMINAL_RUN_STATUS.has(run.status)) {
           // Durable run already finished; re-subscribe once to replay the terminal event.
-          reconnectsRef.current += 1
           setPhase('reconnecting')
           setAttempt((a) => a + 1)
           return
         }
-        reconnectsRef.current += 1
         setPhase('reconnecting')
         setAttempt((a) => a + 1)
       } catch {
@@ -107,12 +108,11 @@ export function useRunEvents(): UseRunEvents {
         return
       }
       if (event.eventId) seenRef.current.add(event.eventId)
-      lastStatusRef.current = event.status
       setEvents((prev) => [...prev, event])
       if (TERMINAL_EVENT_TYPES.has(event.eventType)) {
         terminalRef.current = true
         clearIdle()
-        setPhase(event.eventType === 'run.failed' ? 'failed' : 'succeeded')
+        setPhase(event.eventType === 'run.failed' ? 'failed' : event.eventType === 'run.cancelled' ? 'cancelled' : 'succeeded')
         return
       }
       setPhase('running')

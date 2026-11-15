@@ -170,10 +170,12 @@ def list_retrieval_items(
     ]
 
 
-def _document_status_map(session: Session) -> dict[str, str | None]:
+def _document_status_map(session: Session, *, tenant_id: str) -> dict[str, str | None]:
     return {
         row.id: row.index_status
-        for row in session.exec(select(KnowledgeDocument)).all()
+        for row in session.exec(
+            select(KnowledgeDocument).where(KnowledgeDocument.tenant_id == tenant_id)
+        ).all()
     }
 
 
@@ -194,15 +196,20 @@ def _is_stale_retrieval_item(
 def cleanup_eval_dataset(
     session: Session,
     data: EvalCleanupRequest | None = None,
+    *,
+    tenant_id: str,
 ) -> EvalCleanupResult:
     """Delete stale gold items, disable non-sandbox items, purge soft-deleted docs.
 
     Keeps resume eval sampling on healthy eval_test items only.
     """
+    _require_tenant(tenant_id)
     request = data or EvalCleanupRequest()
-    gold_status = _document_status_map(session)
+    gold_status = _document_status_map(session, tenant_id=tenant_id)
     kb_by_id = {
-        row.id: row for row in session.exec(select(KnowledgeBase)).all()
+        row.id: row for row in session.exec(
+            select(KnowledgeBase).where(KnowledgeBase.tenant_id == tenant_id)
+        ).all()
     }
     sandbox = next(
         (kb for kb in kb_by_id.values() if kb.code == request.knowledge_base_code),
@@ -218,7 +225,8 @@ def cleanup_eval_dataset(
     eval_cases_disabled = 0
     deleted_documents_purged = 0
 
-    items = list(session.exec(select(RetrievalEvalItem)).all())
+    item_scope = select(RetrievalEvalItem).where(RetrievalEvalItem.tenant_id == tenant_id)
+    items = list(session.exec(item_scope).all())
     for item in items:
         if request.delete_stale_items and _is_stale_retrieval_item(item, gold_status):
             session.delete(item)
@@ -238,7 +246,9 @@ def cleanup_eval_dataset(
             non_eval_items_disabled += 1
 
     if request.disable_non_eval_test_items and request.knowledge_base_code:
-        cases = list(session.exec(select(EvalCase)).all())
+        cases = list(session.exec(
+            select(EvalCase).where(EvalCase.tenant_id == tenant_id)
+        ).all())
         for case in cases:
             if case.category in PROTECTED_EVALUATION_KB_CODES:
                 continue
@@ -252,7 +262,10 @@ def cleanup_eval_dataset(
 
         deleted_docs = list(
             session.exec(
-                select(KnowledgeDocument).where(KnowledgeDocument.index_status == "deleted")
+                select(KnowledgeDocument).where(
+                    KnowledgeDocument.tenant_id == tenant_id,
+                    KnowledgeDocument.index_status == "deleted",
+                )
             ).all()
         )
         for document in deleted_docs:
@@ -261,8 +274,8 @@ def cleanup_eval_dataset(
 
     session.commit()
 
-    gold_status = _document_status_map(session)
-    remaining = list(session.exec(select(RetrievalEvalItem)).all())
+    gold_status = _document_status_map(session, tenant_id=tenant_id)
+    remaining = list(session.exec(item_scope).all())
     enabled_items = [item for item in remaining if item.enabled]
     remaining_stale = sum(
         1 for item in enabled_items if _is_stale_retrieval_item(item, gold_status)

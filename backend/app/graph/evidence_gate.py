@@ -43,7 +43,7 @@ RELEVANCE_THRESHOLD = 0.5
 _POLICY_SOURCE_TYPES = frozenset({"knowledge_base"})
 
 
-class EvidenceGateDecision(str, Enum):
+class EvidenceGateDecision(str, Enum):  # noqa: UP042 - preserve existing string representation
     SUPPORTED = "supported"
     INSUFFICIENT_EVIDENCE = "insufficient_evidence"
 

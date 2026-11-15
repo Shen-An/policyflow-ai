@@ -1,0 +1,80 @@
+
+> policyflow-ai-frontend@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.10 E:/Coding/Code/Python/policyflow-ai/frontend
+
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+stderr | src/features/chat/chat-page.test.tsx > ChatPage > renders a distinct no-evidence state without fake citations
+Warning: [antd: Alert] `message` is deprecated. Please use `title` instead.
+
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+ ❯ src/features/chat/chat-page.test.tsx (6 tests | 1 failed) 7824ms
+     × renders a distinct no-evidence state without fake citations 923ms
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+Not implemented: Window's getComputedStyle() method: with pseudo-elements
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/features/chat/chat-page.test.tsx > ChatPage > renders a distinct no-evidence state without fake citations
+Error: expect(element).toBeVisible()
+
+Received element is not visible (element is not in the document):
+  <div
+  class="ant-alert-title"
+/>
+ ❯ src/features/chat/chat-page.test.tsx:370:48
+    368|     await user.type(screen.getByLabelText('输入问题'), 'unknown policy')
+    369|     await user.click(screen.getByRole('button', { name: '发送' }))
+    370|     expect(await screen.findByText('未找到可靠依据')).toBeVisible()
+       |                                                ^
+    371|     expect(screen.getByText(/模型参考回答/u)).toBeVisible()
+    372|     expect(screen.getByText(/可信度 0%/u)).toBeVisible()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 47 passed (48)
+      Tests  1 failed | 161 passed (162)
+   Start at  13:33:17
+   Duration  30.36s (transform 4.24s, setup 28.77s, import 199.62s, tests 88.60s, environment 103.26s)
+

@@ -38,7 +38,6 @@ from backend.app.graph.evidence_gate import (
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, avoids a runtime cycle
     from backend.app.agents.pipeline import AgentPipeline
-    from backend.app.graph.state import ChatTurnState
 
 __all__ = [
     "GraphNodeError",

@@ -9,8 +9,10 @@ from backend.app.core.exceptions import ApplicationError
 from backend.app.core.logging import get_request_id
 from backend.app.core.permissions import require_roles
 from backend.app.db.models import User
-from backend.app.rag.cross_encoder_rerank_service import DEFAULT_NVIDIA_RERANKER_MODELS, NvidiaCrossEncoderRerankService
-from backend.app.schemas.retrieval import Evidence
+from backend.app.rag.cross_encoder_rerank_service import (
+    DEFAULT_NVIDIA_RERANKER_MODELS,
+    NvidiaCrossEncoderRerankService,
+)
 from backend.app.schemas.model_settings import (
     ModelCapabilityResult,
     ModelCatalogResponse,
@@ -19,6 +21,7 @@ from backend.app.schemas.model_settings import (
     ModelProviderSettingsResponse,
     ModelProviderTestResponse,
 )
+from backend.app.schemas.retrieval import Evidence
 from backend.app.services.embedding_service import OpenAICompatibleEmbeddingService
 from backend.app.services.llm_service import OpenAICompatibleLLMService
 from backend.app.services.model_settings_service import (

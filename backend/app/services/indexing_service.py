@@ -18,6 +18,7 @@ count, never changes behaviour.
 from sqlalchemy import Update, update
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, col, select
+from starlette.concurrency import run_in_threadpool
 
 from backend.app.core.exceptions import ApplicationError
 from backend.app.db.models import KnowledgeBase, KnowledgeDocument, RagIndexJob, utc_now
@@ -116,14 +117,14 @@ async def process_document_index(
         knowledge_base = session.get(KnowledgeBase, document.knowledge_base_id)
         if knowledge_base is None:
             return
-        job_id = claim_pending_index_job(session, document.id)
+        job_id = await run_in_threadpool(claim_pending_index_job, session, document.id)
         if job_id is None:
             return
 
         document.index_status = "indexing"
         document.updated_at = utc_now()
         session.add(document)
-        session.commit()
+        await run_in_threadpool(session.commit)
         session.refresh(document)
         session.refresh(knowledge_base)
         detached_document = KnowledgeDocument.model_validate(document.model_dump())
@@ -159,7 +160,7 @@ async def process_document_index(
                 failed_job.error_message = str(exc)
                 failed_job.finished_at = utc_now()
                 session.add(failed_job)
-            session.commit()
+            await run_in_threadpool(session.commit)
         return
 
     with Session(engine) as session:
@@ -174,4 +175,4 @@ async def process_document_index(
             completed_job.status = "success"
             completed_job.finished_at = utc_now()
             session.add(completed_job)
-        session.commit()
+        await run_in_threadpool(session.commit)

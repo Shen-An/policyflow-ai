@@ -27,8 +27,9 @@ runs, never serialized into the row.
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from backend.app.jobs.service import JobService, JobStateError
@@ -74,10 +75,28 @@ class JobContext:
     #: lifecycle events (started/succeeded/failed/cancelled) so connected SSE
     #: clients see the run advance live. None on a broker-free dev drain.
     event_stream: Any | None = None
+    tenant_id: str = ""
+    run_id: str = ""
+    job_id: str = ""
+
+
+class JobDependencyError(RuntimeError):
+    """A required business dependency is absent; never report a successful no-op."""
+
+
+class JobDomainError(RuntimeError):
+    """The domain operation failed terminally or its input is no longer valid."""
+
+
+@dataclass(frozen=True)
+class BusinessJobResult:
+    result_ref: str
+    # Business handlers own their durable lifecycle, including approval pauses.
+    # Completing a preparation job does not complete the logical business run.
 
 
 #: A handler runs one durable job and returns an optional ``result_ref``.
-JobHandler = Callable[[JobContext, dict[str, Any]], Awaitable[str | None]]
+JobHandler = Callable[[JobContext, dict[str, Any]], Awaitable[str | BusinessJobResult | None]]
 
 
 class JobHandlerRegistry:
@@ -98,18 +117,28 @@ async def _handle_document_index(ctx: JobContext, payload: dict[str, Any]) -> st
 
     ``process_document_index`` owns the domain idempotency (it claims the pending
     ``RagIndexJob`` by document id) and records index success/failure on the
-    document row. The durable job therefore tracks "the index attempt ran"; a
-    domain-level index failure stays on the document row, matching the legacy
-    BackgroundTask semantics. Returning without an adapter is an honest no-op --
-    there is nothing to index into.
+    document row. The durable job only succeeds when that row is indexed;
+    missing dependencies and domain failures are terminal job failures.
     """
     indexer = ctx.lightrag_adapter
     if indexer is None:
-        return None
+        raise JobDependencyError("document_index requires a LightRAG adapter")
     # Imported lazily to keep this module free of the service/model import graph.
+    from sqlmodel import Session
+
+    from backend.app.db.models import KnowledgeDocument
     from backend.app.services.indexing_service import process_document_index
 
-    await process_document_index(ctx.engine, indexer, payload["document_id"])
+    document_id = payload["document_id"]
+    with Session(ctx.engine) as session:
+        document = session.get(KnowledgeDocument, document_id)
+        if document is None or document.tenant_id != ctx.tenant_id:
+            raise JobDomainError("document does not belong to this job's tenant")
+    await process_document_index(ctx.engine, indexer, document_id)
+    with Session(ctx.engine) as session:
+        document = session.get(KnowledgeDocument, document_id)
+        if document is None or document.index_status != "indexed":
+            raise JobDomainError("document indexing did not succeed")
     return None
 
 
@@ -118,24 +147,27 @@ async def _handle_eval_run(ctx: JobContext, payload: dict[str, Any]) -> str | No
 
     The durable payload carries only JSON ids and the serialized ``EvalRunCreate``
     request; the RAG service, agent pipeline and optional graph route adapter are
-    resolved from ``ctx.app_state`` at execution time (never serialized). Like the
-    document-index handler this mirrors the legacy BackgroundTask semantics:
-    ``execute_eval_run`` / ``run_eval`` own the domain outcome and record
-    success/failure onto the ``EvalRun`` row without re-raising, so the durable job
-    tracks "the eval attempt ran" and never retries a run on a domain failure.
-    Returning without ``app_state`` is an honest no-op -- the live services the run
-    needs are not resolvable.
+    resolved from ``ctx.app_state`` at execution time (never serialized). The
+    handler verifies the persisted domain outcome before completing the job.
     """
     app_state = ctx.app_state
     if app_state is None:
-        return None
+        raise JobDependencyError("eval_run requires application business services")
     # Imported lazily to keep this module free of the service/schema import graph.
     from backend.app.schemas.eval import EvalRunCreate
     from backend.app.services.eval_service import execute_eval_run
 
     data = EvalRunCreate.model_validate(payload["data"])
     run_id = payload["run_id"]
-    tenant_id = payload.get("tenant_id", "")
+    tenant_id = ctx.tenant_id
+    from sqlmodel import Session
+
+    from backend.app.db.models import EvalRun
+
+    with Session(ctx.engine) as session:
+        row = session.get(EvalRun, run_id)
+        if row is None or row.tenant_id != tenant_id:
+            raise JobDomainError("evaluation does not belong to this job's tenant")
     rag_service = app_state.rag_service
     pipeline = app_state.agent_pipeline
     settings = app_state.settings
@@ -151,6 +183,10 @@ async def _handle_eval_run(ctx: JobContext, payload: dict[str, Any]) -> str | No
         )
     else:
         await execute_eval_run(ctx.engine, rag_service, pipeline, run_id, data)
+    with Session(ctx.engine) as session:
+        row = session.get(EvalRun, run_id)
+        if row is None or row.status not in {"success", "skipped"}:
+            raise JobDomainError("evaluation did not succeed")
     return None
 
 
@@ -159,10 +195,11 @@ def default_registry() -> JobHandlerRegistry:
     registry = JobHandlerRegistry()
     registry.register(DOCUMENT_INDEX_KIND, _handle_document_index)
     registry.register(EVAL_RUN_KIND, _handle_eval_run)
+    from backend.app.jobs.business import handle_chat, handle_file_resume, handle_file_workflow
+    registry.register("chat", handle_chat)
+    registry.register("file_workflow", handle_file_workflow)
+    registry.register("file_workflow_resume", handle_file_resume)
     return registry
-
-
-_DEFAULT_REGISTRY = default_registry()
 
 
 class LocalJobRunner:
@@ -181,7 +218,7 @@ class LocalJobRunner:
         lanes: Sequence[str] | None = None,
     ) -> None:
         self._service = service
-        self._registry = registry or _DEFAULT_REGISTRY
+        self._registry = registry or default_registry()
         self._context = context
         self._worker_id = worker_id
         self._lease_seconds = lease_seconds
@@ -226,34 +263,45 @@ class LocalJobRunner:
             # that will only expire and re-queue into the same dead end.
             await self._safe_fail(job_id, "NO_HANDLER", recoverable=False, run_id=run_id)
             return
+        job = await self._service.get(job_id)
+        context = replace(self._context, tenant_id=job.tenant_id, run_id=run_id, job_id=job_id)
         try:
             await self._service.start(job_id=job_id, worker_id=self._worker_id)
-            await self._publish_lifecycle(run_id, RUN_STARTED, {"job_id": job_id})
+            await self._publish_lifecycle(run_id, RUN_STARTED, {"job_id": job_id}, tenant_id=context.tenant_id)
             if self._cancel_poll_seconds is not None:
                 result_ref, cancelled = await self._run_with_cancellation(
-                    job_id, handler, payload
+                    job_id, handler, payload, context
                 )
                 if cancelled:
                     await self._safe_finalize_cancel(job_id)
-                    await self._publish_lifecycle(run_id, RUN_CANCELLED, {})
+                    await self._publish_lifecycle(run_id, RUN_CANCELLED, {}, tenant_id=context.tenant_id)
                     return
             else:
-                result_ref = await handler(self._context, payload)
+                result_ref = await handler(context, payload)
+        except JobDependencyError:
+            await self._safe_fail(job_id, "MISSING_DEPENDENCY", recoverable=False, run_id=run_id)
+            return
+        except (JobDomainError, ValueError, PermissionError):
+            await self._safe_fail(job_id, "DOMAIN_FAILED", recoverable=False, run_id=run_id)
+            return
         except Exception as exc:  # handler (or start) failure -> recoverable retry
+            logging.getLogger(__name__).exception("Durable handler failed: kind=%s job_id=%s", kind, job_id)
             await self._safe_fail(job_id, type(exc).__name__, recoverable=True, run_id=run_id)
             return
         try:
             await self._service.complete(
-                job_id=job_id, worker_id=self._worker_id, result_ref=result_ref
+                job_id=job_id, worker_id=self._worker_id,
+                result_ref=result_ref.result_ref if isinstance(result_ref, BusinessJobResult) else result_ref,
             )
         except JobStateError:
             # Lost the lease (e.g. reaped) between running and completing; the
             # authoritative row already moved on. Nothing to force here.
             return
-        await self._publish_lifecycle(run_id, RUN_SUCCEEDED, {})
+        if not isinstance(result_ref, BusinessJobResult):
+            await self._publish_lifecycle(run_id, RUN_SUCCEEDED, {}, tenant_id=context.tenant_id)
 
     async def _publish_lifecycle(
-        self, run_id: str, event_type: str, data: dict[str, Any]
+        self, run_id: str, event_type: str, data: dict[str, Any], *, tenant_id: str
     ) -> None:
         """Best-effort publish of a run lifecycle event to the run's event stream.
 
@@ -261,6 +309,24 @@ class LocalJobRunner:
         swallowed: the SSE stream is an observability channel, so it must never
         fail the job it is describing -- the durable row stays the authority.
         """
+        state = self._context.app_state
+        if state is not None and callable(getattr(state, "uow_factory", None)):
+            from sqlalchemy import select
+
+            from backend.app.db.models import AgentRun
+            from backend.app.jobs.business import event, save
+            async with state.uow_factory() as uow:
+                await uow.set_tenant_context(tenant_id)
+                row = await uow.session.scalar(select(AgentRun).where(
+                    AgentRun.tenant_id == tenant_id, AgentRun.run_id == run_id))
+            if row is not None:
+                ctx = replace(self._context, tenant_id=row.tenant_id, run_id=run_id)
+                terminal = {RUN_FAILED: "terminal_failed", RUN_CANCELLED: "cancelled"}.get(event_type)
+                if terminal and row.status not in {"succeeded", "cancelled", "terminal_failed"}:
+                    await save(ctx, status=terminal, snapshot={**row.result_snapshot, **data},
+                               milestones=[(event_type, data)])
+                elif not terminal:
+                    await event(ctx, event_type, data, "running")
         stream = getattr(self._context, "event_stream", None)
         if stream is None:
             return
@@ -270,8 +336,8 @@ class LocalJobRunner:
             pass
 
     async def _run_with_cancellation(
-        self, job_id: str, handler: JobHandler, payload: dict[str, Any]
-    ) -> tuple[str | None, bool]:
+        self, job_id: str, handler: JobHandler, payload: dict[str, Any], context: JobContext
+    ) -> tuple[str | BusinessJobResult | None, bool]:
         """Run ``handler`` while polling for a cooperative cancel request.
 
         Returns ``(result_ref, cancelled)``. The handler runs as a task; every
@@ -282,7 +348,7 @@ class LocalJobRunner:
         requested cancel and then fail to ``complete`` out of ``cancel_requested``).
         A genuine handler exception propagates to the caller's failure path.
         """
-        handler_task = asyncio.ensure_future(handler(self._context, payload))
+        handler_task = asyncio.ensure_future(handler(context, payload))
         while True:
             done, _ = await asyncio.wait(
                 {handler_task}, timeout=self._cancel_poll_seconds
@@ -323,7 +389,7 @@ class LocalJobRunner:
         # Only a terminal failure ends the run; a recoverable re-queue is not
         # terminal, so the live tail must stay open for the retry.
         if job.state == "terminal_failed":
-            await self._publish_lifecycle(run_id, RUN_FAILED, {"error_code": error_code})
+            await self._publish_lifecycle(run_id, RUN_FAILED, {"error_code": error_code}, tenant_id=job.tenant_id)
 
 
 def _resolve_job_service(app: Any) -> JobService:
@@ -345,14 +411,19 @@ def _resolve_runner(app: Any, service: JobService) -> LocalJobRunner:
     override = getattr(app.state, "job_runner", None)
     if override is not None:
         return override
-    registry = getattr(app.state, "job_handler_registry", None) or _DEFAULT_REGISTRY
+    registry = getattr(app.state, "job_handler_registry", None) or default_registry()
     context = JobContext(
         engine=app.state.engine,
         lightrag_adapter=getattr(app.state, "lightrag_adapter", None),
         app_state=app.state,
         event_stream=getattr(app.state, "run_event_stream", None),
     )
-    return LocalJobRunner(service=service, context=context, registry=registry)
+    return LocalJobRunner(service=service, context=context, registry=registry, cancel_poll_seconds=0.25)
+
+
+def _nudge_local(app: Any, service: JobService, background_tasks: Any) -> None:
+    if not getattr(getattr(app.state, "settings", None), "CELERY_BROKER_URL", None):
+        background_tasks.add_task(_resolve_runner(app, service).drain_once)
 
 
 async def submit_document_index(
@@ -379,8 +450,7 @@ async def submit_document_index(
         payload={"document_id": document_id},
         idempotency_key=idempotency_key,
     )
-    runner = _resolve_runner(app, service)
-    background_tasks.add_task(runner.drain_once)
+    _nudge_local(app, service, background_tasks)
 
 
 async def submit_document_index_batch(
@@ -409,8 +479,7 @@ async def submit_document_index_batch(
         )
         enqueued += 1
     if enqueued:
-        runner = _resolve_runner(app, service)
-        background_tasks.add_task(runner.drain_once)
+        _nudge_local(app, service, background_tasks)
     return enqueued
 
 
@@ -442,5 +511,4 @@ async def submit_eval_run(
         },
         idempotency_key=str(run_id),
     )
-    runner = _resolve_runner(app, service)
-    background_tasks.add_task(runner.drain_once)
+    _nudge_local(app, service, background_tasks)

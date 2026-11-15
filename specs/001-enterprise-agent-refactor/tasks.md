@@ -1084,3 +1084,12 @@ Phase 2 status: T033/T034/T036 complete; **T035 部分完成**（`memory_service
 - **方法学教训（值得保留）**：只比事件名会掩盖真实差异。裸名字层两边都以 `"stage"` 开头，LCS 只报「少一个 `diagnostics_partial`」；把 stage 打成 `stage:<stage>:<status>` 标签后才看出是整体错位。所以 `_event_label()` 现在参与 `first_divergence` / `edit_script` / `events_match`，`event_sequence` 同时保留标签（`authoritative`/`shadow`）与裸名（`authoritative_names`/`shadow_names`/`match_names`）。裸 `{"event":"stage"}` 缺元数据时降级为 `"stage"`，避免把「没元数据」误判成分歧（`tests/contract/test_graph_shadow_event_labels.py` 4 用例钉住）。
 - **切流量还差三件事**：①事件顺序对齐或把「stage 与 diagnostics 交错顺序」写成有 SSE 契约测试支撑的可忽略项；②在**真开 skill**（`execute_skills=True`）的路径上重取一轮记录，而不是继续用降级影子比对 confidence；③规模——现在一次跑只有 1 份真实 chat 记录，切片 2 的最低证据量应是多问句 × 多入口的一批。
 - 验证：`GRAPH_SHADOW_MODE=1` 与 `=0` 各跑 4 个文件（shadow_mode / event_labels / parity_classification / route_adapter_live）→ **13 passed / 13 passed**。运行期记录 `artifacts/graph/shadow/*.json` 不提交（时间戳与 uuid 每次都变），入库的是汇总 `artifacts/acceptance/shadow-parity-summary.txt` 与上文判定文档。
+
+## 2026-11-15 当前状态与上轮审查修复
+
+当前任务标记：164 项，145 `[X]`、19 `[~]`、0 `[ ]`。本节是历史追加记录的最新入口，具体修复、原始检查和未完成边界见 [repair-report-2026-11-15.md](repair-report-2026-11-15.md)。
+
+- R1：认证租户限定评估清理、统计和文档依赖清理，双租户行/文件/JSON 保留回归通过。
+- R2/R3：桌面 chat/file_workflow 注册真实 handler；CLI worker 带应用业务依赖，缺依赖及领域失败不会标成功；审批决定与恢复任务原子提交，暂停期间不占 preparation job 租约。
+- R4/R5：Electron 解析实际 backend SSE fixture，携带游标与审批版本；首答历史加载竞态、冷 LangGraph 加载和 SQLite 同步写入阻塞修复。后端 981 passed / 197 skipped；前端 167 passed，静态检查与默认生产并行 E2E 通过。
+- T035/T053/T069/T070/T121/T137/T154 等仍保留现有部分完成状态：生产服务迁移、持久图收敛、企业容量、生产沙箱、材料选择器、Electron GUI/签名与依赖环境验收尚有工作。本轮没有把本地接线测试解释为这些任务全部完成。

@@ -327,6 +327,8 @@ def client(tmp_path: Path, redis_prefix: str) -> Iterator[TestClient]:
         _env_file=None,
     )
     app = create_app(settings)
+    from tests.contract.test_runs_api import register_transport_probe
+    register_transport_probe(app)
     # Inject a RunEventStream over the real Redis under a unique prefix so the
     # endpoint reads the exact stream this test publishes to (no faking).
     app.state.run_event_stream = RunEventStream(

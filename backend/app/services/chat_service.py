@@ -574,6 +574,8 @@ async def iter_chat_events(
     """
     import asyncio
 
+    from starlette.concurrency import run_in_threadpool
+
     from backend.app.tools.chat_tools import ChatToolExecutor
 
     settings = get_settings()
@@ -608,7 +610,7 @@ async def iter_chat_events(
         conversation.updated_at = utc_now()
         session.add(conversation)
         try:
-            session.commit()
+            await run_in_threadpool(session.commit)
         except Exception as exc:
             session.rollback()
             raise ApplicationError("CHAT_PERSIST_FAILED", "保存会话结果失败", 500) from exc
@@ -696,14 +698,15 @@ async def iter_chat_events(
         # ---------- Request A: new question ----------
         if not question:
             raise ApplicationError("VALIDATION_ERROR", "question is required", 400)
-        conversation = _conversation(session, user, data.conversation_id, question)
-        user_message = Message(
-            conversation_id=conversation.id,
-            role="user",
-            content=question,
-        )
-        session.add(user_message)
-        session.flush()
+        def persist_user_turn():
+            conversation = _conversation(session, user, data.conversation_id, question)
+            user_message = Message(conversation_id=conversation.id, role="user", content=question)
+            session.add(user_message)
+            # L0 records the submitted question before model work starts. Do not
+            # hold a SQLite writer over retrieval or async memory writeback.
+            session.commit()
+            return conversation, user_message
+        conversation, user_message = await run_in_threadpool(persist_user_turn)
         kb_ids = list(data.knowledge_base_ids or [])
         snap = {}
 
@@ -958,7 +961,7 @@ async def iter_chat_events(
         session.add(assistant_message)
         conversation.updated_at = utc_now()
         session.add(conversation)
-        session.commit()
+        await run_in_threadpool(session.commit)
         session.refresh(assistant_message)
 
         response = ChatResponse(
@@ -1033,7 +1036,7 @@ async def iter_chat_events(
     session.add(query_log)
     session.add(conversation)
     try:
-        session.commit()
+        await run_in_threadpool(session.commit)
     except Exception as exc:
         session.rollback()
         raise ApplicationError("CHAT_PERSIST_FAILED", "保存会话结果失败", 500) from exc

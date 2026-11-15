@@ -1,0 +1,201 @@
+........................................................................ [  6%]
+........................................................................ [ 12%]
+........................................................................ [ 18%]
+........................................................................ [ 24%]
+..............................................................ssssssssss [ 30%]
+ssssss.sssssss.......................................................... [ 36%]
+........................................................................ [ 42%]
+.................................................ssss.ssss.............. [ 48%]
+s...............ss.s........sssssssssss...ssssssssssssss.sssssssssssssss [ 55%]
+ssss.ssssssssssssssssssssssss.sssss...sssssssssssss..................... [ 61%]
+.................ssssssss........sssssssssssssssssssss....ssssssssssssss [ 67%]
+....................ssssssssss.........sssssssssssssss.................. [ 73%]
+...............................ssssssss................................. [ 79%]
+........................................................................ [ 85%]
+........................................................................ [ 91%]
+........................................................................ [ 97%]
+..........................                                               [100%]
+=========================== short test summary info ===========================
+SKIPPED [1] tests\contract\test_materials_api.py:217: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\contract\test_materials_api.py:239: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\contract\test_materials_api.py:253: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [13] tests\contract\test_materials_api.py:291: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\contract\test_materials_api.py:322: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\contract\test_materials_api.py:338: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\contract\test_materials_api.py:353: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\contract\test_materials_api.py:365: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\contract\test_materials_api.py:393: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\contract\test_materials_api.py:414: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\contract\test_materials_api.py:419: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\integration\test_consumer_live.py:145: RabbitMQ is not reachable at amqp://policyflow:policyflow@localhost:5672// (set POLICYFLOW_TEST_BROKER_URL or start the Stage-4 broker)
+SKIPPED [1] tests\integration\test_consumer_live.py:167: RabbitMQ is not reachable at amqp://policyflow:policyflow@localhost:5672// (set POLICYFLOW_TEST_BROKER_URL or start the Stage-4 broker)
+SKIPPED [1] tests\integration\test_consumer_live.py:208: RabbitMQ is not reachable at amqp://policyflow:policyflow@localhost:5672// (set POLICYFLOW_TEST_BROKER_URL or start the Stage-4 broker)
+SKIPPED [1] tests\integration\test_consumer_live.py:236: RabbitMQ is not reachable at amqp://policyflow:policyflow@localhost:5672// (set POLICYFLOW_TEST_BROKER_URL or start the Stage-4 broker)
+SKIPPED [1] tests\integration\test_file_workflow_graph.py:113: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_file_workflow_graph.py:134: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_file_workflow_graph.py:155: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_file_workflow_graph.py:182: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_graph_pg_checkpoint.py:71: no test PostgreSQL reachable for graph checkpoint saver
+SKIPPED [1] tests\integration\test_index_claim.py:92: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_index_claim.py:133: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_job_lease_pg_concurrency.py:70: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_main_readiness.py:179: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_main_readiness.py:191: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_memory_repository.py:91: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_memory_repository.py:102: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_memory_repository.py:116: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_memory_repository.py:138: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_memory_repository.py:165: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_memory_repository.py:188: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_memory_repository.py:203: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_memory_repository.py:271: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_memory_repository.py:313: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_milvus_versions.py:290: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_milvus_versions.py:307: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_milvus_versions.py:348: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_milvus_versions.py:407: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_milvus_versions.py:467: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_milvus_versions.py:488: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_milvus_versions.py:518: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_milvus_versions.py:562: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_milvus_versions.py:589: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_milvus_versions.py:614: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_milvus_versions.py:628: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_milvus_versions.py:641: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_multi_instance.py:139: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_multi_instance.py:205: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_multi_instance.py:278: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_multi_instance.py:66: PostgreSQL unavailable: (psycopg.errors.ConnectionTimeout) connection timeout expired
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+SKIPPED [1] tests\integration\test_multi_instance.py:342: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_object_versions.py:81: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\integration\test_object_versions.py:102: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\integration\test_object_versions.py:145: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\integration\test_object_versions.py:163: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [3] tests\integration\test_object_versions.py:191: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\integration\test_object_versions.py:224: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\integration\test_object_versions.py:245: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\integration\test_object_versions.py:286: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\integration\test_object_versions.py:333: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\integration\test_object_versions.py:382: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\integration\test_object_versions.py:408: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\integration\test_object_versions.py:474: object store is not reachable at http://127.0.0.1:59000 (EndpointConnectionError); start infra/dev/compose.yaml
+SKIPPED [1] tests\integration\test_outbox_transport_amqp.py:46: RabbitMQ is not reachable at amqp://policyflow:policyflow@localhost:5672// (set POLICYFLOW_TEST_BROKER_URL or start the Stage-4 broker)
+SKIPPED [1] tests\integration\test_outbox_transport_amqp.py:60: RabbitMQ is not reachable at amqp://policyflow:policyflow@localhost:5672// (set POLICYFLOW_TEST_BROKER_URL or start the Stage-4 broker)
+SKIPPED [1] tests\integration\test_postgres_migrations.py:187: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_postgres_migrations.py:221: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_postgres_migrations.py:234: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_postgres_migrations.py:242: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_postgres_migrations.py:299: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_postgres_migrations.py:348: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_postgres_migrations.py:385: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_postgres_migrations.py:432: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_quota_ledger_pg.py:92: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_quota_ledger_pg.py:110: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_quota_ledger_pg.py:119: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_quota_ledger_pg.py:135: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_quota_ledger_pg.py:142: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_quota_ledger_pg.py:160: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_quota_ledger_pg.py:173: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_quota_ledger_pg.py:191: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_reimbursement_workflow.py:184: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_reimbursement_workflow.py:207: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_reimbursement_workflow.py:226: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_reimbursement_workflow.py:267: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_reimbursement_workflow.py:280: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_reimbursement_workflow.py:293: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_reimbursement_workflow.py:332: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_relay_wiring.py:39: RabbitMQ is not reachable at amqp://policyflow:policyflow@localhost:5672// (set POLICYFLOW_TEST_BROKER_URL or start the Stage-4 broker)
+SKIPPED [1] tests\integration\test_run_snapshot_pg.py:98: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_run_snapshot_pg.py:113: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_run_snapshot_pg.py:123: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_run_snapshot_pg.py:134: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_run_snapshot_pg.py:148: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_stage4_migration.py:119: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_stage4_migration.py:139: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_stage4_migration.py:168: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_stage4_migration.py:194: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_stage4_migration.py:225: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_v2_dependencies.py:218: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_v2_dependencies.py:231: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_v2_dependencies.py:245: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_v2_dependencies.py:257: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_v2_dependencies.py:271: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_v2_dependencies.py:286: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_v2_dependencies.py:294: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\integration\test_v2_dependencies.py:305: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\migration\test_backfill_materials.py:114: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\migration\test_backfill_materials.py:156: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\migration\test_backfill_materials.py:195: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\migration\test_backfill_materials.py:226: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\migration\test_backfill_materials.py:249: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\migration\test_backfill_materials.py:258: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\migration\test_backfill_materials.py:271: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\migration\test_backfill_materials.py:295: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_cross_store_issues.py:130: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_cross_store_issues.py:151: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_cross_store_issues.py:193: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_cross_store_issues.py:218: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_cross_store_issues.py:244: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_cross_store_issues.py:285: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_cross_store_issues.py:310: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_cross_store_issues.py:345: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_cross_store_issues.py:419: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_cross_store_issues.py:467: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_cross_store_issues.py:509: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_cross_store_issues.py:548: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_physical_delete.py:83: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_physical_delete.py:115: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_physical_delete.py:194: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_physical_delete.py:218: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_physical_delete.py:244: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_physical_delete.py:287: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_physical_delete.py:313: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_physical_delete.py:335: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\reconciliation\test_physical_delete.py:376: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_cross_store_saga.py:98: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_cross_store_saga.py:130: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_cross_store_saga.py:149: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_cross_store_saga.py:178: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_cross_store_saga.py:228: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_cross_store_saga.py:262: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_cross_store_saga.py:281: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_cross_store_saga.py:312: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_cross_store_saga.py:378: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_cross_store_saga.py:418: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_cross_store_saga.py:452: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_cross_store_saga.py:496: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_cross_store_saga.py:515: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_cross_store_saga.py:535: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_submission_idempotency.py:107: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_submission_idempotency.py:131: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_submission_idempotency.py:159: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_submission_idempotency.py:181: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_submission_idempotency.py:197: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_submission_idempotency.py:244: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_submission_idempotency.py:274: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_submission_idempotency.py:291: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_submission_idempotency.py:305: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\recovery\test_submission_idempotency.py:319: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_approval_authorization.py:100: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_approval_authorization.py:114: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_approval_authorization.py:141: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_approval_authorization.py:155: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_approval_authorization.py:168: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [3] tests\security\test_approval_authorization.py:197: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_approval_authorization.py:226: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_approval_authorization.py:247: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_approval_authorization.py:263: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_approval_authorization.py:279: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_approval_authorization.py:307: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_approval_authorization.py:332: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_approval_authorization.py:345: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_tenant_isolation.py:115: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_tenant_isolation.py:140: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_tenant_isolation.py:158: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_tenant_isolation.py:167: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_tenant_isolation.py:179: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_tenant_isolation.py:202: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_tenant_isolation.py:238: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+SKIPPED [1] tests\security\test_tenant_isolation.py:312: PostgreSQL is not reachable for enterprise suites: connection timeout expired
+981 passed, 197 skipped in 307.45s (0:05:07)

@@ -137,7 +137,10 @@ def app(tmp_path: Path):
     # Built without triggering lifespan (ASGITransport): schema is seeded above and
     # telemetry is configured per-test, so the lifespan's configure_telemetry does
     # not clobber the in-memory meter the SSE test reads.
-    return create_app(settings)
+    app = create_app(settings)
+    from tests.contract.test_runs_api import register_transport_probe
+    register_transport_probe(app)
+    return app
 
 
 async def _aclient(app) -> httpx.AsyncClient:
